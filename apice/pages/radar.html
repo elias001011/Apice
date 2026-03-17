@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ápice — Radar 1000</title>
+  <link rel="stylesheet" href="../css/global.css">
+  <script src="../js/theme.js"></script>
+  <style>
+    .radar-hero {
+      background: var(--bg2);
+      border: 1.5px solid var(--border);
+      border-radius: 24px;
+      padding: 1.25rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .radar-icon-wrap {
+      width: 48px;
+      height: 48px;
+      flex-shrink: 0;
+      background: var(--accent-dim);
+      border: 1.5px solid rgba(200, 240, 96, 0.2);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .radar-icon-wrap svg {
+      width: 22px;
+      height: 22px;
+      stroke: var(--accent);
+      fill: none;
+      stroke-width: 1.5;
+    }
+
+    .radar-hero-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+
+    .radar-hero-sub {
+      font-size: 12px;
+      color: var(--text2);
+      line-height: 1.45;
+    }
+
+    .tema-card {
+      background: var(--bg2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+      margin-bottom: 10px;
+      text-decoration: none;
+      display: block;
+      transition: border-color 0.2s, transform 0.25s;
+    }
+
+    .tema-card:hover {
+      border-color: var(--border2);
+      transform: translateY(-2px);
+    }
+
+    .tema-card.hot {
+      border-color: rgba(200, 240, 96, 0.25);
+      background: var(--accent-dim);
+    }
+
+    .tema-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .tema-titulo {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      line-height: 1.4;
+      flex: 1;
+      padding-right: 10px;
+    }
+
+    .probabilidade {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .prob-num {
+      font-family: 'DM Serif Display', serif;
+      font-size: 22px;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .prob-label {
+      font-size: 9px;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-top: 1px;
+    }
+
+    .tema-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 8px;
+    }
+
+    .tema-tag {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3px 9px;
+      font-size: 10px;
+      color: var(--text2);
+    }
+
+    .tema-tag.area-social {
+      background: rgba(110, 181, 255, 0.08);
+      border-color: rgba(110, 181, 255, 0.2);
+      color: var(--blue);
+    }
+
+    .tema-tag.area-ciencia {
+      background: rgba(200, 240, 96, 0.08);
+      border-color: rgba(200, 240, 96, 0.2);
+      color: var(--accent);
+    }
+
+    .tema-tag.area-cultura {
+      background: rgba(255, 184, 77, 0.08);
+      border-color: rgba(255, 184, 77, 0.2);
+      color: var(--amber);
+    }
+
+    .tema-justificativa {
+      font-size: 12px;
+      color: var(--text2);
+      line-height: 1.55;
+    }
+
+    .atualizado {
+      font-size: 11px;
+      color: var(--text3);
+      text-align: center;
+      margin-top: 1rem;
+    }
+
+    .section-label {
+      font-size: 11px;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin: 1.5rem 0 10px;
+    }
+
+    /* ── RADAR INTRO ── */
+    .radar-intro {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 2.5rem 1rem 2rem;
+    }
+
+    .radar-intro-icon {
+      width: 80px;
+      height: 80px;
+      background: var(--accent-dim);
+      border: 1.5px solid rgba(200, 240, 96, 0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      animation: radar-pulse 2.5s ease-in-out infinite;
+    }
+
+    .radar-intro-icon svg {
+      width: 36px;
+      height: 36px;
+      stroke: var(--accent);
+      fill: none;
+      stroke-width: 1.5;
+    }
+
+    @keyframes radar-pulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(200, 240, 96, 0.15);
+      }
+
+      50% {
+        box-shadow: 0 0 0 18px rgba(200, 240, 96, 0);
+      }
+    }
+
+    .radar-intro-text {
+      font-size: 13px;
+      color: var(--text2);
+      line-height: 1.65;
+      max-width: 420px;
+      margin-bottom: 2rem;
+    }
+
+    .radar-intro .btn-primary {
+      width: auto;
+      padding: 13px 32px;
+      gap: 10px;
+    }
+
+    .radar-intro .btn-primary svg {
+      width: 18px;
+      height: 18px;
+      stroke: #0f0f0f;
+      fill: none;
+      stroke-width: 1.8;
+    }
+
+    /* ── LOADING ── */
+    .radar-loading {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 3rem 1rem;
+    }
+
+    .radar-loading.show {
+      display: flex;
+    }
+
+    .radar-spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid var(--bg3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 1.25rem;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .radar-loading-text {
+      font-size: 13px;
+      color: var(--text2);
+    }
+
+    /* ── RESULTS ── */
+    #radar-results {
+      display: none;
+    }
+
+    #radar-results.show {
+      display: block;
+    }
+
+    #radar-results .tema-card,
+    #radar-results .radar-hero,
+    #radar-results .section-label,
+    #radar-results .atualizado {
+      opacity: 0;
+      transform: translateY(12px);
+      animation: fadeSlideUp 0.4s ease forwards;
+    }
+
+    #radar-results .radar-hero {
+      animation-delay: 0.05s;
+    }
+
+    #radar-results .section-label {
+      animation-delay: 0.1s;
+    }
+
+    #radar-results .tema-card:nth-child(3) {
+      animation-delay: 0.15s;
+    }
+
+    #radar-results .tema-card:nth-child(4) {
+      animation-delay: 0.22s;
+    }
+
+    #radar-results .tema-card:nth-child(5) {
+      animation-delay: 0.29s;
+    }
+
+    #radar-results .tema-card:nth-child(6) {
+      animation-delay: 0.36s;
+    }
+
+    #radar-results .tema-card:nth-child(7) {
+      animation-delay: 0.43s;
+    }
+
+    #radar-results .atualizado {
+      animation-delay: 0.5s;
+    }
+  </style>
+</head>
+
+<body>
+
+  <nav class="nav">
+    <a href="home.html" class="nav-logo">Áp<em>i</em>ce</a>
+    <div class="nav-right">
+      <button class="nav-icon-btn" type="button" aria-label="Alternar tema" title="Alternar tema" data-theme-toggle>
+        <span class="icon-moon"><svg viewBox="0 0 24 24">
+            <path d="M21 12.8A8.5 8.5 0 1111.2 3a6.5 6.5 0 009.8 9.8z" />
+          </svg></span>
+        <span class="icon-sun"><svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="4" />
+            <path
+              d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+          </svg></span>
+      </button>
+      <a href="perfil.html" class="nav-avatar">MA</a>
+    </div>
+  </nav>
+
+  <main class="main">
+
+    <div class="page-header anim anim-d1">
+      <div class="page-title">Radar 1000</div>
+      <div class="page-sub">Análise dos temas mais prováveis para a redação do ENEM 2025, baseada em padrões históricos
+        e contexto sociopolítico atual.</div>
+    </div>
+
+    <div class="radar-intro anim anim-d2" id="radar-intro">
+      <div class="radar-intro-icon">
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="2" />
+          <path
+            d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49m11.31-2.82a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14" />
+        </svg>
+      </div>
+      <div class="radar-intro-text">
+        O Radar 1000 analisa padrões históricos das provas do ENEM, o contexto sociopolítico atual e tendências do
+        debate público brasileiro para estimar os temas com maior probabilidade de aparecer na redação deste ano.
+      </div>
+      <button class="btn-primary" id="btn-buscar-temas" type="button">
+        <svg viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8" />
+          <path d="M21 21l-4.35-4.35" />
+        </svg>
+        Buscar Temas
+      </button>
+    </div>
+
+    <div class="radar-loading" id="radar-loading">
+      <div class="radar-spinner"></div>
+      <div class="radar-loading-text">Analisando padrões e tendências…</div>
+    </div>
+
+    <div id="radar-results">
+      <div class="radar-hero">
+        <div class="radar-icon-wrap">
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="2" />
+            <path
+              d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49m11.31-2.82a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14" />
+          </svg>
+        </div>
+        <div class="radar-hero-text">
+          <div class="radar-hero-title">Atualizado para o ENEM 2025</div>
+          <div class="radar-hero-sub">Nossa IA analisa 10 anos de provas e o contexto atual para estimar os temas mais
+            prováveis desta edição.</div>
+        </div>
+      </div>
+
+      <div class="section-label">Temas em alta — maior probabilidade</div>
+
+      <a href="tema-detalhe.html" class="tema-card hot">
+        <div class="tema-top">
+          <div class="tema-titulo">Impacto da inteligência artificial no mercado de trabalho brasileiro</div>
+          <div class="probabilidade">
+            <div class="prob-num">87%</div>
+            <div class="prob-label">provável</div>
+          </div>
+        </div>
+        <div class="tema-tags">
+          <span class="tema-tag area-ciencia">Tecnologia</span>
+          <span class="tema-tag area-social">Trabalho</span>
+          <span class="tema-tag area-social">Desigualdade</span>
+        </div>
+        <div class="tema-justificativa">Tema dominante no debate público desde 2023. O ENEM historicamente acompanha
+          pautas nacionais com 1–2 anos de defasagem. Alta chance de abordagem com enfoque em impacto social.</div>
+      </a>
+
+      <a href="tema-detalhe.html" class="tema-card hot">
+        <div class="tema-top">
+          <div class="tema-titulo">Saúde mental dos jovens na era das redes sociais</div>
+          <div class="probabilidade">
+            <div class="prob-num">79%</div>
+            <div class="prob-label">provável</div>
+          </div>
+        </div>
+        <div class="tema-tags">
+          <span class="tema-tag area-social">Saúde</span>
+          <span class="tema-tag area-cultura">Cultura digital</span>
+          <span class="tema-tag area-social">Juventude</span>
+        </div>
+        <div class="tema-justificativa">Pauta crescente no Congresso e na mídia. O ENEM abordou saúde mental em 2023.
+          Probabilidade alta de retorno com foco no jovem.</div>
+      </a>
+
+      <a href="tema-detalhe.html" class="tema-card">
+        <div class="tema-top">
+          <div class="tema-titulo">Desafios para a preservação das línguas indígenas no Brasil</div>
+          <div class="probabilidade">
+            <div class="prob-num">64%</div>
+            <div class="prob-label">provável</div>
+          </div>
+        </div>
+        <div class="tema-tags">
+          <span class="tema-tag area-cultura">Cultura</span>
+          <span class="tema-tag area-social">Diversidade</span>
+          <span class="tema-tag area-social">Direitos</span>
+        </div>
+        <div class="tema-justificativa">O ENEM mantém padrão de abordar diversidade cultural a cada 2–3 edições. Marco
+          Temporal e debate indígena marcaram 2023–2024.</div>
+      </a>
+
+      <a href="tema-detalhe.html" class="tema-card">
+        <div class="tema-top">
+          <div class="tema-titulo">O papel do Estado no combate à desinformação e fake news</div>
+          <div class="probabilidade">
+            <div class="prob-num">58%</div>
+            <div class="prob-label">provável</div>
+          </div>
+        </div>
+        <div class="tema-tags">
+          <span class="tema-tag area-ciencia">Tecnologia</span>
+          <span class="tema-tag area-social">Democracia</span>
+          <span class="tema-tag area-cultura">Comunicação</span>
+        </div>
+        <div class="tema-justificativa">PL das Fake News e eleições de 2022 e 2024 mantiveram o tema em evidência.
+          Abordagem pode exigir repertório sobre liberdade de expressão vs. regulação estatal.</div>
+      </a>
+
+      <a href="tema-detalhe.html" class="tema-card">
+        <div class="tema-top">
+          <div class="tema-titulo">Crise hídrica e acesso à água potável no semiárido brasileiro</div>
+          <div class="probabilidade">
+            <div class="prob-num">51%</div>
+            <div class="prob-label">provável</div>
+          </div>
+        </div>
+        <div class="tema-tags">
+          <span class="tema-tag area-ciencia">Meio ambiente</span>
+          <span class="tema-tag area-social">Desigualdade</span>
+          <span class="tema-tag area-social">Semiárido</span>
+        </div>
+        <div class="tema-justificativa">Meio ambiente é recorrente no ENEM. A crise climática de 2024 no Rio Grande do
+          Sul pode direcionar o foco para recursos hídricos e vulnerabilidade regional.</div>
+      </a>
+
+      <div class="atualizado">Radar atualizado em março de 2025 · Próxima atualização em abril</div>
+    </div>
+
+  </main>
+
+  <nav class="bottom-tab">
+    <a href="home.html" class="tab-item">
+      <div class="tab-icon"><svg viewBox="0 0 24 24">
+          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+          <polyline points="9 22 9 12 15 12 15 22" />
+        </svg></div>
+      <div class="tab-label">Início</div>
+    </a>
+    <a href="corretor.html" class="tab-item">
+      <div class="tab-icon"><svg viewBox="0 0 24 24">
+          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+        </svg></div>
+      <div class="tab-label">Corretor</div>
+    </a>
+    <a href="radar.html" class="tab-item active">
+      <div class="tab-icon"><svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="2" />
+          <path
+            d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49m11.31-2.82a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14" />
+        </svg></div>
+      <div class="tab-label">Radar</div>
+    </a>
+    <a href="perfil.html" class="tab-item">
+      <div class="tab-icon"><svg viewBox="0 0 24 24">
+          <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg></div>
+      <div class="tab-label">Perfil</div>
+    </a>
+  </nav>
+
+  <script>
+    document.getElementById('btn-buscar-temas').addEventListener('click', function () {
+      const intro = document.getElementById('radar-intro');
+      const loading = document.getElementById('radar-loading');
+      const results = document.getElementById('radar-results');
+      intro.style.display = 'none';
+      loading.classList.add('show');
+      setTimeout(function () {
+        loading.classList.remove('show');
+        results.classList.add('show');
+      }, 1500);
+    });
+  </script>
+
+</body>
+
+</html>

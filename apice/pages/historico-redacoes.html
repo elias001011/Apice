@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ápice — Histórico de Redações</title>
+  <link rel="stylesheet" href="../css/global.css">
+  <script src="../js/theme.js"></script>
+  <style>
+    .filter-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 1.25rem;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .filter-row::-webkit-scrollbar {
+      display: none;
+    }
+
+    .filter-chip {
+      white-space: nowrap;
+      background: var(--bg2);
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 12px;
+      color: var(--text2);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-chip:hover {
+      border-color: var(--border2);
+    }
+
+    .filter-chip.active {
+      background: var(--accent-dim2);
+      border-color: rgba(200, 240, 96, 0.4);
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .redacao-item {
+      background: var(--bg2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+      margin-bottom: 10px;
+      text-decoration: none;
+      display: block;
+      transition: border-color 0.2s, transform 0.25s;
+    }
+
+    .redacao-item:hover {
+      border-color: var(--border2);
+      transform: translateY(-2px);
+    }
+
+    .redacao-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .redacao-tema {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      line-height: 1.4;
+      flex: 1;
+      padding-right: 12px;
+    }
+
+    .redacao-nota {
+      font-family: 'DM Serif Display', serif;
+      font-size: 22px;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    .redacao-meta {
+      display: flex;
+      gap: 12px;
+    }
+
+    .redacao-date {
+      font-size: 11px;
+      color: var(--text3);
+    }
+
+    .redacao-mode {
+      font-size: 10px;
+      color: var(--text3);
+      background: var(--bg3);
+      border-radius: 10px;
+      padding: 1px 8px;
+    }
+
+    .redacao-bars {
+      display: flex;
+      gap: 3px;
+      margin-top: 10px;
+      align-items: flex-end;
+      height: 20px;
+    }
+
+    .redacao-bar {
+      flex: 1;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <nav class="nav">
+    <a href="home.html" class="nav-logo">Áp<em>i</em>ce</a>
+    <div class="nav-right">
+      <button class="nav-icon-btn" type="button" aria-label="Alternar tema" title="Alternar tema" data-theme-toggle>
+        <span class="icon-moon">
+          <svg viewBox="0 0 24 24">
+            <path d="M21 12.8A8.5 8.5 0 1111.2 3a6.5 6.5 0 009.8 9.8z" />
+          </svg>
+        </span>
+        <span class="icon-sun">
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="4" />
+            <path
+              d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+          </svg>
+        </span>
+      </button>
+      <a href="perfil.html" class="nav-avatar">MA</a>
+    </div>
+  </nav>
+
+  <main class="main">
+
+    <a href="corretor.html" class="back-link">
+      <svg viewBox="0 0 24 24">
+        <polyline points="15 18 9 12 15 6" />
+      </svg>
+      Voltar ao corretor
+    </a>
+
+    <div class="page-header anim anim-d1">
+      <div class="page-title">Histórico</div>
+      <div class="page-sub">Todas as suas redações corrigidas pelo Ápice.</div>
+    </div>
+
+    <div class="filter-row anim anim-d1">
+      <div class="filter-chip active">Todas</div>
+      <div class="filter-chip">Acima de 800</div>
+      <div class="filter-chip">600–800</div>
+      <div class="filter-chip">Abaixo de 600</div>
+      <div class="filter-chip">Modo rígido</div>
+    </div>
+
+    <a href="resultado-redacao.html" class="redacao-item anim anim-d2">
+      <div class="redacao-top">
+        <div class="redacao-tema">O impacto das redes sociais na saúde mental dos jovens brasileiros</div>
+        <div class="redacao-nota">720</div>
+      </div>
+      <div class="redacao-meta">
+        <span class="redacao-date">14 mar 2025</span>
+        <span class="redacao-mode">Modo padrão</span>
+      </div>
+      <div class="redacao-bars">
+        <div class="redacao-bar" style="height:65%;background:var(--accent);opacity:0.7"></div>
+        <div class="redacao-bar" style="height:45%;background:var(--amber);opacity:0.8"></div>
+        <div class="redacao-bar" style="height:65%;background:var(--accent);opacity:0.7"></div>
+        <div class="redacao-bar" style="height:55%;background:var(--accent);opacity:0.7"></div>
+        <div class="redacao-bar" style="height:55%;background:var(--amber);opacity:0.8"></div>
+      </div>
+    </a>
+
+    <a href="resultado-redacao.html" class="redacao-item anim anim-d2">
+      <div class="redacao-top">
+        <div class="redacao-tema">Desafios para a inserção do jovem negro no mercado de trabalho</div>
+        <div class="redacao-nota">680</div>
+      </div>
+      <div class="redacao-meta">
+        <span class="redacao-date">10 mar 2025</span>
+        <span class="redacao-mode">Modo rígido</span>
+      </div>
+      <div class="redacao-bars">
+        <div class="redacao-bar" style="height:60%;background:var(--accent);opacity:0.7"></div>
+        <div class="redacao-bar" style="height:40%;background:var(--amber);opacity:0.8"></div>
+        <div class="redacao-bar" style="height:55%;background:var(--accent);opacity:0.7"></div>
+        <div class="redacao-bar" style="height:50%;background:var(--accent);opacity:0.7"></div>
+        <div class="redacao-bar" style="height:40%;background:var(--red);opacity:0.8"></div>
+      </div>
+    </a>
+
+    <a href="resultado-redacao.html" class="redacao-item anim anim-d3">
+      <div class="redacao-top">
+        <div class="redacao-tema">A importância da educação financeira nas escolas públicas brasileiras</div>
+        <div class="redacao-nota">760</div>
+      </div>
+      <div class="redacao-meta">
+        <span class="redacao-date">5 mar 2025</span>
+        <span class="redacao-mode">Modo padrão</span>
+      </div>
+      <div class="redacao-bars">
+        <div class="redacao-bar" style="height:75%;background:var(--accent);opacity:0.7"></div>
+        <div class="redacao-bar" style="height:60%;background:var(--accent);opacity:0.7"></div>
+        <div class="redacao-bar" style="height:70%;background:var(--accent);opacity:0.7"></div>
+        <div class="redacao-bar" style="height:65%;background:var(--accent);opacity:0.7"></div>
+        <div class="redacao-bar" style="height:60%;background:var(--accent);opacity:0.7"></div>
+      </div>
+    </a>
+
+    <a href="resultado-redacao.html" class="redacao-item anim anim-d3">
+      <div class="redacao-top">
+        <div class="redacao-tema">Consequências do uso excessivo de agrotóxicos na produção alimentar</div>
+        <div class="redacao-nota">580</div>
+      </div>
+      <div class="redacao-meta">
+        <span class="redacao-date">28 fev 2025</span>
+        <span class="redacao-mode">Modo padrão</span>
+      </div>
+      <div class="redacao-bars">
+        <div class="redacao-bar" style="height:50%;background:var(--amber);opacity:0.8"></div>
+        <div class="redacao-bar" style="height:35%;background:var(--red);opacity:0.8"></div>
+        <div class="redacao-bar" style="height:50%;background:var(--amber);opacity:0.8"></div>
+        <div class="redacao-bar" style="height:45%;background:var(--amber);opacity:0.8"></div>
+        <div class="redacao-bar" style="height:30%;background:var(--red);opacity:0.8"></div>
+      </div>
+    </a>
+
+  </main>
+
+  <nav class="bottom-tab">
+    <a href="home.html" class="tab-item">
+      <div class="tab-icon"><svg viewBox="0 0 24 24">
+          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+          <polyline points="9 22 9 12 15 12 15 22" />
+        </svg></div>
+      <div class="tab-label">Início</div>
+    </a>
+    <a href="corretor.html" class="tab-item active">
+      <div class="tab-icon"><svg viewBox="0 0 24 24">
+          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+        </svg></div>
+      <div class="tab-label">Corretor</div>
+    </a>
+    <a href="radar.html" class="tab-item">
+      <div class="tab-icon"><svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="2" />
+          <path
+            d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49m11.31-2.82a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14" />
+        </svg></div>
+      <div class="tab-label">Radar</div>
+    </a>
+    <a href="perfil.html" class="tab-item">
+      <div class="tab-icon"><svg viewBox="0 0 24 24">
+          <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg></div>
+      <div class="tab-label">Perfil</div>
+    </a>
+  </nav>
+
+</body>
+
+</html>
