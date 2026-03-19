@@ -73,7 +73,11 @@ export function RadarPage() {
     <>
       <style>{radarCss}</style>
       <div className="page-header anim anim-d1">
+<<<<<<< HEAD
         <div className="page-title">Radar 1000</div>
+=======
+        <div className="page-title">Radar <span>1000</span></div>
+>>>>>>> b7e1c44 (Initial commit)
         <div className="page-sub">Análise dos temas mais prováveis para a redação do ENEM 2025, baseada em padrões históricos e contexto sociopolítico atual.</div>
       </div>
 
@@ -150,6 +154,36 @@ export function RadarPage() {
 }
 
 const radarCss = `
+<<<<<<< HEAD
+=======
+  /* ── PAGE HEADER ── */
+  .page-header {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 0.5px solid var(--border);
+  }
+
+  .page-header .page-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 26px;
+    color: var(--text);
+    letter-spacing: -0.4px;
+    margin-bottom: 6px;
+    line-height: 1.2;
+  }
+
+  .page-header .page-title span {
+    color: var(--accent);
+  }
+
+  .page-header .page-sub {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.6;
+    max-width: 420px;
+  }
+
+>>>>>>> b7e1c44 (Initial commit)
   .radar-hero {
     background: var(--bg2);
     border: 1.5px solid var(--border);
