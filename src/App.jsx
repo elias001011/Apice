@@ -15,15 +15,49 @@ import { AparenciaPage } from './views/AparenciaPage.jsx'
 import { EditarPerfilPage } from './views/EditarPerfilPage.jsx'
 import { SobrePage } from './views/SobrePage.jsx'
 import { TemaDetalhePage } from './views/TemaDetalhePage.jsx'
+import { WelcomePage } from './views/WelcomePage.jsx'
+import { useAuth } from './auth/AuthProvider.jsx'
+
+/**
+ * Component to protect routes and handle newcomers
+ */
+function AuthWrapper({ children }) {
+  const { user } = useAuth()
+  
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  // If user has no name yet, force them to the welcome screen
+  if (!user.user_metadata?.full_name && window.location.pathname !== '/welcome') {
+    return <Navigate to="/welcome" replace />
+  }
+
+  return children
+}
 
 export default function App() {
+  const { user } = useAuth()
+
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to={user ? "/home" : "/login"} replace />} />
 
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login" element={user ? <Navigate to="/home" replace /> : <LoginPage />} />
+      <Route path="/cadastro" element={user ? <Navigate to="/home" replace /> : <CadastroPage />} />
+      <Route path="/esqueci-senha" element={<EsqueciSenhaPage />} />
+      
+      <Route path="/welcome" element={
+        <AuthWrapper>
+          <WelcomePage />
+        </AuthWrapper>
+      } />
 
-      <Route element={<AppShell />}>
+      <Route element={
+        <AuthWrapper>
+          <AppShell />
+        </AuthWrapper>
+      }>
         <Route path="/home" element={<HomePage />} />
         <Route path="/corretor" element={<CorretorPage />} />
         <Route path="/radar" element={<RadarPage />} />
@@ -37,10 +71,7 @@ export default function App() {
         <Route path="/aparencia" element={<AparenciaPage />} />
       </Route>
 
-      <Route path="/esqueci-senha" element={<EsqueciSenhaPage />} />
-      <Route path="/cadastro" element={<CadastroPage />} />
-
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
