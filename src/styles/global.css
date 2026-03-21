@@ -62,6 +62,14 @@ html {
   scroll-behavior: smooth;
 }
 
+/* ── FONT SIZE SCALING ── */
+html[data-font="sm"] body { zoom: 0.8; }
+html[data-font="lg"] body { zoom: 1.15; }
+@-moz-document url-prefix() {
+  html[data-font="sm"] body { transform: scale(0.8); transform-origin: top center; }
+  html[data-font="lg"] body { transform: scale(1.15); transform-origin: top center; }
+}
+
 body {
   font-family: 'DM Sans', sans-serif;
   background: var(--bg);
@@ -129,6 +137,28 @@ body,
 
 .anim-d5 {
   animation-delay: 0.5s;
+}
+
+/* ── LINKS ── */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+  margin-bottom: 24px;
+  transition: opacity 0.2s;
+}
+
+.back-link:hover {
+  opacity: 0.8;
+}
+
+.back-link svg {
+  stroke: currentColor;
 }
 
 /* ── NAV ── */
@@ -477,5 +507,79 @@ body,
   letter-spacing: 0.8px;
   margin-bottom: 10px;
   margin-top: 1.5rem;
+}
+
+/* ── DESKTOP RESPONSIVENESS ── */
+.nav-center {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .main {
+    max-width: 900px;
+    padding-top: calc(var(--nav-h) + 2.5rem);
+  }
+  
+  .bottom-tab {
+    display: none;
+  }
+
+  .nav {
+    padding: 0 4rem;
+  }
+
+  .nav-center {
+    display: flex;
+    gap: 32px;
+    align-items: center;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .nav-link-desktop {
+    color: var(--text2);
+    font-size: 15px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .nav-link-desktop:hover {
+    color: var(--accent);
+  }
+
+  .nav-link-desktop.active {
+    color: var(--accent);
+    position: relative;
+  }
+
+  /* Comp list grid for larger screens (ResultadoRedacaoPage) */
+  .comp-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  
+  /* Corretor fields */
+  .textarea-field {
+    min-height: 250px;
+  }
+  
+  /* Perfil grid */
+  .perfil-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  
+  /* Home grid */
+  .home-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
 }
 

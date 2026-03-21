@@ -5,7 +5,7 @@ export function TemaDetalhePage() {
     <>
       <style>{temaDetalheCss}</style>
       <Link to="/radar" className="back-link">
-        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         Voltar ao Radar 1000
       </Link>
 

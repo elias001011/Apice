@@ -1,18 +1,35 @@
 import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/AuthProvider.jsx'
 
 export function PerfilPage() {
   const navigate = useNavigate()
+  const { user, logout } = useAuth()
+
+  const name = user?.user_metadata?.full_name || 'Usuário'
+  const email = user?.email || 'Sem e-mail'
+  const isGuest = user?.isGuest
+
+  const getInitial = (n) => (n ? n[0].toUpperCase() : '?')
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+      navigate('/login')
+    } catch (err) {
+      console.error('Logout error:', err)
+    }
+  }
 
   return (
     <>
       <style>{perfilCss}</style>
 
       <div className="profile-hero anim anim-d1">
-        <div className="profile-avatar">M</div>
+        <div className="profile-avatar">{getInitial(name)}</div>
         <div>
-          <div className="profile-name">Maria Alves</div>
-          <div className="profile-school">E.E. Presidente Vargas · 3º ano</div>
-          <div className="profile-plan">Plano gratuito</div>
+          <div className="profile-name">{name}</div>
+          <div className="profile-school">{isGuest ? 'Modo de teste local' : 'E.E. Presidente Vargas · 3º ano'}</div>
+          <div className="profile-plan">{isGuest ? 'Acesso Convidado' : 'Plano gratuito'}</div>
         </div>
       </div>
 
@@ -30,114 +47,108 @@ export function PerfilPage() {
           <div className="stat-small-lbl">Evolução</div>
         </div>
       </div>
+      <div className="perfil-grid">
+        <div className="perfil-col">
+          <div className="section-label anim anim-d2" style={{ marginTop: '0.5rem' }}>
+            Informações
+          </div>
+          <div className="card info-card anim anim-d2" style={{ marginBottom: '1.25rem' }}>
+            <div className="info-row">
+              <div className="info-left">
+                <div className="info-k">Nome</div>
+                <div className="info-v">{name}</div>
+              </div>
+              <Link to="/editar-perfil" className="info-action">
+                Alterar
+              </Link>
+            </div>
+            <div className="info-row">
+              <div className="info-left">
+                <div className="info-k">E-mail</div>
+                <div className="info-v">{email}</div>
+              </div>
+              <Link to="/editar-perfil" className="info-action">
+                Alterar
+              </Link>
+            </div>
+            <div className="info-row">
+              <div className="info-left">
+                <div className="info-k">Foto</div>
+                <div className="info-v">Avatar com iniciais (placeholder)</div>
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--text3)', fontStyle: 'italic', paddingRight: '12px' }}>Em breve</span>
+            </div>
+            <div className="info-row">
+              <div className="info-left">
+                <div className="info-k">Senha</div>
+                <div className="info-v">••••••••</div>
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--text3)', fontStyle: 'italic', paddingRight: '12px' }}>Em breve</span>
+            </div>
+          </div>
+        </div>
 
-      <div className="section-label anim anim-d2" style={{ marginTop: '0.5rem' }}>
-        Informações
-      </div>
-      <div className="card info-card anim anim-d2" style={{ marginBottom: '1.25rem' }}>
-        <div className="info-row">
-          <div className="info-left">
-            <div className="info-k">Nome</div>
-            <div className="info-v">Maria Alves</div>
+        <div className="perfil-col">
+          <div className="section-label anim anim-d3">Preferências</div>
+          <div className="card anim anim-d3" style={{ padding: '0 1.25rem', marginBottom: '1.25rem' }}>
+            
+            <Link to="/aparencia" className="settings-item">
+              <div className="settings-left">
+                <div className="settings-icon" aria-hidden="true">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                  </svg>
+                </div>
+                <div className="settings-name">Aparência</div>
+              </div>
+              <div className="settings-chevron" aria-hidden="true">
+                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+              </div>
+            </Link>
+
+            <Link to="/sobre" className="settings-item">
+              <div className="settings-left">
+                <div className="settings-icon" aria-hidden="true">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                </div>
+                <div className="settings-name">Sobre o Ápice</div>
+              </div>
+              <div className="settings-chevron" aria-hidden="true">
+                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+              </div>
+            </Link>
           </div>
-          <Link to="/editar-perfil" className="info-action">
-            Alterar
-          </Link>
-        </div>
-        <div className="info-row">
-          <div className="info-left">
-            <div className="info-k">E-mail</div>
-            <div className="info-v">maria.alves@email.com</div>
+
+          <div className="card anim anim-d4" style={{ padding: '0 1.25rem', marginBottom: '1.25rem' }}>
+            <Link to="/historico-redacoes" className="settings-item">
+              <div className="settings-left">
+                <div className="settings-icon" aria-hidden="true">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                </div>
+                <div className="settings-name">Histórico de redações</div>
+              </div>
+              <div className="settings-chevron" aria-hidden="true">
+                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+              </div>
+            </Link>
           </div>
-          <Link to="/editar-perfil" className="info-action">
-            Alterar
-          </Link>
-        </div>
-        <div className="info-row">
-          <div className="info-left">
-            <div className="info-k">Foto</div>
-            <div className="info-v">Avatar com iniciais (placeholder)</div>
-          </div>
-          <Link to="/editar-perfil" className="info-action">
-            Alterar
-          </Link>
-        </div>
-        <div className="info-row">
-          <div className="info-left">
-            <div className="info-k">Senha</div>
-            <div className="info-v">••••••••</div>
-          </div>
-          <button className="info-action" type="button" title="Backend fará a ação" onClick={() => {}}>
-            Alterar
+
+          <button
+            className="logout-btn anim anim-d4"
+            type="button"
+            onClick={handleLogout}
+          >
+            {isGuest ? 'Remover acesso convidado' : 'Sair da conta'}
           </button>
         </div>
       </div>
-
-      <div className="section-label anim anim-d3">Preferências</div>
-      <div className="card anim anim-d3" style={{ padding: '0 1.25rem', marginBottom: '1.25rem' }}>
-        <Link to="/notificacoes" className="settings-item">
-          <div className="settings-left">
-            <div className="settings-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 01-3.46 0" />
-              </svg>
-            </div>
-            <div className="settings-name">Notificações</div>
-          </div>
-          <div className="settings-chevron" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </div>
-        </Link>
-        <Link to="/sobre" className="settings-item">
-          <div className="settings-left">
-            <div className="settings-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-            </div>
-            <div className="settings-name">Sobre o Ápice</div>
-          </div>
-          <div className="settings-chevron" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </div>
-        </Link>
-      </div>
-
-      <div className="card anim anim-d4" style={{ padding: '0 1.25rem', marginBottom: '1.25rem' }}>
-        <Link to="/historico-redacoes" className="settings-item">
-          <div className="settings-left">
-            <div className="settings-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-              </svg>
-            </div>
-            <div className="settings-name">Histórico de redações</div>
-          </div>
-          <div className="settings-chevron" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </div>
-        </Link>
-      </div>
-
-      <button
-        className="logout-btn anim anim-d4"
-        type="button"
-        onClick={() => {
-          navigate('/login')
-        }}
-      >
-        Sair da conta
-      </button>
     </>
   )
 }

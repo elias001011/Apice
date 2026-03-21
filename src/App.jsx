@@ -15,15 +15,37 @@ import { AparenciaPage } from './views/AparenciaPage.jsx'
 import { EditarPerfilPage } from './views/EditarPerfilPage.jsx'
 import { SobrePage } from './views/SobrePage.jsx'
 import { TemaDetalhePage } from './views/TemaDetalhePage.jsx'
+import { useAuth } from './auth/AuthProvider.jsx'
+
+/**
+ * Component to protect routes
+ */
+function AuthWrapper({ children }) {
+  const { user } = useAuth()
+  
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  return children
+}
 
 export default function App() {
+  const { user } = useAuth()
+
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to={user ? "/home" : "/login"} replace />} />
 
-      <Route path="/login" element={<LoginPage />} />
-
-      <Route element={<AppShell />}>
+      <Route path="/login" element={user ? <Navigate to="/home" replace /> : <LoginPage />} />
+      <Route path="/cadastro" element={user ? <Navigate to="/home" replace /> : <CadastroPage />} />
+      <Route path="/esqueci-senha" element={<EsqueciSenhaPage />} />
+      
+      <Route element={
+        <AuthWrapper>
+          <AppShell />
+        </AuthWrapper>
+      }>
         <Route path="/home" element={<HomePage />} />
         <Route path="/corretor" element={<CorretorPage />} />
         <Route path="/radar" element={<RadarPage />} />
@@ -37,10 +59,7 @@ export default function App() {
         <Route path="/aparencia" element={<AparenciaPage />} />
       </Route>
 
-      <Route path="/esqueci-senha" element={<EsqueciSenhaPage />} />
-      <Route path="/cadastro" element={<CadastroPage />} />
-
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

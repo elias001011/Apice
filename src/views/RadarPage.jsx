@@ -65,19 +65,16 @@ export function RadarPage() {
   const handleBuscar = () => {
     setStatus('loading')
     setTimeout(() => {
-      setStatus('results')
-    }, 1500)
+      setStatus('intro')
+      alert('🚧 Em breve! O algoritmo inteligente de tendências está sendo calibrado com os microdados do INEP de 2024. Volte nas próximas atualizações.')
+    }, 1200)
   }
 
   return (
     <>
       <style>{radarCss}</style>
       <div className="page-header anim anim-d1">
-<<<<<<< HEAD
-        <div className="page-title">Radar 1000</div>
-=======
         <div className="page-title">Radar <span>1000</span></div>
->>>>>>> b7e1c44 (Initial commit)
         <div className="page-sub">Análise dos temas mais prováveis para a redação do ENEM 2025, baseada em padrões históricos e contexto sociopolítico atual.</div>
       </div>
 
@@ -154,8 +151,6 @@ export function RadarPage() {
 }
 
 const radarCss = `
-<<<<<<< HEAD
-=======
   /* ── PAGE HEADER ── */
   .page-header {
     margin-bottom: 1.5rem;
@@ -183,7 +178,6 @@ const radarCss = `
     max-width: 420px;
   }
 
->>>>>>> b7e1c44 (Initial commit)
   .radar-hero {
     background: var(--bg2);
     border: 1.5px solid var(--border);

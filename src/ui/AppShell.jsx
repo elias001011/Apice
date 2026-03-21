@@ -1,17 +1,37 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { ThemeToggleButton } from './ThemeToggleButton.jsx'
+import { useAuth } from '../auth/AuthProvider.jsx'
 
 export function AppShell() {
+  const { user } = useAuth()
+  
+  const getInitials = (name) => {
+    if (!name) return '?'
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase()
+  }
+
+  const name = user?.user_metadata?.full_name || user?.email || 'User'
+
   return (
     <>
       <nav className="nav">
         <NavLink to="/home" className="nav-logo">
           Áp<em>i</em>ce
         </NavLink>
+        <div className="nav-center">
+          <NavLink to="/home" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Início</NavLink>
+          <NavLink to="/corretor" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Corretor</NavLink>
+          <NavLink to="/radar" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Radar</NavLink>
+        </div>
         <div className="nav-right">
           <ThemeToggleButton />
           <NavLink to="/perfil" className="nav-avatar" aria-label="Perfil">
-            MA
+            {getInitials(name)}
           </NavLink>
         </div>
       </nav>

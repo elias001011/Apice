@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { corrigirRedacao, salvarNoHistorico } from '../services/aiService.js'
 
 export function CorretorPage() {
   const navigate = useNavigate()
@@ -7,6 +8,8 @@ export function CorretorPage() {
   const [redacao, setRedacao] = useState('')
   const [isRigido, setIsRigido] = useState(false)
   const [showParticles, setShowParticles] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
 
   // Contador de palavras
   const wordCount = redacao.trim() === '' ? 0 : redacao.trim().split(/\s+/).length
@@ -24,6 +27,25 @@ export function CorretorPage() {
       setTimeout(() => setShowParticles(false), 2200)
     }
     setIsRigido(rigido)
+  }
+
+  const handleCorrigir = async () => {
+    if (wordCount < 10) {
+      setErrorMsg('A redação está muito curta. Escreva um texto completo antes de enviar.')
+      return
+    }
+
+    setLoading(true)
+    setErrorMsg('')
+    try {
+      const resultado = await corrigirRedacao({ redacao, tema, isRigido })
+      salvarNoHistorico(resultado, tema)
+      navigate('/resultado-redacao', { state: { resultado } })
+    } catch (err) {
+      setErrorMsg(err.message || 'Erro ao processar a redação. Tente mais tarde.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -153,16 +175,30 @@ export function CorretorPage() {
           </div>
         </div>
 
+        {errorMsg && (
+          <div className="error-banner anim anim-d4" style={{ color: 'var(--red)', background: 'rgba(255, 107, 107, 0.1)', padding: 12, borderRadius: 8, marginBottom: 12, fontSize: 13, border: '1px solid rgba(255, 107, 107, 0.2)' }}>
+            <strong>Erro: </strong>{errorMsg}
+          </div>
+        )}
+
         <button 
           className="btn-primary anim anim-d4" 
-          onClick={() => navigate('/resultado-redacao')}
+          onClick={handleCorrigir}
+          disabled={loading}
+          style={{ opacity: loading ? 0.7 : 1 }}
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" strokeWidth="2"
-            strokeLinecap="round" strokeLinejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13" />
-            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-          </svg>
-          Corrigir redação
+          {loading ? (
+            'Analisando redação com IA...'
+          ) : (
+            <>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+              Corrigir redação
+            </>
+          )}
         </button>
       </div>
     </>

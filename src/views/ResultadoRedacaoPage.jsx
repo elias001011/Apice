@@ -1,92 +1,94 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation, Navigate } from 'react-router-dom'
 
 export function ResultadoRedacaoPage() {
+  const location = useLocation();
+  const res = location.state?.resultado;
+
+  if (!res) {
+    // Caso a pessoa entre direto na URL, volta pro corretor.
+    return <Navigate to="/corretor" replace />;
+  }
+
+  // Define os blocos de competências baseados na resposta ou num falback
+  const comps = res.competencias || [];
+
   return (
     <>
       <style>{resultadoCss}</style>
       <Link to="/corretor" className="back-link">
-        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         Voltar ao corretor
       </Link>
 
       <div className="score-hero anim anim-d1">
         <div className="score-label">Sua nota</div>
-        <div className="score-number">720</div>
+        <div className="score-number">{res.notaTotal || 0}</div>
         <div className="score-max">de 1000 pontos</div>
-        <div className="score-tag">Acima da média pública (620)</div>
       </div>
 
       <div className="card anim anim-d2">
         <div className="card-title">Nota por competência</div>
         <div className="comp-list">
-          <div className="comp-row">
-            <div className="comp-header">
-              <span className="comp-name">C1 — Norma culta</span>
-              <span className="comp-score-val">160 / 200</span>
+          {comps.map((c, idx) => (
+            <div className="comp-row" key={idx}>
+              <div className="comp-header">
+                <span className="comp-name">{c.nome}</span>
+                <span className="comp-score-val">{c.nota} / 200</span>
+              </div>
+              <div className="progress-bg">
+                <div 
+                  className={`progress-fill ${c.nota < 120 ? 'mid' : ''}`} 
+                  style={{ width: `${(c.nota / 200) * 100}%`, background: c.nota < 120 ? 'var(--amber)' : 'var(--accent)' }}
+                ></div>
+              </div>
             </div>
-            <div className="progress-bg">
-              <div className="progress-fill" style={{ width: '80%' }}></div>
-            </div>
-          </div>
-          <div className="comp-row">
-            <div className="comp-header">
-              <span className="comp-name">C2 — Tema e repertório</span>
-              <span className="comp-score-val">120 / 200</span>
-            </div>
-            <div className="progress-bg">
-              <div className="progress-fill mid" style={{ width: '60%' }}></div>
-            </div>
-          </div>
-          <div className="comp-row">
-            <div className="comp-header">
-              <span className="comp-name">C3 — Organização da tese</span>
-              <span className="comp-score-val">160 / 200</span>
-            </div>
-            <div className="progress-bg">
-              <div className="progress-fill" style={{ width: '80%' }}></div>
-            </div>
-          </div>
-          <div className="comp-row">
-            <div className="comp-header">
-              <span className="comp-name">C4 — Coesão textual</span>
-              <span className="comp-score-val">140 / 200</span>
-            </div>
-            <div className="progress-bg">
-              <div className="progress-fill" style={{ width: '70%' }}></div>
-            </div>
-          </div>
-          <div className="comp-row">
-            <div className="comp-header">
-              <span className="comp-name">C5 — Proposta de intervenção</span>
-              <span className="comp-score-val">140 / 200</span>
-            </div>
-            <div className="progress-bg">
-              <div className="progress-fill mid" style={{ width: '70%' }}></div>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
-      <div className="feedback-block anim anim-d3">
-        <div className="feedback-tag positive">Ponto forte</div>
-        <div className="feedback-text">
-          Excelente domínio da <strong>norma culta (C1)</strong>. Poucos desvios gramaticais e boa variedade de estruturas sintáticas ao longo do texto — isso demonstra preparo sólido.
+      {res.pontoForte && (
+        <div className="feedback-block anim anim-d3">
+          <div className="feedback-tag positive">Ponto forte</div>
+          <div className="feedback-text">{res.pontoForte}</div>
         </div>
-      </div>
+      )}
 
-      <div className="feedback-block anim anim-d3">
-        <div className="feedback-tag warning">Atenção</div>
-        <div className="feedback-text">
-          A <span className="warn">proposta de intervenção (C5)</span> está incompleta. Faltam os cinco elementos obrigatórios: agente, ação, meio, finalidade e detalhamento. Revise o parágrafo de conclusão antes da próxima redação.
+      {res.atencao && (
+        <div className="feedback-block anim anim-d3">
+          <div className="feedback-tag warning">Atenção</div>
+          <div className="feedback-text">{res.atencao}</div>
         </div>
-      </div>
+      )}
 
-      <div className="feedback-block anim anim-d4">
-        <div className="feedback-tag critical">Principal a melhorar</div>
-        <div className="feedback-text">
-          Seu <span style={{ color: 'var(--red)', fontWeight: 500 }}>repertório sociocultural (C2)</span> está genérico. A citação de Bauman foi usada sem vínculo direto com a argumentação. O INEP exige repertórios "produtivos e legitimados" — conecte explicitamente ao tema.
+      {res.principalMelhorar && (
+        <div className="feedback-block anim anim-d4">
+          <div className="feedback-tag critical">Principal a melhorar</div>
+          <div className="feedback-text">{res.principalMelhorar}</div>
         </div>
-      </div>
+      )}
+
+      {res.errosPt && Array.isArray(res.errosPt) && res.errosPt.length > 0 && (
+        <div className="feedback-block anim anim-d4">
+          <div className="feedback-tag" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text2)', border: '1px solid var(--border)' }}>Erros de Português (C1)</div>
+          <div className="feedback-text" style={{ fontSize: 13 }}>
+            <ul style={{ paddingLeft: 20, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {res.errosPt.map((erro, i) => (
+                <li key={i}>
+                  <strong style={{ color: 'var(--red)' }}>{erro.errado}</strong> → <span style={{ color: 'var(--text)' }}>{erro.corrigido}</span>
+                  <div style={{ color: 'var(--text3)', fontSize: 11, marginTop: 2 }}>{erro.motivo}</div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {res.errosPt && typeof res.errosPt === 'string' && (
+        <div className="feedback-block anim anim-d4">
+          <div className="feedback-tag" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text2)', border: '1px solid var(--border)' }}>Erros de Português (C1)</div>
+          <div className="feedback-text" style={{ fontSize: 12 }}>{res.errosPt}</div>
+        </div>
+      )}
 
       <div className="action-row anim anim-d4">
         <Link to="/corretor" className="btn-ghost">
