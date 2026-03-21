@@ -65,8 +65,9 @@ export function RadarPage() {
   const handleBuscar = () => {
     setStatus('loading')
     setTimeout(() => {
-      setStatus('results')
-    }, 1500)
+      setStatus('intro')
+      alert('🚧 Em breve! O algoritmo inteligente de tendências está sendo calibrado com os microdados do INEP de 2024. Volte nas próximas atualizações.')
+    }, 1200)
   }
 
   return (

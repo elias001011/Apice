@@ -1,13 +1,24 @@
+import { useAuth } from '../auth/AuthProvider.jsx'
+
 export function HomePage() {
+  const { user } = useAuth()
+  
+  const rawName = user?.user_metadata?.full_name || 'Convidado'
+  const nameParts = rawName.split(' ')
+  const firstName = nameParts[0]
+  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
+
   return (
     <>
       <style>{homeCss}</style>
 
-      <div className="hero anim anim-d1">
+      <div className="home-grid">
+        <div className="home-grid-left">
+          <div className="hero anim anim-d1">
         <div className="hero-content">
           <div className="hero-label">Bem-vindo de volta</div>
           <div className="hero-name">
-            Maria <em>Alves</em>
+            {firstName} {lastName && <em>{lastName}</em>}
           </div>
           <div className="hero-sub">Sua preparação inteligente para o ENEM com o poder da IA.</div>
         </div>
@@ -62,7 +73,10 @@ export function HomePage() {
         </div>
       </div>
 
-      <div className="section-label anim anim-d3">Ferramentas</div>
+        </div>
+        
+        <div className="home-grid-right">
+          <div className="section-label anim anim-d3" style={{ marginTop: 0 }}>Ferramentas</div>
 
       <a href="/corretor" className="pv-feature pv-feature--dark anim anim-d3">
         <div className="pv-feature-content">
@@ -112,7 +126,9 @@ export function HomePage() {
             <circle cx="50" cy="50" r="45" strokeWidth="1.5" />
           </svg>
         </div>
-      </a>
+          </a>
+        </div>
+      </div>
     </>
   )
 }

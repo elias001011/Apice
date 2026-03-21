@@ -1,14 +1,35 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
 export function HistoricoRedacoesPage() {
   const [filtro, setFiltro] = useState('Todas')
+  const [historico, setHistorico] = useState([])
+
+  useEffect(() => {
+    try {
+      const h = JSON.parse(localStorage.getItem('apice:historico') || '[]')
+      setHistorico(h)
+    } catch { }
+  }, [])
+
+  const filtradas = historico.filter(h => {
+    if (filtro === 'Acima de 800') return h.nota >= 800
+    if (filtro === '600–800') return h.nota >= 600 && h.nota < 800
+    if (filtro === 'Abaixo de 600') return h.nota < 600
+    return true
+  })
+
+  // Format date helper
+  const fmtDate = (iso) => {
+    if (!iso) return 'Recente';
+    return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace(' de ', ' ')
+  }
 
   return (
     <>
       <style>{historicoCss}</style>
       <Link to="/corretor" className="back-link">
-        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         Voltar ao corretor
       </Link>
 
@@ -25,77 +46,27 @@ export function HistoricoRedacoesPage() {
         ))}
       </div>
 
-      <Link to="/resultado-redacao" className="redacao-item anim anim-d2">
-        <div className="redacao-top">
-          <div className="redacao-tema">O impacto das redes sociais na saúde mental dos jovens brasileiros</div>
-          <div className="redacao-nota">720</div>
+      {filtradas.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text2)', fontSize: 13 }}>
+          Nenhuma redação encontrada.
         </div>
-        <div className="redacao-meta">
-          <span className="redacao-date">14 mar 2025</span>
-          <span className="redacao-mode">Modo padrão</span>
-        </div>
-        <div className="redacao-bars">
-          <div className="redacao-bar" style={{ height: '65%', background: 'var(--accent)', opacity: 0.7 }}></div>
-          <div className="redacao-bar" style={{ height: '45%', background: 'var(--amber)', opacity: 0.8 }}></div>
-          <div className="redacao-bar" style={{ height: '65%', background: 'var(--accent)', opacity: 0.7 }}></div>
-          <div className="redacao-bar" style={{ height: '55%', background: 'var(--accent)', opacity: 0.7 }}></div>
-          <div className="redacao-bar" style={{ height: '55%', background: 'var(--amber)', opacity: 0.8 }}></div>
-        </div>
-      </Link>
-
-      <Link to="/resultado-redacao" className="redacao-item anim anim-d2">
-        <div className="redacao-top">
-          <div className="redacao-tema">Desafios para a inserção do jovem negro no mercado de trabalho</div>
-          <div className="redacao-nota">680</div>
-        </div>
-        <div className="redacao-meta">
-          <span className="redacao-date">10 mar 2025</span>
-          <span className="redacao-mode">Modo rígido</span>
-        </div>
-        <div className="redacao-bars">
-          <div className="redacao-bar" style={{ height: '60%', background: 'var(--accent)', opacity: 0.7 }}></div>
-          <div className="redacao-bar" style={{ height: '40%', background: 'var(--amber)', opacity: 0.8 }}></div>
-          <div className="redacao-bar" style={{ height: '55%', background: 'var(--accent)', opacity: 0.7 }}></div>
-          <div className="redacao-bar" style={{ height: '50%', background: 'var(--accent)', opacity: 0.7 }}></div>
-          <div className="redacao-bar" style={{ height: '40%', background: 'var(--red)', opacity: 0.8 }}></div>
-        </div>
-      </Link>
-
-      <Link to="/resultado-redacao" className="redacao-item anim anim-d3">
-        <div className="redacao-top">
-          <div className="redacao-tema">A importância da educação financeira nas escolas públicas brasileiras</div>
-          <div className="redacao-nota">760</div>
-        </div>
-        <div className="redacao-meta">
-          <span className="redacao-date">5 mar 2025</span>
-          <span className="redacao-mode">Modo padrão</span>
-        </div>
-        <div className="redacao-bars">
-          <div className="redacao-bar" style={{ height: '75%', background: 'var(--accent)', opacity: 0.7 }}></div>
-          <div className="redacao-bar" style={{ height: '60%', background: 'var(--accent)', opacity: 0.7 }}></div>
-          <div className="redacao-bar" style={{ height: '70%', background: 'var(--accent)', opacity: 0.7 }}></div>
-          <div className="redacao-bar" style={{ height: '65%', background: 'var(--accent)', opacity: 0.7 }}></div>
-          <div className="redacao-bar" style={{ height: '60%', background: 'var(--accent)', opacity: 0.7 }}></div>
-        </div>
-      </Link>
-
-      <Link to="/resultado-redacao" className="redacao-item anim anim-d3">
-        <div className="redacao-top">
-          <div className="redacao-tema">Consequências do uso excessivo de agrotóxicos na produção alimentar</div>
-          <div className="redacao-nota">580</div>
-        </div>
-        <div className="redacao-meta">
-          <span className="redacao-date">28 fev 2025</span>
-          <span className="redacao-mode">Modo padrão</span>
-        </div>
-        <div className="redacao-bars">
-          <div className="redacao-bar" style={{ height: '50%', background: 'var(--amber)', opacity: 0.8 }}></div>
-          <div className="redacao-bar" style={{ height: '35%', background: 'var(--red)', opacity: 0.8 }}></div>
-          <div className="redacao-bar" style={{ height: '50%', background: 'var(--amber)', opacity: 0.8 }}></div>
-          <div className="redacao-bar" style={{ height: '45%', background: 'var(--amber)', opacity: 0.8 }}></div>
-          <div className="redacao-bar" style={{ height: '30%', background: 'var(--red)', opacity: 0.8 }}></div>
-        </div>
-      </Link>
+      ) : filtradas.map((red, idx) => (
+        <Link to="/resultado-redacao" state={{ resultado: red.feedback }} className="redacao-item anim" style={{ animationDelay: `${0.1 + (idx * 0.05)}s` }} key={red.id}>
+          <div className="redacao-top">
+            <div className="redacao-tema">{red.tema}</div>
+            <div className="redacao-nota">{red.nota}</div>
+          </div>
+          <div className="redacao-meta">
+            <span className="redacao-date">{fmtDate(red.data)}</span>
+            <span className="redacao-mode">Registrado</span>
+          </div>
+          <div className="redacao-bars">
+             {red.feedback?.competencias?.map((c, i) => (
+                <div key={i} className="redacao-bar" style={{ height: `${Math.max(20, (c.nota/200)*100)}%`, background: c.nota < 120 ? 'var(--amber)' : 'var(--accent)', opacity: 0.8 }}></div>
+             ))}
+          </div>
+        </Link>
+      ))}
     </>
   )
 }

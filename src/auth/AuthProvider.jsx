@@ -16,11 +16,19 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Check for Netlify Identity user first
     const currentUser = auth.currentUser()
     if (currentUser) {
       setUser(currentUser)
+      setLoading(false)
+    } else {
+      // Check for guest user in localStorage
+      const guest = localStorage.getItem('guestUser')
+      if (guest) {
+        setUser(JSON.parse(guest))
+      }
+      setLoading(false)
     }
-    setLoading(false)
   }, [])
 
   const signup = async (email, password, data) => {
@@ -30,18 +38,44 @@ export function AuthProvider({ children }) {
   const login = async (email, password, remember = true) => {
     const response = await auth.login(email, password, remember)
     setUser(response)
+    // Clear guest info if logging in with a real account
+    localStorage.removeItem('guestUser')
     return response
+  }
+
+  const guestLogin = (name) => {
+    const guestUser = {
+      id: 'guest-' + Date.now(),
+      user_metadata: { full_name: name || 'Convidado' },
+      email: 'convidado@local.test',
+      isGuest: true
+    }
+    localStorage.setItem('guestUser', JSON.stringify(guestUser))
+    setUser(guestUser)
+    return guestUser
   }
 
   const logout = async () => {
     const currentUser = auth.currentUser()
     if (currentUser) {
-      await currentUser.logout()
+      try {
+        await currentUser.logout()
+      } catch (err) {
+        console.error('Logout error:', err)
+      }
     }
+    localStorage.removeItem('guestUser')
     setUser(null)
   }
 
   const updateMetadata = async (data) => {
+    if (user?.isGuest) {
+      const updatedUser = { ...user, user_metadata: { ...user.user_metadata, ...data } }
+      localStorage.setItem('guestUser', JSON.stringify(updatedUser))
+      setUser(updatedUser)
+      return updatedUser
+    }
+    
     const currentUser = auth.currentUser()
     if (currentUser) {
       const updatedUser = await currentUser.update({ data })
@@ -56,6 +90,7 @@ export function AuthProvider({ children }) {
     loading,
     signup,
     login,
+    guestLogin,
     logout,
     updateMetadata,
     auth,
