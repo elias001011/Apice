@@ -315,8 +315,8 @@ const corretorCss = `
   }
 
   .corretor-hero {
-    background: var(--card-dark);
-    border: 1.5px solid rgba(200, 240, 96, 0.2);
+    background: var(--bg2);
+    border: 1.5px solid rgba(var(--accent-rgb), 0.25);
     border-radius: 24px;
     padding: 1.5rem 1.25rem;
     margin-bottom: 14px;
@@ -331,7 +331,7 @@ const corretorCss = `
   .corretor-hero-icon {
     width: 48px;
     height: 48px;
-    background: rgba(200, 240, 96, 0.1);
+    background: rgba(var(--accent-rgb), 0.12);
     border-radius: 14px;
     display: flex;
     align-items: center;
@@ -381,7 +381,7 @@ const corretorCss = `
   /* MODO RÍGIDO */
   .modo-rigido .corretor-hero {
     border-color: rgba(255, 107, 107, 0.35);
-    background: linear-gradient(135deg, var(--card-dark) 0%, rgba(255, 60, 60, 0.05) 100%);
+    background: linear-gradient(135deg, var(--bg2) 0%, rgba(255, 60, 60, 0.05) 100%);
   }
 
   .modo-rigido .corretor-hero::after {

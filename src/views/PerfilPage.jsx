@@ -184,7 +184,7 @@ const perfilCss = `
     height: 62px;
     flex-shrink: 0;
     background: var(--accent-dim2);
-    border: 1.5px solid rgba(200, 240, 96, 0.35);
+    border: 1.5px solid rgba(var(--accent-rgb), 0.35);
     border-radius: 50%;
     display: flex;
     align-items: center;

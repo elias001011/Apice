@@ -194,7 +194,7 @@ const radarCss = `
     height: 48px;
     flex-shrink: 0;
     background: var(--accent-dim);
-    border: 1.5px solid rgba(200, 240, 96, 0.2);
+    border: 1.5px solid rgba(var(--accent-rgb), 0.25);
     border-radius: 14px;
     display: flex;
     align-items: center;
@@ -239,7 +239,7 @@ const radarCss = `
   }
 
   .tema-card.hot {
-    border-color: rgba(200, 240, 96, 0.25);
+    border-color: rgba(var(--accent-rgb), 0.3);
     background: var(--accent-dim);
   }
 
@@ -304,8 +304,8 @@ const radarCss = `
   }
 
   .tema-tag.area-ciencia {
-    background: rgba(200, 240, 96, 0.08);
-    border-color: rgba(200, 240, 96, 0.2);
+    background: rgba(var(--accent-rgb), 0.1);
+    border-color: rgba(var(--accent-rgb), 0.2);
     color: var(--accent);
   }
 
@@ -349,7 +349,7 @@ const radarCss = `
     width: 80px;
     height: 80px;
     background: var(--accent-dim);
-    border: 1.5px solid rgba(200, 240, 96, 0.2);
+    border: 1.5px solid rgba(var(--accent-rgb), 0.25);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -369,10 +369,10 @@ const radarCss = `
   @keyframes radar-pulse {
     0%,
     100% {
-      box-shadow: 0 0 0 0 rgba(200, 240, 96, 0.15);
+      box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.2);
     }
     50% {
-      box-shadow: 0 0 0 18px rgba(200, 240, 96, 0);
+      box-shadow: 0 0 0 18px rgba(var(--accent-rgb), 0);
     }
   }
 

@@ -95,7 +95,7 @@ const historicoCss = `
   .filter-chip:hover { border-color: var(--border2); }
   .filter-chip.active {
     background: var(--accent-dim2);
-    border-color: rgba(200, 240, 96, 0.4);
+    border-color: rgba(var(--accent-rgb), 0.4);
     color: var(--accent);
     font-weight: 500;
   }
