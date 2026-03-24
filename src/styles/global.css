@@ -9,50 +9,50 @@
 }
 
 :root {
-  /* Tema CLARO (padrão) */
-  --bg: #fbfaf7;
+  /* Tema CLARO (Refinado) */
+  --bg: #f8f7f2;
   --bg2: #ffffff;
-  --bg3: #f2f1ed;
-  --border: rgba(15, 15, 15, 0.08);
-  --border2: rgba(15, 15, 15, 0.14);
-  --text: #111110;
-  --text2: #5b5a55;
-  --text3: #8a8882;
+  --bg3: #efeeea;
+  --border: rgba(15, 15, 12, 0.08);
+  --border2: rgba(15, 15, 12, 0.14);
+  --text: #0f1108;
+  --text2: #4a4944;
+  --text3: #7a7872;
   --accent: #b8e84f;
   --accent2: #9ed634;
-  --accent-dim: rgba(184, 232, 79, 0.14);
-  --accent-dim2: rgba(184, 232, 79, 0.22);
-  --red: #e84c4c;
-  --amber: #e39a2f;
-  --blue: #2f7fe3;
-  --nav-bg: rgba(251, 250, 247, 0.9);
-  --tab-bg: rgba(255, 255, 255, 0.92);
-  --radius: 20px;
-  --radius-sm: 12px;
-  --radius-xs: 8px;
-  --nav-h: 60px;
-  --tab-h: 68px;
+  --accent-dim: rgba(184, 232, 79, 0.12);
+  --accent-dim2: rgba(184, 232, 79, 0.2);
+  --red: #e14444;
+  --amber: #d98c1f;
+  --blue: #2a75d6;
+  --nav-bg: rgba(248, 247, 242, 0.85);
+  --tab-bg: rgba(255, 255, 255, 0.9);
+  --radius: 24px;
+  --radius-sm: 14px;
+  --radius-xs: 10px;
+  --nav-h: 64px;
+  --tab-h: 72px;
   --accent-rgb: 184, 232, 79;
 }
 
 html[data-theme="dark"] {
-  --bg: #0f0f0f;
-  --bg2: #161616;
-  --bg3: #1e1e1e;
-  --border: rgba(255, 255, 255, 0.07);
-  --border2: rgba(255, 255, 255, 0.13);
-  --text: #f0ede8;
-  --text2: #888580;
-  --text3: #4a4a47;
+  --bg: #0a0a0a;
+  --bg2: #121212;
+  --bg3: #1a1a1a;
+  --border: rgba(255, 255, 255, 0.06);
+  --border2: rgba(255, 255, 255, 0.12);
+  --text: #f2f0eb;
+  --text2: #9a9893;
+  --text3: #5a5a57;
   --accent: #c8f060;
   --accent2: #a8d040;
-  --accent-dim: rgba(200, 240, 96, 0.08);
-  --accent-dim2: rgba(200, 240, 96, 0.15);
-  --red: #ff6b6b;
-  --amber: #ffb84d;
-  --blue: #6eb5ff;
-  --nav-bg: rgba(15, 15, 15, 0.92);
-  --tab-bg: rgba(22, 22, 22, 0.96);
+  --accent-dim: rgba(200, 240, 96, 0.07);
+  --accent-dim2: rgba(200, 240, 96, 0.14);
+  --red: #ff5252;
+  --amber: #ffab40;
+  --blue: #4dabff;
+  --nav-bg: rgba(10, 10, 10, 0.9);
+  --tab-bg: rgba(18, 18, 18, 0.94);
   --accent-rgb: 200, 240, 96;
 }
 
@@ -61,12 +61,13 @@ html {
 }
 
 /* ── FONT SIZE SCALING ── */
-html[data-font="sm"] body { font-size: 13px; }
-html[data-font="lg"] body { font-size: 16px; }
+html[data-font="sm"] { font-size: 13px; }
+html[data-font="md"] { font-size: 15px; }
+html[data-font="lg"] { font-size: 18px; }
 
 body {
   font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
+  font-size: 1rem;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
@@ -140,7 +141,7 @@ body,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 14px;
+  font-size: 0.9rem;
   font-weight: 500;
   color: var(--accent);
   text-decoration: none;
@@ -175,7 +176,7 @@ body,
 
 .nav-logo {
   font-family: 'DM Serif Display', serif;
-  font-size: 21px;
+  font-size: 1.4rem;
   color: var(--text);
   letter-spacing: -0.4px;
   text-decoration: none;
@@ -238,7 +239,7 @@ body,
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--accent);
   cursor: pointer;
@@ -294,7 +295,7 @@ body,
 }
 
 .tab-label {
-  font-size: 10px;
+  font-size: 0.7rem;
   color: var(--text3);
   transition: color 0.2s;
   letter-spacing: 0.2px;
@@ -324,7 +325,7 @@ body,
 }
 
 .page-title {
-  font-size: 22px;
+  font-size: 1.5rem;
   font-weight: 600;
   color: var(--text);
   letter-spacing: -0.3px;
@@ -352,7 +353,7 @@ body,
 }
 
 .card-title {
-  font-size: 11px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text3);
   text-transform: uppercase;
@@ -368,7 +369,6 @@ body,
   gap: 12px;
 }
 
-.toggle-info {}
 
 .toggle-label {
   font-size: 14px;

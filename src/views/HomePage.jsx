@@ -9,6 +9,29 @@ export function HomePage() {
   const firstName = nameParts[0]
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
 
+  // Carregar dados reais do histórico
+  const historico = JSON.parse(localStorage.getItem('apice:historico') || '[]')
+  
+  // Redações este mês (março de 2026 conforme data atual)
+  const now = new Date("2026-03-23T20:31:50-03:00")
+  const currentMonth = now.getMonth()
+  const currentYear = now.getFullYear()
+  
+  const redacoesEsteMes = historico.filter(item => {
+    const d = new Date(item.data)
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear
+  }).length
+
+  const ultimaNota = historico.length > 0 ? historico[0].nota : 0
+  const ultimaNotaPercent = Math.round((ultimaNota / 1000) * 100)
+
+  // Diferença (simplificada para demonstração baseada no histórico)
+  const redacoesUltimaSemana = historico.filter(item => {
+    const d = new Date(item.data)
+    const diff = (now - d) / (1000 * 60 * 60 * 24)
+    return diff <= 7
+  }).length
+
   return (
     <>
       <style>{homeCss}</style>
@@ -51,14 +74,16 @@ export function HomePage() {
                     <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                   </svg>
                 </div>
-                <div className="pv-stat-delta">↑ 3 esta semana</div>
+                {redacoesUltimaSemana > 0 && (
+                  <div className="pv-stat-delta">↑ {redacoesUltimaSemana} esta semana</div>
+                )}
               </div>
               <div>
-                <div className="pv-stat-value">14</div>
+                <div className="pv-stat-value">{redacoesEsteMes}</div>
                 <div className="pv-stat-label">Redações este mês</div>
               </div>
               <div className="pv-bar" aria-hidden="true">
-                <div className="pv-bar-fill" style={{ width: '70%' }}></div>
+                <div className="pv-bar-fill" style={{ width: `${Math.min(redacoesEsteMes * 10, 100)}%` }}></div>
               </div>
             </div>
 
@@ -69,16 +94,16 @@ export function HomePage() {
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
                   </svg>
                 </div>
-                <div className="pv-stat-delta">↑ +40 pontos</div>
+                <div className="pv-stat-delta">Foco na nota 1000</div>
               </div>
               <div>
                 <div className="pv-stat-value">
-                  720 <span>/1000</span>
+                  {ultimaNota} <span>/1000</span>
                 </div>
                 <div className="pv-stat-label">Última nota</div>
               </div>
               <div className="pv-bar" aria-hidden="true">
-                <div className="pv-bar-fill" style={{ width: '72%' }}></div>
+                <div className="pv-bar-fill" style={{ width: `${ultimaNotaPercent}%` }}></div>
               </div>
             </div>
           </div>
@@ -181,7 +206,7 @@ const homeCss = `
   .hero-content { position: relative; z-index: 2; }
 
   .hero-label {
-    font-size: 11px;
+    font-size: 0.75rem;
     color: var(--text2);
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -190,7 +215,7 @@ const homeCss = `
 
   .hero-name {
     font-family: 'DM Serif Display', serif;
-    font-size: 28px;
+    font-size: 1.8rem;
     color: var(--text);
     letter-spacing: -0.4px;
     line-height: 1.15;
@@ -198,13 +223,13 @@ const homeCss = `
   }
 
   @media (max-width: 767px) {
-    .hero-name { font-size: 22px; }
+    .hero-name { font-size: 1.45rem; }
   }
 
   .hero-name em { font-style: normal; color: var(--accent); }
 
   .hero-sub {
-    font-size: 13px;
+    font-size: 0.85rem;
     color: var(--text2);
     line-height: 1.6;
     max-width: 280px;
@@ -212,7 +237,7 @@ const homeCss = `
   }
 
   @media (max-width: 767px) {
-    .hero-sub { max-width: 100%; font-size: 13px; }
+    .hero-sub { max-width: 100%; font-size: 0.85rem; }
   }
 
   .hero-cta {
@@ -223,7 +248,7 @@ const homeCss = `
     background: var(--accent);
     color: #0f0f0f;
     border-radius: 10px;
-    font-size: 13px;
+    font-size: 0.85rem;
     font-weight: 600;
     text-decoration: none;
     transition: background 0.2s, transform 0.1s;
@@ -273,16 +298,16 @@ const homeCss = `
   .pv-stat--lime .pv-stat-icon svg { stroke: #0f0f0f; }
   .pv-stat-icon svg { width: 18px; height: 18px; fill: none; stroke-width: 1.7; }
 
-  .pv-stat-delta { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
+  .pv-stat-delta { font-size: 0.65rem; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
   .pv-stat--dark .pv-stat-delta { background: var(--accent-dim); color: var(--accent); }
   .pv-stat--lime .pv-stat-delta { background: rgba(15, 15, 15, 0.08); color: #0f0f0f; }
 
-  .pv-stat-value { font-family: 'DM Serif Display', serif; font-size: 30px; line-height: 1; margin-bottom: 3px; }
+  .pv-stat-value { font-family: 'DM Serif Display', serif; font-size: 2rem; line-height: 1; margin-bottom: 3px; }
   .pv-stat--dark .pv-stat-value { color: var(--text); }
   .pv-stat--lime .pv-stat-value { color: #0f0f0f; }
-  .pv-stat-value span { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 400; opacity: 0.5; }
+  .pv-stat-value span { font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 400; opacity: 0.5; }
 
-  .pv-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+  .pv-stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
   .pv-stat--dark .pv-stat-label { color: var(--text2); }
   .pv-stat--lime .pv-stat-label { color: rgba(15, 15, 15, 0.55); }
 
@@ -320,15 +345,15 @@ const homeCss = `
 
   .pv-feature-content { display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 2; }
 
-  .pv-feature-title { font-family: 'DM Serif Display', serif; font-size: 23px; line-height: 1.2; letter-spacing: -0.3px; }
+  .pv-feature-title { font-family: 'DM Serif Display', serif; font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.3px; }
   .pv-feature--dark .pv-feature-title { color: var(--text); }
   .pv-feature--lime .pv-feature-title { color: #0f0f0f; }
 
-  .pv-feature-desc { font-size: 13px; line-height: 1.6; }
+  .pv-feature-desc { font-size: 0.85rem; line-height: 1.6; }
   .pv-feature--dark .pv-feature-desc { color: var(--text2); }
   .pv-feature--lime .pv-feature-desc { color: rgba(15, 15, 15, 0.6); }
 
-  .pv-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; font-size: 10px; font-weight: 500; letter-spacing: 0.3px; width: fit-content; }
+  .pv-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: 500; letter-spacing: 0.3px; width: fit-content; }
   .pv-feature--dark .pv-pill { background: var(--accent-dim); border: 1px solid var(--accent-dim2); color: var(--accent); }
   .pv-feature--lime .pv-pill { background: rgba(15, 15, 15, 0.08); border: 1px solid rgba(15, 15, 15, 0.15); color: #0f0f0f; }
 
@@ -339,7 +364,7 @@ const homeCss = `
     padding: 10px 20px;
     border-radius: 12px;
     font-family: inherit;
-    font-size: 13px;
+    font-size: 0.85rem;
     font-weight: 600;
     text-decoration: none;
     width: fit-content;

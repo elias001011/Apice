@@ -87,7 +87,7 @@ const historicoCss = `
     border: 1.5px solid var(--border);
     border-radius: 20px;
     padding: 6px 14px;
-    font-size: 12px;
+    font-size: 0.8rem;
     color: var(--text2);
     cursor: pointer;
     transition: all 0.2s;
@@ -120,16 +120,20 @@ const historicoCss = `
     margin-bottom: 8px;
   }
   .redacao-tema {
-    font-size: 13px;
+    font-size: 0.85rem;
     font-weight: 500;
     color: var(--text);
     line-height: 1.4;
     flex: 1;
     padding-right: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
   .redacao-nota {
     font-family: 'DM Serif Display', serif;
-    font-size: 22px;
+    font-size: 1.45rem;
     color: var(--accent);
     white-space: nowrap;
   }
@@ -138,11 +142,11 @@ const historicoCss = `
     gap: 12px;
   }
   .redacao-date {
-    font-size: 11px;
+    font-size: 0.75rem;
     color: var(--text3);
   }
   .redacao-mode {
-    font-size: 10px;
+    font-size: 0.65rem;
     color: var(--text3);
     background: var(--bg3);
     border-radius: 10px;

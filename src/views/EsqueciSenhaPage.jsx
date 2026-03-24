@@ -88,7 +88,7 @@ const esqueciSenhaCss = `
     color: #ea4335;
     padding: 10px;
     border-radius: 12px;
-    font-size: 12px;
+    font-size: 0.8rem;
     margin-bottom: 15px;
     text-align: center;
     border: 1px solid rgba(234, 67, 53, 0.2);
@@ -152,14 +152,14 @@ const esqueciSenhaCss = `
 
   .es-title {
     font-family: 'DM Serif Display', serif;
-    font-size: 26px;
+    font-size: 1.7rem;
     color: var(--text);
     text-align: center;
     margin-bottom: 6px;
   }
 
   .es-sub {
-    font-size: 13px;
+    font-size: 0.85rem;
     color: var(--text2);
     text-align: center;
     line-height: 1.55;
@@ -176,7 +176,7 @@ const esqueciSenhaCss = `
   .es-footer {
     text-align: center;
     margin-top: 1.5rem;
-    font-size: 12px;
+    font-size: 0.8rem;
     color: var(--text3);
   }
 
@@ -209,7 +209,7 @@ const esqueciSenhaCss = `
     }
 
     .es-title {
-      font-size: 22px;
+      font-size: 1.45rem;
     }
 
     .es-card {

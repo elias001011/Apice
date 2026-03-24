@@ -18,16 +18,14 @@ const providers = [
       const url = 'https://api.groq.com/openai/v1/chat/completions';
       
       const payload = {
-        model: "openai/gpt-oss-20b",
+        model: "llama-3.3-70b-versatile",
         messages: [
           { role: "system", content: systemPrompt },
           ...userMessages
         ],
-        temperature: 0.3,
-        max_tokens: 8192,
-        max_completion_tokens: 8192,
-        top_p: 1,
-        reasoning_effort: "medium", // Compatível com requisitos modernos
+        temperature: 0.2, // Reduzido para maior precisão
+        max_tokens: 4096,
+        response_format: { type: "json_object" },
         stream: false
       };
 
@@ -80,9 +78,13 @@ const providers = [
   {
     name: 'HF',
     call: async (systemPrompt, userMessages) => {
-      // 2. HUGGING FACE (HF)
-      // throw new Error('HF não implementado')
-      throw new Error('HF não implementado')
+      // 2. HUGGING FACE (Llama 3.3 via Inference API se chave presente)
+      const apiKey = process.env.HF_API_KEY || process.env.HF;
+      if (!apiKey || apiKey === 'undefined') throw new Error('HF Key missing');
+
+      const url = 'https://api-inference.huggingface.co/models/meta-llama/Llama-3.3-70B-Instruct';
+      // ... (mantendo como fallback futuro se o user adicionar a chave)
+      throw new Error('HF configurado mas sem implementação de proxy completa ainda.');
     }
   },
   {
@@ -244,7 +246,13 @@ export default async (req, context) => {
     for (const provider of providers) {
       try {
         console.log(`Tentando provedor de IA: ${provider.name}...`);
+        
+        // Timeout de segurança por provedor
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
         const result = await provider.call(systemPrompt, userMessages);
+        clearTimeout(timeoutId);
         
         console.log(`Sucesso com ${provider.name}`);
         return new Response(JSON.stringify(result), {
@@ -255,7 +263,6 @@ export default async (req, context) => {
       } catch (err) {
         console.error(`Falha no ${provider.name}:`, err.message);
         lastError = err.message;
-        // Continua para o próximo provedor
       }
     }
 

@@ -173,7 +173,7 @@ const aparenciaCss = `
     background: var(--bg3);
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s;
-    font-size: 12px;
+    font-size: 0.8rem;
     color: var(--text2);
   }
   .theme-icon-opt svg {
@@ -223,7 +223,7 @@ const aparenciaCss = `
     box-shadow: 0 1px 4px rgba(0,0,0,0.15);
   }
   .ap-color-name {
-    font-size: 13px;
+    font-size: 0.85rem;
     color: var(--text);
     flex: 1;
   }
@@ -262,7 +262,7 @@ const aparenciaCss = `
     background: var(--accent-dim);
   }
   .ap-font-preview {
-    font-size: 24px;
+    font-size: 1.6rem;
     line-height: 1;
     color: var(--text);
     width: 32px;
@@ -270,7 +270,7 @@ const aparenciaCss = `
   }
   .ap-font-label {
     font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
+    font-size: 0.9rem;
     color: var(--text);
     flex: 1;
     text-align: left;
@@ -302,7 +302,7 @@ const aparenciaCss = `
     transition: border-color 0.2s, background 0.2s;
     font-family: 'DM Sans', sans-serif;
     color: var(--text2);
-    font-size: 11px;
+    font-size: 0.75rem;
     font-weight: 500;
   }
   .ap-size-btn span:first-child { font-weight: 700; color: var(--text); }
@@ -328,20 +328,20 @@ const aparenciaCss = `
     align-items: center;
     padding: 3px 10px;
     border-radius: 20px;
-    font-size: 11px;
+    font-size: 0.75rem;
     font-weight: 600;
     width: fit-content;
     letter-spacing: 0.3px;
   }
   .ap-preview-title {
     font-family: 'DM Serif Display', serif;
-    font-size: 20px;
+    font-size: 1.35rem;
     color: var(--text);
     line-height: 1.2;
     letter-spacing: -0.3px;
   }
   .ap-preview-text {
-    font-size: 13px;
+    font-size: 0.85rem;
     color: var(--text2);
     line-height: 1.6;
   }
@@ -352,7 +352,7 @@ const aparenciaCss = `
     padding: 9px 18px;
     border-radius: 10px;
     font-family: inherit;
-    font-size: 13px;
+    font-size: 0.85rem;
     font-weight: 600;
     border: none;
     cursor: pointer;

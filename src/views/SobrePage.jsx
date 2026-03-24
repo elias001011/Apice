@@ -93,7 +93,7 @@ const sobreCss = `
     color: var(--text);
   }
   .sobre-versao {
-    font-size: 12px;
+    font-size: 0.8rem;
     color: var(--text3);
     margin-top: 4px;
   }
@@ -102,7 +102,7 @@ const sobreCss = `
     border: 1.5px solid var(--border);
     border-radius: 24px;
     padding: 1.5rem;
-    font-size: 14px;
+    font-size: 0.95rem;
     color: var(--text2);
     line-height: 1.65;
     text-align: center;

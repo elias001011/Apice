@@ -190,23 +190,23 @@ const perfilCss = `
     align-items: center;
     justify-content: center;
     font-family: 'DM Serif Display', serif;
-    font-size: 24px;
+    font-size: 1.6rem;
     color: var(--accent);
   }
 
   .profile-name {
     font-family: 'DM Serif Display', serif;
-    font-size: 22px;
+    font-size: 1.45rem;
     color: var(--text);
     letter-spacing: -0.3px;
   }
 
-  .profile-school { font-size: 12px; color: var(--text2); margin-top: 3px; }
+  .profile-school { font-size: 0.8rem; color: var(--text2); margin-top: 3px; }
 
   .profile-plan {
     display: inline-block;
     margin-top: 6px;
-    font-size: 10px;
+    font-size: 0.65rem;
     font-weight: 500;
     background: var(--bg3);
     border: 1px solid var(--border2);
@@ -228,8 +228,8 @@ const perfilCss = `
     transition: transform 0.25s;
   }
   .stat-small:hover { transform: translateY(-2px); }
-  .stat-small-val { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--text); }
-  .stat-small-lbl { font-size: 10px; color: var(--text3); margin-top: 2px; }
+  .stat-small-val { font-family: 'DM Serif Display', serif; font-size: 1.35rem; color: var(--text); }
+  .stat-small-lbl { font-size: 0.65rem; color: var(--text3); margin-top: 2px; }
 
   .logout-btn {
     width: 100%;
@@ -239,7 +239,7 @@ const perfilCss = `
     border-radius: var(--radius-sm);
     padding: 12px;
     font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
+    font-size: 0.85rem;
     color: var(--red);
     cursor: pointer;
     transition: background 0.2s, transform 0.1s;
@@ -255,8 +255,8 @@ const perfilCss = `
   .info-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
   .info-row + .info-row { border-top: 0.5px solid var(--border); }
 
-  .info-k { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.7px; }
-  .info-v { font-size: 13px; color: var(--text); margin-top: 3px; }
+  .info-k { font-size: 0.75rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .info-v { font-size: 0.85rem; color: var(--text); margin-top: 3px; }
   .info-left { padding-right: 12px; }
 
   .info-action {
@@ -264,7 +264,7 @@ const perfilCss = `
     border: 1.5px solid var(--border2);
     border-radius: 999px;
     padding: 6px 12px;
-    font-size: 12px;
+    font-size: 0.8rem;
     color: var(--text2);
     cursor: pointer;
     text-decoration: none;
