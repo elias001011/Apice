@@ -16,14 +16,14 @@ export function RedefinirSenhaPage() {
   useEffect(() => {
     // Detect token in URL hash
     const hash = window.location.hash
-    if (hash && hash.includes('recovery_token=')) {
-      const parts = hash.substring(1).split('=')
-      if (parts[0] === 'recovery_token') {
-        setToken(parts[1])
+    if (hash) {
+      const tokenMatch = hash.match(/recovery_token=([^&]+)/)
+      if (tokenMatch && tokenMatch[1]) {
+        setToken(tokenMatch[1])
+        return
       }
-    } else {
-      setError('Token de recuperação não encontrado ou link expirado.')
     }
+    setError('Token de recuperação não encontrado ou link expirado.')
   }, [])
 
   const handleUpdate = async (e) => {

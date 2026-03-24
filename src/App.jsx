@@ -42,9 +42,9 @@ export default function App() {
     <Routes>
       <Route path="/" element={
         isRecovery 
-          ? <Navigate to="/redefinir-senha" replace /> 
+          ? <Navigate to={`/redefinir-senha${hash}`} replace /> 
           : isConfirm 
-          ? <Navigate to="/confirmar-email" replace />
+          ? <Navigate to={`/confirmar-email${hash}`} replace />
           : <Navigate to={user ? "/home" : "/login"} replace />
       } />
 

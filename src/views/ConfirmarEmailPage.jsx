@@ -13,21 +13,25 @@ export function ConfirmarEmailPage() {
   useEffect(() => {
     const handleConfirm = async () => {
       const hash = window.location.hash
-      if (hash && hash.includes('confirmation_token=')) {
-        const token = hash.substring(1).split('=')[1]
-        try {
-          await confirmAccount(token)
-          setSuccess(true)
-        } catch (err) {
-          console.error('Confirmation error:', err)
-          setError('O link de confirmação parece inválido ou já foi utilizado.')
-        } finally {
-          setLoading(false)
+      if (hash) {
+        const tokenMatch = hash.match(/confirmation_token=([^&]+)/)
+        if (tokenMatch && tokenMatch[1]) {
+          const token = tokenMatch[1]
+          try {
+            await confirmAccount(token)
+            setSuccess(true)
+          } catch (err) {
+            console.error('Confirmation error:', err)
+            setError('O link de confirmação parece inválido ou já foi utilizado.')
+          } finally {
+            setLoading(false)
+          }
+          return
         }
-      } else {
-        setError('Token de confirmação não encontrado.')
-        setLoading(false)
       }
+      
+      setError('Token de confirmação não encontrado.')
+      setLoading(false)
     }
 
     handleConfirm()
