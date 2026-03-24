@@ -106,7 +106,7 @@ const temaDetalheCss = `
     opacity: 0.2;
   }
   .prob-hero-label {
-    font-size: 11px;
+    font-size: 0.75rem;
     color: var(--text2);
     text-transform: uppercase;
     letter-spacing: 0.7px;
@@ -114,7 +114,7 @@ const temaDetalheCss = `
   }
   .prob-hero-tema {
     font-family: 'DM Serif Display', serif;
-    font-size: 20px;
+    font-size: 1.35rem;
     color: var(--text);
     letter-spacing: -0.3px;
     line-height: 1.3;
@@ -134,12 +134,12 @@ const temaDetalheCss = `
   }
   .prob-circle-num {
     font-family: 'DM Serif Display', serif;
-    font-size: 24px;
+    font-size: 1.6rem;
     color: var(--accent);
     line-height: 1;
   }
   .prob-circle-pct {
-    font-size: 10px;
+    font-size: 0.65rem;
     color: var(--accent);
     opacity: 0.7;
   }
@@ -154,7 +154,7 @@ const temaDetalheCss = `
     border: 1px solid var(--border);
     border-radius: 20px;
     padding: 4px 12px;
-    font-size: 11px;
+    font-size: 0.75rem;
     color: var(--text2);
   }
   .motivo-item {
@@ -174,7 +174,7 @@ const temaDetalheCss = `
     margin-top: 5px;
   }
   .motivo-text {
-    font-size: 13px;
+    font-size: 0.85rem;
     color: var(--text);
     line-height: 1.55;
   }
@@ -185,18 +185,18 @@ const temaDetalheCss = `
     border-top: 0.5px solid var(--border);
   }
   .rep-nome {
-    font-size: 13px;
+    font-size: 0.85rem;
     font-weight: 500;
     color: var(--text);
     margin-bottom: 3px;
   }
   .rep-uso {
-    font-size: 12px;
+    font-size: 0.8rem;
     color: var(--text2);
     line-height: 1.5;
   }
   .rep-como {
-    font-size: 11px;
+    font-size: 0.75rem;
     color: var(--accent);
     margin-top: 4px;
     font-weight: 500;

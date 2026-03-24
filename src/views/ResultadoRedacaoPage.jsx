@@ -15,237 +15,187 @@ export function ResultadoRedacaoPage() {
   return (
     <>
       <style>{resultadoCss}</style>
-      <Link to="/corretor" className="back-link">
-        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-        Voltar ao corretor
-      </Link>
+      
+      <div className="result-container anim anim-d1">
+        <Link to="/corretor" className="back-link">
+          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+          Voltar ao corretor
+        </Link>
 
-      <div className="score-hero anim anim-d1">
-        <div className="score-label">Sua nota</div>
-        <div className="score-number">{res.notaTotal || 0}</div>
-        <div className="score-max">de 1000 pontos</div>
-      </div>
+        <div className="result-grid">
+          {/* Coluna Esquerda: Nota e Competências */}
+          <div className="result-col-stats">
+            <div className="score-hero">
+              <div className="score-label">Desempenho Geral</div>
+              <div className="score-number">{res.notaTotal || 0}</div>
+              <div className="score-max">de 1000 pontos possíveis</div>
+            </div>
 
-      <div className="card anim anim-d2">
-        <div className="card-title">Nota por competência</div>
-        <div className="comp-list">
-          {comps.map((c, idx) => (
-            <div className="comp-row" key={idx}>
-              <div className="comp-header">
-                <span className="comp-name">{c.nome}</span>
-                <span className="comp-score-val">{c.nota} / 200</span>
-              </div>
-              <div className="progress-bg">
-                <div 
-                  className={`progress-fill ${c.nota < 120 ? 'mid' : ''}`} 
-                  style={{ width: `${(c.nota / 200) * 100}%`, background: c.nota < 120 ? 'var(--amber)' : 'var(--accent)' }}
-                ></div>
+            <div className="card comps-card">
+              <div className="card-title">Análise por Competência</div>
+              <div className="comp-list">
+                {comps.map((c, idx) => (
+                  <div className="comp-row" key={idx}>
+                    <div className="comp-header">
+                      <span className="comp-name">{c.nome}</span>
+                      <span className="comp-score-val">{c.nota}</span>
+                    </div>
+                    <div className="progress-bg">
+                      <div 
+                        className={`progress-fill ${c.nota < 120 ? 'mid' : ''}`} 
+                        style={{ width: `${(c.nota / 200) * 100}%`, background: c.nota < 120 ? 'var(--amber)' : 'var(--accent)' }}
+                      ></div>
+                    </div>
+                    {c.descricao && <div className="comp-desc">{c.descricao}</div>}
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      {res.pontoForte && (
-        <div className="feedback-block anim anim-d3">
-          <div className="feedback-tag positive">Ponto forte</div>
-          <div className="feedback-text">{res.pontoForte}</div>
-        </div>
-      )}
+          {/* Coluna Direita: Feedback Detalhado */}
+          <div className="result-col-feedback">
+            {res.pontoForte && (
+              <div className="feedback-block">
+                <div className="feedback-tag positive">✓ Ponto forte</div>
+                <div className="feedback-text">{res.pontoForte}</div>
+              </div>
+            )}
 
-      {res.atencao && (
-        <div className="feedback-block anim anim-d3">
-          <div className="feedback-tag warning">Atenção</div>
-          <div className="feedback-text">{res.atencao}</div>
-        </div>
-      )}
+            {res.atencao && (
+              <div className="feedback-block">
+                <div className="feedback-tag warning">⚠ Atenção</div>
+                <div className="feedback-text">{res.atencao}</div>
+              </div>
+            )}
 
-      {res.principalMelhorar && (
-        <div className="feedback-block anim anim-d4">
-          <div className="feedback-tag critical">Principal a melhorar</div>
-          <div className="feedback-text">{res.principalMelhorar}</div>
-        </div>
-      )}
+            {res.principalMelhorar && (
+              <div className="feedback-block">
+                <div className="feedback-tag critical">✕ Principal a melhorar</div>
+                <div className="feedback-text">{res.principalMelhorar}</div>
+              </div>
+            )}
 
-      {res.errosPt && Array.isArray(res.errosPt) && res.errosPt.length > 0 && (
-        <div className="feedback-block anim anim-d4">
-          <div className="feedback-tag" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text2)', border: '1px solid var(--border)' }}>Erros de Português (C1)</div>
-          <div className="feedback-text" style={{ fontSize: 13 }}>
-            <ul style={{ paddingLeft: 20, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {res.errosPt.map((erro, i) => (
-                <li key={i}>
-                  <strong style={{ color: 'var(--red)' }}>{erro.errado}</strong> → <span style={{ color: 'var(--text)' }}>{erro.corrigido}</span>
-                  <div style={{ color: 'var(--text3)', fontSize: 11, marginTop: 2 }}>{erro.motivo}</div>
-                </li>
-              ))}
-            </ul>
+            {res.errosPt && Array.isArray(res.errosPt) && res.errosPt.length > 0 && (
+              <div className="feedback-block">
+                <div className="feedback-tag info">Erros de Português (C1)</div>
+                <div className="errors-list">
+                  {res.errosPt.map((erro, i) => (
+                    <div className="error-item" key={i}>
+                      <div className="error-words">
+                        <span className="word-wrong">{erro.errado}</span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                        <span className="word-right">{erro.corrigido}</span>
+                      </div>
+                      <div className="error-reason">{erro.motivo}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="action-row">
+              <Link to="/corretor" className="btn-primary">
+                Nova redação
+              </Link>
+              <Link to="/historico-redacoes" className="btn-ghost">
+                Ver histórico completo
+              </Link>
+            </div>
           </div>
         </div>
-      )}
-
-      {res.errosPt && typeof res.errosPt === 'string' && (
-        <div className="feedback-block anim anim-d4">
-          <div className="feedback-tag" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text2)', border: '1px solid var(--border)' }}>Erros de Português (C1)</div>
-          <div className="feedback-text" style={{ fontSize: 12 }}>{res.errosPt}</div>
-        </div>
-      )}
-
-      <div className="action-row anim anim-d4">
-        <Link to="/corretor" className="btn-ghost">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-          </svg>
-          Nova redação
-        </Link>
-        <Link to="/historico-redacoes" className="btn-ghost">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
-          Ver histórico
-        </Link>
       </div>
     </>
   )
 }
 
 const resultadoCss = `
+  .result-container {
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+  }
+  .result-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    align-items: start;
+    margin-top: 1.5rem;
+  }
+  @media (min-width: 1000px) {
+    .result-grid {
+      grid-template-columns: 400px 1fr;
+    }
+  }
+
   .score-hero {
-    background: var(--card-dark);
-    border: 1.5px solid rgba(200, 240, 96, 0.2);
-    border-radius: 24px;
-    padding: 2.5rem 1.25rem 2rem;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 32px;
+    padding: 3rem 2rem;
     text-align: center;
-    margin-bottom: 14px;
     position: relative;
     overflow: hidden;
-  }
-  .score-hero::before {
-    content: '';
-    position: absolute;
-    top: -60px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 220px;
-    height: 220px;
-    background: radial-gradient(circle, rgba(200, 240, 96, 0.1) 0%, transparent 70%);
-    pointer-events: none;
-  }
-  .score-hero::after {
-    content: '';
-    position: absolute;
-    top: 16px;
-    right: 20px;
-    width: 16px;
-    height: 16px;
-    background: var(--accent);
-    clip-path: polygon(50% 0%, 61% 35%, 100% 50%, 61% 65%, 50% 100%, 39% 65%, 0% 50%, 39% 35%);
-    opacity: 0.2;
+    margin-bottom: 2rem;
   }
   .score-label {
-    font-size: 11px;
-    color: var(--text2);
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text3);
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 10px;
+    letter-spacing: 1.5px;
+    margin-bottom: 0.5rem;
   }
   .score-number {
     font-family: 'DM Serif Display', serif;
-    font-size: 76px;
+    font-size: 5.5rem;
     color: var(--accent);
     line-height: 1;
-    letter-spacing: -2px;
+    margin: 10px 0;
   }
   .score-max {
-    font-size: 14px;
+    font-size: 0.85rem;
     color: var(--text3);
-    margin-top: 4px;
   }
-  .score-tag {
-    display: inline-block;
-    margin-top: 14px;
-    background: var(--accent-dim2);
-    border: 1.5px solid rgba(200, 240, 96, 0.3);
-    border-radius: 20px;
-    padding: 5px 16px;
-    font-size: 12px;
-    color: var(--accent);
-    font-weight: 500;
-  }
-  .comp-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .comp-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 5px;
-  }
-  .comp-name {
-    font-size: 12px;
-    color: var(--text2);
-  }
-  .comp-score-val {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text);
-  }
+
+  .comps-card { padding: 1.5rem; }
+  .comp-list { display: flex; flex-direction: column; gap: 1.5rem; }
+  .comp-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .comp-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+  .comp-score-val { font-family: 'DM Serif Display', serif; font-size: 1.3rem; color: var(--accent); }
+  .comp-desc { font-size: 0.75rem; color: var(--text2); line-height: 1.5; margin-top: 8px; padding-left: 4px; border-left: 2px solid var(--border); }
+
   .feedback-block {
     background: var(--bg2);
-    border: 1.5px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1.25rem;
-    margin-bottom: 12px;
-    transition: transform 0.25s;
-  }
-  .feedback-block:hover {
-    transform: translateY(-2px);
+    border: 1px solid var(--border2);
+    border-radius: 20px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
   }
   .feedback-tag {
     display: inline-block;
-    font-size: 10px;
-    font-weight: 500;
+    font-size: 0.65rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.6px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    margin-bottom: 10px;
+    padding: 4px 12px;
+    border-radius: 10px;
+    margin-bottom: 12px;
   }
-  .feedback-tag.positive {
-    background: rgba(200, 240, 96, 0.12);
-    color: var(--accent);
-    border: 1px solid rgba(200, 240, 96, 0.2);
-  }
-  .feedback-tag.warning {
-    background: rgba(255, 184, 77, 0.12);
-    color: var(--amber);
-    border: 1px solid rgba(255, 184, 77, 0.2);
-  }
-  .feedback-tag.critical {
-    background: rgba(255, 107, 107, 0.1);
-    color: var(--red);
-    border: 1px solid rgba(255, 107, 107, 0.15);
-  }
-  .feedback-text {
-    font-size: 13px;
-    color: var(--text);
-    line-height: 1.65;
-  }
-  .feedback-text strong {
-    color: var(--accent);
-    font-weight: 500;
-  }
-  .feedback-text .warn {
-    color: var(--amber);
-    font-weight: 500;
-  }
-  .action-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-top: 4px;
-  }
+  .feedback-tag.positive { background: var(--accent-dim2); color: var(--accent); }
+  .feedback-tag.warning { background: rgba(255, 184, 77, 0.1); color: var(--amber); }
+  .feedback-tag.critical { background: rgba(255, 82, 82, 0.1); color: var(--red); }
+  .feedback-tag.info { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
+  
+  .feedback-text { font-size: 0.95rem; line-height: 1.7; color: var(--text); }
+
+  .errors-list { display: flex; flex-direction: column; gap: 1rem; margin-top: 0.5rem; }
+  .error-item { padding: 12px; background: var(--bg3); border-radius: 12px; border: 1px solid var(--border); }
+  .error-words { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .word-wrong { color: var(--red); font-weight: 700; text-decoration: line-through; }
+  .word-right { color: var(--accent); font-weight: 700; }
+  .error-reason { font-size: 0.75rem; color: var(--text3); }
+
+  .action-row { display: flex; gap: 12px; margin-top: 1rem; }
+  .action-row .btn-primary { flex: 1.5; height: 48px; }
+  .action-row .btn-ghost { flex: 1; height: 48px; }
 `

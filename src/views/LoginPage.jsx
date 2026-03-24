@@ -146,7 +146,7 @@ const loginCss = `
     color: #ea4335;
     padding: 10px;
     border-radius: 12px;
-    font-size: 12px;
+    font-size: 0.8rem;
     margin-bottom: 15px;
     text-align: center;
     border: 1px solid rgba(234, 67, 53, 0.2);
@@ -226,7 +226,7 @@ const loginCss = `
   }
 
   .login-sub {
-    font-size: 13px;
+    font-size: 0.85rem;
     color: var(--text2);
     text-align: center;
     line-height: 1.55;
@@ -244,7 +244,7 @@ const loginCss = `
   }
 
   .login-forgot {
-    font-size: 11px;
+    font-size: 0.75rem;
     color: var(--text2);
     text-decoration: none;
     float: right;
@@ -264,7 +264,7 @@ const loginCss = `
   }
 
   .login-separator span {
-    font-size: 11px;
+    font-size: 0.75rem;
     color: var(--text3);
     white-space: nowrap;
   }
@@ -282,7 +282,7 @@ const loginCss = `
     border-radius: var(--radius-sm);
     padding: 11px;
     font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
+    font-size: 0.85rem;
     color: var(--text2);
     cursor: pointer;
     transition: all 0.2s, transform 0.1s;
@@ -295,7 +295,7 @@ const loginCss = `
     background: none;
     border: none;
     color: var(--text3);
-    font-size: 11px;
+    font-size: 0.75rem;
     cursor: pointer;
     margin-top: 4px;
     text-decoration: underline;
@@ -306,7 +306,7 @@ const loginCss = `
   .login-footer {
     text-align: center;
     margin-top: 1.5rem;
-    font-size: 12px;
+    font-size: 0.8rem;
     color: var(--text3);
   }
 

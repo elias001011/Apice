@@ -1,44 +1,54 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { corrigirRedacao, salvarNoHistorico } from '../services/aiService.js'
+import { corrigirRedacao, salvarNoHistorico, gerarTemaDinamico } from '../services/aiService.js'
 
 export function CorretorPage() {
   const navigate = useNavigate()
+  const [hasStarted, setHasStarted] = useState(false)
   const [tema, setTema] = useState('')
+  const [material, setMaterial] = useState('')
   const [redacao, setRedacao] = useState('')
   const [isRigido, setIsRigido] = useState(false)
-  const [showParticles, setShowParticles] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [generatingTheme, setGeneratingTheme] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
   // Contador de palavras
-  const wordCount = redacao.trim() === '' ? 0 : redacao.trim().split(/\s+/).length
+  const words = redacao.trim().split(/\s+/).filter(w => w.length > 0)
+  const wordCount = words.length
   
   const getCountClass = () => {
     if (wordCount === 0) return 'char-count'
-    if (wordCount < 100) return 'char-count'
-    if (wordCount < 250) return 'char-count warn'
+    if (wordCount < 100) return 'char-count warn'
+    if (wordCount > 600) return 'char-count warn'
     return 'char-count ok'
   }
 
-  const handleModeChange = (rigido) => {
-    if (rigido && !isRigido) {
-      setShowParticles(true)
-      setTimeout(() => setShowParticles(false), 2200)
+  const handleGerarTema = async () => {
+    setGeneratingTheme(true)
+    setErrorMsg('')
+    try {
+      const { tema: novoTema, material: novoMaterial } = await gerarTemaDinamico()
+      setTema(novoTema)
+      setMaterial(novoMaterial)
+      setHasStarted(true)
+    } catch (err) {
+      setErrorMsg('Não foi possível gerar um tema agora. Tente digitar um manualmente.')
+    } finally {
+      setGeneratingTheme(false)
     }
-    setIsRigido(rigido)
   }
 
   const handleCorrigir = async () => {
-    if (wordCount < 10) {
-      setErrorMsg('A redação está muito curta. Escreva um texto completo antes de enviar.')
+    if (wordCount < 15) {
+      setErrorMsg('A redação está muito curta para uma análise precisa (mínimo 15 palavras).')
       return
     }
 
     setLoading(true)
     setErrorMsg('')
     try {
-      const resultado = await corrigirRedacao({ redacao, tema, isRigido })
+      const resultado = await corrigirRedacao({ redacao, tema, material, isRigido })
       salvarNoHistorico(resultado, tema)
       navigate('/resultado-redacao', { state: { resultado } })
     } catch (err) {
@@ -48,452 +58,464 @@ export function CorretorPage() {
     }
   }
 
+  if (!hasStarted && !tema) {
+    return (
+      <>
+        <style>{corretorCss}</style>
+        <div className="corretor-intro-new anim anim-d1">
+          <div className="intro-header">
+            <div className="badge-new">Ápice Lab</div>
+            <h1 className="intro-title-new">Laboratório de Redação</h1>
+            <p className="intro-subtitle-new">Escolha como deseja praticar sua escrita hoje.</p>
+          </div>
+
+          <div className="intro-options-grid">
+            <button 
+              className="intro-card-option anim anim-d2" 
+              onClick={handleGerarTema}
+              disabled={generatingTheme}
+            >
+              <div className="option-icon-box">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+              </div>
+              <div className="option-info">
+                <h3>Tema Dinâmico</h3>
+                <p>Nossa IA gera um tema inédito e materiais de apoio estilo ENEM para você.</p>
+              </div>
+              <div className="option-arrow">
+                {generatingTheme ? (
+                  <div className="spinner-small" />
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                )}
+              </div>
+            </button>
+
+            <button className="intro-card-option anim anim-d3" onClick={() => setHasStarted(true)}>
+              <div className="option-icon-box manual">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </div>
+              <div className="option-info">
+                <h3>Tema Livre / Próprio</h3>
+                <p>Já tem um tema em mente? Cole seu texto e o tema para uma análise instantânea.</p>
+              </div>
+              <div className="option-arrow">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </div>
+            </button>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <style>{corretorCss}</style>
       
       <div className={`corretor-container ${isRigido ? 'modo-rigido' : ''}`}>
-        {showParticles && (
-          <div className="rigido-particles show">
-            {[...Array(15)].map((_, i) => (
-              <div
-                key={i}
-                className="r-particle"
-                style={{
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 30 + 5}%`,
-                  animationDelay: `${Math.random() * 0.8}s`,
-                  width: `${2 + Math.random() * 3}px`,
-                  height: `${2 + Math.random() * 3}px`,
-                }}
+        <div className="corretor-header anim anim-d1">
+          <div className="corretor-header-left">
+            <h2 className="corretor-title">Oficina de Escrita</h2>
+            <p className="corretor-subtitle">Pronta para a nota máxima no ENEM.</p>
+          </div>
+          <div className="mode-toggle-pill">
+             <button 
+               className={`mode-pill-btn ${!isRigido ? 'active' : ''}`} 
+               onClick={() => setIsRigido(false)}
+             >Padrão</button>
+             <button 
+               className={`mode-pill-btn ${isRigido ? 'active' : ''}`} 
+               onClick={() => setIsRigido(true)}
+             >Rígido</button>
+          </div>
+        </div>
+
+        <div className="corretor-grid">
+          {/* Coluna de Input */}
+          <div className="corretor-column-main">
+            <div className="card anim anim-d2">
+              <div className="card-title">Tema Selecionado</div>
+              <input 
+                type="text" 
+                className="input-field dynamic-input"
+                value={tema}
+                onChange={(e) => setTema(e.target.value)}
+                placeholder="Ex: O impacto da tecnologia na educação..."
               />
-            ))}
-          </div>
-        )}
-
-        <div className="corretor-hero anim anim-d1">
-          <div className="corretor-hero-icon">
-            <svg viewBox="0 0 24 24">
-              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </div>
-          <div className="corretor-hero-text">
-            <div className="corretor-hero-title">
-              {isRigido ? 'Correção Rigorosa' : 'Corretor de Redação'}
+              {material && (
+                <div className="material-box">
+                  <div className="material-label">Material de Apoio (ENEM)</div>
+                  <div className="material-content">{material}</div>
+                </div>
+              )}
             </div>
-            <div className="corretor-hero-sub">
-              {isRigido 
-                ? 'Critérios mais rígidos — cada detalhe será avaliado como na banca real do ENEM.'
-                : 'Receba feedback detalhado por competência e nota 0–1000 em segundos.'}
+
+            <div className="card anim anim-d3">
+              <div className="card-title">Seu Texto</div>
+              <textarea 
+                className="textarea-field main-editor" 
+                value={redacao}
+                onChange={(e) => setRedacao(e.target.value)}
+                placeholder="Desenvolva sua tese aqui..."
+              />
+              <div className="editor-footer">
+                <div className={getCountClass()}>
+                  <strong>{wordCount}</strong> palavras
+                </div>
+                {errorMsg && <div className="inline-error">{errorMsg}</div>}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className={`rigido-banner ${isRigido ? 'show' : ''}`}>
-          <svg viewBox="0 0 24 24">
-            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-          <span><strong>Modo Rígido ativado.</strong> A correção será mais exigente — como a banca real do ENEM.</span>
-        </div>
-
-        <div className="card anim anim-d2">
-          <div className="card-title">Tema da redação</div>
-          <input 
-            type="text" 
-            className="input-field"
-            value={tema}
-            onChange={(e) => setTema(e.target.value)}
-            placeholder="Ex: O impacto das redes sociais na saúde mental dos jovens..."
-          />
-          <div className="info-row" style={{ marginTop: 8 }}>
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-            Informe o tema exato para uma avaliação mais precisa
-          </div>
-        </div>
-
-        <div className="card anim anim-d2">
-          <div className="card-title">Sua redação</div>
-          <textarea 
-            className="textarea-field" 
-            rows="10"
-            value={redacao}
-            onChange={(e) => setRedacao(e.target.value)}
-            placeholder="Cole ou escreva sua redação dissertativo-argumentativa aqui..."
-          />
-          <div className={getCountClass()}>
-            {wordCount} palavras
-          </div>
-        </div>
-
-        <div className="card anim anim-d3">
-          <div className="card-title">Modo de correção</div>
-          <div className="mode-grid">
-            <div 
-              className={`mode-option ${!isRigido ? 'selected' : ''}`} 
-              onClick={() => handleModeChange(false)}
-            >
-              <div className="mode-dot"></div>
-              <div className="mode-name">Padrão</div>
-              <div className="mode-desc">Correção fiel ao gabarito ENEM</div>
+          {/* Coluna de Guia/Ações */}
+          <div className="corretor-column-side">
+            <div className="card anim anim-d3 sticky-side">
+              <div className="card-title">Status da Análise</div>
+              <div className="status-item">
+                <div className={`status-dot ${wordCount > 300 ? 'done' : 'pending'}`}></div>
+                <span>Extensão adequada</span>
+              </div>
+              <div className="status-item">
+                <div className={`status-dot ${tema.length > 10 ? 'done' : 'pending'}`}></div>
+                <span>Tema definido</span>
+              </div>
+              
+              <div className="side-separator"></div>
+              
+              <button 
+                className="btn-primary main-submit" 
+                onClick={handleCorrigir}
+                disabled={loading}
+              >
+                {loading ? 'Analisando...' : 'Finalizar e Corrigir'}
+                {!loading && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>}
+              </button>
+              
+              <button 
+                className="btn-ghost-small" 
+                onClick={handleGerarTema}
+                disabled={generatingTheme}
+              >
+                {generatingTheme ? 'Gerando...' : 'Trocar tema'}
+              </button>
             </div>
-            <div 
-              className={`mode-option ${isRigido ? 'selected' : ''}`} 
-              onClick={() => handleModeChange(true)}
-            >
-              <div className="mode-dot"></div>
-              <div className="mode-name">Rígido</div>
-              <div className="mode-desc">Mais exigente, como a banca real</div>
+
+            <div className="card anim anim-d4 criteria-card">
+              <div className="card-title">Critérios Avaliados</div>
+              <ul className="criteria-list">
+                <li><span>C1</span> Gramática e Norma</li>
+                <li><span>C2</span> Repertório e Tema</li>
+                <li><span>C3</span> Argumentação</li>
+                <li><span>C4</span> Coesão</li>
+                <li><span>C5</span> Intervenção</li>
+              </ul>
             </div>
           </div>
         </div>
-
-        <div className="card anim anim-d3">
-          <div className="card-title">O que será avaliado</div>
-          <div className="competencias-preview">
-            <div className="comp-chip">
-              <div className="comp-chip-dot"></div>C1 — Domínio da norma culta da língua portuguesa
-            </div>
-            <div className="comp-chip">
-              <div className="comp-chip-dot"></div>C2 — Compreensão do tema e repertório sociocultural
-            </div>
-            <div className="comp-chip">
-              <div className="comp-chip-dot"></div>C3 — Organização e defesa de tese
-            </div>
-            <div className="comp-chip">
-              <div className="comp-chip-dot"></div>C4 — Mecanismos de coesão textual
-            </div>
-            <div className="comp-chip">
-              <div className="comp-chip-dot"></div>C5 — Proposta de intervenção detalhada
-            </div>
-          </div>
-        </div>
-
-        {errorMsg && (
-          <div className="error-banner anim anim-d4" style={{ color: 'var(--red)', background: 'rgba(255, 107, 107, 0.1)', padding: 12, borderRadius: 8, marginBottom: 12, fontSize: 13, border: '1px solid rgba(255, 107, 107, 0.2)' }}>
-            <strong>Erro: </strong>{errorMsg}
-          </div>
-        )}
-
-        <button 
-          className="btn-primary anim anim-d4" 
-          onClick={handleCorrigir}
-          disabled={loading}
-          style={{ opacity: loading ? 0.7 : 1 }}
-        >
-          {loading ? (
-            'Analisando redação com IA...'
-          ) : (
-            <>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" strokeWidth="2"
-                strokeLinecap="round" strokeLinejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-              </svg>
-              Corrigir redação
-            </>
-          )}
-        </button>
       </div>
     </>
   )
 }
 
 const corretorCss = `
-  .char-count {
-    text-align: right;
-    font-size: 11px;
-    color: var(--text3);
-    margin-top: 5px;
+  .corretor-intro-new {
+    max-width: 900px;
+    margin: 4rem auto;
+    padding: 0 1rem;
   }
-
-  .char-count.warn {
-    color: var(--amber);
-  }
-
-  .char-count.ok {
+  .intro-header { text-align: center; margin-bottom: 3rem; }
+  .badge-new {
+    display: inline-block;
+    padding: 4px 12px;
+    background: var(--accent-dim2);
     color: var(--accent);
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 1rem;
   }
-
-  .mode-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-
-  .mode-option {
-    border: 1.5px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 12px 14px;
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s, transform 0.15s;
-    background: var(--bg2);
-  }
-
-  .mode-option:hover {
-    border-color: var(--border2);
-    transform: translateY(-1px);
-  }
-
-  .mode-option.selected {
-    border-color: var(--accent);
-    background: var(--accent-dim);
-  }
-
-  .mode-name {
-    font-size: 13px;
-    font-weight: 500;
+  .intro-title-new {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2.6rem;
     color: var(--text);
-    margin-bottom: 2px;
+    margin-bottom: 0.5rem;
   }
-
-  .mode-desc {
-    font-size: 11px;
+  .intro-subtitle-new {
+    font-size: 1.05rem;
     color: var(--text2);
-    line-height: 1.4;
   }
 
-  .mode-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--border2);
-    margin-bottom: 8px;
-    transition: background 0.2s;
+  .intro-options-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  @media (min-width: 700px) {
+    .intro-options-grid { grid-template-columns: 1fr 1fr; }
   }
 
-  .mode-option.selected .mode-dot {
-    background: var(--accent);
-  }
-
-  .info-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--text3);
-    margin-top: 8px;
-  }
-
-  .info-row svg {
-    width: 13px;
-    height: 13px;
-    stroke: var(--text3);
-    fill: none;
-    stroke-width: 1.5;
-    flex-shrink: 0;
-  }
-
-  .competencias-preview {
+  .intro-card-option {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 24px;
+    padding: 2rem;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-  }
-
-  .comp-chip {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: var(--text2);
-    padding: 4px 0;
-  }
-
-  .comp-chip-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
-    flex-shrink: 0;
-    transition: background 0.4s ease;
-  }
-
-  .corretor-hero {
-    background: var(--card-dark);
-    border: 1.5px solid rgba(200, 240, 96, 0.2);
-    border-radius: 24px;
-    padding: 1.5rem 1.25rem;
-    margin-bottom: 14px;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+    align-items: flex-start;
+    text-align: left;
+    gap: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
-    transition: all 0.5s ease;
   }
-
-  .corretor-hero-icon {
-    width: 48px;
-    height: 48px;
-    background: rgba(200, 240, 96, 0.1);
+  .intro-card-option:hover {
+    transform: translateY(-5px);
+    border-color: var(--accent);
+    box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+    background: var(--bg3);
+  }
+  .option-icon-box {
+    width: 52px;
+    height: 52px;
+    background: var(--accent);
+    color: #000;
     border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
-    transition: background 0.5s ease;
+    box-shadow: 0 8px 16px var(--accent-dim);
   }
+  .option-icon-box.manual { background: var(--bg3); color: var(--text); box-shadow: none; border: 1px solid var(--border); }
+  
+  .option-info h3 { font-family: 'DM Serif Display', serif; font-size: 1.4rem; margin-bottom: 8px; color: var(--text); }
+  .option-info p { font-size: 0.95rem; color: var(--text2); line-height: 1.6; }
 
-  .corretor-hero-icon svg {
-    width: 22px;
-    height: 22px;
-    stroke: var(--accent);
-    fill: none;
-    stroke-width: 1.5;
-    transition: stroke 0.5s ease;
-  }
-
-  .corretor-hero-title {
-    font-family: 'DM Serif Display', serif;
-    font-size: 20px;
-    color: var(--text);
-    letter-spacing: -0.3px;
-    margin-bottom: 3px;
-    transition: color 0.5s ease;
-  }
-
-  .corretor-hero-sub {
-    font-size: 12px;
-    color: var(--text2);
-    line-height: 1.45;
-    transition: color 0.5s ease;
-  }
-
-  .corretor-hero::after {
-    content: '';
-    position: absolute;
-    top: 12px;
-    right: 16px;
-    width: 4px;
-    height: 4px;
-    background: var(--accent);
+  .option-arrow {
+    margin-top: auto;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
-    opacity: 0.3;
-    transition: all 0.5s ease;
+    background: var(--bg3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text3);
+    transition: all 0.2s;
+  }
+  .intro-card-option:hover .option-arrow { background: var(--accent); color: #000; transform: translateX(5px); }
+
+  /* Corretor Dashboard Area */
+  .corretor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 2rem;
+    padding: 0 4px;
+  }
+  .corretor-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.7rem;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .corretor-subtitle {
+    font-size: 0.9rem;
+    color: var(--text2);
   }
 
-  /* MODO RÍGIDO */
-  .modo-rigido .corretor-hero {
-    border-color: rgba(255, 107, 107, 0.35);
-    background: linear-gradient(135deg, var(--card-dark) 0%, rgba(255, 60, 60, 0.05) 100%);
+  .mode-toggle-pill {
+    background: var(--bg3);
+    padding: 4px;
+    border-radius: 99px;
+    display: flex;
+    gap: 2px;
+    border: 1px solid var(--border);
+  }
+  .mode-pill-btn {
+    padding: 6px 16px;
+    border-radius: 99px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    color: var(--text3);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .mode-pill-btn.active {
+    background: var(--bg2);
+    color: var(--accent);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
   }
 
-  .modo-rigido .corretor-hero::after {
-    background: var(--red);
-    opacity: 0.5;
-    animation: pulseWarn 1.5s ease-in-out infinite;
+  /* Grid Layout */
+  .corretor-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    align-items: start;
   }
 
-  .modo-rigido .corretor-hero-icon {
-    background: rgba(255, 107, 107, 0.12);
+  @media (min-width: 900px) {
+    .corretor-grid {
+      grid-template-columns: 1.8fr 1fr;
+    }
   }
 
-  .modo-rigido .corretor-hero-icon svg {
-    stroke: var(--red);
-  }
-
-  .modo-rigido .card {
-    border-color: rgba(255, 107, 107, 0.15);
-  }
-
-  .modo-rigido .comp-chip-dot {
-    background: var(--red);
-  }
-
-  .modo-rigido .btn-primary {
-    background: var(--red);
-  }
-
-  .modo-rigido .btn-primary:hover {
-    background: #ff5252;
-  }
-
-  .modo-rigido .mode-option.selected {
-    border-color: var(--red);
-    background: rgba(255, 107, 107, 0.08);
-  }
-
-  .modo-rigido .mode-option.selected .mode-dot {
-    background: var(--red);
-  }
-
-  .rigido-banner {
-    display: none;
-    background: rgba(255, 107, 107, 0.08);
-    border: 1.5px solid rgba(255, 107, 107, 0.25);
-    border-radius: var(--radius-sm);
-    padding: 10px 14px;
+  .dynamic-input {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--border);
+    border-radius: 0;
+    padding: 8px 0;
+    font-size: 1.2rem;
+    font-family: 'DM Serif Display', serif;
     margin-bottom: 12px;
+  }
+  .dynamic-input:focus {
+    border-bottom-color: var(--accent);
+  }
+
+  .material-box {
+    background: var(--bg3);
+    border-radius: var(--radius-sm);
+    padding: 1rem;
+    margin-top: 1rem;
+    border-left: 4px solid var(--accent);
+  }
+  .material-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+  }
+  .material-content {
+    font-size: 0.85rem;
+    color: var(--text2);
+    line-height: 1.6;
+    max-height: 200px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+
+  .main-editor {
+    min-height: 400px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-size: 1.05rem;
+    line-height: 1.8;
+  }
+  .main-editor:focus { border: none; }
+
+  .editor-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+  .char-count { font-size: 0.8rem; color: var(--text3); }
+  .char-count.ok { color: var(--accent); }
+  .char-count.warn { color: var(--amber); }
+
+  .inline-error { font-size: 0.8rem; color: var(--red); font-weight: 500; }
+
+  .sticky-side {
+    position: sticky;
+    top: calc(var(--nav-h) + 1.5rem);
+  }
+
+  .status-item {
+    display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 12px;
-    color: var(--red);
-    line-height: 1.5;
+    margin-bottom: 12px;
+    font-size: 0.85rem;
+    color: var(--text2);
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border2);
+  }
+  .status-dot.done { background: var(--accent); box-shadow: 0 0 8px var(--accent-dim2); }
+
+  .side-separator {
+    height: 1px;
+    background: var(--border);
+    margin: 1.5rem 0;
   }
 
-  .rigido-banner.show {
+  .main-submit {
+    margin-top: 1rem;
+    box-shadow: 0 4px 15px var(--accent-dim);
+  }
+
+  .btn-ghost-small {
+    background: transparent;
+    border: none;
+    color: var(--text3);
+    font-size: 0.8rem;
+    cursor: pointer;
+    margin-top: 12px;
+    text-decoration: underline;
+    width: 100%;
+  }
+
+  .criteria-list {
+    list-style: none;
+    padding: 0;
+  }
+  .criteria-list li {
+    font-size: 0.8rem;
+    color: var(--text2);
     display: flex;
-    animation: shakeIn 0.5s ease;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .criteria-list li span {
+    font-weight: 700;
+    color: var(--accent);
+    width: 20px;
   }
 
-  .rigido-banner svg {
+  .intro-card-option:disabled {
+    opacity: 0.7;
+    cursor: default;
+    pointer-events: none;
+  }
+  .intro-card-option:disabled .option-arrow {
+    background: var(--bg2);
+  }
+
+  .spinner-small {
     width: 18px;
     height: 18px;
-    stroke: var(--red);
-    fill: none;
-    stroke-width: 1.5;
-    flex-shrink: 0;
-  }
-
-  .rigido-banner strong {
-    font-weight: 600;
-  }
-
-  .rigido-particles {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    pointer-events: none;
-    z-index: 999;
-    overflow: hidden;
-    display: none;
-  }
-
-  .rigido-particles.show {
-    display: block;
-  }
-
-  .r-particle {
-    position: absolute;
-    background: var(--red);
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
     border-radius: 50%;
-    opacity: 0;
-    animation: particleFall 1.2s ease-out forwards;
+    animation: spin 0.8s linear infinite;
   }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
-  @keyframes pulseWarn {
-    0%, 100% { opacity: 0.3; transform: scale(1); }
-    50% { opacity: 0.8; transform: scale(1.5); }
-  }
-
-  @keyframes shakeIn {
-    0% { transform: translateX(-8px); opacity: 0; }
-    25% { transform: translateX(6px); }
-    50% { transform: translateX(-4px); }
-    75% { transform: translateX(2px); }
-    100% { transform: translateX(0); opacity: 1; }
-  }
-
-  @keyframes particleFall {
-    0% { opacity: 0.8; transform: translateY(0) scale(1); }
-    100% { opacity: 0; transform: translateY(60px) scale(0.3); }
-  }
+  .modo-rigido .corretor-title { color: var(--red); }
+  .modo-rigido .mode-pill-btn.active { color: var(--red); }
+  .modo-rigido .dynamic-input:focus { border-bottom-color: var(--red); }
+  .modo-rigido .material-box { border-left-color: var(--red); }
+  .modo-rigido .material-label { color: var(--red); }
+  .modo-rigido .status-dot.done { background: var(--red); box-shadow: 0 0 8px rgba(255, 82, 82, 0.4); }
+  .modo-rigido .main-submit { background: var(--red); box-shadow: 0 4px 15px rgba(255, 82, 82, 0.3); }
+  .modo-rigido .criteria-list li span { color: var(--red); }
 `
+
+

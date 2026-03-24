@@ -130,7 +130,7 @@ const cadastroCss = `
     color: #ea4335;
     padding: 10px;
     border-radius: 12px;
-    font-size: 12px;
+    font-size: 0.8rem;
     margin-bottom: 15px;
     text-align: center;
     border: 1px solid rgba(234, 67, 53, 0.2);
@@ -187,14 +187,14 @@ const cadastroCss = `
 
   .cad-title {
     font-family: 'DM Serif Display', serif;
-    font-size: 26px;
+    font-size: 1.7rem;
     color: var(--text);
     text-align: center;
     margin-bottom: 5px;
   }
 
   .cad-sub {
-    font-size: 13px;
+    font-size: 0.85rem;
     color: var(--text2);
     text-align: center;
   }
@@ -235,7 +235,7 @@ const cadastroCss = `
   }
 
   .cad-terms label {
-    font-size: 12px;
+    font-size: 0.8rem;
     color: var(--text2);
     line-height: 1.5;
   }
@@ -250,7 +250,7 @@ const cadastroCss = `
     text-align: center;
     margin-top: 1.5rem;
     margin-bottom: 2rem;
-    font-size: 12px;
+    font-size: 0.8rem;
     color: var(--text3);
   }
 
@@ -262,7 +262,7 @@ const cadastroCss = `
 
   @media (max-width: 480px) {
     .cad-page { padding-top: 2.5rem; }
-    .cad-title { font-size: 22px; }
+    .cad-title { font-size: 1.45rem; }
     .cad-card { padding: 1.25rem; }
   }
 `

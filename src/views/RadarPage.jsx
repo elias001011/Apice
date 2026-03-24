@@ -160,7 +160,7 @@ const radarCss = `
 
   .page-header .page-title {
     font-family: 'DM Serif Display', serif;
-    font-size: 26px;
+    font-size: 1.7rem;
     color: var(--text);
     letter-spacing: -0.4px;
     margin-bottom: 6px;
@@ -172,7 +172,7 @@ const radarCss = `
   }
 
   .page-header .page-sub {
-    font-size: 13px;
+    font-size: 0.85rem;
     color: var(--text2);
     line-height: 1.6;
     max-width: 420px;
@@ -194,7 +194,7 @@ const radarCss = `
     height: 48px;
     flex-shrink: 0;
     background: var(--accent-dim);
-    border: 1.5px solid rgba(200, 240, 96, 0.2);
+    border: 1.5px solid rgba(var(--accent-rgb), 0.25);
     border-radius: 14px;
     display: flex;
     align-items: center;
@@ -210,14 +210,14 @@ const radarCss = `
   }
 
   .radar-hero-title {
-    font-size: 14px;
+    font-size: 0.95rem;
     font-weight: 500;
     color: var(--text);
     margin-bottom: 3px;
   }
 
   .radar-hero-sub {
-    font-size: 12px;
+    font-size: 0.8rem;
     color: var(--text2);
     line-height: 1.45;
   }
@@ -239,7 +239,7 @@ const radarCss = `
   }
 
   .tema-card.hot {
-    border-color: rgba(200, 240, 96, 0.25);
+    border-color: rgba(var(--accent-rgb), 0.3);
     background: var(--accent-dim);
   }
 
@@ -251,7 +251,7 @@ const radarCss = `
   }
 
   .tema-titulo {
-    font-size: 14px;
+    font-size: 0.95rem;
     font-weight: 500;
     color: var(--text);
     line-height: 1.4;
@@ -268,7 +268,7 @@ const radarCss = `
 
   .prob-num {
     font-family: 'DM Serif Display', serif;
-    font-size: 22px;
+    font-size: 1.45rem;
     color: var(--accent);
     line-height: 1;
   }
@@ -293,7 +293,7 @@ const radarCss = `
     border: 1px solid var(--border);
     border-radius: 20px;
     padding: 3px 9px;
-    font-size: 10px;
+    font-size: 0.65rem;
     color: var(--text2);
   }
 
@@ -304,8 +304,8 @@ const radarCss = `
   }
 
   .tema-tag.area-ciencia {
-    background: rgba(200, 240, 96, 0.08);
-    border-color: rgba(200, 240, 96, 0.2);
+    background: rgba(var(--accent-rgb), 0.1);
+    border-color: rgba(var(--accent-rgb), 0.2);
     color: var(--accent);
   }
 
@@ -316,20 +316,20 @@ const radarCss = `
   }
 
   .tema-justificativa {
-    font-size: 12px;
+    font-size: 0.8rem;
     color: var(--text2);
     line-height: 1.55;
   }
 
   .atualizado {
-    font-size: 11px;
+    font-size: 0.75rem;
     color: var(--text3);
     text-align: center;
     margin-top: 1rem;
   }
 
   .section-label {
-    font-size: 11px;
+    font-size: 0.75rem;
     color: var(--text2);
     text-transform: uppercase;
     letter-spacing: 0.8px;
@@ -349,7 +349,7 @@ const radarCss = `
     width: 80px;
     height: 80px;
     background: var(--accent-dim);
-    border: 1.5px solid rgba(200, 240, 96, 0.2);
+    border: 1.5px solid rgba(var(--accent-rgb), 0.25);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -369,15 +369,15 @@ const radarCss = `
   @keyframes radar-pulse {
     0%,
     100% {
-      box-shadow: 0 0 0 0 rgba(200, 240, 96, 0.15);
+      box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.2);
     }
     50% {
-      box-shadow: 0 0 0 18px rgba(200, 240, 96, 0);
+      box-shadow: 0 0 0 18px rgba(var(--accent-rgb), 0);
     }
   }
 
   .radar-intro-text {
-    font-size: 13px;
+    font-size: 0.85rem;
     color: var(--text2);
     line-height: 1.65;
     max-width: 420px;
@@ -424,7 +424,7 @@ const radarCss = `
   }
 
   .radar-loading-text {
-    font-size: 13px;
+    font-size: 0.85rem;
     color: var(--text2);
   }
 
