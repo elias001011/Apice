@@ -23,8 +23,14 @@ export function LoginPage() {
       await login(email, password)
       // O App.jsx cuida do redirecionamento
     } catch (err) {
-      console.error('Login error:', err)
-      setError('E-mail ou senha inválidos. Tente novamente.')
+      console.error('Login error details:', err)
+      const msg = err.message || err.error_description || 'E-mail ou senha inválidos. Tente novamente.'
+      
+      if (msg.includes('not confirmed')) {
+        setError('E-mail não confirmado. Verifique sua caixa de entrada para ativar sua conta.')
+      } else {
+        setError(msg)
+      }
     } finally {
       setLoading(false)
     }

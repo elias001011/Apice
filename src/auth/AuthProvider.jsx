@@ -6,23 +6,41 @@ const AuthContext = createContext(null)
 // Configure GoTrue instance
 // The 'url' should be your Netlify site URL (e.g., https://your-site.netlify.app/.netlify/identity)
 // For local development, it will still work if you have a linked site.
-const auth = new GoTrue({
-  APIRoot: '/.netlify/identity',
+const authConfig = {
+  APIRoot: import.meta.env.VITE_NETLIFY_IDENTITY_URL || '/.netlify/identity',
   setCookie: true,
-})
+}
+
+const auth = new GoTrue(authConfig)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check for Netlify Identity user first
+    // 1. Check for tokens in the hash (confirmation or recovery)
+    const hash = window.location.hash
+    if (hash && hash.startsWith('#')) {
+      const tokenStr = hash.substring(1)
+      const [key, value] = tokenStr.split('=')
+      
+      if (key === 'recovery_token') {
+        // We'll let the ResetPassword page handle this via URL hash
+        // but we can set a flag here if we want a global notification
+        console.log('Recovery token detected!')
+      } else if (key === 'confirmation_token') {
+        // Confirmation is simpler, it usually lands here
+        console.log('Confirmation token detected!')
+      }
+    }
+
+    // 2. Check for Netlify Identity user first
     const currentUser = auth.currentUser()
     if (currentUser) {
       setUser(currentUser)
       setLoading(false)
     } else {
-      // Check for guest user in localStorage
+      // 3. Check for guest user in localStorage
       const guest = localStorage.getItem('guestUser')
       if (guest) {
         setUser(JSON.parse(guest))
@@ -35,11 +53,21 @@ export function AuthProvider({ children }) {
     return await auth.signup(email, password, data)
   }
 
+  const confirmAccount = async (token) => {
+    return await auth.confirm(token)
+  }
+
   const login = async (email, password, remember = true) => {
     const response = await auth.login(email, password, remember)
     setUser(response)
     // Clear guest info if logging in with a real account
     localStorage.removeItem('guestUser')
+    return response
+  }
+
+  const confirmRecovery = async (token) => {
+    const response = await auth.confirmRecovery(token)
+    setUser(response)
     return response
   }
 
@@ -89,7 +117,9 @@ export function AuthProvider({ children }) {
     user,
     loading,
     signup,
+    confirmAccount,
     login,
+    confirmRecovery,
     guestLogin,
     logout,
     updateMetadata,

@@ -14,7 +14,8 @@ import { NotificacoesPage } from './views/NotificacoesPage.jsx'
 import { AparenciaPage } from './views/AparenciaPage.jsx'
 import { EditarPerfilPage } from './views/EditarPerfilPage.jsx'
 import { SobrePage } from './views/SobrePage.jsx'
-import { TemaDetalhePage } from './views/TemaDetalhePage.jsx'
+import { RedefinirSenhaPage } from './views/RedefinirSenhaPage.jsx'
+import { ConfirmarEmailPage } from './views/ConfirmarEmailPage.jsx'
 import { useAuth } from './auth/AuthProvider.jsx'
 
 /**
@@ -32,14 +33,25 @@ function AuthWrapper({ children }) {
 
 export default function App() {
   const { user } = useAuth()
+  const hash = window.location.hash
+  const isRecovery = hash && hash.includes('recovery_token=')
+  const isConfirm = hash && hash.includes('confirmation_token=')
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to={user ? "/home" : "/login"} replace />} />
+      <Route path="/" element={
+        isRecovery 
+          ? <Navigate to="/redefinir-senha" replace /> 
+          : isConfirm 
+          ? <Navigate to="/confirmar-email" replace />
+          : <Navigate to={user ? "/home" : "/login"} replace />
+      } />
 
-      <Route path="/login" element={user ? <Navigate to="/home" replace /> : <LoginPage />} />
+      <Route path="/login" element={user && !isRecovery && !isConfirm ? <Navigate to="/home" replace /> : <LoginPage />} />
       <Route path="/cadastro" element={user ? <Navigate to="/home" replace /> : <CadastroPage />} />
       <Route path="/esqueci-senha" element={<EsqueciSenhaPage />} />
+      <Route path="/redefinir-senha" element={<RedefinirSenhaPage />} />
+      <Route path="/confirmar-email" element={<ConfirmarEmailPage />} />
       
       <Route element={
         <AuthWrapper>
