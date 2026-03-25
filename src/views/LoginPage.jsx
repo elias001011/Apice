@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../auth/AuthProvider'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../auth/useAuth.js'
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
@@ -8,11 +8,7 @@ export function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   
-  const navigate = useNavigate()
-  const { login, guestLogin } = useAuth()
-
-  const [isGuestMode, setIsGuestMode] = useState(false)
-  const [guestName, setGuestName] = useState('')
+  const { login } = useAuth()
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -92,49 +88,6 @@ export function LoginPage() {
             <button className="btn-primary" style={{ marginTop: 4 }} type="submit" disabled={loading}>
               {loading ? 'Entrando...' : 'Entrar'}
             </button>
-
-            <div className="login-separator">
-              <div className="login-sep-line" />
-              <span>Ou apenas local</span>
-              <div className="login-sep-line" />
-            </div>
-
-            {!isGuestMode ? (
-              <button 
-                className="login-btn-guest" 
-                type="button"
-                onClick={() => setIsGuestMode(true)}
-              >
-                Continuar como convidado
-              </button>
-            ) : (
-              <div className="guest-flow anim anim-scale" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  placeholder="Seu nome" 
-                  value={guestName}
-                  onChange={(e) => setGuestName(e.target.value)}
-                  autoFocus
-                  required
-                />
-                <button 
-                  className="btn-primary" 
-                  type="button" 
-                  onClick={() => guestLogin(guestName)}
-                  disabled={!guestName.trim()}
-                >
-                  Confirmar e entrar
-                </button>
-                <button 
-                  className="guest-back" 
-                  type="button" 
-                  onClick={() => setIsGuestMode(false)}
-                >
-                  Voltar para login
-                </button>
-              </div>
-            )}
           </form>
 
           <div className="login-footer anim anim-d3">
@@ -261,53 +214,6 @@ const loginCss = `
   .login-forgot:hover {
     color: var(--accent);
   }
-
-  .login-separator {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 1.25rem 0;
-  }
-
-  .login-separator span {
-    font-size: 0.75rem;
-    color: var(--text3);
-    white-space: nowrap;
-  }
-
-  .login-sep-line {
-    flex: 1;
-    height: 0.5px;
-    background: var(--border);
-  }
-
-  .login-btn-guest {
-    width: 100%;
-    background: transparent;
-    border: 1.5px solid var(--border2);
-    border-radius: var(--radius-sm);
-    padding: 11px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.85rem;
-    color: var(--text2);
-    cursor: pointer;
-    transition: all 0.2s, transform 0.1s;
-  }
-
-  .login-btn-guest:hover { border-color: var(--accent); color: var(--text); background: rgba(200, 240, 96, 0.05); }
-  .login-btn-guest:active { transform: scale(0.98); }
-
-  .guest-back {
-    background: none;
-    border: none;
-    color: var(--text3);
-    font-size: 0.75rem;
-    cursor: pointer;
-    margin-top: 4px;
-    text-decoration: underline;
-  }
-
-  .guest-back:hover { color: var(--text2); }
 
   .login-footer {
     text-align: center;

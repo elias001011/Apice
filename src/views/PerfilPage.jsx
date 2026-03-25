@@ -1,13 +1,24 @@
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../auth/AuthProvider.jsx'
+import { useAuth } from '../auth/useAuth.js'
+import { buildEssayInsights, loadEssayHistory, subscribeEssayHistory } from '../services/essayInsights.js'
+import {
+  getCurrentPlanTier,
+  getFreePlanUsageRows,
+  resetFreePlanUsage,
+  setPlanTier,
+  subscribeFreePlanUsage,
+} from '../services/freePlanUsage.js'
 
 export function PerfilPage() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const [planTier, setPlanTierState] = useState(getCurrentPlanTier())
+  const [usageRows, setUsageRows] = useState(getFreePlanUsageRows())
+  const [insights, setInsights] = useState(() => buildEssayInsights(loadEssayHistory()))
 
   const name = user?.user_metadata?.full_name || 'Usuário'
   const email = user?.email || 'Sem e-mail'
-  const isGuest = user?.isGuest
 
   const getInitial = (n) => (n ? n[0].toUpperCase() : '?')
 
@@ -20,6 +31,37 @@ export function PerfilPage() {
     }
   }
 
+  useEffect(() => {
+    // Esse painel é local, então ele reage aos eventos do próprio navegador.
+    // Quando qualquer tela consumir IA, os números aqui sobem sem precisar recarregar.
+    const refresh = () => {
+      setPlanTierState(getCurrentPlanTier())
+      setUsageRows(getFreePlanUsageRows())
+    }
+
+    refresh()
+    const unlistenUsage = subscribeFreePlanUsage(refresh)
+    const refreshInsights = () => setInsights(buildEssayInsights(loadEssayHistory()))
+    refreshInsights()
+    const unlistenInsights = subscribeEssayHistory(refreshInsights)
+
+    return () => {
+      unlistenUsage()
+      unlistenInsights()
+    }
+  }, [])
+
+  const handlePlanTierChange = (event) => {
+    const nextTier = event.target.value
+    setPlanTier(nextTier)
+    setPlanTierState(nextTier)
+  }
+
+  const handleResetFreeUsage = () => {
+    resetFreePlanUsage()
+    setUsageRows(getFreePlanUsageRows())
+  }
+
   return (
     <>
       <style>{perfilCss}</style>
@@ -28,23 +70,23 @@ export function PerfilPage() {
         <div className="profile-avatar">{getInitial(name)}</div>
         <div>
           <div className="profile-name">{name}</div>
-          <div className="profile-school">{isGuest ? 'Modo de teste local' : 'E.E. Presidente Vargas · 3º ano'}</div>
-          <div className="profile-plan">{isGuest ? 'Acesso Convidado' : 'Plano gratuito'}</div>
+          <div className="profile-school">Conta vinculada · {email}</div>
+          <div className="profile-plan">{planTier === 'free' ? 'Plano gratuito' : 'Plano pro'}</div>
         </div>
       </div>
 
       <div className="stats-row-small anim anim-d2">
         <div className="stat-small">
-          <div className="stat-small-val">14</div>
+          <div className="stat-small-val">{insights.totalEssays}</div>
           <div className="stat-small-lbl">Redações</div>
         </div>
         <div className="stat-small">
-          <div className="stat-small-val">720</div>
+          <div className="stat-small-val">{insights.bestScore}</div>
           <div className="stat-small-lbl">Melhor nota</div>
         </div>
         <div className="stat-small">
-          <div className="stat-small-val">+12%</div>
-          <div className="stat-small-lbl">Evolução</div>
+          <div className="stat-small-val">{insights.averageScore}</div>
+          <div className="stat-small-lbl">Média geral</div>
         </div>
       </div>
       <div className="perfil-grid">
@@ -140,12 +182,60 @@ export function PerfilPage() {
             </Link>
           </div>
 
+          <div className="section-label anim anim-d4">Plano e limites</div>
+          <div className="card anim anim-d4" style={{ padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
+            <div className="quota-head">
+              <div>
+                <div className="quota-title">Cota do plano</div>
+                <div className="quota-subtitle">
+                  Limites locais para evitar gasto exagerado de IA no plano free.
+                </div>
+              </div>
+              <select className="quota-select" value={planTier} onChange={handlePlanTierChange}>
+                <option value="free">Free</option>
+                <option value="pro">Pro</option>
+              </select>
+            </div>
+
+            <div className="quota-note">
+              Edita os limites em <code>src/services/freePlanUsage.js</code>.
+            </div>
+
+            <div className="quota-grid">
+              {usageRows.map(row => (
+                <div className="quota-item" key={row.key}>
+                  <div className="quota-row">
+                    <span>{row.label}</span>
+                    <strong>{row.used}/{row.limit}</strong>
+                  </div>
+                  <div className="quota-bar">
+                    <div className="quota-bar-fill" style={{ width: `${row.percent}%` }} />
+                  </div>
+                  <div className="quota-meta">
+                    {row.blocked ? 'Limite atingido hoje' : `${row.remaining} uso(s) restantes hoje`}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="quota-actions">
+              <button type="button" className="quota-reset" onClick={handleResetFreeUsage}>
+                Zerar uso de hoje
+              </button>
+              <div className="quota-flag">
+                {planTier === 'free'
+                  ? 'Plano free ativo: os limites acima são aplicados.'
+                  : 'Plano pro simulado: os limites locais ficam desbloqueados.'}
+              </div>
+            </div>
+          </div>
+
           <button
             className="logout-btn anim anim-d4"
             type="button"
             onClick={handleLogout}
           >
-            {isGuest ? 'Remover acesso convidado' : 'Sair da conta'}
+            Sair da conta
           </button>
         </div>
       </div>
@@ -273,5 +363,115 @@ const perfilCss = `
   }
 
   .info-action:hover { border-color: var(--accent); color: var(--text); }
-`
 
+  .quota-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 0.9rem;
+  }
+
+  .quota-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .quota-subtitle {
+    margin-top: 4px;
+    font-size: 0.8rem;
+    color: var(--text3);
+    line-height: 1.5;
+  }
+
+  .quota-select {
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 8px 10px;
+    font-size: 0.8rem;
+  }
+
+  .quota-note {
+    font-size: 0.78rem;
+    color: var(--text3);
+    margin-bottom: 0.9rem;
+  }
+
+  .quota-grid {
+    display: grid;
+    gap: 0.85rem;
+  }
+
+  .quota-item {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 0.8rem 0.9rem;
+  }
+
+  .quota-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: var(--text);
+    margin-bottom: 0.55rem;
+  }
+
+  .quota-row strong {
+    color: var(--accent);
+    font-size: 0.8rem;
+  }
+
+  .quota-bar {
+    height: 8px;
+    background: var(--bg3);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .quota-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 999px;
+  }
+
+  .quota-meta {
+    margin-top: 0.45rem;
+    font-size: 0.72rem;
+    color: var(--text3);
+  }
+
+  .quota-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 0.9rem;
+    flex-wrap: wrap;
+  }
+
+  .quota-reset {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  .quota-reset:hover {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  .quota-flag {
+    font-size: 0.75rem;
+    color: var(--text3);
+    line-height: 1.4;
+  }
+`

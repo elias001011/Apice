@@ -1,77 +1,127 @@
-export async function gerarTemaDinamico() {
-  const res = await fetch('/.netlify/functions/gerar-tema', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
-  });
+import {
+  canConsumeFreePlan,
+  consumeFreePlan,
+} from './freePlanUsage.js'
+import {
+  buildRecentEssayContext,
+  emitEssayHistoryUpdated,
+} from './essayInsights.js'
 
-  if (!res.ok) {
-    throw new Error('Falha ao gerar tema dinâmico.');
+export async function gerarTemaDinamico() {
+  // O frontend chama só o endpoint Netlify.
+  // Toda decisão de search/fallback/provider fica no backend.
+  if (!canConsumeFreePlan('themeDynamic')) {
+    throw new Error('Limite do plano free atingido para tema dinâmico. Tente mais tarde ou troque de plano.')
   }
 
-  return await res.json();
+  const res = await fetch('/.netlify/functions/gerar-tema', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.error || 'Falha ao gerar tema dinâmico.')
+  }
+
+  const data = await res.json()
+  consumeFreePlan('themeDynamic')
+  return data
 }
 
 export async function corrigirRedacao({ redacao, tema, material, isRigido }) {
-  const promptTema = tema?.trim() ? tema : 'Não informado.';
-  const promptMaterial = material ? `\nMaterial de Apoio fornecido ao aluno:\n${material}\n` : '';
-  const promptModo = isRigido ? 'Rígido (extremamente criterioso)' : 'Padrão (fiel ao ENEM)';
-
-  const systemPrompt = ` Modo: ${promptModo}.
- Tema: ${promptTema}.${promptMaterial}
- 
- CRÍTICO: Se a redação apresentar FUGA TOTAL AO TEMA (não mencionar o assunto principal ou falar de algo completamente diferente), a nota de todas as competências DEVE SER 0. NÃO seque o exemplo se for fuga.
- 
- Avalie a redação seguindo rigorosamente os critérios do ENEM. Responda APENAS com um JSON válido:
- {
-   "notaTotal": 0-1000,
-   "competencias": [
-     { "nome": "C1 — Norma culta", "nota": 0-200, "descricao": "Breve feedback individual..." },
-     { "nome": "C2 — Tema e repertório", "nota": 0-200, "descricao": "..." },
-     { "nome": "C3 — Organização da tese", "nota": 0-200, "descricao": "..." },
-     { "nome": "C4 — Coesão textual", "nota": 0-200, "descricao": "..." },
-     { "nome": "C5 — Proposta de intervenção", "nota": 0-200, "descricao": "..." }
-   ],
-   "pontoForte": "...",
-   "atencao": "...",
-   "principalMelhorar": "...",
-   "errosPt": [
-     { "errado": "...", "corrigido": "...", "motivo": "..." }
-   ]
- }`;
-
-  const userMessages = [{ role: 'user', content: redacao }];
+  // O backend agora monta o prompt de correção e aplica a heurística de cópia.
+  // Aqui a tela só envia dados brutos; não existe lógica de IA no cliente.
+  if (!canConsumeFreePlan('essayCorrection')) {
+    throw new Error('Limite do plano free atingido para correção de redação. Tente mais tarde ou troque de plano.')
+  }
 
   const res = await fetch('/.netlify/functions/corrigir-redacao', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ systemPrompt, userMessages })
-  });
+    body: JSON.stringify({
+      redacao,
+      tema,
+      material,
+      isRigido,
+    }),
+  })
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Erro na comunicação com a IA.');
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.error || 'Erro na comunicação com a IA.')
   }
 
-  return await res.json();
+  const data = await res.json()
+  consumeFreePlan('essayCorrection')
+  return data
 }
 
-export function salvarNoHistorico(resultadoJSON, temaStr) {
+export async function chamarIAEspecifica({ provider, systemPrompt, userMessages = [], modelVariant = 'primary', modelOverride = '' }) {
+  // Helper pronto para a próxima etapa: chamar um provider/modelo específico sem search.
+  // Hoje ele não é usado pela tela principal, mas já fica disponível para um painel avançado.
+  if (!canConsumeFreePlan('directModelCall')) {
+    throw new Error('Limite do plano free atingido para chamada direta de IA.')
+  }
+
+  const res = await fetch('/.netlify/functions/chamar-ia', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      provider,
+      systemPrompt,
+      userMessages,
+      modelVariant,
+      modelOverride,
+    }),
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.error || 'Erro ao chamar IA específica.')
+  }
+
+  const data = await res.json()
+  consumeFreePlan('directModelCall')
+  return data
+}
+
+export function salvarNoHistorico(resultadoJSON, temaStr, redacao = '') {
+  // Histórico local para recuperar correções antigas sem depender de backend.
   try {
-    const historico = JSON.parse(localStorage.getItem('apice:historico') || '[]');
-    
+    const historico = JSON.parse(localStorage.getItem('apice:historico') || '[]')
+
     const novoItem = {
       id: Date.now(),
       data: new Date().toISOString(),
       tema: temaStr || 'Tema livre',
       preview: (temaStr || 'Tema livre').substring(0, 60) + '...',
       nota: resultadoJSON.notaTotal,
-      feedback: resultadoJSON
-    };
+      feedback: resultadoJSON,
+      redacao: typeof redacao === 'string' ? redacao : '',
+    }
 
-    historico.unshift(novoItem);
-    if (historico.length > 30) historico.length = 30;
-    localStorage.setItem('apice:historico', JSON.stringify(historico));
+    historico.unshift(novoItem)
+    if (historico.length > 30) historico.length = 30
+    localStorage.setItem('apice:historico', JSON.stringify(historico))
+    emitEssayHistoryUpdated()
   } catch (err) {
-    console.error('Erro ao salvar histórico', err);
+    console.error('Erro ao salvar histórico', err)
   }
+}
+
+export function buildContextoParaIADireta({ prompt, historicoLimit = 3 } = {}) {
+  // Esse helper monta exatamente o pacote que você descreveu:
+  // contexto do prompt + histórico recente das últimas redações.
+  return [
+    {
+      role: 'user',
+      content: [
+        String(prompt ?? '').trim() || 'Sem contexto adicional.',
+        '',
+        'Histórico recente do usuário:',
+        buildRecentEssayContext(historicoLimit),
+      ].join('\n'),
+    },
+  ]
 }

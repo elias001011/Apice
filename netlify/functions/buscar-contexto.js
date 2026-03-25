@@ -1,4 +1,4 @@
-import { generateDynamicTheme } from '../ai/ai.js'
+import { searchContext } from '../ai/ai.js'
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -8,6 +8,8 @@ const headers = {
 }
 
 export default async function handler(req) {
+  // Endpoint separado de busca factual.
+  // Ele existe para que o tema dinâmico possa pedir contexto sem misturar isso com a correção.
   if (req.method === 'OPTIONS') {
     return new Response('', { status: 200, headers })
   }
@@ -17,18 +19,19 @@ export default async function handler(req) {
   }
 
   try {
-    // O fluxo de tema sempre tenta search antes de sintetizar, para enriquecer o material.
-    const result = await generateDynamicTheme()
+    const body = await req.json().catch(() => ({}))
+    const query = String(body?.query ?? '').trim()
+
+    const result = await searchContext(query)
     return new Response(JSON.stringify(result), { status: 200, headers })
   } catch (error) {
-    console.error('[gerar-tema] erro:', error)
+    console.error('[buscar-contexto] erro:', error)
     return new Response(
       JSON.stringify({
-        error: 'Falha ao gerar tema',
+        error: 'Falha ao buscar contexto',
         details: error?.message || 'Erro desconhecido',
       }),
       { status: 502, headers },
     )
   }
 }
-

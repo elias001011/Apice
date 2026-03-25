@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { ThemeToggleButton } from './ThemeToggleButton.jsx'
-import { useAuth } from '../auth/AuthProvider.jsx'
+import { useAuth } from '../auth/useAuth.js'
 
 export function AppShell() {
   const { user } = useAuth()
@@ -93,4 +93,3 @@ function iconSvg(kind) {
       return <svg viewBox="0 0 24 24" />
   }
 }
-

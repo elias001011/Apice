@@ -1,21 +1,36 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { corrigirRedacao, salvarNoHistorico, gerarTemaDinamico } from '../services/aiService.js'
+import { clearCorretorDraft, loadCorretorDraft, saveCorretorDraft } from '../services/corretorDraft.js'
+
+const draftBootstrap = loadCorretorDraft()
 
 export function CorretorPage() {
   const navigate = useNavigate()
-  const [hasStarted, setHasStarted] = useState(false)
-  const [tema, setTema] = useState('')
-  const [material, setMaterial] = useState('')
-  const [redacao, setRedacao] = useState('')
-  const [isRigido, setIsRigido] = useState(false)
+  // O draft é restaurado no primeiro render para evitar flicker entre reloads.
+  // Se você mudar de aba ou voltar depois, a página sobe já no ponto exato onde parou.
+  const [hasStarted, setHasStarted] = useState(Boolean(draftBootstrap?.hasStarted || draftBootstrap?.tema || draftBootstrap?.redacao || draftBootstrap?.material))
+  const [tema, setTema] = useState(draftBootstrap?.tema || '')
+  const [material, setMaterial] = useState(draftBootstrap?.material ?? null)
+  const [redacao, setRedacao] = useState(draftBootstrap?.redacao || '')
+  const [isRigido, setIsRigido] = useState(Boolean(draftBootstrap?.isRigido))
   const [loading, setLoading] = useState(false)
   const [generatingTheme, setGeneratingTheme] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const themeRequestSeq = useRef(0)
+  const correctionRequestSeq = useRef(0)
 
   // Contador de palavras
   const words = redacao.trim().split(/\s+/).filter(w => w.length > 0)
   const wordCount = words.length
+  const materialIsObject = Boolean(material && typeof material === 'object' && !Array.isArray(material))
+  const materialCards = materialIsObject && Array.isArray(material.cards) ? material.cards : []
+  const materialSources = materialIsObject && Array.isArray(material.fontes) ? material.fontes : []
+  const materialSummary = materialIsObject ? String(material.resumo || '').trim() : ''
+  // Se existir qualquer pedaço do conteúdo salvo, o draft continua ativo.
+  // Isso evita perder contexto só porque a página recarregou ou trocou de rota.
+  const materialFilled = Boolean(materialSummary || materialCards.length > 0 || (typeof material === 'string' && material.trim()))
+  const shouldPersistDraft = Boolean(hasStarted || tema.trim() || materialFilled || redacao.trim() || isRigido)
   
   const getCountClass = () => {
     if (wordCount === 0) return 'char-count'
@@ -24,37 +39,98 @@ export function CorretorPage() {
     return 'char-count ok'
   }
 
+  useEffect(() => {
+    // Mantém o rascunho salvo localmente para o usuário não perder contexto ao trocar de rota.
+    if (!shouldPersistDraft) {
+      clearCorretorDraft()
+      return
+    }
+
+    saveCorretorDraft({
+      hasStarted,
+      tema,
+      material,
+      redacao,
+      isRigido,
+    })
+  }, [hasStarted, tema, material, redacao, isRigido, shouldPersistDraft])
+
+  const invalidateRequests = () => {
+    // Qualquer troca brusca de fluxo invalida requisições pendentes.
+    themeRequestSeq.current += 1
+    correctionRequestSeq.current += 1
+  }
+
+  const handleNovaRedacao = () => {
+    // "Nova redação" significa começar do zero mesmo.
+    // Então limpamos request pendente, draft salvo e estado visual.
+    invalidateRequests()
+    clearCorretorDraft()
+    setHasStarted(false)
+    setTema('')
+    setMaterial(null)
+    setRedacao('')
+    setIsRigido(false)
+    setErrorMsg('')
+    setLoading(false)
+    setGeneratingTheme(false)
+  }
+
+  const handleManualStart = () => {
+    // O modo manual entra sem search e sem tema automático.
+    // Você controla o tema na mão e o corretor só acompanha o texto.
+    invalidateRequests()
+    setHasStarted(true)
+    setErrorMsg('')
+  }
+
   const handleGerarTema = async () => {
+    // Aqui é o único caminho da UI que dispara search + geração de tema.
+    // A IA busca contexto factual antes de montar o material de apoio.
+    const requestId = ++themeRequestSeq.current
     setGeneratingTheme(true)
     setErrorMsg('')
+
     try {
       const { tema: novoTema, material: novoMaterial } = await gerarTemaDinamico()
+      if (themeRequestSeq.current !== requestId) return
       setTema(novoTema)
       setMaterial(novoMaterial)
       setHasStarted(true)
-    } catch (err) {
+    } catch {
+      if (themeRequestSeq.current !== requestId) return
       setErrorMsg('Não foi possível gerar um tema agora. Tente digitar um manualmente.')
     } finally {
-      setGeneratingTheme(false)
+      if (themeRequestSeq.current === requestId) {
+        setGeneratingTheme(false)
+      }
     }
   }
 
   const handleCorrigir = async () => {
+    // Correção pura: não busca nada novo.
+    // Usa o tema e o material que já estão na tela para avaliar a redação.
     if (wordCount < 15) {
       setErrorMsg('A redação está muito curta para uma análise precisa (mínimo 15 palavras).')
       return
     }
 
+    const requestId = ++correctionRequestSeq.current
     setLoading(true)
     setErrorMsg('')
+
     try {
       const resultado = await corrigirRedacao({ redacao, tema, material, isRigido })
-      salvarNoHistorico(resultado, tema)
+      if (correctionRequestSeq.current !== requestId) return
+      salvarNoHistorico(resultado, tema, redacao)
       navigate('/resultado-redacao', { state: { resultado } })
     } catch (err) {
+      if (correctionRequestSeq.current !== requestId) return
       setErrorMsg(err.message || 'Erro ao processar a redação. Tente mais tarde.')
     } finally {
-      setLoading(false)
+      if (correctionRequestSeq.current === requestId) {
+        setLoading(false)
+      }
     }
   }
 
@@ -64,10 +140,10 @@ export function CorretorPage() {
         <style>{corretorCss}</style>
         <div className="corretor-intro-new anim anim-d1">
           <div className="intro-header">
-            <div className="badge-new">Ápice Lab</div>
-            <h1 className="intro-title-new">Laboratório de Redação</h1>
-            <p className="intro-subtitle-new">Escolha como deseja praticar sua escrita hoje.</p>
-          </div>
+          <div className="badge-new">Ápice Lab</div>
+          <h1 className="intro-title-new">Laboratório de Redação</h1>
+          <p className="intro-subtitle-new">Escolha como deseja praticar sua escrita hoje. O tema dinâmico agora usa busca com fontes.</p>
+        </div>
 
           <div className="intro-options-grid">
             <button 
@@ -80,7 +156,7 @@ export function CorretorPage() {
               </div>
               <div className="option-info">
                 <h3>Tema Dinâmico</h3>
-                <p>Nossa IA gera um tema inédito e materiais de apoio estilo ENEM para você.</p>
+                <p>Nossa IA pesquisa fontes reais e gera um tema inédito com material de apoio em cards estilo ENEM.</p>
               </div>
               <div className="option-arrow">
                 {generatingTheme ? (
@@ -91,7 +167,7 @@ export function CorretorPage() {
               </div>
             </button>
 
-            <button className="intro-card-option anim anim-d3" onClick={() => setHasStarted(true)}>
+            <button className="intro-card-option anim anim-d3" onClick={handleManualStart}>
               <div className="option-icon-box manual">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               </div>
@@ -136,6 +212,7 @@ export function CorretorPage() {
           <div className="corretor-column-main">
             <div className="card anim anim-d2">
               <div className="card-title">Tema Selecionado</div>
+              {/* Este input continua editável porque, às vezes, você quer ajustar o tema depois da geração. */}
               <input 
                 type="text" 
                 className="input-field dynamic-input"
@@ -145,8 +222,55 @@ export function CorretorPage() {
               />
               {material && (
                 <div className="material-box">
-                  <div className="material-label">Material de Apoio (ENEM)</div>
-                  <div className="material-content">{material}</div>
+                <div className="material-label">Material de Apoio (ENEM)</div>
+
+                  {materialIsObject ? (
+                    <div className="material-rich">
+                      {/* O material agora é renderizado em blocos curtos, não em um parágrafo gigante.
+                          Isso aproxima mais a tela do formato de prova e facilita editar o layout depois. */}
+                      {materialSummary && <div className="material-summary">{materialSummary}</div>}
+
+                      {materialCards.length > 0 && (
+                        <div className="material-cards-grid">
+                          {materialCards.map((card, index) => (
+                            <article className="material-card" key={`${card.titulo || 'card'}-${index}`}>
+                              <div className="material-card-title">{card.titulo || `Card ${index + 1}`}</div>
+                              <div className="material-card-text">{card.texto || card.trecho || 'Sem texto adicional.'}</div>
+                              <div className="material-card-meta">
+                                <span>{card.fonte || 'Fonte não informada'}</span>
+                                {card.url && (
+                                  <a href={card.url} target="_blank" rel="noreferrer">
+                                    Abrir fonte
+                                  </a>
+                                )}
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+
+                      {materialSources.length > 0 && (
+                        <div className="material-source-list">
+                          <div className="material-source-label">Fontes usadas</div>
+                          {materialSources.map((source, index) => (
+                            source.url ? (
+                              <a className="material-source-item" href={source.url} target="_blank" rel="noreferrer" key={`${source.nome || 'source'}-${index}`}>
+                                <span>{source.nome || `Fonte ${index + 1}`}</span>
+                                <small>{source.url}</small>
+                              </a>
+                            ) : (
+                              <div className="material-source-item" key={`${source.nome || 'source'}-${index}`}>
+                                <span>{source.nome || `Fonte ${index + 1}`}</span>
+                                <small>{source.trecho || 'Fonte sem URL registrada'}</small>
+                              </div>
+                            )
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="material-content">{material}</div>
+                  )}
                 </div>
               )}
             </div>
@@ -180,6 +304,10 @@ export function CorretorPage() {
                 <div className={`status-dot ${tema.length > 10 ? 'done' : 'pending'}`}></div>
                 <span>Tema definido</span>
               </div>
+              <div className="status-item">
+                <div className={`status-dot ${materialFilled ? 'done' : 'pending'}`}></div>
+                <span>Material rico</span>
+              </div>
               
               <div className="side-separator"></div>
               
@@ -198,6 +326,15 @@ export function CorretorPage() {
                 disabled={generatingTheme}
               >
                 {generatingTheme ? 'Gerando...' : 'Trocar tema'}
+              </button>
+
+              <button
+                className="btn-ghost-small"
+                onClick={handleNovaRedacao}
+                disabled={loading || generatingTheme}
+              >
+                {/* Esse botão limpa o rascunho porque "nova redação" não deve reaproveitar estado antigo. */}
+                Gerar nova redação
               </button>
             </div>
 
@@ -404,6 +541,108 @@ const corretorCss = `
     white-space: pre-wrap;
   }
 
+  .material-rich {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  .material-summary {
+    font-size: 0.9rem;
+    color: var(--text);
+    line-height: 1.7;
+  }
+
+  .material-cards-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  @media (min-width: 760px) {
+    .material-cards-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .material-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 0.95rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .material-card-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .material-card-text {
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--text2);
+  }
+
+  .material-card-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.72rem;
+    color: var(--text3);
+    flex-wrap: wrap;
+  }
+
+  .material-card-meta a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .material-source-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding-top: 0.25rem;
+  }
+
+  .material-source-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text3);
+    letter-spacing: 0.5px;
+  }
+
+  .material-source-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    text-decoration: none;
+    color: inherit;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 0.8rem 0.9rem;
+  }
+
+  .material-source-item span {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .material-source-item small {
+    font-size: 0.7rem;
+    color: var(--text3);
+    word-break: break-all;
+  }
+
   .main-editor {
     min-height: 400px;
     background: transparent;
@@ -498,6 +737,10 @@ const corretorCss = `
     background: var(--bg2);
   }
 
+  .intro-card-option .option-info {
+    max-width: 100%;
+  }
+
   .spinner-small {
     width: 18px;
     height: 18px;
@@ -517,5 +760,3 @@ const corretorCss = `
   .modo-rigido .main-submit { background: var(--red); box-shadow: 0 4px 15px rgba(255, 82, 82, 0.3); }
   .modo-rigido .criteria-list li span { color: var(--red); }
 `
-
-

@@ -1,7 +1,6 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import GoTrue from 'gotrue-js'
-
-const AuthContext = createContext(null)
+import { AuthContext } from './authContext.js'
 
 // Configure GoTrue instance
 // The 'url' should be your Netlify site URL (e.g., https://your-site.netlify.app/.netlify/identity)
@@ -14,15 +13,15 @@ const authConfig = {
 const auth = new GoTrue(authConfig)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(() => auth.currentUser() || null)
+  const loading = false
 
   useEffect(() => {
     // 1. Check for tokens in the hash (confirmation or recovery)
     const hash = window.location.hash
     if (hash && hash.startsWith('#')) {
       const tokenStr = hash.substring(1)
-      const [key, value] = tokenStr.split('=')
+      const [key] = tokenStr.split('=')
       
       if (key === 'recovery_token') {
         // We'll let the ResetPassword page handle this via URL hash
@@ -32,20 +31,6 @@ export function AuthProvider({ children }) {
         // Confirmation is simpler, it usually lands here
         console.log('Confirmation token detected!')
       }
-    }
-
-    // 2. Check for Netlify Identity user first
-    const currentUser = auth.currentUser()
-    if (currentUser) {
-      setUser(currentUser)
-      setLoading(false)
-    } else {
-      // 3. Check for guest user in localStorage
-      const guest = localStorage.getItem('guestUser')
-      if (guest) {
-        setUser(JSON.parse(guest))
-      }
-      setLoading(false)
     }
   }, [])
 
@@ -60,8 +45,6 @@ export function AuthProvider({ children }) {
   const login = async (email, password, remember = true) => {
     const response = await auth.login(email, password, remember)
     setUser(response)
-    // Clear guest info if logging in with a real account
-    localStorage.removeItem('guestUser')
     return response
   }
 
@@ -69,18 +52,6 @@ export function AuthProvider({ children }) {
     const response = await auth.confirmRecovery(token)
     setUser(response)
     return response
-  }
-
-  const guestLogin = (name) => {
-    const guestUser = {
-      id: 'guest-' + Date.now(),
-      user_metadata: { full_name: name || 'Convidado' },
-      email: 'convidado@local.test',
-      isGuest: true
-    }
-    localStorage.setItem('guestUser', JSON.stringify(guestUser))
-    setUser(guestUser)
-    return guestUser
   }
 
   const logout = async () => {
@@ -92,18 +63,10 @@ export function AuthProvider({ children }) {
         console.error('Logout error:', err)
       }
     }
-    localStorage.removeItem('guestUser')
     setUser(null)
   }
 
   const updateMetadata = async (data) => {
-    if (user?.isGuest) {
-      const updatedUser = { ...user, user_metadata: { ...user.user_metadata, ...data } }
-      localStorage.setItem('guestUser', JSON.stringify(updatedUser))
-      setUser(updatedUser)
-      return updatedUser
-    }
-    
     const currentUser = auth.currentUser()
     if (currentUser) {
       const updatedUser = await currentUser.update({ data })
@@ -120,7 +83,6 @@ export function AuthProvider({ children }) {
     confirmAccount,
     login,
     confirmRecovery,
-    guestLogin,
     logout,
     updateMetadata,
     auth,
@@ -131,12 +93,4 @@ export function AuthProvider({ children }) {
       {!loading && children}
     </AuthContext.Provider>
   )
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
-  return context
 }

@@ -1,36 +1,31 @@
-import { useAuth } from '../auth/AuthProvider.jsx'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../auth/useAuth.js'
+import {
+  buildEssayInsights,
+  loadEssayHistory,
+  subscribeEssayHistory,
+} from '../services/essayInsights.js'
 
 export function HomePage() {
   const { user } = useAuth()
   
-  const rawName = user?.user_metadata?.full_name || 'Convidado'
+  const rawName = user?.user_metadata?.full_name || 'Sua conta'
   const nameParts = rawName.split(' ')
   const firstName = nameParts[0]
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
 
-  // Carregar dados reais do histórico
-  const historico = JSON.parse(localStorage.getItem('apice:historico') || '[]')
-  
-  // Redações este mês (março de 2026 conforme data atual)
-  const now = new Date("2026-03-23T20:31:50-03:00")
-  const currentMonth = now.getMonth()
-  const currentYear = now.getFullYear()
-  
-  const redacoesEsteMes = historico.filter(item => {
-    const d = new Date(item.data)
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear
-  }).length
+  const [insights, setInsights] = useState(() => buildEssayInsights(loadEssayHistory()))
 
-  const ultimaNota = historico.length > 0 ? historico[0].nota : 0
+  useEffect(() => {
+    // O home escuta o histórico para mostrar dados reais sem precisar recarregar.
+    const refresh = () => setInsights(buildEssayInsights(loadEssayHistory()))
+    refresh()
+    return subscribeEssayHistory(refresh)
+  }, [])
+
+  const ultimaNota = insights.latestEssay?.nota || 0
   const ultimaNotaPercent = Math.round((ultimaNota / 1000) * 100)
-
-  // Diferença (simplificada para demonstração baseada no histórico)
-  const redacoesUltimaSemana = historico.filter(item => {
-    const d = new Date(item.data)
-    const diff = (now - d) / (1000 * 60 * 60 * 24)
-    return diff <= 7
-  }).length
 
   return (
     <>
@@ -74,16 +69,16 @@ export function HomePage() {
                     <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                   </svg>
                 </div>
-                {redacoesUltimaSemana > 0 && (
-                  <div className="pv-stat-delta">↑ {redacoesUltimaSemana} esta semana</div>
+                {insights.essaysThisWeek > 0 && (
+                  <div className="pv-stat-delta">↑ {insights.essaysThisWeek} esta semana</div>
                 )}
               </div>
               <div>
-                <div className="pv-stat-value">{redacoesEsteMes}</div>
+                <div className="pv-stat-value">{insights.essaysThisMonth}</div>
                 <div className="pv-stat-label">Redações este mês</div>
               </div>
               <div className="pv-bar" aria-hidden="true">
-                <div className="pv-bar-fill" style={{ width: `${Math.min(redacoesEsteMes * 10, 100)}%` }}></div>
+                <div className="pv-bar-fill" style={{ width: `${Math.min(insights.essaysThisMonth * 10, 100)}%` }}></div>
               </div>
             </div>
 

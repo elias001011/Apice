@@ -17,7 +17,7 @@ import { SobrePage } from './views/SobrePage.jsx'
 import { TemaDetalhePage } from './views/TemaDetalhePage.jsx'
 import { RedefinirSenhaPage } from './views/RedefinirSenhaPage.jsx'
 import { ConfirmarEmailPage } from './views/ConfirmarEmailPage.jsx'
-import { useAuth } from './auth/AuthProvider.jsx'
+import { useAuth } from './auth/useAuth.js'
 
 /**
  * Component to protect routes

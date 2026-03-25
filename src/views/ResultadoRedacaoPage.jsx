@@ -1,4 +1,5 @@
 import { Link, useLocation, Navigate } from 'react-router-dom'
+import { clearCorretorDraft } from '../services/corretorDraft.js'
 
 export function ResultadoRedacaoPage() {
   const location = useLocation();
@@ -95,8 +96,8 @@ export function ResultadoRedacaoPage() {
             )}
 
             <div className="action-row">
-              <Link to="/corretor" className="btn-primary">
-                Nova redação
+              <Link to="/corretor" className="btn-primary" onClick={clearCorretorDraft}>
+                Gerar nova redação
               </Link>
               <Link to="/historico-redacoes" className="btn-ghost">
                 Ver histórico completo
