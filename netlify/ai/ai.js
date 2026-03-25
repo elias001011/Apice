@@ -39,11 +39,11 @@ const PROVIDER_MODELS = {
   },
   gemini: {
     primary: process.env.AI_GEMINI_MODEL_PRIMARY || 'gemini-3.1-flash-lite-preview',
-    secondary: process.env.AI_GEMINI_MODEL_SECONDARY || 'gemini-3-flash-preview',
+    secondary: process.env.AI_GEMINI_MODEL_SECONDARY || '',
   },
   openrouter: {
-    primary: process.env.AI_OPENROUTER_MODEL_PRIMARY || 'google/gemini-2.0-flash-exp:free',
-    secondary: process.env.AI_OPENROUTER_MODEL_SECONDARY || 'google/gemini-2.0-flash-exp:free:online',
+    primary: process.env.AI_OPENROUTER_MODEL_PRIMARY || 'openrouter/free',
+    secondary: process.env.AI_OPENROUTER_MODEL_SECONDARY || '',
   },
   grok: {
     primary: process.env.AI_GROK_MODEL_PRIMARY || 'grok-4-1-fast-non-reasoning',
