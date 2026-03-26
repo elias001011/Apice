@@ -16,11 +16,32 @@ export function PerfilPage() {
   const [planTier, setPlanTierState] = useState(getCurrentPlanTier())
   const [usageRows, setUsageRows] = useState(getFreePlanUsageRows())
   const [insights, setInsights] = useState(() => buildEssayInsights(loadEssayHistory()))
+  const [deferredPrompt, setDeferredPrompt] = useState(null)
+  const [pwaInstalled, setPwaInstalled] = useState(false)
 
   const name = user?.user_metadata?.full_name || 'Usuário'
   const email = user?.email || 'Sem e-mail'
 
   const getInitial = (n) => (n ? n[0].toUpperCase() : '?')
+
+  // Captura o evento de instalação PWA
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    window.addEventListener('appinstalled', () => setPwaInstalled(true))
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const handleInstallPwa = async () => {
+    if (!deferredPrompt) return
+    deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+    if (outcome === 'accepted') setPwaInstalled(true)
+    setDeferredPrompt(null)
+  }
 
   const handleLogout = async () => {
     try {
@@ -72,6 +93,15 @@ export function PerfilPage() {
           <div className="profile-name">{name}</div>
           <div className="profile-school">Conta vinculada · {email}</div>
           <div className="profile-plan">{planTier === 'free' ? 'Plano gratuito' : 'Plano pro'}</div>
+          {!pwaInstalled && deferredPrompt && (
+            <button className="pwa-btn" type="button" onClick={handleInstallPwa}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v13M7 11l5 5 5-5" />
+                <path d="M3 18h18" />
+              </svg>
+              Baixar como PWA
+            </button>
+          )}
         </div>
       </div>
 
@@ -474,4 +504,24 @@ const perfilCss = `
     color: var(--text3);
     line-height: 1.4;
   }
+
+  .pwa-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    background: rgba(200, 240, 96, 0.08);
+    border: 1px solid rgba(200, 240, 96, 0.25);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--accent);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: background 0.2s, transform 0.1s;
+  }
+
+  .pwa-btn:hover { background: rgba(200, 240, 96, 0.15); }
+  .pwa-btn:active { transform: scale(0.97); }
 `

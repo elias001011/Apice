@@ -46,9 +46,24 @@ export function AuthProvider({ children }) {
   }
 
   const resendConfirmation = async (email) => {
-    // GoTrue não tem endpoint nativo de reenvio; fazemos um novo signup
-    // O Netlify Identity reenvía o email se a conta ainda não foi confirmada
-    return await auth.signup(email, undefined, {})
+    // O Netlify Identity não tem endpoint nativo de "reenviar confirmação",
+    // mas aceita uma nova chamada de signup para contas não confirmadas e reenvía o email.
+    // Usamos fetch direto ao endpoint para capturar erros reais do servidor.
+    const apiRoot = import.meta.env.VITE_NETLIFY_IDENTITY_URL || '/.netlify/identity'
+    const res = await fetch(`${apiRoot}/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: undefined }),
+    })
+    if (!res.ok) {
+      let errMsg = 'Erro ao reenviar'
+      try {
+        const json = await res.json()
+        errMsg = json.msg || json.error_description || json.error || errMsg
+      } catch (_) {}
+      throw new Error(errMsg)
+    }
+    return res.json().catch(() => null)
   }
 
   const login = async (email, password, remember = true) => {

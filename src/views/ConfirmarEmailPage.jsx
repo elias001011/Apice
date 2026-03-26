@@ -73,6 +73,9 @@ export function ConfirmarEmailPage() {
                 <Link to="/home" className="btn-primary" style={{ textDecoration: 'none', display: 'block', marginTop: 20 }}>
                   Ir agora para a página inicial
                 </Link>
+                <Link to="/login" className="conf-login-link">
+                  Ir para o login
+                </Link>
               </div>
             ) : (
               <div className="conf-error">
@@ -180,4 +183,15 @@ const confirmCss = `
   }
 
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  .conf-login-link {
+    display: block;
+    margin-top: 10px;
+    text-align: center;
+    font-size: 0.82rem;
+    color: var(--text2);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .conf-login-link:hover { color: var(--accent); text-decoration: underline; }
 `
