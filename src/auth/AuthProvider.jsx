@@ -89,6 +89,7 @@ export function AuthProvider({ children }) {
     window.addEventListener('apice:radar-state-updated', handleAccountStateChange)
     window.addEventListener('apice:theme-updated', handleAccountStateChange)
     window.addEventListener('apice:user-summary-updated', handleAccountStateChange)
+    window.addEventListener('apice:ai-response-preferences-updated', handleAccountStateChange)
     window.addEventListener('apice:notificacoes-updated', handleAccountStateChange)
 
     void refreshUserSummaryFromHistory()
@@ -100,6 +101,7 @@ export function AuthProvider({ children }) {
       window.removeEventListener('apice:radar-state-updated', handleAccountStateChange)
       window.removeEventListener('apice:theme-updated', handleAccountStateChange)
       window.removeEventListener('apice:user-summary-updated', handleAccountStateChange)
+      window.removeEventListener('apice:ai-response-preferences-updated', handleAccountStateChange)
       window.removeEventListener('apice:notificacoes-updated', handleAccountStateChange)
     }
   }, [user, syncLocalStateToCloud])

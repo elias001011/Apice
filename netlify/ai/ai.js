@@ -1,4 +1,5 @@
 import process from 'node:process'
+import { buildAiResponsePreferencePrompt } from '../../src/services/aiResponsePreferences.js'
 
 // Este arquivo é o "cérebro" da IA.
 // A regra prática aqui é:
@@ -403,7 +404,7 @@ function buildSearchSystemPrompt(query) {
   ].join('\n')
 }
 
-function buildThemeSystemPrompt(searchBundle) {
+function buildThemeSystemPrompt(searchBundle, responsePreference) {
   // Prompt principal do tema dinâmico.
   // Ele recebe o resultado da busca e transforma isso em tema + material estilo ENEM.
   return [
@@ -412,6 +413,7 @@ function buildThemeSystemPrompt(searchBundle) {
     'O material de apoio deve parecer ENEM: curto, factual, organizado em cards e com fontes visíveis.',
     'Não escreva um textão corrido no material.',
     'Use o contexto factual abaixo, mas não copie os trechos.',
+    buildAiResponsePreferencePrompt(responsePreference),
     'Responda somente com JSON válido e siga exatamente este formato:',
     '{',
     '  "tema": "tema único e direto",',
@@ -442,13 +444,14 @@ function buildThemeSystemPrompt(searchBundle) {
   ].join('\n')
 }
 
-function buildFallbackThemeSystemPrompt() {
+function buildFallbackThemeSystemPrompt(responsePreference) {
   // Fallback quando o search falha.
   // Esse caminho evita quebrar o corretor mesmo se todas as buscas estiverem indisponíveis.
   return [
     'Você é um gerador de temas de redação estilo ENEM.',
     'Crie um tema atual, socialmente relevante e com material de apoio organizado.',
     'O material deve ser curto, factual e em formato de cards.',
+    buildAiResponsePreferencePrompt(responsePreference),
     'Responda somente com JSON válido e siga exatamente este formato:',
     '{',
     '  "tema": "tema único e direto",',
@@ -478,7 +481,7 @@ function buildFallbackThemeSystemPrompt() {
   ].join('\n')
 }
 
-function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint }) {
+function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, responsePreference }) {
   // Prompt da correção.
   // O material de apoio aqui é contexto da prova, não repertório autoral do aluno.
   const modo = isRigido ? 'Rígido (muito criterioso)' : 'Padrão (fiel ao ENEM)'
@@ -494,6 +497,7 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint }) {
     '- Se houver cópia literal ou quase literal do material, puna fortemente C2, C3 e, se necessário, C5.',
     '- Se a redação fugir totalmente do tema, a nota de todas as competências deve ser 0.',
     '- Se a redação usar o material de apoio sem elaboração própria, não premie como se fosse repertório externo.',
+    buildAiResponsePreferencePrompt(responsePreference),
     '- Responda somente com JSON válido no formato abaixo.',
     '',
     'Formato de resposta:',
@@ -1058,6 +1062,7 @@ export async function generateTextDirect({
   userMessages,
   modelVariant = 'primary',
   modelOverride = '',
+  responsePreference,
 }) {
   // Este export existe para rotas futuras que queiram chamar um modelo específico sem search.
   // Ele não substitui o fallback atual; é um atalho quando você quer forçar um provider/modelo.
@@ -1065,16 +1070,21 @@ export async function generateTextDirect({
     throw new Error('provider é obrigatório para chamada direta')
   }
 
+  const decoratedSystemPrompt = [
+    buildAiResponsePreferencePrompt(responsePreference),
+    String(systemPrompt ?? '').trim(),
+  ].filter(Boolean).join('\n\n')
+
   return await runDirectTextProvider({
     provider,
-    systemPrompt,
+    systemPrompt: decoratedSystemPrompt,
     userMessages,
     modelVariant,
     modelOverride,
   })
 }
 
-export async function generateDynamicTheme() {
+export async function generateDynamicTheme({ responsePreference } = {}) {
   // Primeiro tenta buscar contexto factual atual.
   // Se a busca falhar por qualquer motivo, ainda tenta gerar um tema sem search,
   // para não deixar o fluxo de escrita inutilizável.
@@ -1088,8 +1098,8 @@ export async function generateDynamicTheme() {
   }
 
   const systemPrompt = searchBundle
-    ? buildThemeSystemPrompt(searchBundle)
-    : buildFallbackThemeSystemPrompt()
+    ? buildThemeSystemPrompt(searchBundle, responsePreference)
+    : buildFallbackThemeSystemPrompt(responsePreference)
 
   const userMessages = [
     {
@@ -1127,12 +1137,13 @@ export async function generateDynamicTheme() {
   }
 }
 
-function buildUserSummarySystemPrompt(historyIndex) {
+function buildUserSummarySystemPrompt(historyIndex, responsePreference) {
   return [
     'Você é um analista curto e direto do desempenho de escrita de um estudante do ENEM.',
     'Use apenas o JSON recebido e não invente dados que não estejam evidentes no histórico.',
     'Seu trabalho é gerar uma análise breve, prática e útil para monitorar evolução.',
     'Foque em padrões de escrita, erros recorrentes, pontos fortes e o principal foco de treino.',
+    buildAiResponsePreferencePrompt(responsePreference),
     'Responda somente com JSON válido e siga exatamente este formato:',
     '{',
     '  "resumo": "uma análise curta em até duas frases",',
@@ -1243,10 +1254,14 @@ function buildFallbackUserSummaryPayload(historyIndex = [], totalRedacoes = hist
   }
 }
 
-export async function generateUserSummary({ historyIndex = [], historyCount = historyIndex.length } = {}) {
+export async function generateUserSummary({
+  historyIndex = [],
+  historyCount = historyIndex.length,
+  responsePreference,
+} = {}) {
   const safeHistoryIndex = Array.isArray(historyIndex) ? historyIndex.slice(0, 5) : []
   const totalRedacoes = Number.isFinite(Number(historyCount)) ? Number(historyCount) : safeHistoryIndex.length
-  const systemPrompt = buildUserSummarySystemPrompt(safeHistoryIndex)
+  const systemPrompt = buildUserSummarySystemPrompt(safeHistoryIndex, responsePreference)
   const userMessages = [
     {
       role: 'user',
@@ -1299,11 +1314,12 @@ export async function generateUserSummary({ historyIndex = [], historyCount = hi
   }
 }
 
-function buildRadarSystemPrompt(searchBundle) {
+function buildRadarSystemPrompt(searchBundle, responsePreference) {
   return [
     'Você é um analista de tendências para temas de redação estilo ENEM.',
     'Use o contexto factual pesquisado para sugerir temas plausíveis, atuais e não repetitivos.',
     'O objetivo é estimar temas com chance realista de aparecer na redação.',
+    buildAiResponsePreferencePrompt(responsePreference),
     'Responda somente com JSON válido e siga exatamente este formato:',
     '{',
     '  "temas": [',
@@ -1365,7 +1381,7 @@ function normalizeRadarThemesPayload(result) {
   }
 }
 
-export async function generateRadarSuggestions() {
+export async function generateRadarSuggestions({ responsePreference } = {}) {
   const searchQuery = [
     'Radar de temas para redação estilo ENEM 2025.',
     'Preciso de sinais recentes do debate público brasileiro e de áreas recorrentes na prova.',
@@ -1379,7 +1395,7 @@ export async function generateRadarSuggestions() {
     console.error('[AI][radar] Search failed, falling back to no-search radar:', error?.message || error)
   }
 
-  const systemPrompt = buildRadarSystemPrompt(searchBundle)
+  const systemPrompt = buildRadarSystemPrompt(searchBundle, responsePreference)
   const userMessages = [
     {
       role: 'user',
@@ -1472,7 +1488,7 @@ export async function generateRadarSuggestions() {
   }
 }
 
-export async function correctEssay({ redacao, tema, material, isRigido }) {
+export async function correctEssay({ redacao, tema, material, isRigido, responsePreference }) {
   // Correção não faz search externo.
   // A ideia aqui é só avaliar a redação com o tema/material já obtidos no fluxo de escrita.
   const copyHint = buildCopyRiskHint(redacao, material)
@@ -1481,6 +1497,7 @@ export async function correctEssay({ redacao, tema, material, isRigido }) {
     material,
     isRigido,
     copyHint,
+    responsePreference,
   })
 
   const userMessages = [

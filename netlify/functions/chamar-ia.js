@@ -25,6 +25,7 @@ export default async function handler(req) {
     const modelOverride = String(body?.modelOverride ?? '').trim()
     const systemPrompt = String(body?.systemPrompt ?? '').trim()
     const userMessages = Array.isArray(body?.userMessages) ? body.userMessages : []
+    const responsePreference = body?.responsePreference ?? null
 
     if (!provider) {
       return new Response(JSON.stringify({ error: 'provider é obrigatório' }), { status: 400, headers })
@@ -40,6 +41,7 @@ export default async function handler(req) {
       userMessages,
       modelVariant,
       modelOverride,
+      responsePreference,
     })
 
     return new Response(JSON.stringify(result), { status: 200, headers })

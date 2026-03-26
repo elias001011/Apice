@@ -1,4 +1,5 @@
 import { buildRecentEssaySummaryIndex, loadEssayHistoryCount } from './essayInsights.js'
+import { loadAiResponsePreferenceText } from './aiResponsePreferences.js'
 
 const SUMMARY_KEY = 'apice:user-summary:v1'
 const SUMMARY_UPDATED_EVENT = 'apice:user-summary-updated'
@@ -193,6 +194,7 @@ export async function refreshUserSummaryFromHistory({ force = false } = {}) {
       body: JSON.stringify({
         historyIndex,
         historyCount: totalRedacoes,
+        responsePreference: loadAiResponsePreferenceText(),
       }),
     })
 

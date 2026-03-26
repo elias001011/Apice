@@ -22,6 +22,7 @@ export default async function handler(req) {
     const tema = String(body?.tema ?? '').trim()
     const material = body?.material ?? null
     const isRigido = Boolean(body?.isRigido)
+    const responsePreference = body?.responsePreference ?? null
 
     if (!redacao) {
       return new Response(JSON.stringify({ error: 'redacao é obrigatória' }), { status: 400, headers })
@@ -32,6 +33,7 @@ export default async function handler(req) {
       tema,
       material,
       isRigido,
+      responsePreference,
     })
 
     return new Response(JSON.stringify(result), { status: 200, headers })
@@ -46,4 +48,3 @@ export default async function handler(req) {
     )
   }
 }
-

@@ -96,7 +96,7 @@ export function ResultadoRedacaoPage() {
             )}
 
             <div className="action-row">
-              <Link to="/corretor" className="btn-primary" onClick={clearCorretorDraft}>
+              <Link to="/corretor" className="btn-primary result-primary-action" onClick={clearCorretorDraft}>
                 Gerar nova redação
               </Link>
               <Link to="/historico-redacoes" className="btn-ghost">
@@ -197,6 +197,17 @@ const resultadoCss = `
   .error-reason { font-size: 0.75rem; color: var(--text3); }
 
   .action-row { display: flex; gap: 12px; margin-top: 1rem; }
-  .action-row .btn-primary { flex: 1.5; height: 48px; }
+  .action-row .btn-primary {
+    flex: 1.5;
+    height: 48px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: 1px solid rgba(var(--accent-rgb), 0.22);
+    box-shadow: 0 14px 30px rgba(var(--accent-rgb), 0.18), 0 0 0 1px rgba(var(--accent-rgb), 0.06);
+    font-weight: 700;
+  }
+  .action-row .btn-primary:hover {
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    box-shadow: 0 18px 36px rgba(var(--accent-rgb), 0.22), 0 0 0 1px rgba(var(--accent-rgb), 0.08);
+  }
   .action-row .btn-ghost { flex: 1; height: 48px; }
 `

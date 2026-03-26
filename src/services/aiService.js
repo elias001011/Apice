@@ -2,6 +2,7 @@ import {
   canConsumeFreePlan,
   consumeFreePlan,
 } from './freePlanUsage.js'
+import { loadAiResponsePreferenceText } from './aiResponsePreferences.js'
 import {
   buildRecentEssayContext,
   compactEssayHistoryEntry,
@@ -25,6 +26,9 @@ export async function gerarTemaDinamico({ retryCount = 1 } = {}) {
       const res = await fetch('/.netlify/functions/gerar-tema', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          responsePreference: loadAiResponsePreferenceText(),
+        }),
       })
 
       if (!res.ok) {
@@ -62,6 +66,7 @@ export async function corrigirRedacao({ redacao, tema, material, isRigido }) {
       tema,
       material,
       isRigido,
+      responsePreference: loadAiResponsePreferenceText(),
     }),
   })
 
@@ -91,6 +96,7 @@ export async function chamarIAEspecifica({ provider, systemPrompt, userMessages 
       userMessages,
       modelVariant,
       modelOverride,
+      responsePreference: loadAiResponsePreferenceText(),
     }),
   })
 

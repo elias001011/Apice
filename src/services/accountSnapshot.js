@@ -1,4 +1,10 @@
 import {
+  clearAiResponsePreference,
+  loadAiResponsePreference,
+  normalizeAiResponsePreference,
+  saveAiResponsePreference,
+} from './aiResponsePreferences.js'
+import {
   loadEssayHistory,
   compactEssayHistoryEntry,
   saveEssayHistorySnapshot,
@@ -98,7 +104,7 @@ function normalizeUsage(usage) {
 
 export function buildAccountSnapshot(user, historyLimit = MAX_ESSAY_HISTORY_ENTRIES) {
   return {
-    version: 3,
+    version: 4,
     profile: readProfileSnapshot(user),
     preferences: readThemeSnapshot(),
     history: normalizeHistory(loadEssayHistory(historyLimit)),
@@ -108,6 +114,7 @@ export function buildAccountSnapshot(user, historyLimit = MAX_ESSAY_HISTORY_ENTR
     radarFavorites: loadRadarFavorites(),
     radarSnapshot: loadRadarSnapshot(),
     summary: loadUserSummary(),
+    aiResponsePreference: loadAiResponsePreference(),
     notifications: loadNotificationPreferences(),
     savedAt: new Date().toISOString(),
   }
@@ -137,11 +144,11 @@ export function normalizeAccountSnapshot(rawSnapshot) {
       ? rawSnapshot.radarFavorites
       : Array.isArray(rawSnapshot.savedRadarThemes)
         ? rawSnapshot.savedRadarThemes
-        : [],
+      : [],
   )
-
-  return {
-    version: Number(rawSnapshot.version ?? 3) || 3,
+  const hasAiResponsePreference = Object.prototype.hasOwnProperty.call(rawSnapshot, 'aiResponsePreference')
+  const snapshot = {
+    version: Number(rawSnapshot.version ?? 4) || 4,
     profile: readProfileSnapshot({
       user_metadata: rawSnapshot.profile || {},
       email: rawSnapshot.profile?.email || '',
@@ -167,6 +174,12 @@ export function normalizeAccountSnapshot(rawSnapshot) {
     notifications: loadNotificationPreferencesFromObject(rawSnapshot.notifications),
     savedAt: String(rawSnapshot.savedAt ?? new Date().toISOString()),
   }
+
+  if (hasAiResponsePreference) {
+    snapshot.aiResponsePreference = normalizeAiResponsePreference(rawSnapshot.aiResponsePreference)
+  }
+
+  return snapshot
 }
 
 function loadNotificationPreferencesFromObject(rawPreferences) {
@@ -212,6 +225,14 @@ export function applyAccountSnapshot(snapshot) {
     saveUserSummary(snapshot.summary)
   } else {
     clearUserSummary()
+  }
+
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'aiResponsePreference')) {
+    if (snapshot.aiResponsePreference) {
+      saveAiResponsePreference(snapshot.aiResponsePreference)
+    } else {
+      clearAiResponsePreference()
+    }
   }
 
   if (snapshot.notifications) {

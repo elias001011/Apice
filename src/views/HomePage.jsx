@@ -10,6 +10,14 @@ import {
   subscribeUserSummary,
 } from '../services/userSummary.js'
 
+function getGreetingLabel(date = new Date()) {
+  const hour = date.getHours()
+
+  if (hour >= 5 && hour < 12) return 'Bom dia'
+  if (hour >= 12 && hour < 18) return 'Boa tarde'
+  return 'Boa noite'
+}
+
 export function HomePage() {
   const { user } = useAuth()
   
@@ -20,6 +28,7 @@ export function HomePage() {
 
   const [insights, setInsights] = useState(() => buildEssayInsights(loadEssayHistory()))
   const [userSummary, setUserSummary] = useState(() => loadUserSummary())
+  const [greeting, setGreeting] = useState(() => getGreetingLabel())
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [pwaInstalled, setPwaInstalled] = useState(() => Boolean(typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)')?.matches))
   const [pwaHint, setPwaHint] = useState('')
@@ -62,6 +71,11 @@ export function HomePage() {
   }
 
   useEffect(() => {
+    const refreshGreeting = () => setGreeting(getGreetingLabel())
+    refreshGreeting()
+
+    const intervalId = window.setInterval(refreshGreeting, 60_000)
+
     // O home escuta o histórico para mostrar dados reais sem precisar recarregar.
     const refresh = () => setInsights(buildEssayInsights(loadEssayHistory()))
     const refreshSummary = () => setUserSummary(loadUserSummary())
@@ -72,6 +86,7 @@ export function HomePage() {
     const unlistenSummary = subscribeUserSummary(refreshSummary)
 
     return () => {
+      window.clearInterval(intervalId)
       unlistenHistory()
       unlistenSummary()
     }
@@ -93,7 +108,7 @@ export function HomePage() {
           {/* Hero */}
           <div className="hero anim anim-d1">
             <div className="hero-content">
-              <div className="hero-label">Bem-vindo de volta</div>
+              <div className="hero-label">{greeting}</div>
               <div className="hero-name">
                 {firstName} {lastName && <em>{lastName}</em>}
               </div>
@@ -291,8 +306,9 @@ const homeCss = `
   .hero-label {
     font-size: 0.75rem;
     color: var(--text2);
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 600;
     margin-bottom: 8px;
   }
 

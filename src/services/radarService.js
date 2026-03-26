@@ -2,6 +2,7 @@ import {
   canConsumeFreePlan,
   consumeFreePlan,
 } from './freePlanUsage.js'
+import { loadAiResponsePreferenceText } from './aiResponsePreferences.js'
 
 function normalizeRadarTheme(tema) {
   const tags = Array.isArray(tema?.tags)
@@ -31,6 +32,9 @@ export async function buscarRadarTemas() {
   const response = await fetch('/.netlify/functions/gerar-radar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      responsePreference: loadAiResponsePreferenceText(),
+    }),
   })
 
   if (!response.ok) {

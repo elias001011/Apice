@@ -18,7 +18,9 @@ export default async function handler(req) {
 
   try {
     // O fluxo de tema sempre tenta search antes de sintetizar, para enriquecer o material.
-    const result = await generateDynamicTheme()
+    const body = await req.json().catch(() => ({}))
+    const responsePreference = body?.responsePreference ?? null
+    const result = await generateDynamicTheme({ responsePreference })
     return new Response(JSON.stringify(result), { status: 200, headers })
   } catch (error) {
     console.error('[gerar-tema] erro:', error)
@@ -31,4 +33,3 @@ export default async function handler(req) {
     )
   }
 }
-
