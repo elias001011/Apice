@@ -199,8 +199,8 @@ const verifCss = `
     width: 26px;
     height: 26px;
     background-color: currentColor;
-    mask-image: url('/favicon_nova.svg');
-    -webkit-mask-image: url('/favicon_nova.svg');
+    mask-image: url('/favicon.svg');
+    -webkit-mask-image: url('/favicon.svg');
     mask-size: contain;
     -webkit-mask-size: contain;
     mask-repeat: no-repeat;

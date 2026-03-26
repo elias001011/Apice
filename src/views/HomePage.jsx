@@ -212,6 +212,13 @@ export function HomePage() {
 
         {/* ── COLUNA DIREITA: Feature Cards ── */}
         <div className="home-grid-right">
+          <div className="card anim anim-d3" style={{ padding: '1.25rem', marginBottom: '1.25rem', border: '1.5px solid rgba(var(--accent-rgb), 0.3)', background: 'var(--bg3)' }}>
+            <h2 style={{ fontFamily: '"DM Serif Display", serif', fontSize: '1.2rem', color: 'var(--accent)', marginBottom: '8px', marginTop: 0 }}>Como o Ápice funciona?</h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text2)', lineHeight: '1.6', margin: 0 }}>
+              O Ápice é a sua ferramenta inteligente para dominar a redação do <strong>ENEM</strong>. Use a nossa IA para corrigir seus textos em segundos, prever temas com o Radar e focar nos seus pontos fracos de forma automática para você alcançar a nota 1000.
+            </p>
+          </div>
+
           <div className="section-label anim anim-d3" style={{ marginTop: 0 }}>Ferramentas</div>
 
           <div className="features-stack">
@@ -265,6 +272,17 @@ export function HomePage() {
               </div>
             </a>
           </div>
+
+          <div className="card anim anim-d4" style={{ padding: '1.25rem', marginTop: '1.25rem', background: 'var(--bg2)', textAlign: 'center', border: '1.5px dashed var(--border)' }}>
+            <div style={{ color: 'var(--accent-dim2)', marginBottom: '10px' }}>
+               <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--accent)"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/></svg>
+            </div>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text)', fontStyle: 'italic', marginBottom: '10px', lineHeight: '1.5' }}>
+              "A educação é a arma mais poderosa que você pode usar para mudar o mundo."
+            </p>
+            <strong style={{ fontSize: '0.8rem', color: 'var(--accent)' }}>— Nelson Mandela</strong>
+          </div>
+
         </div>
 
       </div>
