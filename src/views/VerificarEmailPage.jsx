@@ -87,7 +87,7 @@ export function VerificarEmailPage() {
           {/* Logo */}
           <div className="verif-logo-wrap anim anim-d1">
             <Link to="/login" className="verif-logo" style={{ textDecoration: 'none' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="3 17 9 11 13 15 21 7" />
                 <polyline points="14 7 21 7 21 14" />
               </svg>
@@ -115,8 +115,8 @@ export function VerificarEmailPage() {
             <div className="verif-divider" />
 
             {/* Feedback de reenvio */}
-            {resendMsg && <div className="verif-feedback success">{resendMsg}</div>}
-            {resendError && <div className="verif-feedback error">{resendError}</div>}
+            {resendMsg && <div className="verif-feedback success" role="status" aria-live="polite">{resendMsg}</div>}
+            {resendError && <div className="verif-feedback error" role="alert" aria-live="assertive">{resendError}</div>}
 
             {/* Botão de reenvio */}
             <div className="verif-resend-area">
@@ -195,11 +195,13 @@ const verifCss = `
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    color: #0f0f0f;
   }
 
   .verif-logo svg {
     width: 26px;
     height: 26px;
+    stroke: currentColor;
   }
 
   .verif-card {

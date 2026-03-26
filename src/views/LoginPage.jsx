@@ -70,7 +70,7 @@ export function LoginPage() {
         <div className="login-wrap">
           <div className="login-top anim anim-d1">
             <div className="login-logo" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="3 17 9 11 13 15 21 7" />
                 <polyline points="14 7 21 7 21 14" />
               </svg>
@@ -84,7 +84,11 @@ export function LoginPage() {
           </div>
 
           <form onSubmit={handleLogin} className="login-card anim anim-d2">
-            {error && <div className="error-msg">{error}</div>}
+            {error && (
+              <div className="error-msg" role="alert" aria-live="assertive">
+                {error}
+              </div>
+            )}
             
             <div className="login-input-group">
               <label className="input-label">E-mail</label>
@@ -140,7 +144,13 @@ export function LoginPage() {
               </span>
             </label>
 
-            <button className="btn-primary" style={{ marginTop: 4 }} type="submit" disabled={loading || !acceptedPolicies}>
+            {!acceptedPolicies && (
+              <p className="login-terms-note" aria-live="polite">
+                Você precisa aceitar os termos para entrar.
+              </p>
+            )}
+
+            <button className="btn-primary" style={{ marginTop: 4 }} type="submit" disabled={loading}>
               {loading ? 'Entrando...' : 'Entrar'}
             </button>
           </form>
@@ -212,11 +222,13 @@ const loginCss = `
     margin-bottom: 1.25rem;
     position: relative;
     flex-shrink: 0;
+    color: #0f0f0f;
   }
 
   .login-logo svg {
     width: 26px;
     height: 26px;
+    stroke: currentColor;
   }
 
   .login-logo::after {
@@ -322,6 +334,13 @@ const loginCss = `
 
   .login-terms a:hover {
     text-decoration: underline;
+  }
+
+  .login-terms-note {
+    margin: -0.35rem 0 1rem 26px;
+    font-size: 0.75rem;
+    color: var(--amber);
+    line-height: 1.45;
   }
 
   .login-footer {

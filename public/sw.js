@@ -1,4 +1,4 @@
-const CACHE_NAME = 'apice-pwa-v1'
+const CACHE_NAME = 'apice-pwa-v2'
 const PRECACHE_URLS = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg']
 
 self.addEventListener('install', (event) => {

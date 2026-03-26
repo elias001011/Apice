@@ -70,6 +70,56 @@ function applyFontFamily(fontFamily) {
   }
 }
 
+function buildFaviconDataUri(theme, accent) {
+  const safeAccent = ACCENT_COLORS[accent] ? accent : 'lime'
+  const colors = ACCENT_COLORS[safeAccent][theme === 'dark' ? 'dark' : 'light']
+  const stroke = '#0f1108'
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+      <defs>
+        <linearGradient id="bg" x1="2.5" y1="2.5" x2="21.5" y2="21.5" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="${colors.base}" />
+          <stop offset="100%" stop-color="${colors.hover}" />
+        </linearGradient>
+      </defs>
+      <rect x="1.5" y="1.5" width="21" height="21" rx="7" fill="url(#bg)" />
+      <path d="M3 17L9 11L13 15L21 7" stroke="${stroke}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M14 7H21V14" stroke="${stroke}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  `.trim()
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
+}
+
+function updateBrandAssets(theme, accent) {
+  if (typeof document === 'undefined') return
+
+  const safeAccent = ACCENT_COLORS[accent] ? accent : 'lime'
+  const colors = ACCENT_COLORS[safeAccent][theme === 'dark' ? 'dark' : 'light']
+  const faviconHref = buildFaviconDataUri(theme, safeAccent)
+
+  const iconLinks = document.querySelectorAll('link[rel~="icon"]')
+  if (iconLinks.length > 0) {
+    iconLinks.forEach((link) => {
+      link.href = faviconHref
+    })
+  } else {
+    const link = document.createElement('link')
+    link.rel = 'icon'
+    link.type = 'image/svg+xml'
+    link.href = faviconHref
+    document.head.appendChild(link)
+  }
+
+  let themeMeta = document.querySelector('meta[name="theme-color"]')
+  if (!themeMeta) {
+    themeMeta = document.createElement('meta')
+    themeMeta.name = 'theme-color'
+    document.head.appendChild(themeMeta)
+  }
+  themeMeta.setAttribute('content', theme === 'dark' ? '#0a0a0a' : colors.base)
+}
+
 function applyThemeToDom(theme, accent, fontSize, fontFamily) {
   const html = document.documentElement
   if (theme === 'dark') html.setAttribute('data-theme', 'dark')
@@ -87,6 +137,7 @@ function applyThemeToDom(theme, accent, fontSize, fontFamily) {
   html.style.setProperty('--accent-dim2', colors.dim2)
 
   applyFontFamily(fontFamily || 'dm-sans')
+  updateBrandAssets(theme, safeAccent)
 }
 
 function syncThemeFromStorage(setTheme, setAccent, setFontSize, setFontFamily) {

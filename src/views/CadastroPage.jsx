@@ -77,7 +77,7 @@ export function CadastroPage() {
         <div className="cad-wrap">
           <div className="cad-top anim anim-d1">
             <Link to="/login" className="cad-logo" style={{ textDecoration: 'none' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="3 17 9 11 13 15 21 7" />
                 <polyline points="14 7 21 7 21 14" />
               </svg>
@@ -87,7 +87,11 @@ export function CadastroPage() {
           </div>
 
           <form onSubmit={handleSignup} className="cad-card anim anim-d2">
-            {error && <div className="error-msg">{error}</div>}
+            {error && (
+              <div className="error-msg" role="alert" aria-live="assertive">
+                {error}
+              </div>
+            )}
             
             <div className="cad-input-row">
               <div>
@@ -159,14 +163,19 @@ export function CadastroPage() {
                   setAcceptedPolicies(next)
                   savePolicyConsent(next)
                 }}
-                required
               />
               <label htmlFor="termos">
                 Concordo com os <a href={POLICY_URL} target="_blank" rel="noreferrer">Termos de uso</a> e a <a href={POLICY_URL} target="_blank" rel="noreferrer">Política de privacidade</a>
               </label>
             </div>
 
-            <button className="btn-primary" type="submit" disabled={loading || !acceptedPolicies}>
+            {!acceptedPolicies && (
+              <p className="cad-terms-note" aria-live="polite">
+                Aceite os termos para criar sua conta.
+              </p>
+            )}
+
+            <button className="btn-primary" type="submit" disabled={loading}>
               {loading ? 'Criando conta...' : 'Criar minha conta'}
             </button>
           </form>
@@ -239,6 +248,13 @@ const cadastroCss = `
     position: relative;
     cursor: pointer;
     flex-shrink: 0;
+    color: #0f0f0f;
+  }
+
+  .cad-logo svg {
+    width: 26px;
+    height: 26px;
+    stroke: currentColor;
   }
 
   .cad-title {
@@ -304,6 +320,13 @@ const cadastroCss = `
 
   .cad-terms label a:hover {
     text-decoration: underline;
+  }
+
+  .cad-terms-note {
+    margin: -0.35rem 0 1rem 26px;
+    font-size: 0.75rem;
+    color: var(--amber);
+    line-height: 1.45;
   }
 
   .pass-wrap {
