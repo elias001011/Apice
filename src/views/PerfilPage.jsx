@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import {
   AI_RESPONSE_PREFERENCE_MAX_LENGTH,
-  DEFAULT_AI_RESPONSE_PREFERENCE,
+  AI_RESPONSE_PREFERENCE_PLACEHOLDER,
   loadAiResponsePreferenceText,
   saveAiResponsePreference,
   subscribeAiResponsePreference,
@@ -74,6 +74,7 @@ export function PerfilPage() {
   const email = user?.email || 'Sem e-mail'
   const maskedEmail = maskEmail(email)
   const visibleEmail = showEmail ? email : maskedEmail
+  const hasAiPreference = Boolean(aiPreference.trim())
   const school = user?.user_metadata?.school || 'Não informada'
   const avatarAppearance = resolveAvatarAppearance({
     name,
@@ -188,8 +189,8 @@ export function PerfilPage() {
         return
       }
 
-      setAiPreference(DEFAULT_AI_RESPONSE_PREFERENCE)
-      setAiPreferenceMsg('A instrução foi vazia ou inválida. Voltei para o padrão simples.')
+      setAiPreference('')
+      setAiPreferenceMsg('Preferência removida. A IA voltou ao padrão do sistema.')
     } finally {
       setAiPreferenceSaving(false)
     }
@@ -394,22 +395,35 @@ export function PerfilPage() {
 
           <div className="section-label anim anim-d4">IA</div>
           <form className="card anim anim-d4 ai-pref-card" onSubmit={handleAiPreferenceSave}>
-            <div className="card-title">Preferências de resposta</div>
-            <div className="ai-pref-help">
-              Se apresente e diga como a IA deve responder, com foco em tom, clareza e explicação. Exemplo: responda em linguagem simples e objetiva.
+            <div className="ai-pref-top">
+              <div className="ai-pref-copy">
+                <div className="card-title">Preferências de resposta</div>
+                <div className="ai-pref-help">
+                  Opcional. Só entra nas respostas se você salvar uma instrução personalizada. Use para orientar tom, clareza e nível de detalhe.
+                </div>
+              </div>
+              <div className={`ai-pref-badge ${hasAiPreference ? 'active' : 'idle'}`}>
+                {hasAiPreference ? 'Ativa' : 'Vazia'}
+              </div>
             </div>
 
-            <textarea
-              className="textarea-field ai-pref-box"
-              value={aiPreference}
-              maxLength={AI_RESPONSE_PREFERENCE_MAX_LENGTH}
-              onChange={(event) => {
-                setAiPreference(event.target.value)
-                setAiPreferenceMsg('')
-              }}
-              placeholder={DEFAULT_AI_RESPONSE_PREFERENCE}
-              rows={3}
-            />
+            <div className="ai-pref-field-shell">
+              <label className="input-label" htmlFor="ai-response-preference">
+                Instrução personalizada
+              </label>
+              <textarea
+                id="ai-response-preference"
+                className="textarea-field ai-pref-box"
+                value={aiPreference}
+                maxLength={AI_RESPONSE_PREFERENCE_MAX_LENGTH}
+                onChange={(event) => {
+                  setAiPreference(event.target.value)
+                  setAiPreferenceMsg('')
+                }}
+                placeholder={AI_RESPONSE_PREFERENCE_PLACEHOLDER}
+                rows={3}
+              />
+            </div>
 
             <div className="ai-pref-row">
               <div className="ai-pref-count">
@@ -421,7 +435,7 @@ export function PerfilPage() {
             </div>
 
             <div className="ai-pref-warning">
-              Sistema anti-sequestro: instruções para mudar nota, burlar critérios, responder em uma palavra, ou ignorar a correção serão descartadas.
+              Sistema anti-sequestro: a IA só usa essa instrução como ajuste de tom e clareza. Pedidos para mudar nota, burlar critérios, responder em uma palavra ou ignorar a correção são descartados.
             </div>
 
             {aiPreferenceMsg && (
@@ -892,8 +906,20 @@ const perfilCss = `
   }
 
   .ai-pref-card {
-    padding: 1.25rem;
+    padding: 1.15rem;
     margin-bottom: 1.25rem;
+  }
+
+  .ai-pref-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .ai-pref-copy {
+    min-width: 0;
+    flex: 1;
   }
 
   .ai-pref-help {
@@ -903,9 +929,37 @@ const perfilCss = `
     line-height: 1.55;
   }
 
+  .ai-pref-badge {
+    flex-shrink: 0;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border2);
+    background: var(--bg3);
+    color: var(--text3);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .ai-pref-badge.active {
+    background: var(--accent-dim);
+    border-color: rgba(var(--accent-rgb), 0.28);
+    color: var(--accent);
+  }
+
+  .ai-pref-field-shell {
+    margin-top: 0.95rem;
+    padding: 0.95rem;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
+  }
+
   .ai-pref-box {
-    margin-top: 0.85rem;
-    min-height: 88px;
+    margin-top: 0.55rem;
+    min-height: 96px;
     resize: vertical;
     line-height: 1.6;
   }
@@ -927,7 +981,12 @@ const perfilCss = `
   .ai-pref-save {
     width: auto;
     min-width: 180px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
     box-shadow: 0 12px 24px rgba(var(--accent-rgb), 0.16);
+  }
+
+  .ai-pref-save:hover {
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
   }
 
   .ai-pref-warning {

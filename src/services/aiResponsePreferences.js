@@ -1,6 +1,7 @@
 const AI_RESPONSE_PREFERENCE_KEY = 'apice:ai-response-preference:v1'
 const AI_RESPONSE_PREFERENCE_UPDATED_EVENT = 'apice:ai-response-preferences-updated'
-export const DEFAULT_AI_RESPONSE_PREFERENCE = 'Responda em linguagem simples.'
+export const DEFAULT_AI_RESPONSE_PREFERENCE = '' // Intencionalmente vazio: só instrução salva entra no prompt.
+export const AI_RESPONSE_PREFERENCE_PLACEHOLDER = 'Se apresente e diga como a IA deve responder. Ex: responda em linguagem simples e objetiva.'
 export const AI_RESPONSE_PREFERENCE_MAX_LENGTH = 50
 
 const UNSAFE_FRAGMENT_PATTERNS = [
@@ -94,7 +95,7 @@ export function loadAiResponsePreference() {
 }
 
 export function loadAiResponsePreferenceText() {
-  return loadAiResponsePreference()?.text || DEFAULT_AI_RESPONSE_PREFERENCE
+  return loadAiResponsePreference()?.text || ''
 }
 
 export function saveAiResponsePreference(preference) {
@@ -125,7 +126,11 @@ export function subscribeAiResponsePreference(handler) {
 }
 
 export function buildAiResponsePreferencePrompt(rawPreference) {
-  const preference = normalizeAiResponsePreference(rawPreference)?.text || DEFAULT_AI_RESPONSE_PREFERENCE
+  const preference = normalizeAiResponsePreference(rawPreference)?.text || ''
+
+  if (!preference) {
+    return ''
+  }
 
   return [
     'Preferência de resposta do usuário:',

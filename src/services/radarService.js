@@ -29,11 +29,12 @@ export async function buscarRadarTemas() {
     throw new Error('Limite do plano free atingido para radar de temas. Tente mais tarde ou troque de plano.')
   }
 
+  const responsePreference = loadAiResponsePreferenceText()
   const response = await fetch('/.netlify/functions/gerar-radar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      responsePreference: loadAiResponsePreferenceText(),
+      ...(responsePreference ? { responsePreference } : {}),
     }),
   })
 

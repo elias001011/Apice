@@ -15,6 +15,7 @@ import {
   subscribeRadarFavorites,
 } from '../services/radarFavorites.js'
 import { useAppBusy } from '../ui/AppBusyContext.jsx'
+import { ConfirmDialog } from '../ui/ConfirmDialog.jsx'
 
 const DEFAULT_TEMAS = [
   {
@@ -85,6 +86,8 @@ export function RadarPage() {
   const [atualizadoEm, setAtualizadoEm] = useState(() => initialRadarSnapshot?.atualizadoEm || '')
   const [errorMsg, setErrorMsg] = useState('')
   const [loadingLabel, setLoadingLabel] = useState('Procurando novos temas…')
+  const [searchConfirmOpen, setSearchConfirmOpen] = useState(false)
+  const [pendingRemoval, setPendingRemoval] = useState(null)
 
   useEffect(() => {
     const refreshRadar = () => {
@@ -163,6 +166,15 @@ export function RadarPage() {
     removeRadarFavorite(tema)
   }
 
+  const requestBuscar = () => {
+    if (status === 'results' && temas.length > 0) {
+      setSearchConfirmOpen(true)
+      return
+    }
+
+    void handleBuscar()
+  }
+
   const isSavedTheme = (tema) => {
     const temaId = getRadarFavoriteId(tema)
     return savedTemas.some((item) => item.id === temaId)
@@ -186,7 +198,7 @@ export function RadarPage() {
 
     const handleAction = () => {
       if (allowRemove) {
-        handleRemoverTema(tema)
+        setPendingRemoval(tema)
         return
       }
 
@@ -269,7 +281,7 @@ export function RadarPage() {
           <div className="radar-intro-text">
             O Radar 1000 analisa padrões históricos das provas do {enemLabel}, o contexto sociopolítico atual e tendências do debate público brasileiro para estimar os temas com maior probabilidade de aparecer na redação desta edição.
           </div>
-          <button className="btn-primary" onClick={handleBuscar} type="button">
+          <button className="btn-primary" onClick={requestBuscar} type="button">
             <svg viewBox="0 0 24 24">
               <circle cx="11" cy="11" r="8" />
               <path d="M21 21l-4.35-4.35" />
@@ -332,12 +344,42 @@ export function RadarPage() {
           </div>
 
           <div style={{ marginTop: '0.75rem' }}>
-            <button className="btn-ghost" type="button" onClick={handleBuscar} disabled={status === 'loading'}>
+            <button className="btn-primary" type="button" onClick={requestBuscar} disabled={status === 'loading'}>
               {status === 'loading' ? 'Procurando...' : 'Procurar novos temas'}
             </button>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={searchConfirmOpen}
+        title="Substituir radar atual?"
+        message="Isso vai gerar um novo conjunto de temas e trocar o radar que está salvo agora. Os cards fixados continuam salvos."
+        confirmLabel="Sim, procurar"
+        cancelLabel="Cancelar"
+        danger
+        onCancel={() => setSearchConfirmOpen(false)}
+        onConfirm={() => {
+          setSearchConfirmOpen(false)
+          void handleBuscar()
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingRemoval)}
+        title="Remover card salvo?"
+        message={pendingRemoval ? `O tema “${pendingRemoval.titulo}” será removido dos cards salvos. Você poderá salvá-lo de novo depois.` : ''}
+        confirmLabel="Sim, remover"
+        cancelLabel="Cancelar"
+        danger
+        onCancel={() => setPendingRemoval(null)}
+        onConfirm={() => {
+          if (pendingRemoval) {
+            handleRemoverTema(pendingRemoval)
+          }
+          setPendingRemoval(null)
+        }}
+      />
     </>
   )
 }
@@ -423,7 +465,8 @@ const radarCss = `
 
   .saved-radar-stack {
     display: grid;
-    gap: 10px;
+    gap: 12px;
+    margin-bottom: 1.25rem;
   }
 
   .tema-card {

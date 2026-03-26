@@ -23,11 +23,12 @@ export async function gerarTemaDinamico({ retryCount = 1 } = {}) {
 
   for (let attempt = 0; attempt <= retryCount; attempt += 1) {
     try {
+      const responsePreference = loadAiResponsePreferenceText()
       const res = await fetch('/.netlify/functions/gerar-tema', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          responsePreference: loadAiResponsePreferenceText(),
+          ...(responsePreference ? { responsePreference } : {}),
         }),
       })
 
@@ -58,6 +59,7 @@ export async function corrigirRedacao({ redacao, tema, material, isRigido }) {
     throw new Error('Limite do plano free atingido para correção de redação. Tente mais tarde ou troque de plano.')
   }
 
+  const responsePreference = loadAiResponsePreferenceText()
   const res = await fetch('/.netlify/functions/corrigir-redacao', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -66,7 +68,7 @@ export async function corrigirRedacao({ redacao, tema, material, isRigido }) {
       tema,
       material,
       isRigido,
-      responsePreference: loadAiResponsePreferenceText(),
+      ...(responsePreference ? { responsePreference } : {}),
     }),
   })
 
@@ -87,6 +89,7 @@ export async function chamarIAEspecifica({ provider, systemPrompt, userMessages 
     throw new Error('Limite do plano free atingido para chamada direta de IA.')
   }
 
+  const responsePreference = loadAiResponsePreferenceText()
   const res = await fetch('/.netlify/functions/chamar-ia', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -96,7 +99,7 @@ export async function chamarIAEspecifica({ provider, systemPrompt, userMessages 
       userMessages,
       modelVariant,
       modelOverride,
-      responsePreference: loadAiResponsePreferenceText(),
+      ...(responsePreference ? { responsePreference } : {}),
     }),
   })
 

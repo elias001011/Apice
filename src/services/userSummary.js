@@ -188,13 +188,14 @@ export async function refreshUserSummaryFromHistory({ force = false } = {}) {
   }
 
   try {
+    const responsePreference = loadAiResponsePreferenceText()
     const response = await fetch(SUMMARY_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         historyIndex,
         historyCount: totalRedacoes,
-        responsePreference: loadAiResponsePreferenceText(),
+        ...(responsePreference ? { responsePreference } : {}),
       }),
     })
 
