@@ -207,6 +207,17 @@ export function CorretorPage() {
       <style>{corretorCss}</style>
       
       <div className={`corretor-container ${isRigido ? 'modo-rigido' : ''}`}>
+        {isRigido && (
+          <div className="particles-overlay" aria-hidden="true">
+            {[...Array(30)].map((_, i) => (
+              <div key={i} className="particle" style={{
+                left: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 4}s`,
+                animationDuration: `${3 + Math.random() * 4}s`
+              }} />
+            ))}
+          </div>
+        )}
         <div className="corretor-header anim anim-d1">
           <div className="corretor-header-left">
             <h2 className="corretor-title">Oficina de Escrita</h2>
@@ -794,6 +805,11 @@ const corretorCss = `
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  .modo-rigido {
+    --accent: var(--red);
+    --accent-rgb: 255, 82, 82;
+  }
+  
   .modo-rigido .corretor-title { color: var(--red); }
   .modo-rigido .mode-pill-btn.active { color: var(--red); }
   .modo-rigido .dynamic-input:focus { border-bottom-color: var(--red); }
@@ -802,4 +818,35 @@ const corretorCss = `
   .modo-rigido .status-dot.done { background: var(--red); box-shadow: 0 0 8px rgba(255, 82, 82, 0.4); }
   .modo-rigido .main-submit { background: var(--red); box-shadow: 0 4px 15px rgba(255, 82, 82, 0.3); }
   .modo-rigido .criteria-list li span { color: var(--red); }
+
+  .corretor-container { position: relative; }
+  
+  .particles-overlay {
+    position: absolute;
+    top: 0;
+    left: -20px;
+    width: calc(100% + 40px);
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+  }
+
+  .particle {
+    position: absolute;
+    top: -20px;
+    width: 3px;
+    height: 12px;
+    background: var(--red, #ff5252);
+    opacity: 0.6;
+    border-radius: 4px;
+    animation: fall linear infinite;
+  }
+
+  @keyframes fall {
+    0% { transform: translateY(-20px) rotate(15deg); opacity: 0; }
+    10% { opacity: 0.8; }
+    90% { opacity: 0.8; }
+    100% { transform: translateY(110vh) rotate(15deg); opacity: 0; }
+  }
 `

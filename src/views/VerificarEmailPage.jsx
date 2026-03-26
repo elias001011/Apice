@@ -87,10 +87,7 @@ export function VerificarEmailPage() {
           {/* Logo */}
           <div className="verif-logo-wrap anim anim-d1">
             <Link to="/login" className="verif-logo" style={{ textDecoration: 'none' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 17 9 11 13 15 21 7" />
-                <polyline points="14 7 21 7 21 14" />
-              </svg>
+              <div className="logo-icon" />
             </Link>
           </div>
 
@@ -198,10 +195,18 @@ const verifCss = `
     color: #0f0f0f;
   }
 
-  .verif-logo svg {
+  .verif-logo .logo-icon {
     width: 26px;
     height: 26px;
-    stroke: currentColor;
+    background-color: currentColor;
+    mask-image: url('/favicon_nova.svg');
+    -webkit-mask-image: url('/favicon_nova.svg');
+    mask-size: contain;
+    -webkit-mask-size: contain;
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-position: center;
   }
 
   .verif-card {

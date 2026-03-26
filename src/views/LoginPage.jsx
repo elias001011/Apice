@@ -70,10 +70,7 @@ export function LoginPage() {
         <div className="login-wrap">
           <div className="login-top anim anim-d1">
             <div className="login-logo" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 17 9 11 13 15 21 7" />
-                <polyline points="14 7 21 7 21 14" />
-              </svg>
+              <div className="logo-icon" />
             </div>
             <div className="login-title">Ápice</div>
             <div className="login-sub">
@@ -103,12 +100,7 @@ export function LoginPage() {
             </div>
 
             <div className="login-input-group">
-              <label className="input-label">
-                Senha
-                <Link to="/esqueci-senha" className="login-forgot">
-                  Esqueci minha senha
-                </Link>
-              </label>
+              <label className="input-label">Senha</label>
               <div className="pass-wrap">
                 <input 
                   type={showPass ? 'text' : 'password'}
@@ -126,6 +118,11 @@ export function LoginPage() {
                 >
                   {showPass ? <EyeOff /> : <EyeOpen />}
                 </button>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                <Link to="/esqueci-senha" className="login-forgot">
+                  Esqueci minha senha
+                </Link>
               </div>
             </div>
 
@@ -192,7 +189,7 @@ const loginCss = `
     transform: translateX(-50%);
     width: 600px;
     height: 600px;
-    background: radial-gradient(circle, rgba(200, 240, 96, 0.06) 0%, transparent 65%);
+    background: radial-gradient(circle, rgba(var(--accent-rgb), 0.06) 0%, transparent 65%);
     pointer-events: none;
     z-index: 0;
   }
@@ -225,10 +222,18 @@ const loginCss = `
     color: #0f0f0f;
   }
 
-  .login-logo svg {
+  .login-logo .logo-icon {
     width: 26px;
     height: 26px;
-    stroke: currentColor;
+    background-color: currentColor;
+    mask-image: url('/favicon_nova.svg');
+    -webkit-mask-image: url('/favicon_nova.svg');
+    mask-size: contain;
+    -webkit-mask-size: contain;
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-position: center;
   }
 
   .login-logo::after {
@@ -273,8 +278,6 @@ const loginCss = `
     font-size: 0.75rem;
     color: var(--text2);
     text-decoration: none;
-    float: right;
-    margin-top: -2px;
     transition: color 0.2s;
   }
 

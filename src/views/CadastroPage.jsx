@@ -77,10 +77,7 @@ export function CadastroPage() {
         <div className="cad-wrap">
           <div className="cad-top anim anim-d1">
             <Link to="/login" className="cad-logo" style={{ textDecoration: 'none' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 17 9 11 13 15 21 7" />
-                <polyline points="14 7 21 7 21 14" />
-              </svg>
+              <div className="logo-icon" />
             </Link>
             <div className="cad-title">Criar conta gratuita</div>
             <div className="cad-sub">Comece a estudar para o ENEM hoje</div>
@@ -217,7 +214,7 @@ const cadastroCss = `
     transform: translateX(-50%);
     width: 600px;
     height: 600px;
-    background: radial-gradient(circle, rgba(200, 240, 96, 0.06) 0%, transparent 65%);
+    background: radial-gradient(circle, rgba(var(--accent-rgb), 0.06) 0%, transparent 65%);
     pointer-events: none;
     z-index: 0;
   }
@@ -251,10 +248,18 @@ const cadastroCss = `
     color: #0f0f0f;
   }
 
-  .cad-logo svg {
+  .cad-logo .logo-icon {
     width: 26px;
     height: 26px;
-    stroke: currentColor;
+    background-color: currentColor;
+    mask-image: url('/favicon_nova.svg');
+    -webkit-mask-image: url('/favicon_nova.svg');
+    mask-size: contain;
+    -webkit-mask-size: contain;
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-position: center;
   }
 
   .cad-title {

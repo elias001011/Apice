@@ -12,13 +12,10 @@ export function SobrePage() {
 
       <div className="sobre-logo anim anim-d1">
         <div className="sobre-mark">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="3 17 9 11 13 15 21 7" />
-            <polyline points="14 7 21 7 21 14" />
-          </svg>
+            <div className="logo-icon" />
         </div>
         <div className="sobre-nome">Ápice</div>
-        <div className="sobre-versao">Versão 1.0</div>
+        <div className="sobre-versao">Versão 1.1</div>
       </div>
 
       <div className="sobre-missao anim anim-d2">
@@ -85,10 +82,18 @@ const sobreCss = `
     clip-path: polygon(50% 0%, 61% 35%, 100% 50%, 61% 65%, 50% 100%, 39% 65%, 0% 50%, 39% 35%);
     opacity: 0.5;
   }
-  .sobre-mark svg {
+  .sobre-mark .logo-icon {
     width: 26px;
     height: 26px;
-    stroke: currentColor;
+    background-color: currentColor;
+    mask-image: url('/favicon_nova.svg');
+    -webkit-mask-image: url('/favicon_nova.svg');
+    mask-size: contain;
+    -webkit-mask-size: contain;
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-position: center;
   }
   .sobre-nome {
     font-family: 'DM Serif Display', serif;

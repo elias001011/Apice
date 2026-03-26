@@ -545,8 +545,8 @@ const perfilCss = `
     align-items: center;
     gap: 6px;
     margin-top: 8px;
-    background: rgba(200, 240, 96, 0.08);
-    border: 1px solid rgba(200, 240, 96, 0.25);
+    background: rgba(var(--accent-rgb), 0.08);
+    border: 1px solid rgba(var(--accent-rgb), 0.25);
     border-radius: 999px;
     padding: 5px 12px;
     font-size: 0.72rem;
@@ -557,7 +557,7 @@ const perfilCss = `
     transition: background 0.2s, transform 0.1s;
   }
 
-  .pwa-btn:hover { background: rgba(200, 240, 96, 0.15); }
+  .pwa-btn:hover { background: rgba(var(--accent-rgb), 0.15); }
   .pwa-btn:active { transform: scale(0.97); }
   .pwa-btn:disabled {
     cursor: default;
