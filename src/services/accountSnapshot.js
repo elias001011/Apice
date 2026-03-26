@@ -3,12 +3,20 @@ import {
   compactEssayHistoryEntry,
   saveEssayHistorySnapshot,
   loadEssayHistoryCount,
+  MAX_ESSAY_HISTORY_ENTRIES,
 } from './essayInsights.js'
 import {
   getFreePlanUsageSnapshot,
   setFreePlanUsageSnapshot,
   resetFreePlanUsage,
+  getCurrentPlanTier,
+  setPlanTier,
 } from './freePlanUsage.js'
+import {
+  loadRadarFavorites,
+  setRadarFavoritesSnapshot,
+  normalizeRadarFavorites,
+} from './radarFavorites.js'
 import {
   DEFAULT_NOTIFICATIONS,
   loadNotificationPreferences,
@@ -77,19 +85,22 @@ function normalizeUsage(usage) {
       themeDynamic: Number.isFinite(Number(counts.themeDynamic)) ? Number(counts.themeDynamic) : 0,
       essayCorrection: Number.isFinite(Number(counts.essayCorrection)) ? Number(counts.essayCorrection) : 0,
       directModelCall: Number.isFinite(Number(counts.directModelCall)) ? Number(counts.directModelCall) : 0,
+      radarSearch: Number.isFinite(Number(counts.radarSearch)) ? Number(counts.radarSearch) : 0,
       userSummary: Number.isFinite(Number(counts.userSummary)) ? Number(counts.userSummary) : 0,
     },
   }
 }
 
-export function buildAccountSnapshot(user, historyLimit = 8) {
+export function buildAccountSnapshot(user, historyLimit = MAX_ESSAY_HISTORY_ENTRIES) {
   return {
-    version: 1,
+    version: 2,
     profile: readProfileSnapshot(user),
     preferences: readThemeSnapshot(),
     history: normalizeHistory(loadEssayHistory(historyLimit)),
     historyCount: loadEssayHistoryCount(),
     usage: normalizeUsage(getFreePlanUsageSnapshot()),
+    planTier: getCurrentPlanTier(),
+    radarFavorites: loadRadarFavorites(),
     summary: loadUserSummary(),
     notifications: loadNotificationPreferences(),
     savedAt: new Date().toISOString(),
@@ -115,9 +126,16 @@ export function normalizeAccountSnapshot(rawSnapshot) {
   if (!rawSnapshot || typeof rawSnapshot !== 'object') return null
 
   const history = normalizeHistory(Array.isArray(rawSnapshot.history) ? rawSnapshot.history : [])
+  const radarFavorites = normalizeRadarFavorites(
+    Array.isArray(rawSnapshot.radarFavorites)
+      ? rawSnapshot.radarFavorites
+      : Array.isArray(rawSnapshot.savedRadarThemes)
+        ? rawSnapshot.savedRadarThemes
+        : [],
+  )
 
   return {
-    version: Number(rawSnapshot.version ?? 1) || 1,
+    version: Number(rawSnapshot.version ?? 2) || 2,
     profile: readProfileSnapshot({
       user_metadata: rawSnapshot.profile || {},
       email: rawSnapshot.profile?.email || '',
@@ -131,6 +149,8 @@ export function normalizeAccountSnapshot(rawSnapshot) {
     history,
     historyCount: Number.isFinite(Number(rawSnapshot.historyCount)) ? Number(rawSnapshot.historyCount) : history.length,
     usage: normalizeUsage(rawSnapshot.usage),
+    planTier: String(rawSnapshot.planTier ?? 'free').trim() || 'free',
+    radarFavorites,
     summary: rawSnapshot.summary ? normalizeUserSummary(rawSnapshot.summary) : null,
     notifications: loadNotificationPreferencesFromObject(rawSnapshot.notifications),
     savedAt: String(rawSnapshot.savedAt ?? new Date().toISOString()),
@@ -154,6 +174,8 @@ export function applyAccountSnapshot(snapshot) {
   const history = Array.isArray(snapshot.history) ? snapshot.history : []
   const historyCount = Number.isFinite(Number(snapshot.historyCount)) ? Number(snapshot.historyCount) : history.length
   const usage = snapshot.usage ? normalizeUsage(snapshot.usage) : null
+  const planTier = String(snapshot.planTier ?? 'free').trim() || 'free'
+  const radarFavorites = Array.isArray(snapshot.radarFavorites) ? snapshot.radarFavorites : []
 
   localStorage.setItem(THEME_KEY, String(preferences.theme ?? 'light'))
   localStorage.setItem(ACCENT_KEY, String(preferences.accent ?? 'lime'))
@@ -167,6 +189,10 @@ export function applyAccountSnapshot(snapshot) {
   } else {
     resetFreePlanUsage()
   }
+
+  setPlanTier(planTier)
+
+  setRadarFavoritesSnapshot(radarFavorites)
 
   if (snapshot.summary) {
     saveUserSummary(snapshot.summary)
@@ -183,6 +209,7 @@ export function applyAccountSnapshot(snapshot) {
   window.dispatchEvent(new CustomEvent('apice:theme-updated'))
   window.dispatchEvent(new CustomEvent('apice:historico-updated'))
   window.dispatchEvent(new CustomEvent('apice:free-plan-usage-updated'))
+  window.dispatchEvent(new CustomEvent('apice:radar-favorites-updated'))
   window.dispatchEvent(new CustomEvent('apice:user-summary-updated'))
   window.dispatchEvent(new CustomEvent('apice:notificacoes-updated'))
   window.dispatchEvent(new CustomEvent('apice:account-state-updated'))

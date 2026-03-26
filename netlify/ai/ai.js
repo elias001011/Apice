@@ -1177,6 +1177,72 @@ function normalizeUserSummaryPayload(result, historyCount) {
   }
 }
 
+function uniqueStrings(items = []) {
+  const seen = new Set()
+  const out = []
+
+  for (const item of items) {
+    const value = String(item ?? '').trim()
+    if (!value) continue
+    const normalized = value.toLowerCase()
+    if (seen.has(normalized)) continue
+    seen.add(normalized)
+    out.push(value)
+  }
+
+  return out
+}
+
+function buildFallbackUserSummaryPayload(historyIndex = [], totalRedacoes = historyIndex.length) {
+  const entries = Array.isArray(historyIndex) ? historyIndex : []
+  const notes = entries
+    .map((item) => Number(item?.nota))
+    .filter((nota) => Number.isFinite(nota))
+
+  const average = notes.length > 0
+    ? Math.round(notes.reduce((sum, value) => sum + value, 0) / notes.length)
+    : 0
+
+  const best = notes.length > 0 ? Math.max(...notes) : 0
+
+  const strengths = uniqueStrings([
+    ...entries.map((item) => item?.pontoForte),
+    ...entries
+      .flatMap((item) => ensureArray(item?.competencias))
+      .filter((competencia) => Number.isFinite(Number(competencia?.nota)) && Number(competencia.nota) >= 800)
+      .map((competencia) => competencia?.nome),
+  ]).slice(0, 3)
+
+  const recurringIssues = uniqueStrings([
+    ...entries.map((item) => item?.principalMelhorar),
+    ...entries.map((item) => item?.atencao),
+    ...entries
+      .flatMap((item) => ensureArray(item?.competencias))
+      .filter((competencia) => Number.isFinite(Number(competencia?.nota)) && Number(competencia.nota) <= 650)
+      .map((competencia) => competencia?.nome),
+  ]).slice(0, 3)
+
+  const mainFocus = recurringIssues[0] || 'coesão, repertório e gramática'
+
+  const resumo = totalRedacoes <= 1
+    ? `Resumo local inicial: nota ${best || 0}/1000.`
+    : `Resumo local das últimas ${totalRedacoes} redações: média ${average || 0}/1000 e melhor nota ${best || 0}/1000.`
+
+  const resumoFinal = strengths.length > 0
+    ? `${resumo} Pontos fortes mais visíveis: ${strengths.join(', ')}. Foco principal agora: ${mainFocus}.`
+    : `${resumo} Foco principal agora: ${mainFocus}.`
+
+  return {
+    resumo: resumoFinal.trim(),
+    forcas: strengths,
+    errosRecorrentes: recurringIssues,
+    foco: `Reforçar ${mainFocus}.`,
+    geradoEm: new Date().toISOString(),
+    totalRedacoes,
+    origem: 'fallback',
+  }
+}
+
 export async function generateUserSummary({ historyIndex = [], historyCount = historyIndex.length } = {}) {
   const safeHistoryIndex = Array.isArray(historyIndex) ? historyIndex.slice(0, 5) : []
   const totalRedacoes = Number.isFinite(Number(historyCount)) ? Number(historyCount) : safeHistoryIndex.length
@@ -1215,15 +1281,20 @@ export async function generateUserSummary({ historyIndex = [], historyCount = hi
     } catch (primaryError) {
       console.error('[AI][summary] Groq primary failed, falling back to pipeline:', primaryError?.message || primaryError)
 
-      const result = await runPipeline('text', {
-        systemPrompt,
-        userMessages,
-      }, {
-        historyIndex: safeHistoryIndex,
-        totalRedacoes,
-      })
+      try {
+        const result = await runPipeline('text', {
+          systemPrompt,
+          userMessages,
+        }, {
+          historyIndex: safeHistoryIndex,
+          totalRedacoes,
+        })
 
-      return normalizeUserSummaryPayload(result, totalRedacoes)
+        return normalizeUserSummaryPayload(result, totalRedacoes)
+      } catch (pipelineError) {
+        console.error('[AI][summary] Pipeline fallback failed, using local summary:', pipelineError?.message || pipelineError)
+        return buildFallbackUserSummaryPayload(safeHistoryIndex, totalRedacoes)
+      }
     }
   }
 }

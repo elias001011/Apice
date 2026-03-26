@@ -6,6 +6,7 @@ import {
   buildRecentEssayContext,
   compactEssayHistoryEntry,
   loadEssayHistoryCount,
+  MAX_ESSAY_HISTORY_ENTRIES,
   saveEssayHistorySnapshot,
 } from './essayInsights.js'
 import { refreshUserSummaryFromHistory } from './userSummary.js'
@@ -119,7 +120,7 @@ export function salvarNoHistorico(resultadoJSON, temaStr, redacao = '') {
     })
 
     historico.unshift(novoItem)
-    if (historico.length > 8) historico.length = 8
+    if (historico.length > MAX_ESSAY_HISTORY_ENTRIES) historico.length = MAX_ESSAY_HISTORY_ENTRIES
     saveEssayHistorySnapshot(historico, loadEssayHistoryCount() + 1)
     void refreshUserSummaryFromHistory()
   } catch (err) {

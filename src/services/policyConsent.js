@@ -1,6 +1,6 @@
 const POLICY_KEY = 'apice:policy-consent:v1'
 
-export const POLICY_URL = 'https://policies.netlify.app'
+export const POLICY_URL = 'https://policies--apice-ai.netlify.app'
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'

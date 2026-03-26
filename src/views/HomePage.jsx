@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import {
   buildEssayInsights,
@@ -22,21 +21,43 @@ export function HomePage() {
   const [insights, setInsights] = useState(() => buildEssayInsights(loadEssayHistory()))
   const [userSummary, setUserSummary] = useState(() => loadUserSummary())
   const [deferredPrompt, setDeferredPrompt] = useState(null)
-  const [pwaInstalled, setPwaInstalled] = useState(false)
+  const [pwaInstalled, setPwaInstalled] = useState(() => Boolean(typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)')?.matches))
+  const [pwaHint, setPwaHint] = useState('')
 
   // Captura evento de instalação PWA
   useEffect(() => {
-    const handler = (e) => { e.preventDefault(); setDeferredPrompt(e) }
+    const handler = (e) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+      setPwaHint('')
+    }
+    const installedHandler = () => {
+      setPwaInstalled(true)
+      setPwaHint('')
+    }
+
     window.addEventListener('beforeinstallprompt', handler)
-    window.addEventListener('appinstalled', () => setPwaInstalled(true))
-    return () => window.removeEventListener('beforeinstallprompt', handler)
+    window.addEventListener('appinstalled', installedHandler)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler)
+      window.removeEventListener('appinstalled', installedHandler)
+    }
   }, [])
 
   const handleInstallPwa = async () => {
-    if (!deferredPrompt) return
+    if (pwaInstalled) return
+
+    if (!deferredPrompt) {
+      setPwaHint('Abra o app no Chrome ou no Edge para instalar como PWA.')
+      return
+    }
+
     deferredPrompt.prompt()
     const { outcome } = await deferredPrompt.userChoice
-    if (outcome === 'accepted') setPwaInstalled(true)
+    if (outcome === 'accepted') {
+      setPwaInstalled(true)
+      setPwaHint('')
+    }
     setDeferredPrompt(null)
   }
 
@@ -76,19 +97,15 @@ export function HomePage() {
               <div className="hero-name">
                 {firstName} {lastName && <em>{lastName}</em>}
               </div>
-              {!pwaInstalled && deferredPrompt && (
-                <button className="pwa-home-btn" type="button" onClick={handleInstallPwa}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M12 2v13M7 11l5 5 5-5" />
-                    <path d="M3 18h18" />
-                  </svg>
-                  Baixar como PWA
-                </button>
-              )}
+              <button className="hero-cta hero-cta--pwa" type="button" onClick={handleInstallPwa} disabled={pwaInstalled}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 2v13M7 11l5 5 5-5" />
+                  <path d="M3 18h18" />
+                </svg>
+                {pwaInstalled ? 'PWA instalado' : 'Instalar PWA'}
+              </button>
+              {pwaHint && <div className="hero-pwa-hint">{pwaHint}</div>}
               <div className="hero-sub">Sua preparação inteligente para o ENEM com o poder da IA.</div>
-              <Link to="/corretor" className="hero-cta">
-                Corrigir redação →
-              </Link>
             </div>
             <div className="hero-deco" aria-hidden="true">
               <svg className="hero-star" viewBox="0 0 100 100">
@@ -317,10 +334,32 @@ const homeCss = `
     font-size: 0.85rem;
     font-weight: 600;
     text-decoration: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
     transition: background 0.2s, transform 0.1s;
   }
   .hero-cta:hover { background: var(--accent2); }
   .hero-cta:active { transform: scale(0.97); }
+
+  .hero-cta:disabled {
+    cursor: default;
+    opacity: 0.75;
+    transform: none;
+  }
+
+  .hero-cta--pwa {
+    margin-bottom: 0;
+  }
+
+  .hero-pwa-hint {
+    margin-top: 8px;
+    margin-bottom: 10px;
+    font-size: 0.74rem;
+    color: var(--text3);
+    line-height: 1.45;
+    max-width: 280px;
+  }
 
   .hero-deco { position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; }
 

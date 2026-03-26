@@ -2,27 +2,35 @@ const PLAN_TIER_KEY = 'apice:plan:tier'
 const USAGE_KEY = 'apice:free-plan-usage:v1'
 const USAGE_UPDATE_EVENT = 'apice:free-plan-usage-updated'
 
-// Esses limites são locais e fáceis de editar.
-// A ideia é bloquear abuso no plano free sem precisar de backend logo de cara.
+export const MANUAL_AI_DAILY_LIMIT = 5
+
 export const FREE_PLAN_LIMITS = {
   themeDynamic: {
     label: 'Tema dinâmico',
-    limit: 5,
+    group: 'manual',
   },
   essayCorrection: {
     label: 'Correção de redação',
-    limit: 12,
+    group: 'manual',
   },
   directModelCall: {
     label: 'IA direta',
-    limit: 5,
+    group: 'manual',
+  },
+  radarSearch: {
+    label: 'Radar de temas',
+    group: 'manual',
   },
   userSummary: {
     label: 'Resumo automático',
-    limit: 0,
+    group: 'automatic',
     automatic: true,
   },
 }
+
+const MANUAL_USAGE_KEYS = Object.entries(FREE_PLAN_LIMITS)
+  .filter(([, config]) => config.group === 'manual')
+  .map(([key]) => key)
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
@@ -35,12 +43,9 @@ function todayKey() {
 function defaultState() {
   return {
     dayKey: todayKey(),
-    counts: {
-      themeDynamic: 0,
-      essayCorrection: 0,
-      directModelCall: 0,
-      userSummary: 0,
-    },
+    counts: Object.fromEntries(
+      Object.keys(FREE_PLAN_LIMITS).map((key) => [key, 0]),
+    ),
   }
 }
 
@@ -50,15 +55,15 @@ function normalizeState(rawState) {
 
   const dayKey = typeof rawState.dayKey === 'string' ? rawState.dayKey : base.dayKey
   const rawCounts = rawState.counts && typeof rawState.counts === 'object' ? rawState.counts : {}
+  const counts = { ...base.counts }
+
+  for (const key of Object.keys(counts)) {
+    counts[key] = Number.isFinite(Number(rawCounts[key])) ? Number(rawCounts[key]) : 0
+  }
 
   return {
     dayKey,
-    counts: {
-      themeDynamic: Number.isFinite(Number(rawCounts.themeDynamic)) ? Number(rawCounts.themeDynamic) : 0,
-      essayCorrection: Number.isFinite(Number(rawCounts.essayCorrection)) ? Number(rawCounts.essayCorrection) : 0,
-      directModelCall: Number.isFinite(Number(rawCounts.directModelCall)) ? Number(rawCounts.directModelCall) : 0,
-      userSummary: Number.isFinite(Number(rawCounts.userSummary)) ? Number(rawCounts.userSummary) : 0,
-    },
+    counts,
   }
 }
 
@@ -88,6 +93,23 @@ function getPlanTier() {
   return localStorage.getItem(PLAN_TIER_KEY) || 'free'
 }
 
+function getManualUsageCount(snapshot = readState()) {
+  return MANUAL_USAGE_KEYS.reduce((total, key) => total + (Number(snapshot.counts[key] || 0) || 0), 0)
+}
+
+function buildManualUsageBreakdown(snapshot = readState()) {
+  return MANUAL_USAGE_KEYS.map((key) => {
+    const config = FREE_PLAN_LIMITS[key]
+    const used = Number(snapshot.counts[key] || 0)
+
+    return {
+      key,
+      label: config.label,
+      used,
+    }
+  })
+}
+
 export function setPlanTier(tier) {
   if (!canUseStorage()) return
   const normalizedTier = String(tier ?? 'free').trim().toLowerCase() || 'free'
@@ -105,45 +127,44 @@ export function getFreePlanUsageSnapshot() {
 
 export function getFreePlanUsageRows() {
   const snapshot = readState()
-  return Object.entries(FREE_PLAN_LIMITS)
-    .filter(([, config]) => !config.automatic)
-    .map(([key, config]) => {
-    const used = Number(snapshot.counts[key] || 0)
-    const limit = Number(config.limit || 0)
-    const percent = limit > 0 ? Math.min((used / limit) * 100, 100) : 0
+  const used = getManualUsageCount(snapshot)
+  const limit = MANUAL_AI_DAILY_LIMIT
+  const percent = limit > 0 ? Math.min((used / limit) * 100, 100) : 0
 
-    return {
-      key,
-      label: config.label,
-      used,
-      limit,
-      remaining: Math.max(limit - used, 0),
-      percent,
-      blocked: used >= limit,
-    }
-  })
+  return [{
+    key: 'manualAI',
+    label: 'IA manual hoje',
+    used,
+    limit,
+    remaining: Math.max(limit - used, 0),
+    percent,
+    blocked: used >= limit,
+    breakdown: buildManualUsageBreakdown(snapshot),
+  }]
 }
 
 export function canConsumeFreePlan(featureKey, amount = 1) {
+  const entry = FREE_PLAN_LIMITS[featureKey]
+  if (!entry || entry.automatic) return true
+
   const tier = getPlanTier()
   if (tier !== 'free') return true
 
-  const entry = FREE_PLAN_LIMITS[featureKey]
-  if (!entry) return true
-
   const snapshot = readState()
-  const used = Number(snapshot.counts[featureKey] || 0)
-  return used + amount <= entry.limit
+  const used = getManualUsageCount(snapshot)
+  return used + amount <= MANUAL_AI_DAILY_LIMIT
 }
 
 export function consumeFreePlan(featureKey, amount = 1) {
   if (!canUseStorage()) return
 
+  const entry = FREE_PLAN_LIMITS[featureKey]
+  if (!entry || entry.automatic) return
+
   const tier = getPlanTier()
   if (tier !== 'free') return
 
-  const entry = FREE_PLAN_LIMITS[featureKey]
-  if (!entry) return
+  if (!canConsumeFreePlan(featureKey, amount)) return
 
   const snapshot = readState()
   const next = normalizeState(snapshot)

@@ -24,7 +24,7 @@ function normalizeRadarTheme(tema) {
 }
 
 export async function buscarRadarTemas() {
-  if (!canConsumeFreePlan('directModelCall')) {
+  if (!canConsumeFreePlan('radarSearch')) {
     throw new Error('Limite do plano free atingido para radar de temas. Tente mais tarde ou troque de plano.')
   }
 
@@ -41,7 +41,7 @@ export async function buscarRadarTemas() {
   const data = await response.json()
   const temas = Array.isArray(data?.temas) ? data.temas.map(normalizeRadarTheme).filter((tema) => tema.titulo) : []
 
-  consumeFreePlan('directModelCall')
+  consumeFreePlan('radarSearch')
 
   return {
     temas,

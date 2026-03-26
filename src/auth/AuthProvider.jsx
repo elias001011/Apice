@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
     const currentUser = auth.currentUser()
     if (!currentUser) return null
 
-    const snapshot = buildAccountSnapshot(currentUser, 8)
+    const snapshot = buildAccountSnapshot(currentUser)
     const serialized = JSON.stringify(snapshot)
     if (serialized === lastSyncedSnapshotRef.current) {
       return snapshot
@@ -85,6 +85,7 @@ export function AuthProvider({ children }) {
 
     window.addEventListener('apice:historico-updated', handleAccountStateChange)
     window.addEventListener('apice:free-plan-usage-updated', handleAccountStateChange)
+    window.addEventListener('apice:radar-favorites-updated', handleAccountStateChange)
     window.addEventListener('apice:theme-updated', handleAccountStateChange)
     window.addEventListener('apice:user-summary-updated', handleAccountStateChange)
     window.addEventListener('apice:notificacoes-updated', handleAccountStateChange)
@@ -94,6 +95,7 @@ export function AuthProvider({ children }) {
     return () => {
       window.removeEventListener('apice:historico-updated', handleAccountStateChange)
       window.removeEventListener('apice:free-plan-usage-updated', handleAccountStateChange)
+      window.removeEventListener('apice:radar-favorites-updated', handleAccountStateChange)
       window.removeEventListener('apice:theme-updated', handleAccountStateChange)
       window.removeEventListener('apice:user-summary-updated', handleAccountStateChange)
       window.removeEventListener('apice:notificacoes-updated', handleAccountStateChange)

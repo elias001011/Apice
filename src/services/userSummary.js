@@ -65,6 +65,75 @@ function shouldGenerateSummary(totalRedacoes, currentSummary) {
   return currentCount !== totalRedacoes
 }
 
+function uniqueStrings(items = []) {
+  const seen = new Set()
+  const out = []
+
+  for (const item of items) {
+    const value = String(item ?? '').trim()
+    if (!value || seen.has(value.toLowerCase())) continue
+    seen.add(value.toLowerCase())
+    out.push(value)
+  }
+
+  return out
+}
+
+function buildFallbackUserSummary(historyIndex, totalRedacoes) {
+  const entries = Array.isArray(historyIndex) ? historyIndex : []
+  const notes = entries
+    .map((item) => Number(item?.nota))
+    .filter((nota) => Number.isFinite(nota))
+
+  const average = notes.length > 0
+    ? Math.round(notes.reduce((sum, value) => sum + value, 0) / notes.length)
+    : 0
+
+  const best = notes.length > 0 ? Math.max(...notes) : 0
+
+  const strengths = uniqueStrings([
+    ...entries.map((item) => item?.pontoForte),
+    ...entries
+      .flatMap((item) => Array.isArray(item?.competencias) ? item.competencias : [])
+      .filter((competencia) => Number.isFinite(Number(competencia?.nota)) && Number(competencia.nota) >= 800)
+      .map((competencia) => competencia?.nome),
+  ]).slice(0, 3)
+
+  const recurringIssues = uniqueStrings([
+    ...entries.map((item) => item?.principalMelhorar),
+    ...entries.map((item) => item?.atencao),
+    ...entries
+      .flatMap((item) => Array.isArray(item?.competencias) ? item.competencias : [])
+      .filter((competencia) => Number.isFinite(Number(competencia?.nota)) && Number(competencia.nota) <= 650)
+      .map((competencia) => competencia?.nome),
+  ]).slice(0, 3)
+
+  const mainFocus = recurringIssues[0] || 'coesão, repertório e gramática'
+
+  const summaryParts = []
+  if (totalRedacoes <= 1) {
+    summaryParts.push(`Resumo local inicial: nota ${best || 0}/1000.`)
+  } else {
+    summaryParts.push(`Resumo local das últimas ${totalRedacoes} redações: média ${average || 0}/1000 e melhor nota ${best || 0}/1000.`)
+  }
+
+  if (strengths.length > 0) {
+    summaryParts.push(`Pontos fortes mais visíveis: ${strengths.join(', ')}.`)
+  }
+
+  summaryParts.push(`Foco principal agora: ${mainFocus}.`)
+
+  return {
+    resumo: summaryParts.join(' ').trim(),
+    forcas: strengths,
+    errosRecorrentes: recurringIssues,
+    foco: `Reforçar ${mainFocus}.`,
+    geradoEm: new Date().toISOString(),
+    totalRedacoes,
+    origem: 'fallback',
+  }
+}
+
 export function loadUserSummary() {
   if (!canUseStorage()) return null
 
@@ -103,6 +172,7 @@ export async function refreshUserSummaryFromHistory({ force = false } = {}) {
 
   const totalRedacoes = loadEssayHistoryCount()
   const currentSummary = loadUserSummary()
+  const historyIndex = buildRecentEssaySummaryIndex(5)
 
   if (totalRedacoes <= 0) {
     return currentSummary
@@ -112,7 +182,6 @@ export async function refreshUserSummaryFromHistory({ force = false } = {}) {
     return currentSummary
   }
 
-  const historyIndex = buildRecentEssaySummaryIndex(5)
   if (historyIndex.length === 0) {
     return currentSummary
   }
@@ -146,7 +215,7 @@ export async function refreshUserSummaryFromHistory({ force = false } = {}) {
     return saved
   } catch (error) {
     console.error('[userSummary] Falha ao atualizar resumo:', error)
-    return currentSummary
+    return saveUserSummary(buildFallbackUserSummary(historyIndex, totalRedacoes))
   }
 }
 

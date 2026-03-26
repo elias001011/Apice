@@ -20,7 +20,12 @@ export function EsqueciSenhaPage() {
       setSent(true)
     } catch (err) {
       console.error('Recovery error:', err)
-      setError('Ocorreu um erro ao solicitar a recuperação. Verifique o e-mail.')
+      const rawMsg = String(err?.message || err?.error_description || '')
+      if (/not found|no user|not registered|unknown email|não encontrado/i.test(rawMsg)) {
+        setError('Não encontramos uma conta com esse e-mail.')
+      } else {
+        setError('Não foi possível enviar o link de recuperação. Verifique o e-mail e tente novamente.')
+      }
     } finally {
       setLoading(false)
     }

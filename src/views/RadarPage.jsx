@@ -1,6 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { buscarRadarTemas } from '../services/radarService.js'
+import {
+  getRadarFavoriteId,
+  loadRadarFavorites,
+  removeRadarFavorite,
+  saveRadarFavorite,
+  subscribeRadarFavorites,
+} from '../services/radarFavorites.js'
 import { useAppBusy } from '../ui/AppBusyContext.jsx'
 
 const DEFAULT_TEMAS = [
@@ -65,17 +72,28 @@ export function RadarPage() {
   const { beginBusy, endBusy } = useAppBusy()
   const [status, setStatus] = useState('intro') // 'intro', 'loading', 'results'
   const [temas, setTemas] = useState(DEFAULT_TEMAS)
+  const [savedTemas, setSavedTemas] = useState(() => loadRadarFavorites())
   const [searchResumo, setSearchResumo] = useState('')
   const [atualizadoEm, setAtualizadoEm] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
-  const [loadingLabel, setLoadingLabel] = useState('Analisando padrões e tendências…')
+  const [loadingLabel, setLoadingLabel] = useState('Procurando novos temas…')
+
+  useEffect(() => {
+    const refreshSaved = () => setSavedTemas(loadRadarFavorites())
+    refreshSaved()
+
+    const unlistenSaved = subscribeRadarFavorites(refreshSaved)
+    return () => {
+      unlistenSaved()
+    }
+  }, [])
 
   const handleBuscar = async () => {
     if (status === 'loading') return
 
     setStatus('loading')
     setErrorMsg('')
-    setLoadingLabel('Analisando padrões e tendências…')
+    setLoadingLabel('Procurando novos temas…')
     beginBusy()
 
     try {
@@ -96,6 +114,19 @@ export function RadarPage() {
     }
   }
 
+  const handleSalvarTema = (tema) => {
+    saveRadarFavorite(tema)
+  }
+
+  const handleRemoverTema = (tema) => {
+    removeRadarFavorite(tema)
+  }
+
+  const isSavedTheme = (tema) => {
+    const temaId = getRadarFavoriteId(tema)
+    return savedTemas.some((item) => item.id === temaId)
+  }
+
   const updatedLabel = atualizadoEm
     ? new Date(atualizadoEm).toLocaleDateString('pt-BR', {
         day: '2-digit',
@@ -104,6 +135,67 @@ export function RadarPage() {
       })
     : ''
 
+  const renderTemaCard = (tema, {
+    allowRemove = false,
+    pinned = false,
+    animationDelay = '0s',
+  } = {}) => {
+    const temaId = getRadarFavoriteId(tema) || tema.titulo
+    const alreadySaved = isSavedTheme(tema)
+
+    const handleAction = () => {
+      if (allowRemove) {
+        handleRemoverTema(tema)
+        return
+      }
+
+      if (!alreadySaved) {
+        handleSalvarTema(tema)
+      }
+    }
+
+    return (
+      <article
+        className={`tema-card ${tema.hot ? 'hot' : ''}${(pinned || alreadySaved) ? ' saved' : ''}`}
+        key={temaId}
+        style={{ animationDelay }}
+      >
+        <div className="tema-top">
+          <div className="tema-titulo">{tema.titulo}</div>
+          <div className="tema-meta">
+            <button
+              type="button"
+              className={`tema-save-btn${allowRemove ? ' danger' : ''}${alreadySaved ? ' saved' : ''}`}
+              onClick={handleAction}
+            >
+              {allowRemove ? 'Remover' : alreadySaved ? 'Salvo' : 'Salvar card'}
+            </button>
+            <div className="probabilidade">
+              <div className="prob-num">{tema.probabilidade}%</div>
+              <div className="prob-label">provável</div>
+            </div>
+          </div>
+        </div>
+        <div className="tema-tags">
+          {tema.tags.map((tag, i) => (
+            <span key={i} className={`tema-tag ${tag.tipo}`}>{tag.label}</span>
+          ))}
+        </div>
+        <div className="tema-justificativa">{tema.justificativa}</div>
+        {pinned && (
+          <div className="tema-fixed-note">
+            Fixado no topo até remoção manual.
+          </div>
+        )}
+        <div className="tema-card-footer">
+          <Link to="/tema-detalhe" state={{ tema }} className="tema-detail-link">
+            Ver detalhe
+          </Link>
+        </div>
+      </article>
+    )
+  }
+
   return (
     <>
       <style>{radarCss}</style>
@@ -111,6 +203,19 @@ export function RadarPage() {
         <div className="page-title">Radar <span>1000</span></div>
         <div className="page-sub">Análise dos temas mais prováveis para a redação do ENEM 2025, baseada em padrões históricos e contexto sociopolítico atual.</div>
       </div>
+
+      {savedTemas.length > 0 && (
+        <>
+          <div className="section-label anim anim-d2">Temas salvos</div>
+          <div className="saved-radar-stack anim anim-d2">
+            {savedTemas.map((tema, idx) => renderTemaCard(tema, {
+              allowRemove: true,
+              pinned: true,
+              animationDelay: `${0.08 + (idx * 0.05)}s`,
+            }))}
+          </div>
+        </>
+      )}
 
       {status === 'intro' && (
         <div className="radar-intro anim anim-d2" id="radar-intro">
@@ -128,7 +233,7 @@ export function RadarPage() {
               <circle cx="11" cy="11" r="8" />
               <path d="M21 21l-4.35-4.35" />
             </svg>
-            Buscar Temas
+            Procurar novos temas
           </button>
           {errorMsg && <div className="radar-error">{errorMsg}</div>}
         </div>
@@ -172,29 +277,11 @@ export function RadarPage() {
 
           <div className="section-label">Temas em alta — maior probabilidade</div>
 
-          {temas.map((tema, idx) => (
-            <Link
-              to="/tema-detalhe"
-              state={{ tema }}
-              className={`tema-card ${tema.hot ? 'hot' : ''}`}
-              key={idx}
-              style={{ animationDelay: `${0.15 + (idx * 0.07)}s` }}
-            >
-              <div className="tema-top">
-                <div className="tema-titulo">{tema.titulo}</div>
-                <div className="probabilidade">
-                  <div className="prob-num">{tema.probabilidade}%</div>
-                  <div className="prob-label">provável</div>
-                </div>
-              </div>
-              <div className="tema-tags">
-                {tema.tags.map((tag, i) => (
-                  <span key={i} className={`tema-tag ${tag.tipo}`}>{tag.label}</span>
-                ))}
-              </div>
-              <div className="tema-justificativa">{tema.justificativa}</div>
-            </Link>
-          ))}
+          <div className="saved-radar-stack">
+            {temas.map((tema, idx) => renderTemaCard(tema, {
+              animationDelay: `${0.15 + (idx * 0.07)}s`,
+            }))}
+          </div>
 
           <div className="atualizado" style={{ animationDelay: '0.5s' }}>
             {updatedLabel ? `Radar atualizado em ${updatedLabel}` : 'Radar atualizado recentemente'}
@@ -202,7 +289,7 @@ export function RadarPage() {
 
           <div style={{ marginTop: '0.75rem' }}>
             <button className="btn-ghost" type="button" onClick={handleBuscar} disabled={status === 'loading'}>
-              {status === 'loading' ? 'Atualizando...' : 'Atualizar radar'}
+              {status === 'loading' ? 'Procurando...' : 'Procurar novos temas'}
             </button>
           </div>
         </div>
@@ -283,15 +370,21 @@ const radarCss = `
     line-height: 1.45;
   }
 
+  .saved-radar-stack {
+    display: grid;
+    gap: 10px;
+  }
+
   .tema-card {
     background: var(--bg2);
     border: 1.5px solid var(--border);
     border-radius: var(--radius);
     padding: 1.1rem 1.25rem;
-    margin-bottom: 10px;
+    margin-bottom: 0;
     text-decoration: none;
     display: block;
-    transition: border-color 0.2s, transform 0.25s;
+    position: relative;
+    transition: border-color 0.2s, transform 0.25s, background-color 0.2s;
   }
 
   .tema-card:hover {
@@ -304,10 +397,16 @@ const radarCss = `
     background: var(--accent-dim);
   }
 
+  .tema-card.saved {
+    border-color: rgba(var(--accent-rgb), 0.32);
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.1), rgba(var(--accent-rgb), 0.04));
+  }
+
   .tema-top {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 12px;
     margin-bottom: 8px;
   }
 
@@ -317,7 +416,14 @@ const radarCss = `
     color: var(--text);
     line-height: 1.4;
     flex: 1;
-    padding-right: 10px;
+    padding-right: 0;
+  }
+
+  .tema-meta {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    flex-shrink: 0;
   }
 
   .probabilidade {
@@ -380,6 +486,72 @@ const radarCss = `
     font-size: 0.8rem;
     color: var(--text2);
     line-height: 1.55;
+  }
+
+  .tema-card-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.9rem;
+    padding-top: 0.85rem;
+    border-top: 0.5px solid var(--border);
+  }
+
+  .tema-detail-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.76rem;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .tema-detail-link:hover {
+    text-decoration: underline;
+  }
+
+  .tema-save-btn {
+    border: 1px solid var(--border2);
+    background: var(--bg3);
+    color: var(--text2);
+    border-radius: 999px;
+    padding: 7px 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.1s;
+  }
+
+  .tema-save-btn:hover {
+    border-color: var(--accent);
+    color: var(--text);
+    background: var(--accent-dim);
+  }
+
+  .tema-save-btn:active {
+    transform: scale(0.97);
+  }
+
+  .tema-save-btn.saved {
+    border-color: rgba(var(--accent-rgb), 0.3);
+    color: var(--accent);
+    background: var(--accent-dim);
+    cursor: default;
+  }
+
+  .tema-save-btn.danger {
+    border-color: rgba(255, 107, 107, 0.25);
+    color: var(--red);
+    background: rgba(255, 107, 107, 0.05);
+  }
+
+  .tema-fixed-note {
+    margin-top: 10px;
+    font-size: 0.72rem;
+    color: var(--text3);
+    padding-top: 8px;
+    border-top: 0.5px solid var(--border);
   }
 
   .atualizado {
@@ -543,5 +715,25 @@ const radarCss = `
 
   #radar-results .section-label {
     animation-delay: 0.1s;
+  }
+
+  @media (max-width: 560px) {
+    .tema-top {
+      flex-direction: column;
+    }
+
+    .tema-meta {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .tema-save-btn {
+      padding: 6px 9px;
+    }
+
+    .radar-intro .btn-primary,
+    .btn-ghost {
+      width: 100%;
+    }
   }
 `

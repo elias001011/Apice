@@ -1,6 +1,8 @@
 const HISTORY_KEY = 'apice:historico'
 const HISTORY_TOTAL_KEY = 'apice:historico:total:v1'
 const HISTORY_UPDATED_EVENT = 'apice:historico-updated'
+export const MAX_ESSAY_HISTORY_ENTRIES = 5
+
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
 }
@@ -54,7 +56,7 @@ export function loadEssayHistory(limit = 0) {
     return mapped.slice(0, limit)
   }
 
-  return mapped
+  return mapped.slice(0, MAX_ESSAY_HISTORY_ENTRIES)
 }
 
 export function loadEssayHistoryCount() {
@@ -108,11 +110,12 @@ export function saveEssayHistorySnapshot(history = [], totalCount = null) {
   const normalized = Array.isArray(history)
     ? history.map((item) => compactEssayHistoryEntry(item)).filter(Boolean)
     : []
+  const cappedHistory = normalized.slice(0, MAX_ESSAY_HISTORY_ENTRIES)
 
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(normalized))
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(cappedHistory))
   const nextCount = Number.isFinite(Number(totalCount)) && Number(totalCount) > 0
     ? Number(totalCount)
-    : normalized.length
+    : cappedHistory.length
   localStorage.setItem(HISTORY_TOTAL_KEY, String(nextCount))
   window.dispatchEvent(new CustomEvent(HISTORY_UPDATED_EVENT))
 }

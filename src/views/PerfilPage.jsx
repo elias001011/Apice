@@ -5,8 +5,7 @@ import { buildEssayInsights, loadEssayHistory, subscribeEssayHistory } from '../
 import {
   getCurrentPlanTier,
   getFreePlanUsageRows,
-  resetFreePlanUsage,
-  setPlanTier,
+  MANUAL_AI_DAILY_LIMIT,
   subscribeFreePlanUsage,
 } from '../services/freePlanUsage.js'
 
@@ -17,11 +16,20 @@ export function PerfilPage() {
   const [usageRows, setUsageRows] = useState(getFreePlanUsageRows())
   const [insights, setInsights] = useState(() => buildEssayInsights(loadEssayHistory()))
   const [deferredPrompt, setDeferredPrompt] = useState(null)
-  const [pwaInstalled, setPwaInstalled] = useState(false)
+  const [pwaInstalled, setPwaInstalled] = useState(() => Boolean(typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)')?.matches))
+  const [pwaHint, setPwaHint] = useState('')
 
   const name = user?.user_metadata?.full_name || 'Usuário'
   const email = user?.email || 'Sem e-mail'
   const school = user?.user_metadata?.school || 'Não informada'
+  const quotaRow = usageRows[0] || {
+    used: 0,
+    limit: MANUAL_AI_DAILY_LIMIT,
+    remaining: MANUAL_AI_DAILY_LIMIT,
+    percent: 0,
+    blocked: false,
+    breakdown: [],
+  }
 
   const getInitial = (n) => (n ? n[0].toUpperCase() : '?')
 
@@ -30,17 +38,35 @@ export function PerfilPage() {
     const handler = (e) => {
       e.preventDefault()
       setDeferredPrompt(e)
+      setPwaHint('')
     }
+    const installedHandler = () => {
+      setPwaInstalled(true)
+      setPwaHint('')
+    }
+
     window.addEventListener('beforeinstallprompt', handler)
-    window.addEventListener('appinstalled', () => setPwaInstalled(true))
-    return () => window.removeEventListener('beforeinstallprompt', handler)
+    window.addEventListener('appinstalled', installedHandler)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler)
+      window.removeEventListener('appinstalled', installedHandler)
+    }
   }, [])
 
   const handleInstallPwa = async () => {
-    if (!deferredPrompt) return
+    if (pwaInstalled) return
+
+    if (!deferredPrompt) {
+      setPwaHint('Abra o app no Chrome ou no Edge para instalar como PWA.')
+      return
+    }
+
     deferredPrompt.prompt()
     const { outcome } = await deferredPrompt.userChoice
-    if (outcome === 'accepted') setPwaInstalled(true)
+    if (outcome === 'accepted') {
+      setPwaInstalled(true)
+      setPwaHint('')
+    }
     setDeferredPrompt(null)
   }
 
@@ -73,17 +99,6 @@ export function PerfilPage() {
     }
   }, [])
 
-  const handlePlanTierChange = (event) => {
-    const nextTier = event.target.value
-    setPlanTier(nextTier)
-    setPlanTierState(nextTier)
-  }
-
-  const handleResetFreeUsage = () => {
-    resetFreePlanUsage()
-    setUsageRows(getFreePlanUsageRows())
-  }
-
   return (
     <>
       <style>{perfilCss}</style>
@@ -94,15 +109,14 @@ export function PerfilPage() {
           <div className="profile-name">{name}</div>
           <div className="profile-school">Conta vinculada · {email}</div>
           <div className="profile-plan">{planTier === 'free' ? 'Plano gratuito' : 'Plano pro'}</div>
-          {!pwaInstalled && deferredPrompt && (
-            <button className="pwa-btn" type="button" onClick={handleInstallPwa}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2v13M7 11l5 5 5-5" />
-                <path d="M3 18h18" />
-              </svg>
-              Baixar como PWA
-            </button>
-          )}
+          <button className="pwa-btn" type="button" onClick={handleInstallPwa} disabled={pwaInstalled}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2v13M7 11l5 5 5-5" />
+              <path d="M3 18h18" />
+            </svg>
+            {pwaInstalled ? 'PWA instalado' : 'Instalar PWA'}
+          </button>
+          {pwaHint && <div className="pwa-hint">{pwaHint}</div>}
         </div>
       </div>
 
@@ -224,51 +238,50 @@ export function PerfilPage() {
             </Link>
           </div>
 
-          <div className="section-label anim anim-d4">Plano e limites</div>
-          <div className="card anim anim-d4" style={{ padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
+          <div className="section-label anim anim-d4">Uso de IA</div>
+          <div className="card anim anim-d4 quota-card" style={{ marginBottom: '1.25rem' }}>
             <div className="quota-head">
               <div>
-                <div className="quota-title">Cota do plano</div>
+                <div className="quota-title">Cota diária manual</div>
                 <div className="quota-subtitle">
-                  Limites locais para evitar gasto exagerado de IA no plano free.
+                  {MANUAL_AI_DAILY_LIMIT} solicitações por dia. Tema dinâmico, correção, radar e chamadas diretas entram na mesma conta.
                 </div>
               </div>
-              <select className="quota-select" value={planTier} onChange={handlePlanTierChange}>
-                <option value="free">Free</option>
-                <option value="pro">Pro</option>
-              </select>
+              <div className={`quota-plan-badge ${planTier === 'pro' ? 'pro' : 'free'}`}>
+                {planTier === 'free' ? 'Plano free' : 'Plano pro'}
+              </div>
             </div>
 
-            <div className="quota-note">
-              Edita os limites em <code>src/services/freePlanUsage.js</code>.
+            <div className="quota-main">
+              <div className="quota-main-count">
+                {quotaRow.used}<span>/{quotaRow.limit}</span>
+              </div>
+              <div className="quota-main-label">
+                Solicitações manuais usadas hoje
+              </div>
             </div>
 
-            <div className="quota-grid">
-              {usageRows.map(row => (
-                <div className="quota-item" key={row.key}>
-                  <div className="quota-row">
-                    <span>{row.label}</span>
-                    <strong>{row.used}/{row.limit}</strong>
-                  </div>
-                  <div className="quota-bar">
-                    <div className="quota-bar-fill" style={{ width: `${row.percent}%` }} />
-                  </div>
-                  <div className="quota-meta">
-                    {row.blocked ? 'Limite atingido hoje' : `${row.remaining} uso(s) restantes hoje`}
-                  </div>
+            <div className="quota-bar quota-bar--big" aria-hidden="true">
+              <div className="quota-bar-fill" style={{ width: `${quotaRow.percent}%` }} />
+            </div>
+
+            <div className="quota-meta">
+              {quotaRow.blocked
+                ? 'Limite diário atingido.'
+                : `${quotaRow.remaining} solicitação(ões) manual(ais) restantes hoje.`}
+            </div>
+
+            <div className="quota-breakdown">
+              {quotaRow.breakdown.map((row) => (
+                <div className="quota-breakdown-item" key={row.key}>
+                  <span>{row.label}</span>
+                  <strong>{row.used}</strong>
                 </div>
               ))}
             </div>
 
-            <div className="quota-actions">
-              <button type="button" className="quota-reset" onClick={handleResetFreeUsage}>
-                Zerar uso de hoje
-              </button>
-              <div className="quota-flag">
-                {planTier === 'free'
-                  ? 'Plano free ativo: os limites acima são aplicados.'
-                  : 'Plano pro simulado: os limites locais ficam desbloqueados.'}
-              </div>
+            <div className="quota-footnote">
+              Resumos automáticos não consomem essa cota. O botão de compra do Pro entra aqui depois.
             </div>
           </div>
 
@@ -427,52 +440,78 @@ const perfilCss = `
     line-height: 1.5;
   }
 
-  .quota-select {
-    border: 1px solid var(--border);
+  .quota-plan-badge {
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid var(--border2);
     background: var(--bg3);
+    color: var(--text2);
+    white-space: nowrap;
+  }
+
+  .quota-plan-badge.pro {
+    background: rgba(var(--accent-rgb), 0.12);
+    border-color: rgba(var(--accent-rgb), 0.26);
+    color: var(--accent);
+  }
+
+  .quota-main {
+    padding: 1rem 0 0.9rem;
+  }
+
+  .quota-main-count {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2rem;
+    line-height: 1;
     color: var(--text);
-    border-radius: 12px;
-    padding: 8px 10px;
-    font-size: 0.8rem;
+    letter-spacing: -0.3px;
   }
 
-  .quota-note {
-    font-size: 0.78rem;
+  .quota-main-count span {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
     color: var(--text3);
-    margin-bottom: 0.9rem;
+    font-weight: 500;
   }
 
-  .quota-grid {
+  .quota-main-label {
+    margin-top: 0.35rem;
+    font-size: 0.82rem;
+    color: var(--text2);
+  }
+
+  .quota-bar--big {
+    height: 10px;
+    background: var(--bg3);
+  }
+
+  .quota-breakdown {
     display: grid;
-    gap: 0.85rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 0.9rem;
   }
 
-  .quota-item {
+  .quota-breakdown-item {
     background: var(--bg2);
     border: 1px solid var(--border);
     border-radius: 16px;
-    padding: 0.8rem 0.9rem;
-  }
-
-  .quota-row {
+    padding: 0.85rem 0.95rem;
     display: flex;
     justify-content: space-between;
-    gap: 8px;
-    font-size: 0.82rem;
-    color: var(--text);
-    margin-bottom: 0.55rem;
-  }
-
-  .quota-row strong {
-    color: var(--accent);
+    align-items: center;
+    gap: 10px;
     font-size: 0.8rem;
+    color: var(--text);
   }
 
-  .quota-bar {
-    height: 8px;
-    background: var(--bg3);
-    border-radius: 999px;
-    overflow: hidden;
+  .quota-breakdown-item strong {
+    color: var(--accent);
+    font-size: 0.85rem;
   }
 
   .quota-bar-fill {
@@ -483,38 +522,22 @@ const perfilCss = `
 
   .quota-meta {
     margin-top: 0.45rem;
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     color: var(--text3);
   }
 
-  .quota-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 0.9rem;
-    flex-wrap: wrap;
-  }
-
-  .quota-reset {
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text2);
-    border-radius: 999px;
-    padding: 8px 12px;
-    font-size: 0.8rem;
-    cursor: pointer;
-  }
-
-  .quota-reset:hover {
-    border-color: var(--accent);
-    color: var(--text);
-  }
-
-  .quota-flag {
+  .quota-footnote {
+    margin-top: 0.95rem;
     font-size: 0.75rem;
     color: var(--text3);
-    line-height: 1.4;
+    line-height: 1.5;
+  }
+
+  .pwa-hint {
+    margin-top: 8px;
+    font-size: 0.74rem;
+    color: var(--text3);
+    line-height: 1.45;
   }
 
   .pwa-btn {
@@ -536,4 +559,23 @@ const perfilCss = `
 
   .pwa-btn:hover { background: rgba(200, 240, 96, 0.15); }
   .pwa-btn:active { transform: scale(0.97); }
+  .pwa-btn:disabled {
+    cursor: default;
+    opacity: 0.75;
+    transform: none;
+  }
+
+  @media (max-width: 560px) {
+    .quota-head {
+      flex-direction: column;
+    }
+
+    .quota-plan-badge {
+      width: fit-content;
+    }
+
+    .quota-breakdown {
+      grid-template-columns: 1fr;
+    }
+  }
 `
