@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { buscarRadarTemas } from '../services/radarService.js'
 import {
+  loadRadarSnapshot,
+  saveRadarSnapshot,
+  subscribeRadarSnapshot,
+} from '../services/radarState.js'
+import {
   getRadarFavoriteId,
   loadRadarFavorites,
   removeRadarFavorite,
@@ -70,20 +75,37 @@ const DEFAULT_TEMAS = [
 
 export function RadarPage() {
   const { beginBusy, endBusy } = useAppBusy()
-  const [status, setStatus] = useState('intro') // 'intro', 'loading', 'results'
-  const [temas, setTemas] = useState(DEFAULT_TEMAS)
+  const initialRadarSnapshot = loadRadarSnapshot()
+  const [status, setStatus] = useState(() => (initialRadarSnapshot ? 'results' : 'intro')) // 'intro', 'loading', 'results'
+  const [temas, setTemas] = useState(() => initialRadarSnapshot?.temas?.length ? initialRadarSnapshot.temas : DEFAULT_TEMAS)
   const [savedTemas, setSavedTemas] = useState(() => loadRadarFavorites())
-  const [searchResumo, setSearchResumo] = useState('')
-  const [atualizadoEm, setAtualizadoEm] = useState('')
+  const [searchResumo, setSearchResumo] = useState(() => initialRadarSnapshot?.resumoPesquisa || '')
+  const [atualizadoEm, setAtualizadoEm] = useState(() => initialRadarSnapshot?.atualizadoEm || '')
   const [errorMsg, setErrorMsg] = useState('')
   const [loadingLabel, setLoadingLabel] = useState('Procurando novos temas…')
 
   useEffect(() => {
+    const refreshRadar = () => {
+      const snapshot = loadRadarSnapshot()
+
+      if (snapshot) {
+        setTemas(snapshot.temas)
+        setSearchResumo(snapshot.resumoPesquisa || '')
+        setAtualizadoEm(snapshot.atualizadoEm || '')
+        setStatus('results')
+      } else {
+        setStatus((currentStatus) => (currentStatus === 'loading' ? currentStatus : 'intro'))
+      }
+    }
+
     const refreshSaved = () => setSavedTemas(loadRadarFavorites())
     refreshSaved()
+    refreshRadar()
 
+    const unlistenRadar = subscribeRadarSnapshot(refreshRadar)
     const unlistenSaved = subscribeRadarFavorites(refreshSaved)
     return () => {
+      unlistenRadar()
       unlistenSaved()
     }
   }, [])
@@ -98,16 +120,33 @@ export function RadarPage() {
 
     try {
       const result = await buscarRadarTemas()
-      setTemas(result.temas.length > 0 ? result.temas : DEFAULT_TEMAS)
-      setSearchResumo(result.resumoPesquisa || '')
-      setAtualizadoEm(result.atualizadoEm || new Date().toISOString())
+      const nextSnapshot = {
+        temas: result.temas.length > 0 ? result.temas : DEFAULT_TEMAS,
+        resumoPesquisa: result.resumoPesquisa || '',
+        atualizadoEm: result.atualizadoEm || new Date().toISOString(),
+        origem: result.origem || 'ai',
+      }
+
+      setTemas(nextSnapshot.temas)
+      setSearchResumo(nextSnapshot.resumoPesquisa)
+      setAtualizadoEm(nextSnapshot.atualizadoEm)
+      saveRadarSnapshot(nextSnapshot)
       setStatus('results')
     } catch (error) {
       console.error('Radar fetch error:', error)
       setErrorMsg(error?.message || 'Não foi possível atualizar o radar agora.')
-      setTemas(DEFAULT_TEMAS)
-      setSearchResumo('')
-      setAtualizadoEm(new Date().toISOString())
+      if (!loadRadarSnapshot()) {
+        const fallbackSnapshot = {
+          temas: DEFAULT_TEMAS,
+          resumoPesquisa: '',
+          atualizadoEm: new Date().toISOString(),
+          origem: 'static',
+        }
+        setTemas(fallbackSnapshot.temas)
+        setSearchResumo('')
+        setAtualizadoEm(fallbackSnapshot.atualizadoEm)
+        saveRadarSnapshot(fallbackSnapshot)
+      }
       setStatus('results')
     } finally {
       endBusy()
@@ -260,6 +299,9 @@ export function RadarPage() {
               <div className="radar-hero-sub">
                 Nossa IA cruza busca factual e padrões recorrentes para estimar os temas mais prováveis desta edição.
               </div>
+              <div className="radar-hero-note">
+                Este radar fica salvo até você procurar novos temas de novo.
+              </div>
             </div>
           </div>
           {searchResumo && (
@@ -367,6 +409,13 @@ const radarCss = `
   .radar-hero-sub {
     font-size: 0.8rem;
     color: var(--text2);
+    line-height: 1.45;
+  }
+
+  .radar-hero-note {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text3);
     line-height: 1.45;
   }
 

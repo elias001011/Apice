@@ -18,6 +18,11 @@ import {
   normalizeRadarFavorites,
 } from './radarFavorites.js'
 import {
+  loadRadarSnapshot,
+  saveRadarSnapshot,
+  normalizeRadarSnapshot,
+} from './radarState.js'
+import {
   DEFAULT_NOTIFICATIONS,
   loadNotificationPreferences,
   saveNotificationPreferences,
@@ -93,7 +98,7 @@ function normalizeUsage(usage) {
 
 export function buildAccountSnapshot(user, historyLimit = MAX_ESSAY_HISTORY_ENTRIES) {
   return {
-    version: 2,
+    version: 3,
     profile: readProfileSnapshot(user),
     preferences: readThemeSnapshot(),
     history: normalizeHistory(loadEssayHistory(historyLimit)),
@@ -101,6 +106,7 @@ export function buildAccountSnapshot(user, historyLimit = MAX_ESSAY_HISTORY_ENTR
     usage: normalizeUsage(getFreePlanUsageSnapshot()),
     planTier: getCurrentPlanTier(),
     radarFavorites: loadRadarFavorites(),
+    radarSnapshot: loadRadarSnapshot(),
     summary: loadUserSummary(),
     notifications: loadNotificationPreferences(),
     savedAt: new Date().toISOString(),
@@ -135,7 +141,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
   )
 
   return {
-    version: Number(rawSnapshot.version ?? 2) || 2,
+    version: Number(rawSnapshot.version ?? 3) || 3,
     profile: readProfileSnapshot({
       user_metadata: rawSnapshot.profile || {},
       email: rawSnapshot.profile?.email || '',
@@ -151,6 +157,12 @@ export function normalizeAccountSnapshot(rawSnapshot) {
     usage: normalizeUsage(rawSnapshot.usage),
     planTier: String(rawSnapshot.planTier ?? 'free').trim() || 'free',
     radarFavorites,
+    radarSnapshot: normalizeRadarSnapshot(
+      rawSnapshot.radarSnapshot
+        || rawSnapshot.radarState
+        || rawSnapshot.currentRadar
+        || null,
+    ),
     summary: rawSnapshot.summary ? normalizeUserSummary(rawSnapshot.summary) : null,
     notifications: loadNotificationPreferencesFromObject(rawSnapshot.notifications),
     savedAt: String(rawSnapshot.savedAt ?? new Date().toISOString()),
@@ -176,6 +188,7 @@ export function applyAccountSnapshot(snapshot) {
   const usage = snapshot.usage ? normalizeUsage(snapshot.usage) : null
   const planTier = String(snapshot.planTier ?? 'free').trim() || 'free'
   const radarFavorites = Array.isArray(snapshot.radarFavorites) ? snapshot.radarFavorites : []
+  const radarSnapshot = snapshot.radarSnapshot ? normalizeRadarSnapshot(snapshot.radarSnapshot) : null
 
   localStorage.setItem(THEME_KEY, String(preferences.theme ?? 'light'))
   localStorage.setItem(ACCENT_KEY, String(preferences.accent ?? 'lime'))
@@ -193,6 +206,7 @@ export function applyAccountSnapshot(snapshot) {
   setPlanTier(planTier)
 
   setRadarFavoritesSnapshot(radarFavorites)
+  saveRadarSnapshot(radarSnapshot)
 
   if (snapshot.summary) {
     saveUserSummary(snapshot.summary)
@@ -210,6 +224,7 @@ export function applyAccountSnapshot(snapshot) {
   window.dispatchEvent(new CustomEvent('apice:historico-updated'))
   window.dispatchEvent(new CustomEvent('apice:free-plan-usage-updated'))
   window.dispatchEvent(new CustomEvent('apice:radar-favorites-updated'))
+  window.dispatchEvent(new CustomEvent('apice:radar-state-updated'))
   window.dispatchEvent(new CustomEvent('apice:user-summary-updated'))
   window.dispatchEvent(new CustomEvent('apice:notificacoes-updated'))
   window.dispatchEvent(new CustomEvent('apice:account-state-updated'))
