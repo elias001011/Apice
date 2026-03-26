@@ -57,6 +57,7 @@ const PROVIDER_MODELS = {
 
 const SEARCH_TIMEOUT_MS = envInt('AI_SEARCH_TIMEOUT_MS', 30000)
 const TEXT_TIMEOUT_MS = envInt('AI_TEXT_TIMEOUT_MS', 20000)
+const OPENROUTER_SEARCH_MODEL = process.env.AI_OPENROUTER_SEARCH_MODEL || 'openrouter/free'
 
 const SEARCH_QUERY = [
   'Busca factual para um tema de redação estilo ENEM.',
@@ -803,13 +804,14 @@ async function runOpenRouterSearch({ query }) {
   }
 
   const payload = {
-    model: resolveProviderModel('openrouter', 'secondary'),
+    model: OPENROUTER_SEARCH_MODEL,
     messages: buildOpenAICompatibleMessages(
       buildSearchSystemPrompt(query || DEFAULT_THEME_SEARCH_QUERY),
       [{ role: 'user', content: `Consulta principal: ${query || DEFAULT_THEME_SEARCH_QUERY}` }],
     ),
     temperature: 0.2,
     response_format: { type: 'json_object' },
+    plugins: [{ id: 'web' }],
   }
 
   const data = await postJson(

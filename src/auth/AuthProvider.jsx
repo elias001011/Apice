@@ -39,7 +39,16 @@ export function AuthProvider({ children }) {
   }
 
   const confirmAccount = async (token) => {
-    return await auth.confirm(token)
+    const response = await auth.confirm(token)
+    // Após confirmar, o GoTrue retorna o usuário logado
+    if (response) setUser(response)
+    return response
+  }
+
+  const resendConfirmation = async (email) => {
+    // GoTrue não tem endpoint nativo de reenvio; fazemos um novo signup
+    // O Netlify Identity reenvía o email se a conta ainda não foi confirmada
+    return await auth.signup(email, undefined, {})
   }
 
   const login = async (email, password, remember = true) => {
@@ -81,6 +90,7 @@ export function AuthProvider({ children }) {
     loading,
     signup,
     confirmAccount,
+    resendConfirmation,
     login,
     confirmRecovery,
     logout,

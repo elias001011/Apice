@@ -23,11 +23,17 @@ export function CadastroPage() {
         full_name: `${nome} ${sobrenome}`.trim(),
         first_name: nome
       })
-      alert('Conta criada com sucesso! Verifique seu e-mail para confirmar o cadastro.')
-      navigate('/login')
+      navigate('/verificar-email', { state: { email } })
     } catch (err) {
       console.error('Signup error:', err)
-      setError('Erro ao criar conta. Verifique os dados ou tente outro e-mail.')
+      const msg = err?.json?.msg || err?.message || ''
+      if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exists')) {
+        setError('Este e-mail já está cadastrado. Tente fazer login.')
+      } else if (msg) {
+        setError(`Erro: ${msg}`)
+      } else {
+        setError('Erro ao criar conta. Verifique os dados ou tente outro e-mail.')
+      }
     } finally {
       setLoading(false)
     }
