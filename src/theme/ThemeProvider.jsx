@@ -73,16 +73,9 @@ function applyFontFamily(fontFamily) {
 function buildFaviconDataUri(theme, accent) {
   const safeAccent = ACCENT_COLORS[accent] ? accent : 'lime'
   const colors = ACCENT_COLORS[safeAccent][theme === 'dark' ? 'dark' : 'light']
-  const stroke = '#0f1108'
+  const stroke = colors.base
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
-      <defs>
-        <linearGradient id="bg" x1="2.5" y1="2.5" x2="21.5" y2="21.5" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stop-color="${colors.base}" />
-          <stop offset="100%" stop-color="${colors.hover}" />
-        </linearGradient>
-      </defs>
-      <rect x="1.5" y="1.5" width="21" height="21" rx="7" fill="url(#bg)" />
       <path d="M3 17L9 11L13 15L21 7" stroke="${stroke}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
       <path d="M14 7H21V14" stroke="${stroke}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
     </svg>

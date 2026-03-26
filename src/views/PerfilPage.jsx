@@ -105,7 +105,7 @@ export function PerfilPage() {
 
       <div className="profile-hero anim anim-d1">
         <div className="profile-avatar">{getInitial(name)}</div>
-        <div>
+        <div className="profile-hero-content">
           <div className="profile-name">{name}</div>
           <div className="profile-school">Conta vinculada · {email}</div>
           <div className="profile-plan">{planTier === 'free' ? 'Plano gratuito' : 'Plano pro'}</div>
@@ -339,6 +339,14 @@ const perfilCss = `
     color: var(--accent);
   }
 
+  .profile-hero-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    flex: 1;
+  }
+
   .profile-name {
     font-family: 'DM Serif Display', serif;
     font-size: 1.45rem;
@@ -538,6 +546,7 @@ const perfilCss = `
     font-size: 0.74rem;
     color: var(--text3);
     line-height: 1.45;
+    text-align: center;
   }
 
   .pwa-btn {
@@ -555,6 +564,7 @@ const perfilCss = `
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
     transition: background 0.2s, transform 0.1s;
+    align-self: center;
   }
 
   .pwa-btn:hover { background: rgba(200, 240, 96, 0.15); }

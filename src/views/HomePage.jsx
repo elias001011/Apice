@@ -97,6 +97,7 @@ export function HomePage() {
               <div className="hero-name">
                 {firstName} {lastName && <em>{lastName}</em>}
               </div>
+              <div className="hero-sub">Sua preparação inteligente para o ENEM com o poder da IA.</div>
               <button className="hero-cta hero-cta--pwa" type="button" onClick={handleInstallPwa} disabled={pwaInstalled}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M12 2v13M7 11l5 5 5-5" />
@@ -105,7 +106,6 @@ export function HomePage() {
                 {pwaInstalled ? 'PWA instalado' : 'Instalar PWA'}
               </button>
               {pwaHint && <div className="hero-pwa-hint">{pwaHint}</div>}
-              <div className="hero-sub">Sua preparação inteligente para o ENEM com o poder da IA.</div>
             </div>
             <div className="hero-deco" aria-hidden="true">
               <svg className="hero-star" viewBox="0 0 100 100">
@@ -349,6 +349,7 @@ const homeCss = `
   }
 
   .hero-cta--pwa {
+    margin-top: 2px;
     margin-bottom: 0;
   }
 
