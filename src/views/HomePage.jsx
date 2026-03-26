@@ -101,6 +101,32 @@ export function HomePage() {
     <>
       <style>{homeCss}</style>
 
+      {/* Landing Page Header: Explanation and Quote */}
+      <div className="home-landing-intro anim anim-d1">
+        <div className="card landing-card">
+          <div className="landing-card-content">
+            <h1 className="landing-title">Como o Ápice funciona?</h1>
+            <p className="landing-desc">
+              O Ápice é a sua ferramenta inteligente para dominar a redação do <strong>ENEM</strong>. 
+              Use a nossa IA para corrigir seus textos em segundos, prever temas com o Radar 
+              e focar nos seus pontos fracos de forma automática para você alcançar a nota 1000.
+            </p>
+          </div>
+          
+          <div className="landing-divider" />
+
+          <div className="landing-quote">
+            <div className="quote-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--accent)"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/></svg>
+            </div>
+            <p className="quote-text">
+              "A educação é a arma mais poderosa que você pode usar para mudar o mundo."
+            </p>
+            <strong className="quote-author">— Nelson Mandela</strong>
+          </div>
+        </div>
+      </div>
+
       {/* Layout de 2 colunas no desktop / coluna única no mobile */}
       <div className="home-grid">
 
@@ -212,13 +238,6 @@ export function HomePage() {
 
         {/* ── COLUNA DIREITA: Feature Cards ── */}
         <div className="home-grid-right">
-          <div className="card anim anim-d3" style={{ padding: '1.25rem', marginBottom: '1.25rem', border: '1.5px solid rgba(var(--accent-rgb), 0.3)', background: 'var(--bg3)' }}>
-            <h2 style={{ fontFamily: '"DM Serif Display", serif', fontSize: '1.2rem', color: 'var(--accent)', marginBottom: '8px', marginTop: 0 }}>Como o Ápice funciona?</h2>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text2)', lineHeight: '1.6', margin: 0 }}>
-              O Ápice é a sua ferramenta inteligente para dominar a redação do <strong>ENEM</strong>. Use a nossa IA para corrigir seus textos em segundos, prever temas com o Radar e focar nos seus pontos fracos de forma automática para você alcançar a nota 1000.
-            </p>
-          </div>
-
           <div className="section-label anim anim-d3" style={{ marginTop: 0 }}>Ferramentas</div>
 
           <div className="features-stack">
@@ -273,18 +292,7 @@ export function HomePage() {
             </a>
           </div>
 
-          <div className="card anim anim-d4" style={{ padding: '1.25rem', marginTop: '1.25rem', background: 'var(--bg2)', textAlign: 'center', border: '1.5px dashed var(--border)' }}>
-            <div style={{ color: 'var(--accent-dim2)', marginBottom: '10px' }}>
-               <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--accent)"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/></svg>
-            </div>
-            <p style={{ fontSize: '0.9rem', color: 'var(--text)', fontStyle: 'italic', marginBottom: '10px', lineHeight: '1.5' }}>
-              "A educação é a arma mais poderosa que você pode usar para mudar o mundo."
-            </p>
-            <strong style={{ fontSize: '0.8rem', color: 'var(--accent)' }}>— Nelson Mandela</strong>
-          </div>
-
         </div>
-
       </div>
     </>
   )
@@ -296,6 +304,80 @@ const homeCss = `
     display: flex;
     flex-direction: column;
     gap: 0;
+  }
+
+  .home-landing-intro {
+    margin-bottom: 24px;
+    width: 100%;
+  }
+
+  .landing-card {
+    padding: 2rem;
+    background: var(--bg2);
+    border: 1.5px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 2rem;
+  }
+
+  @media (max-width: 900px) {
+    .landing-card {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      padding: 1.5rem;
+    }
+    .landing-divider { display: none; }
+  }
+
+  .landing-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.8rem;
+    color: var(--accent);
+    margin: 0 0 12px 0;
+  }
+
+  .landing-desc {
+    font-size: 0.95rem;
+    color: var(--text2);
+    line-height: 1.7;
+    margin: 0;
+  }
+
+  .landing-divider {
+    width: 1.5px;
+    height: 80px;
+    background: var(--border);
+    opacity: 0.5;
+  }
+
+  .landing-quote {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .quote-icon {
+    margin-bottom: 4px;
+    opacity: 0.8;
+  }
+
+  .quote-text {
+    font-size: 0.95rem;
+    color: var(--text);
+    font-style: italic;
+    line-height: 1.5;
+    margin: 0;
+    max-width: 300px;
+  }
+
+  .quote-author {
+    font-size: 0.8rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   /* Hero */
