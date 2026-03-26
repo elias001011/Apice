@@ -39,7 +39,42 @@ export function AuthProvider({ children }) {
   }
 
   const confirmAccount = async (token) => {
-    return await auth.confirm(token)
+    const response = await auth.confirm(token)
+    // Após confirmar, o GoTrue retorna o usuário logado
+    if (response) setUser(response)
+    return response
+  }
+
+  const resendConfirmation = async (email) => {
+    // O GoTrue/Netlify Identity reenvía o e-mail de confirmação quando um usuário
+    // não confirmado tenta fazer signup novamente com o mesmo email + senha.
+    // Lemos a senha salva temporariamente no sessionStorage durante o cadastro.
+    const apiRoot = import.meta.env.VITE_NETLIFY_IDENTITY_URL || '/.netlify/identity'
+    const password = sessionStorage.getItem('_apice_verif_pw') || ''
+    
+    const res = await fetch(`${apiRoot}/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    
+    // Limpamos a senha do sessionStorage após o uso
+    sessionStorage.removeItem('_apice_verif_pw')
+    
+    if (!res.ok) {
+      let errMsg = 'Erro ao reenviar'
+      try {
+        const json = await res.json()
+        // Netlify Identity retorna 422 com msg "User already registered" quando
+        // o usuário já foi confirmado — neste caso o reenvio não faz sentido
+        errMsg = json.msg || json.error_description || json.error || errMsg
+        if (errMsg.toLowerCase().includes('already registered')) {
+          errMsg = 'Este e-mail já foi confirmado. Tente fazer login.'
+        }
+      } catch (_) {}
+      throw new Error(errMsg)
+    }
+    return res.json().catch(() => null)
   }
 
   const login = async (email, password, remember = true) => {
@@ -81,6 +116,7 @@ export function AuthProvider({ children }) {
     loading,
     signup,
     confirmAccount,
+    resendConfirmation,
     login,
     confirmRecovery,
     logout,

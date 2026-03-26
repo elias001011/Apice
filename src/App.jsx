@@ -17,6 +17,7 @@ import { SobrePage } from './views/SobrePage.jsx'
 import { TemaDetalhePage } from './views/TemaDetalhePage.jsx'
 import { RedefinirSenhaPage } from './views/RedefinirSenhaPage.jsx'
 import { ConfirmarEmailPage } from './views/ConfirmarEmailPage.jsx'
+import { VerificarEmailPage } from './views/VerificarEmailPage.jsx'
 import { useAuth } from './auth/useAuth.js'
 
 /**
@@ -53,6 +54,7 @@ export default function App() {
       <Route path="/esqueci-senha" element={<EsqueciSenhaPage />} />
       <Route path="/redefinir-senha" element={<RedefinirSenhaPage />} />
       <Route path="/confirmar-email" element={<ConfirmarEmailPage />} />
+      <Route path="/verificar-email" element={<VerificarEmailPage />} />
       
       <Route element={
         <AuthWrapper>

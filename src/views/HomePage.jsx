@@ -16,6 +16,24 @@ export function HomePage() {
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
 
   const [insights, setInsights] = useState(() => buildEssayInsights(loadEssayHistory()))
+  const [deferredPrompt, setDeferredPrompt] = useState(null)
+  const [pwaInstalled, setPwaInstalled] = useState(false)
+
+  // Captura evento de instalação PWA
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setDeferredPrompt(e) }
+    window.addEventListener('beforeinstallprompt', handler)
+    window.addEventListener('appinstalled', () => setPwaInstalled(true))
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const handleInstallPwa = async () => {
+    if (!deferredPrompt) return
+    deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+    if (outcome === 'accepted') setPwaInstalled(true)
+    setDeferredPrompt(null)
+  }
 
   useEffect(() => {
     // O home escuta o histórico para mostrar dados reais sem precisar recarregar.
@@ -48,6 +66,15 @@ export function HomePage() {
               <Link to="/corretor" className="hero-cta">
                 Corrigir redação →
               </Link>
+              {!pwaInstalled && deferredPrompt && (
+                <button className="pwa-home-btn" type="button" onClick={handleInstallPwa}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 2v13M7 11l5 5 5-5" />
+                    <path d="M3 18h18" />
+                  </svg>
+                  Baixar como PWA
+                </button>
+              )}
             </div>
             <div className="hero-deco" aria-hidden="true">
               <svg className="hero-star" viewBox="0 0 100 100">
@@ -388,4 +415,29 @@ const homeCss = `
 
   .deco-circle { bottom: -20px; right: -20px; width: 100px; height: 100px; opacity: 0.08; }
   .deco-sparkle { top: 14px; right: 70px; width: 20px; height: 20px; opacity: 0.15; }
+
+  .pwa-home-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    background: transparent;
+    border: 1px solid rgba(200, 240, 96, 0.3);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--accent);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: background 0.2s, transform 0.15s;
+    letter-spacing: 0.01em;
+  }
+
+  .pwa-home-btn:hover {
+    background: rgba(200, 240, 96, 0.1);
+    border-color: var(--accent);
+  }
+
+  .pwa-home-btn:active { transform: scale(0.96); }
 `
