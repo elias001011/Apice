@@ -8,6 +8,15 @@ import {
   saveAiResponsePreference,
   subscribeAiResponsePreference,
 } from '../services/aiResponsePreferences.js'
+import {
+  AVATAR_ACCENT_OPTIONS,
+  DEFAULT_AVATAR_SETTINGS,
+  describeAvatarSettings,
+  loadAvatarSettings,
+  resolveAvatarAppearance,
+  saveAvatarSettings,
+  subscribeAvatarSettings,
+} from '../services/avatarSettings.js'
 import { buildEssayInsights, loadEssayHistory, subscribeEssayHistory } from '../services/essayInsights.js'
 import {
   getCurrentPlanTier,
@@ -15,6 +24,8 @@ import {
   MANUAL_AI_DAILY_LIMIT,
   subscribeFreePlanUsage,
 } from '../services/freePlanUsage.js'
+import { useTheme } from '../theme/ThemeProvider.jsx'
+import { AvatarVisual } from '../ui/AvatarVisual.jsx'
 
 function maskEmail(email) {
   const value = String(email ?? '').trim()
@@ -43,6 +54,7 @@ function maskEmail(email) {
 export function PerfilPage() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const { theme, accent } = useTheme()
   const [planTier, setPlanTierState] = useState(getCurrentPlanTier())
   const [usageRows, setUsageRows] = useState(getFreePlanUsageRows())
   const [insights, setInsights] = useState(() => buildEssayInsights(loadEssayHistory()))
@@ -50,6 +62,10 @@ export function PerfilPage() {
   const [aiPreference, setAiPreference] = useState(() => loadAiResponsePreferenceText())
   const [aiPreferenceSaving, setAiPreferenceSaving] = useState(false)
   const [aiPreferenceMsg, setAiPreferenceMsg] = useState('')
+  const [avatarSettings, setAvatarSettingsState] = useState(() => loadAvatarSettings())
+  const [avatarDraft, setAvatarDraft] = useState(() => loadAvatarSettings())
+  const [avatarSaving, setAvatarSaving] = useState(false)
+  const [avatarMsg, setAvatarMsg] = useState('')
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [pwaInstalled, setPwaInstalled] = useState(() => Boolean(typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)')?.matches))
   const [pwaHint, setPwaHint] = useState('')
@@ -59,6 +75,18 @@ export function PerfilPage() {
   const maskedEmail = maskEmail(email)
   const visibleEmail = showEmail ? email : maskedEmail
   const school = user?.user_metadata?.school || 'Não informada'
+  const avatarAppearance = resolveAvatarAppearance({
+    name,
+    settings: avatarSettings,
+    theme,
+    accent,
+  })
+  const avatarDraftAppearance = resolveAvatarAppearance({
+    name,
+    settings: avatarDraft,
+    theme,
+    accent,
+  })
   const quotaRow = usageRows[0] || {
     used: 0,
     limit: MANUAL_AI_DAILY_LIMIT,
@@ -67,8 +95,6 @@ export function PerfilPage() {
     blocked: false,
     breakdown: [],
   }
-
-  const getInitial = (n) => (n ? n[0].toUpperCase() : '?')
 
   // Captura o evento de instalação PWA
   useEffect(() => {
@@ -132,11 +158,19 @@ export function PerfilPage() {
     const refreshAiPreference = () => setAiPreference(loadAiResponsePreferenceText())
     refreshAiPreference()
     const unlistenAiPreference = subscribeAiResponsePreference(refreshAiPreference)
+    const refreshAvatar = () => {
+      const stored = loadAvatarSettings()
+      setAvatarSettingsState(stored)
+      setAvatarDraft(stored)
+    }
+    refreshAvatar()
+    const unlistenAvatar = subscribeAvatarSettings(refreshAvatar)
 
     return () => {
       unlistenUsage()
       unlistenInsights()
       unlistenAiPreference()
+      unlistenAvatar()
     }
   }, [])
 
@@ -161,12 +195,59 @@ export function PerfilPage() {
     }
   }
 
+  const handleAvatarSave = async (event) => {
+    event.preventDefault()
+    setAvatarMsg('')
+    setAvatarSaving(true)
+    await Promise.resolve()
+
+    try {
+      const normalizedDraft = {
+        mode: avatarDraft.mode === 'image' ? 'image' : 'initials',
+        accent: AVATAR_ACCENT_OPTIONS.some((option) => option.key === avatarDraft.accent) ? avatarDraft.accent : 'theme',
+        imageUrl: avatarDraft.imageUrl,
+      }
+
+      if (normalizedDraft.mode === 'image' && !String(normalizedDraft.imageUrl ?? '').trim()) {
+        setAvatarMsg('Cole um link de imagem válido antes de salvar no modo imagem.')
+        return
+      }
+
+      const saved = saveAvatarSettings(normalizedDraft)
+      if (saved) {
+        setAvatarSettingsState(saved)
+        setAvatarDraft(saved)
+        setAvatarMsg('Avatar salvo e sincronizado na nuvem.')
+      }
+    } finally {
+      setAvatarSaving(false)
+    }
+  }
+
+  const handleAvatarReset = () => {
+    setAvatarMsg('')
+    const reset = saveAvatarSettings({
+      ...DEFAULT_AVATAR_SETTINGS,
+      updatedAt: new Date().toISOString(),
+    })
+    if (reset) {
+      setAvatarSettingsState(reset)
+      setAvatarDraft(reset)
+      setAvatarMsg('Avatar restaurado para o padrão.')
+    }
+  }
+
   return (
     <>
       <style>{perfilCss}</style>
 
       <div className="profile-hero anim anim-d1">
-        <div className="profile-avatar">{getInitial(name)}</div>
+        <div className="profile-avatar" style={avatarAppearance.palette} title={avatarAppearance.summary}>
+          <AvatarVisual
+            key={`${avatarAppearance.mode}|${avatarAppearance.accent}|${avatarAppearance.imageUrl}|${avatarAppearance.updatedAt}`}
+            appearance={avatarAppearance}
+          />
+        </div>
         <div className="profile-hero-content">
           <div className="profile-name">{name}</div>
           <div className="profile-email-row">
@@ -258,9 +339,11 @@ export function PerfilPage() {
             <div className="info-row">
               <div className="info-left">
                 <div className="info-k">Avatar</div>
-                <div className="info-v">Avatar com iniciais gerado a partir do seu nome</div>
+                <div className="info-v">{describeAvatarSettings(avatarSettings)}</div>
               </div>
-              <span style={{ fontSize: '11px', color: 'var(--text3)', fontStyle: 'italic', paddingRight: '12px' }}>Automático</span>
+              <a href="#avatar" className="info-action">
+                Alterar
+              </a>
             </div>
             <div className="info-row">
               <div className="info-left">
@@ -364,6 +447,99 @@ export function PerfilPage() {
               </div>
             </Link>
           </div>
+
+          <div className="section-label anim anim-d4" id="avatar">Avatar</div>
+          <form className="card anim anim-d4 avatar-card" onSubmit={handleAvatarSave}>
+            <div className="avatar-card-top">
+              <div className="avatar-preview" style={avatarDraftAppearance.palette}>
+                <AvatarVisual
+                  key={`${avatarDraftAppearance.mode}|${avatarDraftAppearance.accent}|${avatarDraftAppearance.imageUrl}|${avatarDraftAppearance.updatedAt}`}
+                  appearance={avatarDraftAppearance}
+                />
+              </div>
+              <div className="avatar-card-copy">
+                <div className="card-title">Personalização</div>
+                <div className="avatar-card-text">
+                  Escolha entre iniciais com cor própria ou uma URL externa de imagem. Guardamos só a configuração, não a imagem em si.
+                </div>
+              </div>
+            </div>
+
+            <div className="avatar-mode-row">
+              <button
+                type="button"
+                className={`avatar-mode-btn${avatarDraft.mode !== 'image' ? ' active' : ''}`}
+                onClick={() => setAvatarDraft((current) => ({ ...current, mode: 'initials', imageUrl: '' }))}
+              >
+                Iniciais
+              </button>
+              <button
+                type="button"
+                className={`avatar-mode-btn${avatarDraft.mode === 'image' ? ' active' : ''}`}
+                onClick={() => setAvatarDraft((current) => ({ ...current, mode: 'image' }))}
+              >
+                Imagem URL
+              </button>
+            </div>
+
+            {avatarDraft.mode !== 'image' ? (
+              <>
+                <div className="avatar-helper">
+                  Personalize a cor do avatar simples. A opção <strong>Tema</strong> acompanha a cor de destaque atual do app.
+                </div>
+                <div className="avatar-color-grid">
+                  {AVATAR_ACCENT_OPTIONS.map((option) => (
+                    <button
+                      key={option.key}
+                      type="button"
+                      className={`avatar-color-btn${avatarDraft.accent === option.key ? ' active' : ''}`}
+                      onClick={() => setAvatarDraft((current) => ({ ...current, accent: option.key }))}
+                    >
+                      <span className="avatar-color-swatch" data-accent={option.key} aria-hidden="true" />
+                      <span>{option.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="input-group" style={{ marginTop: '0.85rem' }}>
+                  <label className="input-label">URL da imagem</label>
+                  <input
+                    className="input-field"
+                    type="url"
+                    value={avatarDraft.imageUrl || ''}
+                    onChange={(event) => setAvatarDraft((current) => ({ ...current, imageUrl: event.target.value }))}
+                    placeholder="https://exemplo.com/avatar.jpg"
+                    autoComplete="off"
+                    inputMode="url"
+                  />
+                </div>
+                <div className="avatar-helper">
+                  Salvar aqui registra só o endereço da imagem. Se ela cair, o app volta para as iniciais como fallback.
+                </div>
+              </>
+            )}
+
+            <div className="avatar-actions">
+              <button
+                type="button"
+                className="btn-ghost avatar-reset-btn"
+                onClick={handleAvatarReset}
+              >
+                Restaurar padrão
+              </button>
+              <button className="btn-primary avatar-save-btn" type="submit" disabled={avatarSaving}>
+                {avatarSaving ? 'Salvando...' : 'Salvar avatar'}
+              </button>
+            </div>
+
+            {avatarMsg && (
+              <div className="avatar-msg" aria-live="polite">
+                {avatarMsg}
+              </div>
+            )}
+          </form>
 
           <div className="section-label anim anim-d4">Uso de IA</div>
           <div className="card anim anim-d4 quota-card" style={{ marginBottom: '1.25rem' }}>
@@ -772,6 +948,152 @@ const perfilCss = `
     line-height: 1.45;
   }
 
+  .avatar-card {
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .avatar-card-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 1rem;
+  }
+
+  .avatar-preview {
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    border-radius: 22px;
+    border: 1.5px solid rgba(var(--accent-rgb), 0.28);
+    background: var(--accent-dim2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .avatar-card-copy {
+    min-width: 0;
+  }
+
+  .avatar-card-text {
+    font-size: 0.8rem;
+    color: var(--text3);
+    line-height: 1.55;
+  }
+
+  .avatar-mode-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .avatar-mode-btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1.5px solid var(--border2);
+    background: var(--bg3);
+    color: var(--text2);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, color 0.2s;
+  }
+
+  .avatar-mode-btn.active {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+
+  .avatar-mode-btn:hover:not(.active) {
+    border-color: var(--border2);
+    background: var(--bg2);
+  }
+
+  .avatar-helper {
+    margin-top: 0.75rem;
+    font-size: 0.76rem;
+    color: var(--text3);
+    line-height: 1.5;
+  }
+
+  .avatar-color-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 0.85rem;
+  }
+
+  .avatar-color-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    border-radius: 14px;
+    border: 1.5px solid var(--border2);
+    background: var(--bg3);
+    color: var(--text2);
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, color 0.2s;
+    text-align: left;
+  }
+
+  .avatar-color-btn.active {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    color: var(--text);
+  }
+
+  .avatar-color-btn:hover:not(.active) {
+    border-color: var(--border2);
+    background: var(--bg2);
+  }
+
+  .avatar-color-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04) inset;
+  }
+
+  .avatar-color-swatch[data-accent="theme"] {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+  }
+
+  .avatar-color-swatch[data-accent="lime"] { background: #b8e84f; }
+  .avatar-color-swatch[data-accent="blue"] { background: #4faaf0; }
+  .avatar-color-swatch[data-accent="purple"] { background: #a84ff0; }
+  .avatar-color-swatch[data-accent="orange"] { background: #f09a4f; }
+  .avatar-color-swatch[data-accent="red"] { background: #f04f4f; }
+  .avatar-color-swatch[data-accent="cyan"] { background: #4ff0d6; }
+  .avatar-color-swatch[data-accent="pink"] { background: #f04fbc; }
+
+  .avatar-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+
+  .avatar-reset-btn,
+  .avatar-save-btn {
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .avatar-msg {
+    margin-top: 0.8rem;
+    font-size: 0.78rem;
+    color: var(--accent);
+    line-height: 1.45;
+  }
+
   .pwa-hint {
     margin-top: 8px;
     font-size: 0.74rem;
@@ -821,6 +1143,20 @@ const perfilCss = `
     }
 
     .ai-pref-save {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .avatar-card-top {
+      flex-direction: column;
+    }
+
+    .avatar-color-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .avatar-reset-btn,
+    .avatar-save-btn {
       width: 100%;
       min-width: 0;
     }

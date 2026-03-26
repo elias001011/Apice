@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { buscarRadarTemas } from '../services/radarService.js'
+import { getEnemYearLabel } from '../services/examYear.js'
 import {
   loadRadarSnapshot,
   saveRadarSnapshot,
@@ -76,6 +77,7 @@ const DEFAULT_TEMAS = [
 export function RadarPage() {
   const { beginBusy, endBusy } = useAppBusy()
   const initialRadarSnapshot = loadRadarSnapshot()
+  const enemLabel = getEnemYearLabel()
   const [status, setStatus] = useState(() => (initialRadarSnapshot ? 'results' : 'intro')) // 'intro', 'loading', 'results'
   const [temas, setTemas] = useState(() => initialRadarSnapshot?.temas?.length ? initialRadarSnapshot.temas : DEFAULT_TEMAS)
   const [savedTemas, setSavedTemas] = useState(() => loadRadarFavorites())
@@ -240,7 +242,7 @@ export function RadarPage() {
       <style>{radarCss}</style>
       <div className="page-header anim anim-d1">
         <div className="page-title">Radar <span>1000</span></div>
-        <div className="page-sub">Análise dos temas mais prováveis para a redação do ENEM 2025, baseada em padrões históricos e contexto sociopolítico atual.</div>
+        <div className="page-sub">Análise dos temas mais prováveis para a redação do {enemLabel}, baseada em padrões históricos e contexto sociopolítico atual.</div>
       </div>
 
       {savedTemas.length > 0 && (
@@ -265,7 +267,7 @@ export function RadarPage() {
             </svg>
           </div>
           <div className="radar-intro-text">
-            O Radar 1000 analisa padrões históricos das provas do ENEM, o contexto sociopolítico atual e tendências do debate público brasileiro para estimar os temas com maior probabilidade de aparecer na redação deste ano.
+            O Radar 1000 analisa padrões históricos das provas do {enemLabel}, o contexto sociopolítico atual e tendências do debate público brasileiro para estimar os temas com maior probabilidade de aparecer na redação desta edição.
           </div>
           <button className="btn-primary" onClick={handleBuscar} type="button">
             <svg viewBox="0 0 24 24">
@@ -295,7 +297,7 @@ export function RadarPage() {
               </svg>
             </div>
             <div className="radar-hero-text">
-              <div className="radar-hero-title">Atualizado para o ENEM 2025</div>
+              <div className="radar-hero-title">Atualizado para o {enemLabel}</div>
               <div className="radar-hero-sub">
                 Nossa IA cruza busca factual e padrões recorrentes para estimar os temas mais prováveis desta edição.
               </div>

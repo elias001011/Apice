@@ -1,5 +1,6 @@
 import process from 'node:process'
 import { buildAiResponsePreferencePrompt } from '../../src/services/aiResponsePreferences.js'
+import { getEnemYearLabel } from '../../src/services/examYear.js'
 
 // Este arquivo é o "cérebro" da IA.
 // A regra prática aqui é:
@@ -1314,9 +1315,9 @@ export async function generateUserSummary({
   }
 }
 
-function buildRadarSystemPrompt(searchBundle, responsePreference) {
+function buildRadarSystemPrompt(searchBundle, responsePreference, enemLabel) {
   return [
-    'Você é um analista de tendências para temas de redação estilo ENEM.',
+    `Você é um analista de tendências para temas de redação estilo ${enemLabel}.`,
     'Use o contexto factual pesquisado para sugerir temas plausíveis, atuais e não repetitivos.',
     'O objetivo é estimar temas com chance realista de aparecer na redação.',
     buildAiResponsePreferencePrompt(responsePreference),
@@ -1382,9 +1383,10 @@ function normalizeRadarThemesPayload(result) {
 }
 
 export async function generateRadarSuggestions({ responsePreference } = {}) {
+  const enemLabel = getEnemYearLabel()
   const searchQuery = [
-    'Radar de temas para redação estilo ENEM 2025.',
-    'Preciso de sinais recentes do debate público brasileiro e de áreas recorrentes na prova.',
+    `Radar de temas para redação estilo ${enemLabel}.`,
+    `Preciso de sinais recentes do debate público brasileiro e de áreas recorrentes na prova do ${enemLabel}.`,
   ].join(' ')
 
   let searchBundle = null
@@ -1395,11 +1397,11 @@ export async function generateRadarSuggestions({ responsePreference } = {}) {
     console.error('[AI][radar] Search failed, falling back to no-search radar:', error?.message || error)
   }
 
-  const systemPrompt = buildRadarSystemPrompt(searchBundle, responsePreference)
+  const systemPrompt = buildRadarSystemPrompt(searchBundle, responsePreference, enemLabel)
   const userMessages = [
     {
       role: 'user',
-      content: 'Gere o radar com 5 temas ordenados por chance de aparecer na redação do ENEM.',
+      content: `Gere o radar com 5 temas ordenados por chance de aparecer na redação do ${enemLabel}.`,
     },
   ]
 

@@ -5,6 +5,11 @@ import {
   saveAiResponsePreference,
 } from './aiResponsePreferences.js'
 import {
+  loadAvatarSettings,
+  normalizeAvatarSettings,
+  saveAvatarSettings,
+} from './avatarSettings.js'
+import {
   loadEssayHistory,
   compactEssayHistoryEntry,
   saveEssayHistorySnapshot,
@@ -104,7 +109,7 @@ function normalizeUsage(usage) {
 
 export function buildAccountSnapshot(user, historyLimit = MAX_ESSAY_HISTORY_ENTRIES) {
   return {
-    version: 4,
+    version: 5,
     profile: readProfileSnapshot(user),
     preferences: readThemeSnapshot(),
     history: normalizeHistory(loadEssayHistory(historyLimit)),
@@ -115,6 +120,7 @@ export function buildAccountSnapshot(user, historyLimit = MAX_ESSAY_HISTORY_ENTR
     radarSnapshot: loadRadarSnapshot(),
     summary: loadUserSummary(),
     aiResponsePreference: loadAiResponsePreference(),
+    avatarSettings: loadAvatarSettings(),
     notifications: loadNotificationPreferences(),
     savedAt: new Date().toISOString(),
   }
@@ -171,6 +177,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
         || null,
     ),
     summary: rawSnapshot.summary ? normalizeUserSummary(rawSnapshot.summary) : null,
+    avatarSettings: normalizeAvatarSettings(rawSnapshot.avatarSettings || rawSnapshot.avatar || null),
     notifications: loadNotificationPreferencesFromObject(rawSnapshot.notifications),
     savedAt: String(rawSnapshot.savedAt ?? new Date().toISOString()),
   }
@@ -234,6 +241,8 @@ export function applyAccountSnapshot(snapshot) {
       clearAiResponsePreference()
     }
   }
+
+  saveAvatarSettings(snapshot.avatarSettings)
 
   if (snapshot.notifications) {
     saveNotificationPreferences(snapshot.notifications)

@@ -9,6 +9,7 @@ import {
   loadUserSummary,
   subscribeUserSummary,
 } from '../services/userSummary.js'
+import { getEnemYearLabel } from '../services/examYear.js'
 
 function getGreetingLabel(date = new Date()) {
   const hour = date.getHours()
@@ -32,6 +33,7 @@ export function HomePage() {
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [pwaInstalled, setPwaInstalled] = useState(() => Boolean(typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)')?.matches))
   const [pwaHint, setPwaHint] = useState('')
+  const enemLabel = getEnemYearLabel()
 
   // Captura evento de instalação PWA
   useEffect(() => {
@@ -242,7 +244,7 @@ export function HomePage() {
               <div className="pv-feature-content">
                 <div className="pv-feature-title">Radar 1000</div>
                 <div className="pv-feature-desc">Descubra os temas com maior probabilidade de cair na redação do ENEM.</div>
-                <div className="pv-pill">ENEM 2025 • Atualizado</div>
+                <div className="pv-pill">{enemLabel} • Atualizado</div>
                 <div className="pv-feature-btn">
                   Ver temas
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">

@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import { getEnemYearLabel } from '../services/examYear.js'
 
 const FALLBACK_TEMA = {
   titulo: 'Inteligência artificial e o mercado de trabalho',
@@ -13,6 +14,7 @@ const FALLBACK_TEMA = {
 
 export function TemaDetalhePage() {
   const location = useLocation()
+  const enemLabel = getEnemYearLabel()
   const tema = location.state?.tema || FALLBACK_TEMA
   const temaTitulo = String(tema?.titulo ?? FALLBACK_TEMA.titulo)
   const probabilidade = Number.isFinite(Number(tema?.probabilidade)) ? Number(tema.probabilidade) : FALLBACK_TEMA.probabilidade
@@ -44,7 +46,7 @@ export function TemaDetalhePage() {
             {String(tag?.label ?? tag)}
           </span>
         ))}
-        <span className="tag">ENEM 2025</span>
+        <span className="tag">{enemLabel}</span>
       </div>
 
       <div className="card anim anim-d2">

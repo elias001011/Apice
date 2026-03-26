@@ -255,11 +255,49 @@ body,
   cursor: pointer;
   text-decoration: none;
   transition: background 0.2s, border-color 0.2s;
+  overflow: hidden;
 }
 
 .nav-avatar:hover {
   background: var(--accent-dim);
   border-color: var(--accent);
+}
+
+.nav-avatar .avatar-media,
+.profile-avatar .avatar-media,
+.avatar-preview .avatar-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: inherit;
+}
+
+.nav-avatar .avatar-initials,
+.profile-avatar .avatar-initials,
+.avatar-preview .avatar-initials {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  text-transform: uppercase;
+  font-family: 'DM Serif Display', serif;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.nav-avatar .avatar-initials {
+  font-size: 0.8rem;
+}
+
+.profile-avatar .avatar-initials {
+  font-size: 1.6rem;
+}
+
+.avatar-preview .avatar-initials {
+  font-size: 1.45rem;
 }
 
 /* ── BOTTOM TAB ── */
