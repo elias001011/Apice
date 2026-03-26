@@ -561,7 +561,7 @@ export function PerfilPage() {
               <div>
                 <div className="quota-title">Cota diária manual</div>
                 <div className="quota-subtitle">
-                  {MANUAL_AI_DAILY_LIMIT} solicitações por dia. Tema dinâmico, correção, radar e chamadas diretas entram na mesma conta.
+                  {MANUAL_AI_DAILY_LIMIT} solicitações por dia. Tema dinâmico, correção, busca do radar, detalhes do radar e chamadas diretas entram na mesma conta.
                 </div>
               </div>
               <div className={`quota-plan-badge ${planTier === 'pro' ? 'pro' : 'free'}`}>

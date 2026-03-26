@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { buscarRadarTemas } from '../services/radarService.js'
+import {
+  DEFAULT_RADAR_THEMES,
+  buscarRadarTemas,
+  getRadarSearchCooldownLabel,
+} from '../services/radarService.js'
 import { getEnemYearLabel } from '../services/examYear.js'
 import {
+  getRadarThemeId,
   loadRadarSnapshot,
+  loadRadarThemeDetail,
   saveRadarSnapshot,
   subscribeRadarSnapshot,
+  getRadarSearchCooldown,
 } from '../services/radarState.js'
 import {
   getRadarFavoriteId,
@@ -17,73 +24,16 @@ import {
 import { useAppBusy } from '../ui/AppBusyContext.jsx'
 import { ConfirmDialog } from '../ui/ConfirmDialog.jsx'
 
-const DEFAULT_TEMAS = [
-  {
-    titulo: 'Impacto da inteligência artificial no mercado de trabalho brasileiro',
-    probabilidade: 87,
-    hot: true,
-    tags: [
-      { label: 'Tecnologia', tipo: 'area-ciencia' },
-      { label: 'Trabalho', tipo: 'area-social' },
-      { label: 'Desigualdade', tipo: 'area-social' }
-    ],
-    justificativa: 'Tema dominante no debate público desde 2023. O ENEM historicamente acompanha pautas nacionais com 1–2 anos de defasagem. Alta chance de abordagem com enfoque em impacto social.'
-  },
-  {
-    titulo: 'Saúde mental dos jovens na era das redes sociais',
-    probabilidade: 79,
-    hot: true,
-    tags: [
-      { label: 'Saúde', tipo: 'area-social' },
-      { label: 'Cultura digital', tipo: 'area-cultura' },
-      { label: 'Juventude', tipo: 'area-social' }
-    ],
-    justificativa: 'Pauta crescente no Congresso e na mídia. O ENEM abordou saúde mental em 2023. Probabilidade alta de retorno com foco no jovem.'
-  },
-  {
-    titulo: 'Desafios para a preservação das línguas indígenas no Brasil',
-    probabilidade: 64,
-    hot: false,
-    tags: [
-      { label: 'Cultura', tipo: 'area-cultura' },
-      { label: 'Diversidade', tipo: 'area-social' },
-      { label: 'Direitos', tipo: 'area-social' }
-    ],
-    justificativa: 'O ENEM mantém padrão de abordar diversidade cultural a cada 2–3 edições. Marco Temporal e debate indígena marcaram 2023–2024.'
-  },
-  {
-    titulo: 'O papel do Estado no combate à desinformação e fake news',
-    probabilidade: 58,
-    hot: false,
-    tags: [
-      { label: 'Tecnologia', tipo: 'area-ciencia' },
-      { label: 'Democracia', tipo: 'area-social' },
-      { label: 'Comunicação', tipo: 'area-cultura' }
-    ],
-    justificativa: 'PL das Fake News e eleições de 2022 e 2024 mantiveram o tema em evidência. Abordagem pode exigir repertório sobre liberdade de expressão vs. regulação estatal.'
-  },
-  {
-    titulo: 'Crise hídrica e acesso à água potável no semiárido brasileiro',
-    probabilidade: 51,
-    hot: false,
-    tags: [
-      { label: 'Meio ambiente', tipo: 'area-ciencia' },
-      { label: 'Desigualdade', tipo: 'area-social' },
-      { label: 'Semiárido', tipo: 'area-social' }
-    ],
-    justificativa: 'Meio ambiente é recorrente no ENEM. A crise climática de 2024 no Rio Grande do Sul pode direcionar o foco para recursos hídricos e vulnerabilidade regional.'
-  }
-]
-
 export function RadarPage() {
   const { beginBusy, endBusy } = useAppBusy()
   const initialRadarSnapshot = loadRadarSnapshot()
   const enemLabel = getEnemYearLabel()
   const [status, setStatus] = useState(() => (initialRadarSnapshot ? 'results' : 'intro')) // 'intro', 'loading', 'results'
-  const [temas, setTemas] = useState(() => initialRadarSnapshot?.temas?.length ? initialRadarSnapshot.temas : DEFAULT_TEMAS)
+  const [temas, setTemas] = useState(() => initialRadarSnapshot?.temas?.length ? initialRadarSnapshot.temas : DEFAULT_RADAR_THEMES)
   const [savedTemas, setSavedTemas] = useState(() => loadRadarFavorites())
   const [searchResumo, setSearchResumo] = useState(() => initialRadarSnapshot?.resumoPesquisa || '')
   const [atualizadoEm, setAtualizadoEm] = useState(() => initialRadarSnapshot?.atualizadoEm || '')
+  const [searchCooldown, setSearchCooldown] = useState(() => getRadarSearchCooldown(initialRadarSnapshot))
   const [errorMsg, setErrorMsg] = useState('')
   const [loadingLabel, setLoadingLabel] = useState('Procurando novos temas…')
   const [searchConfirmOpen, setSearchConfirmOpen] = useState(false)
@@ -97,8 +47,10 @@ export function RadarPage() {
         setTemas(snapshot.temas)
         setSearchResumo(snapshot.resumoPesquisa || '')
         setAtualizadoEm(snapshot.atualizadoEm || '')
+        setSearchCooldown(getRadarSearchCooldown(snapshot))
         setStatus('results')
       } else {
+        setSearchCooldown(getRadarSearchCooldown(null))
         setStatus((currentStatus) => (currentStatus === 'loading' ? currentStatus : 'intro'))
       }
     }
@@ -125,32 +77,31 @@ export function RadarPage() {
 
     try {
       const result = await buscarRadarTemas()
-      const nextSnapshot = {
-        temas: result.temas.length > 0 ? result.temas : DEFAULT_TEMAS,
-        resumoPesquisa: result.resumoPesquisa || '',
-        atualizadoEm: result.atualizadoEm || new Date().toISOString(),
-        origem: result.origem || 'ai',
-      }
+      const nextThemes = result.temas.length > 0 ? result.temas : DEFAULT_RADAR_THEMES
 
-      setTemas(nextSnapshot.temas)
-      setSearchResumo(nextSnapshot.resumoPesquisa)
-      setAtualizadoEm(nextSnapshot.atualizadoEm)
-      saveRadarSnapshot(nextSnapshot)
+      setTemas(nextThemes)
+      setSearchResumo(result.resumoPesquisa || '')
+      setAtualizadoEm(result.atualizadoEm || new Date().toISOString())
+      setSearchCooldown(getRadarSearchCooldown(result))
       setStatus('results')
     } catch (error) {
       console.error('Radar fetch error:', error)
       setErrorMsg(error?.message || 'Não foi possível atualizar o radar agora.')
       if (!loadRadarSnapshot()) {
         const fallbackSnapshot = {
-          temas: DEFAULT_TEMAS,
+          temas: DEFAULT_RADAR_THEMES,
           resumoPesquisa: '',
           atualizadoEm: new Date().toISOString(),
           origem: 'static',
+          lastSearchAt: '',
+          nextSearchAt: '',
+          detalhesPorId: {},
         }
         setTemas(fallbackSnapshot.temas)
         setSearchResumo('')
         setAtualizadoEm(fallbackSnapshot.atualizadoEm)
         saveRadarSnapshot(fallbackSnapshot)
+        setSearchCooldown(getRadarSearchCooldown(fallbackSnapshot))
       }
       setStatus('results')
     } finally {
@@ -167,6 +118,14 @@ export function RadarPage() {
   }
 
   const requestBuscar = () => {
+    if (!searchCooldown.canSearch) {
+      setErrorMsg(getRadarSearchCooldownLabel(loadRadarSnapshot() || {
+        nextSearchAt: searchCooldown.nextSearchAt,
+        lastSearchAt: searchCooldown.lastSearchAt,
+      }))
+      return
+    }
+
     if (status === 'results' && temas.length > 0) {
       setSearchConfirmOpen(true)
       return
@@ -193,7 +152,7 @@ export function RadarPage() {
     pinned = false,
     animationDelay = '0s',
   } = {}) => {
-    const temaId = getRadarFavoriteId(tema) || tema.titulo
+    const temaId = getRadarThemeId(tema) || getRadarFavoriteId(tema) || tema.titulo
     const alreadySaved = isSavedTheme(tema)
 
     const handleAction = () => {
@@ -229,20 +188,23 @@ export function RadarPage() {
             </div>
           </div>
         </div>
-        <div className="tema-tags">
-          {tema.tags.map((tag, i) => (
-            <span key={i} className={`tema-tag ${tag.tipo}`}>{tag.label}</span>
-          ))}
+        <div className="tema-justificativa">
+          {pinned || alreadySaved
+            ? 'Tema fixado na sua conta. Os detalhes ficam salvos na nuvem quando abertos.'
+            : 'Detalhes completos ficam na tela do tema, sem poluir o card principal.'}
         </div>
-        <div className="tema-justificativa">{tema.justificativa}</div>
         {pinned && (
           <div className="tema-fixed-note">
             Fixado no topo até remoção manual.
           </div>
         )}
         <div className="tema-card-footer">
-          <Link to="/tema-detalhe" state={{ tema }} className="tema-detail-link">
-            Ver detalhe
+          <Link
+            to={`/tema-detalhe?tema=${encodeURIComponent(temaId)}`}
+            state={{ tema, detail: loadRadarThemeDetail(temaId) }}
+            className="tema-detail-link"
+          >
+            Ver detalhes
           </Link>
         </div>
       </article>
@@ -280,14 +242,18 @@ export function RadarPage() {
           </div>
           <div className="radar-intro-text">
             O Radar 1000 analisa padrões históricos das provas do {enemLabel}, o contexto sociopolítico atual e tendências do debate público brasileiro para estimar os temas com maior probabilidade de aparecer na redação desta edição.
+            {searchCooldown.canSearch ? '' : ` Nova busca liberada em ${new Date(searchCooldown.nextSearchAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}.`}
           </div>
-          <button className="btn-primary" onClick={requestBuscar} type="button">
+          <button className="btn-primary" onClick={requestBuscar} type="button" disabled={status === 'loading' || !searchCooldown.canSearch}>
             <svg viewBox="0 0 24 24">
               <circle cx="11" cy="11" r="8" />
               <path d="M21 21l-4.35-4.35" />
             </svg>
             Procurar novos temas
           </button>
+          {!searchCooldown.canSearch && (
+            <div className="radar-cooldown">{getRadarSearchCooldownLabel(loadRadarSnapshot())}</div>
+          )}
           {errorMsg && <div className="radar-error">{errorMsg}</div>}
         </div>
       )}
@@ -314,7 +280,7 @@ export function RadarPage() {
                 Nossa IA cruza busca factual e padrões recorrentes para estimar os temas mais prováveis desta edição.
               </div>
               <div className="radar-hero-note">
-                Este radar fica salvo até você procurar novos temas de novo.
+                Este radar fica salvo até você procurar novos temas de novo. {searchCooldown.canSearch ? '' : `Nova busca liberada em ${new Date(searchCooldown.nextSearchAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}.`}
               </div>
             </div>
           </div>
@@ -344,9 +310,14 @@ export function RadarPage() {
           </div>
 
           <div style={{ marginTop: '0.75rem' }}>
-            <button className="btn-primary" type="button" onClick={requestBuscar} disabled={status === 'loading'}>
+            <button className="btn-primary" type="button" onClick={requestBuscar} disabled={status === 'loading' || !searchCooldown.canSearch}>
               {status === 'loading' ? 'Procurando...' : 'Procurar novos temas'}
             </button>
+            {!searchCooldown.canSearch && (
+              <div className="radar-cooldown" style={{ marginTop: '0.65rem' }}>
+                {getRadarSearchCooldownLabel(loadRadarSnapshot())}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -354,7 +325,7 @@ export function RadarPage() {
       <ConfirmDialog
         open={searchConfirmOpen}
         title="Substituir radar atual?"
-        message="Isso vai gerar um novo conjunto de temas e trocar o radar que está salvo agora. Os cards fixados continuam salvos."
+        message="Isso vai gerar um novo conjunto de temas e trocar o radar que está salvo agora. Os cards fixados continuam salvos, mas os detalhes antigos deste radar serão substituídos."
         confirmLabel="Sim, procurar"
         cancelLabel="Cancelar"
         danger
@@ -580,6 +551,13 @@ const radarCss = `
     font-size: 0.8rem;
     color: var(--text2);
     line-height: 1.55;
+  }
+
+  .radar-cooldown {
+    margin-top: 0.45rem;
+    font-size: 0.75rem;
+    color: var(--text3);
+    line-height: 1.45;
   }
 
   .tema-card-footer {

@@ -102,6 +102,7 @@ function normalizeUsage(usage) {
       essayCorrection: Number.isFinite(Number(counts.essayCorrection)) ? Number(counts.essayCorrection) : 0,
       directModelCall: Number.isFinite(Number(counts.directModelCall)) ? Number(counts.directModelCall) : 0,
       radarSearch: Number.isFinite(Number(counts.radarSearch)) ? Number(counts.radarSearch) : 0,
+      radarDetail: Number.isFinite(Number(counts.radarDetail)) ? Number(counts.radarDetail) : 0,
       userSummary: Number.isFinite(Number(counts.userSummary)) ? Number(counts.userSummary) : 0,
     },
   }
@@ -109,7 +110,7 @@ function normalizeUsage(usage) {
 
 export function buildAccountSnapshot(user, historyLimit = MAX_ESSAY_HISTORY_ENTRIES) {
   return {
-    version: 5,
+    version: 6,
     profile: readProfileSnapshot(user),
     preferences: readThemeSnapshot(),
     history: normalizeHistory(loadEssayHistory(historyLimit)),
@@ -154,7 +155,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
   )
   const hasAiResponsePreference = Object.prototype.hasOwnProperty.call(rawSnapshot, 'aiResponsePreference')
   const snapshot = {
-    version: Number(rawSnapshot.version ?? 4) || 4,
+    version: Number(rawSnapshot.version ?? 6) || 6,
     profile: readProfileSnapshot({
       user_metadata: rawSnapshot.profile || {},
       email: rawSnapshot.profile?.email || '',
