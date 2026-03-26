@@ -1,6 +1,24 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+
+const FALLBACK_TEMA = {
+  titulo: 'Inteligência artificial e o mercado de trabalho',
+  probabilidade: 87,
+  tags: [
+    { label: 'Tecnologia', tipo: 'area-ciencia' },
+    { label: 'Trabalho', tipo: 'area-social' },
+    { label: 'Desigualdade', tipo: 'area-social' },
+  ],
+  justificativa: 'Tema dominante no debate público e com alta chance de recorte social na prova.',
+}
 
 export function TemaDetalhePage() {
+  const location = useLocation()
+  const tema = location.state?.tema || FALLBACK_TEMA
+  const temaTitulo = String(tema?.titulo ?? FALLBACK_TEMA.titulo)
+  const probabilidade = Number.isFinite(Number(tema?.probabilidade)) ? Number(tema.probabilidade) : FALLBACK_TEMA.probabilidade
+  const tags = Array.isArray(tema?.tags) && tema.tags.length > 0 ? tema.tags : FALLBACK_TEMA.tags
+  const justificativa = String(tema?.justificativa ?? FALLBACK_TEMA.justificativa)
+
   return (
     <>
       <style>{temaDetalheCss}</style>
@@ -12,18 +30,20 @@ export function TemaDetalhePage() {
       <div className="prob-hero anim anim-d1">
         <div className="prob-hero-left">
           <div className="prob-hero-label">Tema em análise</div>
-          <div className="prob-hero-tema">Inteligência artificial e o mercado de trabalho</div>
+          <div className="prob-hero-tema">{temaTitulo}</div>
         </div>
         <div className="prob-circle">
-          <div className="prob-circle-num">87</div>
+          <div className="prob-circle-num">{probabilidade}</div>
           <div className="prob-circle-pct">%</div>
         </div>
       </div>
 
       <div className="tags-row anim anim-d1">
-        <span className="tag">Tecnologia</span>
-        <span className="tag">Trabalho</span>
-        <span className="tag">Desigualdade</span>
+        {tags.map((tag, index) => (
+          <span key={`${String(tag?.label ?? tag)}-${index}`} className="tag">
+            {String(tag?.label ?? tag)}
+          </span>
+        ))}
         <span className="tag">ENEM 2025</span>
       </div>
 
@@ -31,45 +51,45 @@ export function TemaDetalhePage() {
         <div className="card-title">Por que este tema é provável</div>
         <div className="motivo-item">
           <div className="motivo-dot"></div>
-          <div className="motivo-text">O ENEM acompanha o debate público com 1–2 anos de defasagem. A IA dominou noticiários em 2023 e 2024, tornando 2025 o momento natural para a abordagem.</div>
+          <div className="motivo-text">{justificativa}</div>
         </div>
         <div className="motivo-item">
           <div className="motivo-dot"></div>
-          <div className="motivo-text">Temas de tecnologia e impacto social aparecem a cada 2 edições. A última abordagem direta foi em 2022 (manipulação comportamental).</div>
+          <div className="motivo-text">Para a redação, o recorte mais seguro costuma ser social: impacto coletivo, desigualdade de acesso, políticas públicas e consequências no cotidiano.</div>
         </div>
         <div className="motivo-item">
           <div className="motivo-dot"></div>
-          <div className="motivo-text">O enfoque esperado é social, não técnico: desemprego estrutural, desigualdade de acesso, requalificação profissional — todos alinhados com o perfil do ENEM.</div>
+          <div className="motivo-text">Se quiser aumentar a força argumentativa, conecte o tema a direitos fundamentais, escola, Estado e responsabilidade social.</div>
         </div>
       </div>
 
       <div className="card anim anim-d3">
         <div className="card-title">Repertórios recomendados</div>
         <div className="repertorio-item">
-          <div className="rep-nome">Zygmunt Bauman — Modernidade Líquida</div>
-          <div className="rep-uso">A fluidez das relações de trabalho e a precarização do emprego na era digital.</div>
-          <div className="rep-como">Use com produtividade: conecte diretamente ao tema da instabilidade gerada pela automação, não apenas cite o nome.</div>
+          <div className="rep-nome">Constituição Federal</div>
+          <div className="rep-uso">Use como base para discutir dever do Estado, direitos sociais e proteção cidadã.</div>
+          <div className="rep-como">Conecte o artigo ao problema específico do tema, sem deixar a citação solta.</div>
         </div>
         <div className="repertorio-item">
-          <div className="rep-nome">Relatório da OIT (2023)</div>
-          <div className="rep-uso">Estima que 25% dos empregos no Brasil têm alta probabilidade de automação até 2030.</div>
-          <div className="rep-como">Dado forte para C2 — atribua corretamente à Organização Internacional do Trabalho.</div>
+          <div className="rep-nome">Dados recentes de institutos oficiais</div>
+          <div className="rep-uso">IBGE, INEP, IPEA, OMS ou ONU ajudam a sustentar a argumentação com credibilidade.</div>
+          <div className="rep-como">Escolha apenas um dado real que dialogue diretamente com o recorte do tema.</div>
         </div>
         <div className="repertorio-item">
-          <div className="rep-nome">Constituição Federal — Art. 7º</div>
-          <div className="rep-uso">Direito ao trabalho digno como direito social fundamental.</div>
-          <div className="rep-como">Ótimo para C5 — ao propor intervenção do Estado, referencie o dever constitucional.</div>
+          <div className="rep-nome">Direitos humanos e cidadania</div>
+          <div className="rep-uso">Boa ponte para falar de inclusão, acesso e redução de desigualdades.</div>
+          <div className="rep-como">Use esse repertório para mostrar dimensão social do problema, não só opinião pessoal.</div>
         </div>
       </div>
 
       <div className="card anim anim-d4">
         <div className="card-title">Estrutura sugerida para C5</div>
         <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.65 }}>
-          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Agente:</strong> O Ministério do Trabalho e Emprego<br />
-          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Ação:</strong> deve implementar programas de requalificação profissional<br />
-          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Meio:</strong> por meio de parcerias com universidades e plataformas de ensino digital<br />
-          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Finalidade:</strong> para garantir a inserção dos trabalhadores deslocados pela automação<br />
-          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Detalhe:</strong> respeitando o Art. 7º da Constituição Federal
+          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Agente:</strong> um órgão público diretamente ligado ao problema<br />
+          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Ação:</strong> implementar política, campanha ou programa de enfrentamento<br />
+          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Meio:</strong> por meio de parcerias com escolas, mídia, saúde ou assistência social<br />
+          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Finalidade:</strong> para reduzir impactos e garantir acesso a direitos<br />
+          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Detalhe:</strong> com acompanhamento, metas e divulgação dos resultados
         </div>
       </div>
 

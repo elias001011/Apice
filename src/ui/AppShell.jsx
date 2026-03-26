@@ -1,9 +1,11 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { ThemeToggleButton } from './ThemeToggleButton.jsx'
 import { useAuth } from '../auth/useAuth.js'
+import { useAppBusy } from './AppBusyContext.jsx'
 
 export function AppShell() {
   const { user } = useAuth()
+  const { busy } = useAppBusy()
   
   const getInitials = (name) => {
     if (!name) return '?'
@@ -39,6 +41,16 @@ export function AppShell() {
       <main className="main">
         <Outlet />
       </main>
+
+      {busy && (
+        <div className="app-busy-overlay" role="status" aria-live="polite" aria-busy="true">
+          <div className="app-busy-card">
+            <div className="app-busy-spinner" aria-hidden="true" />
+            <strong>Processando IA</strong>
+            <span>Não troque de tela até a resposta terminar.</span>
+          </div>
+        </div>
+      )}
 
       <nav className="bottom-tab" aria-label="Navegação principal">
         <TabLink to="/home" label="Início" icon="home" />

@@ -1,12 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import GoTrue from 'gotrue-js'
 import { AuthContext } from './authContext.js'
+import {
+  applyAccountSnapshot,
+  buildAccountSnapshot,
+  extractAccountSnapshot,
+} from '../services/accountSnapshot.js'
+import { refreshUserSummaryFromHistory } from '../services/userSummary.js'
 
 // Configure GoTrue instance
 // The 'url' should be your Netlify site URL (e.g., https://your-site.netlify.app/.netlify/identity)
 // For local development, it will still work if you have a linked site.
 const authConfig = {
-  APIRoot: import.meta.env.VITE_NETLIFY_IDENTITY_URL || '/.netlify/identity',
+  APIUrl: import.meta.env.VITE_NETLIFY_IDENTITY_URL || '/.netlify/identity',
   setCookie: true,
 }
 
@@ -14,32 +20,92 @@ const auth = new GoTrue(authConfig)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => auth.currentUser() || null)
+  const syncLockRef = useRef(false)
+  const lastSyncedSnapshotRef = useRef('')
   const loading = false
 
+  const syncLocalStateToCloud = useCallback(async () => {
+    if (!user || syncLockRef.current) return null
+
+    const currentUser = auth.currentUser()
+    if (!currentUser) return null
+
+    const snapshot = buildAccountSnapshot(currentUser, 8)
+    const serialized = JSON.stringify(snapshot)
+    if (serialized === lastSyncedSnapshotRef.current) {
+      return snapshot
+    }
+
+    syncLockRef.current = true
+    try {
+      const updatedUser = await currentUser.update({
+        data: {
+          ...(currentUser.user_metadata || {}),
+          full_name: snapshot.profile.full_name,
+          first_name: snapshot.profile.first_name,
+          school: snapshot.profile.school,
+          apice_state: snapshot,
+        },
+      })
+      setUser(updatedUser)
+      lastSyncedSnapshotRef.current = serialized
+      return snapshot
+    } catch (error) {
+      console.error('Account sync error:', error)
+      return null
+    } finally {
+      window.setTimeout(() => {
+        syncLockRef.current = false
+      }, 0)
+    }
+  }, [user])
+
   useEffect(() => {
-    // 1. Check for tokens in the hash (confirmation or recovery)
-    const hash = window.location.hash
-    if (hash && hash.startsWith('#')) {
-      const tokenStr = hash.substring(1)
-      const [key] = tokenStr.split('=')
-      
-      if (key === 'recovery_token') {
-        // We'll let the ResetPassword page handle this via URL hash
-        // but we can set a flag here if we want a global notification
-        console.log('Recovery token detected!')
-      } else if (key === 'confirmation_token') {
-        // Confirmation is simpler, it usually lands here
-        console.log('Confirmation token detected!')
+    if (!user) {
+      return undefined
+    }
+
+    const remoteSnapshot = extractAccountSnapshot(user)
+
+    if (remoteSnapshot) {
+      const serialized = JSON.stringify(remoteSnapshot)
+      if (serialized !== lastSyncedSnapshotRef.current) {
+        syncLockRef.current = true
+        applyAccountSnapshot(remoteSnapshot)
+        lastSyncedSnapshotRef.current = serialized
+        window.setTimeout(() => {
+          syncLockRef.current = false
+        }, 0)
       }
     }
-  }, [])
+
+    const handleAccountStateChange = () => {
+      void syncLocalStateToCloud()
+    }
+
+    window.addEventListener('apice:historico-updated', handleAccountStateChange)
+    window.addEventListener('apice:free-plan-usage-updated', handleAccountStateChange)
+    window.addEventListener('apice:theme-updated', handleAccountStateChange)
+    window.addEventListener('apice:user-summary-updated', handleAccountStateChange)
+    window.addEventListener('apice:notificacoes-updated', handleAccountStateChange)
+
+    void refreshUserSummaryFromHistory()
+
+    return () => {
+      window.removeEventListener('apice:historico-updated', handleAccountStateChange)
+      window.removeEventListener('apice:free-plan-usage-updated', handleAccountStateChange)
+      window.removeEventListener('apice:theme-updated', handleAccountStateChange)
+      window.removeEventListener('apice:user-summary-updated', handleAccountStateChange)
+      window.removeEventListener('apice:notificacoes-updated', handleAccountStateChange)
+    }
+  }, [user, syncLocalStateToCloud])
 
   const signup = async (email, password, data) => {
     return await auth.signup(email, password, data)
   }
 
   const confirmAccount = async (token) => {
-    const response = await auth.confirm(token)
+    const response = await auth.confirm(token, true)
     // Após confirmar, o GoTrue retorna o usuário logado
     if (response) setUser(response)
     return response
@@ -71,7 +137,9 @@ export function AuthProvider({ children }) {
         if (errMsg.toLowerCase().includes('already registered')) {
           errMsg = 'Este e-mail já foi confirmado. Tente fazer login.'
         }
-      } catch (_) {}
+      } catch (error) {
+        void error
+      }
       throw new Error(errMsg)
     }
     return res.json().catch(() => null)
@@ -84,7 +152,7 @@ export function AuthProvider({ children }) {
   }
 
   const confirmRecovery = async (token) => {
-    const response = await auth.confirmRecovery(token)
+    const response = await auth.recover(token, true)
     setUser(response)
     return response
   }
@@ -101,14 +169,26 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
-  const updateMetadata = async (data) => {
+  const updateAccount = async (attributes) => {
     const currentUser = auth.currentUser()
     if (currentUser) {
-      const updatedUser = await currentUser.update({ data })
+      const nextAttributes = { ...attributes }
+      if (nextAttributes.data && typeof nextAttributes.data === 'object') {
+        nextAttributes.data = {
+          ...(currentUser.user_metadata || {}),
+          ...nextAttributes.data,
+        }
+      }
+
+      const updatedUser = await currentUser.update(nextAttributes)
       setUser(updatedUser)
       return updatedUser
     }
     throw new Error('No user logged in')
+  }
+
+  const updateMetadata = async (data) => {
+    return await updateAccount({ data })
   }
 
   const value = {
@@ -120,6 +200,7 @@ export function AuthProvider({ children }) {
     login,
     confirmRecovery,
     logout,
+    updateAccount,
     updateMetadata,
     auth,
   }

@@ -18,8 +18,9 @@ export const FREE_PLAN_LIMITS = {
     limit: 5,
   },
   userSummary: {
-    label: 'Resumo de usuário',
-    limit: 3,
+    label: 'Resumo automático',
+    limit: 0,
+    automatic: true,
   },
 }
 
@@ -104,7 +105,9 @@ export function getFreePlanUsageSnapshot() {
 
 export function getFreePlanUsageRows() {
   const snapshot = readState()
-  return Object.entries(FREE_PLAN_LIMITS).map(([key, config]) => {
+  return Object.entries(FREE_PLAN_LIMITS)
+    .filter(([, config]) => !config.automatic)
+    .map(([key, config]) => {
     const used = Number(snapshot.counts[key] || 0)
     const limit = Number(config.limit || 0)
     const percent = limit > 0 ? Math.min((used / limit) * 100, 100) : 0
@@ -161,4 +164,14 @@ export function subscribeFreePlanUsage(handler) {
 
   window.addEventListener(USAGE_UPDATE_EVENT, handler)
   return () => window.removeEventListener(USAGE_UPDATE_EVENT, handler)
+}
+
+export function emitFreePlanUsageUpdated() {
+  if (!canUseStorage()) return
+  window.dispatchEvent(new CustomEvent(USAGE_UPDATE_EVENT))
+}
+
+export function setFreePlanUsageSnapshot(snapshot) {
+  if (!canUseStorage()) return
+  writeState(normalizeState(snapshot))
 }

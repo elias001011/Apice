@@ -1,15 +1,23 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { subscribeEssayHistory } from '../services/essayInsights.js'
+
+function readHistoricoFromStorage() {
+  try {
+    const h = JSON.parse(localStorage.getItem('apice:historico') || '[]')
+    return Array.isArray(h) ? h : []
+  } catch {
+    return []
+  }
+}
 
 export function HistoricoRedacoesPage() {
   const [filtro, setFiltro] = useState('Todas')
-  const [historico, setHistorico] = useState([])
+  const [historico, setHistorico] = useState(() => readHistoricoFromStorage())
 
   useEffect(() => {
-    try {
-      const h = JSON.parse(localStorage.getItem('apice:historico') || '[]')
-      setHistorico(h)
-    } catch { }
+    const refresh = () => setHistorico(readHistoricoFromStorage())
+    return subscribeEssayHistory(refresh)
   }, [])
 
   const filtradas = historico.filter(h => {
@@ -21,7 +29,7 @@ export function HistoricoRedacoesPage() {
 
   // Format date helper
   const fmtDate = (iso) => {
-    if (!iso) return 'Recente';
+    if (!iso) return 'Recente'
     return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace(' de ', ' ')
   }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 
@@ -10,6 +10,11 @@ export function ConfirmarEmailPage() {
 
   const { confirmAccount } = useAuth()
   const navigate = useNavigate()
+  const confirmAccountRef = useRef(confirmAccount)
+
+  useEffect(() => {
+    confirmAccountRef.current = confirmAccount
+  }, [confirmAccount])
 
   useEffect(() => {
     const handleConfirm = async () => {
@@ -19,7 +24,7 @@ export function ConfirmarEmailPage() {
         if (tokenMatch && tokenMatch[1]) {
           const token = tokenMatch[1]
           try {
-            await confirmAccount(token)
+            await confirmAccountRef.current(token)
             setSuccess(true)
           } catch (err) {
             console.error('Confirmation error:', err)

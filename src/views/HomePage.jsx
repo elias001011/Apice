@@ -6,6 +6,10 @@ import {
   loadEssayHistory,
   subscribeEssayHistory,
 } from '../services/essayInsights.js'
+import {
+  loadUserSummary,
+  subscribeUserSummary,
+} from '../services/userSummary.js'
 
 export function HomePage() {
   const { user } = useAuth()
@@ -16,6 +20,7 @@ export function HomePage() {
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
 
   const [insights, setInsights] = useState(() => buildEssayInsights(loadEssayHistory()))
+  const [userSummary, setUserSummary] = useState(() => loadUserSummary())
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [pwaInstalled, setPwaInstalled] = useState(false)
 
@@ -38,8 +43,17 @@ export function HomePage() {
   useEffect(() => {
     // O home escuta o histórico para mostrar dados reais sem precisar recarregar.
     const refresh = () => setInsights(buildEssayInsights(loadEssayHistory()))
+    const refreshSummary = () => setUserSummary(loadUserSummary())
     refresh()
-    return subscribeEssayHistory(refresh)
+    refreshSummary()
+
+    const unlistenHistory = subscribeEssayHistory(refresh)
+    const unlistenSummary = subscribeUserSummary(refreshSummary)
+
+    return () => {
+      unlistenHistory()
+      unlistenSummary()
+    }
   }, [])
 
   const ultimaNota = insights.latestEssay?.nota || 0
@@ -62,10 +76,6 @@ export function HomePage() {
               <div className="hero-name">
                 {firstName} {lastName && <em>{lastName}</em>}
               </div>
-              <div className="hero-sub">Sua preparação inteligente para o ENEM com o poder da IA.</div>
-              <Link to="/corretor" className="hero-cta">
-                Corrigir redação →
-              </Link>
               {!pwaInstalled && deferredPrompt && (
                 <button className="pwa-home-btn" type="button" onClick={handleInstallPwa}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -75,6 +85,10 @@ export function HomePage() {
                   Baixar como PWA
                 </button>
               )}
+              <div className="hero-sub">Sua preparação inteligente para o ENEM com o poder da IA.</div>
+              <Link to="/corretor" className="hero-cta">
+                Corrigir redação →
+              </Link>
             </div>
             <div className="hero-deco" aria-hidden="true">
               <svg className="hero-star" viewBox="0 0 100 100">
@@ -129,6 +143,36 @@ export function HomePage() {
               </div>
             </div>
           </div>
+
+          {userSummary && (
+            <div className="card anim anim-d3 performance-card">
+              <div className="card-title">Análise de Desempenho</div>
+              <div className="performance-summary">{userSummary.resumo || 'Resumo ainda não disponível.'}</div>
+              <div className="performance-grid">
+                {Array.isArray(userSummary.forcas) && userSummary.forcas.length > 0 && (
+                  <div className="performance-block">
+                    <div className="performance-label">Pontos fortes</div>
+                    <div className="performance-chips">
+                      {userSummary.forcas.slice(0, 3).map((item) => (
+                        <span key={item} className="performance-chip">{item}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {Array.isArray(userSummary.errosRecorrentes) && userSummary.errosRecorrentes.length > 0 && (
+                  <div className="performance-block">
+                    <div className="performance-label">Erros recorrentes</div>
+                    <div className="performance-chips">
+                      {userSummary.errosRecorrentes.slice(0, 3).map((item) => (
+                        <span key={item} className="performance-chip muted">{item}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
         </div>
 
@@ -305,6 +349,62 @@ const homeCss = `
     grid-template-columns: 1fr 1fr;
     gap: 12px;
     margin-bottom: 16px;
+  }
+
+  .performance-card {
+    margin-bottom: 16px;
+  }
+
+  .performance-summary {
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: var(--text2);
+    margin-bottom: 1rem;
+  }
+
+  .performance-grid {
+    display: grid;
+    gap: 0.85rem;
+  }
+
+  .performance-block {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 0.85rem 0.95rem;
+  }
+
+  .performance-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 0.55rem;
+  }
+
+  .performance-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .performance-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid var(--accent-dim2);
+    font-size: 0.74rem;
+    line-height: 1.2;
+  }
+
+  .performance-chip.muted {
+    background: transparent;
+    color: var(--text2);
+    border-color: var(--border2);
   }
 
   .pv-stat { border-radius: 20px; padding: 1.25rem; position: relative; overflow: hidden; min-height: 130px; display: flex; flex-direction: column; justify-content: space-between; }

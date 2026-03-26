@@ -4,29 +4,46 @@ import {
 } from './freePlanUsage.js'
 import {
   buildRecentEssayContext,
-  emitEssayHistoryUpdated,
+  compactEssayHistoryEntry,
+  loadEssayHistoryCount,
+  saveEssayHistorySnapshot,
 } from './essayInsights.js'
+import { refreshUserSummaryFromHistory } from './userSummary.js'
 
-export async function gerarTemaDinamico() {
+export async function gerarTemaDinamico({ retryCount = 1 } = {}) {
   // O frontend chama só o endpoint Netlify.
   // Toda decisão de search/fallback/provider fica no backend.
   if (!canConsumeFreePlan('themeDynamic')) {
     throw new Error('Limite do plano free atingido para tema dinâmico. Tente mais tarde ou troque de plano.')
   }
 
-  const res = await fetch('/.netlify/functions/gerar-tema', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  })
+  let lastError = null
 
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}))
-    throw new Error(errorData.error || 'Falha ao gerar tema dinâmico.')
+  for (let attempt = 0; attempt <= retryCount; attempt += 1) {
+    try {
+      const res = await fetch('/.netlify/functions/gerar-tema', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Falha ao gerar tema dinâmico.')
+      }
+
+      const data = await res.json()
+      consumeFreePlan('themeDynamic')
+      return data
+    } catch (error) {
+      lastError = error
+      if (attempt < retryCount) {
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        continue
+      }
+    }
   }
 
-  const data = await res.json()
-  consumeFreePlan('themeDynamic')
-  return data
+  throw lastError || new Error('Falha ao gerar tema dinâmico.')
 }
 
 export async function corrigirRedacao({ redacao, tema, material, isRigido }) {
@@ -91,7 +108,7 @@ export function salvarNoHistorico(resultadoJSON, temaStr, redacao = '') {
   try {
     const historico = JSON.parse(localStorage.getItem('apice:historico') || '[]')
 
-    const novoItem = {
+    const novoItem = compactEssayHistoryEntry({
       id: Date.now(),
       data: new Date().toISOString(),
       tema: temaStr || 'Tema livre',
@@ -99,12 +116,12 @@ export function salvarNoHistorico(resultadoJSON, temaStr, redacao = '') {
       nota: resultadoJSON.notaTotal,
       feedback: resultadoJSON,
       redacao: typeof redacao === 'string' ? redacao : '',
-    }
+    })
 
     historico.unshift(novoItem)
-    if (historico.length > 30) historico.length = 30
-    localStorage.setItem('apice:historico', JSON.stringify(historico))
-    emitEssayHistoryUpdated()
+    if (historico.length > 8) historico.length = 8
+    saveEssayHistorySnapshot(historico, loadEssayHistoryCount() + 1)
+    void refreshUserSummaryFromHistory()
   } catch (err) {
     console.error('Erro ao salvar histórico', err)
   }

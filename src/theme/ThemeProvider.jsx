@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
 const STORAGE_KEY_THEME = 'apice:theme'
@@ -88,6 +89,13 @@ function applyThemeToDom(theme, accent, fontSize, fontFamily) {
   applyFontFamily(fontFamily || 'dm-sans')
 }
 
+function syncThemeFromStorage(setTheme, setAccent, setFontSize, setFontFamily) {
+  setTheme(readSaved(STORAGE_KEY_THEME, 'light'))
+  setAccent(readSaved(STORAGE_KEY_ACCENT, 'lime'))
+  setFontSize(readSaved(STORAGE_KEY_FONT, 'md'))
+  setFontFamily(readSaved(STORAGE_KEY_FONT_FAMILY, 'dm-sans'))
+}
+
 const ThemeContext = createContext(null)
 
 export function ThemeProvider({ children }) {
@@ -103,10 +111,23 @@ export function ThemeProvider({ children }) {
       localStorage.setItem(STORAGE_KEY_ACCENT, accent)
       localStorage.setItem(STORAGE_KEY_FONT, fontSize)
       localStorage.setItem(STORAGE_KEY_FONT_FAMILY, fontFamily)
+      window.dispatchEvent(new CustomEvent('apice:theme-updated'))
     } catch {
       // ignore
     }
   }, [theme, accent, fontSize, fontFamily])
+
+  useEffect(() => {
+    const refresh = () => syncThemeFromStorage(setTheme, setAccent, setFontSize, setFontFamily)
+
+    window.addEventListener('apice:theme-updated', refresh)
+    window.addEventListener('apice:account-state-updated', refresh)
+
+    return () => {
+      window.removeEventListener('apice:theme-updated', refresh)
+      window.removeEventListener('apice:account-state-updated', refresh)
+    }
+  }, [])
 
   const toggleTheme = useCallback(() => {
     setTheme((t) => (t === 'dark' ? 'light' : 'dark'))

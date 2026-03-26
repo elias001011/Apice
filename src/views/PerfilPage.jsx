@@ -21,6 +21,7 @@ export function PerfilPage() {
 
   const name = user?.user_metadata?.full_name || 'Usuário'
   const email = user?.email || 'Sem e-mail'
+  const school = user?.user_metadata?.school || 'Não informada'
 
   const getInitial = (n) => (n ? n[0].toUpperCase() : '?')
 
@@ -130,7 +131,7 @@ export function PerfilPage() {
                 <div className="info-k">Nome</div>
                 <div className="info-v">{name}</div>
               </div>
-              <Link to="/editar-perfil" className="info-action">
+              <Link to="/editar-perfil#nome" className="info-action">
                 Alterar
               </Link>
             </div>
@@ -139,23 +140,34 @@ export function PerfilPage() {
                 <div className="info-k">E-mail</div>
                 <div className="info-v">{email}</div>
               </div>
-              <Link to="/editar-perfil" className="info-action">
+              <Link to="/editar-perfil#email" className="info-action">
                 Alterar
               </Link>
             </div>
             <div className="info-row">
               <div className="info-left">
-                <div className="info-k">Foto</div>
-                <div className="info-v">Avatar com iniciais (placeholder)</div>
+                <div className="info-k">Escola</div>
+                <div className="info-v">{school}</div>
               </div>
-              <span style={{ fontSize: '11px', color: 'var(--text3)', fontStyle: 'italic', paddingRight: '12px' }}>Em breve</span>
+              <Link to="/editar-perfil#escola" className="info-action">
+                Alterar
+              </Link>
+            </div>
+            <div className="info-row">
+              <div className="info-left">
+                <div className="info-k">Avatar</div>
+                <div className="info-v">Avatar com iniciais gerado a partir do seu nome</div>
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--text3)', fontStyle: 'italic', paddingRight: '12px' }}>Automático</span>
             </div>
             <div className="info-row">
               <div className="info-left">
                 <div className="info-k">Senha</div>
                 <div className="info-v">••••••••</div>
               </div>
-              <span style={{ fontSize: '11px', color: 'var(--text3)', fontStyle: 'italic', paddingRight: '12px' }}>Em breve</span>
+              <Link to="/editar-perfil#senha" className="info-action">
+                Alterar
+              </Link>
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 
 export function EsqueciSenhaPage() {
@@ -42,7 +42,7 @@ export function EsqueciSenhaPage() {
             <div className="es-title">Recuperar senha</div>
             <div className="es-sub">
               {sent 
-                ? 'Link enviado! Verifique sua caixa de entrada para redefinir sua senha.' 
+                ? 'Se existir uma conta com esse e-mail, um link de redefinição será enviado.' 
                 : 'Informe seu e-mail e enviaremos um link para redefinir sua senha.'}
             </div>
           </div>

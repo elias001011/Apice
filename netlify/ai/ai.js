@@ -1127,6 +1127,280 @@ export async function generateDynamicTheme() {
   }
 }
 
+function buildUserSummarySystemPrompt(historyIndex) {
+  return [
+    'Você é um analista curto e direto do desempenho de escrita de um estudante do ENEM.',
+    'Use apenas o JSON recebido e não invente dados que não estejam evidentes no histórico.',
+    'Seu trabalho é gerar uma análise breve, prática e útil para monitorar evolução.',
+    'Foque em padrões de escrita, erros recorrentes, pontos fortes e o principal foco de treino.',
+    'Responda somente com JSON válido e siga exatamente este formato:',
+    '{',
+    '  "resumo": "uma análise curta em até duas frases",',
+    '  "forcas": ["até 3 pontos fortes"],',
+    '  "errosRecorrentes": ["até 3 erros recorrentes"],',
+    '  "foco": "um foco objetivo para as próximas redações",',
+    '  "geradoEm": "ISO-8601",',
+    '  "totalRedacoes": 0,',
+    '  "origem": "ai"',
+    '}',
+    '',
+    'Regras:',
+    '- Seja direto.',
+    '- Não copie redações inteiras.',
+    '- Se houver poucos dados, faça uma análise cautelosa e explícita.',
+    '- Priorize clareza, repertório, argumentação, coesão e gramática.',
+    '',
+    'Índice resumido das últimas redações:',
+    JSON.stringify(historyIndex, null, 2),
+  ].join('\n')
+}
+
+function normalizeUserSummaryPayload(result, historyCount) {
+  const forcas = ensureArray(result?.forcas)
+    .map((item) => String(item ?? '').trim())
+    .filter(Boolean)
+    .slice(0, 3)
+
+  const errosRecorrentes = ensureArray(result?.errosRecorrentes)
+    .map((item) => String(item ?? '').trim())
+    .filter(Boolean)
+    .slice(0, 3)
+
+  return {
+    resumo: String(result?.resumo ?? '').trim() || 'Análise automática baseada nas últimas redações.',
+    forcas,
+    errosRecorrentes,
+    foco: String(result?.foco ?? '').trim() || 'Continuar reforçando clareza, repertório e correção gramatical.',
+    geradoEm: String(result?.geradoEm ?? new Date().toISOString()).trim() || new Date().toISOString(),
+    totalRedacoes: Number.isFinite(Number(result?.totalRedacoes)) ? Number(result.totalRedacoes) : historyCount,
+    origem: String(result?.origem ?? 'ai').trim() || 'ai',
+  }
+}
+
+export async function generateUserSummary({ historyIndex = [], historyCount = historyIndex.length } = {}) {
+  const safeHistoryIndex = Array.isArray(historyIndex) ? historyIndex.slice(0, 5) : []
+  const totalRedacoes = Number.isFinite(Number(historyCount)) ? Number(historyCount) : safeHistoryIndex.length
+  const systemPrompt = buildUserSummarySystemPrompt(safeHistoryIndex)
+  const userMessages = [
+    {
+      role: 'user',
+      content: JSON.stringify({
+        totalRedacoes,
+        historico: safeHistoryIndex,
+      }, null, 2),
+    },
+  ]
+
+  try {
+    const result = await runDirectTextProvider({
+      provider: 'groq',
+      systemPrompt,
+      userMessages,
+      modelVariant: 'secondary',
+    })
+
+    return normalizeUserSummaryPayload(result, totalRedacoes)
+  } catch (secondaryError) {
+    console.error('[AI][summary] Groq secondary failed:', secondaryError?.message || secondaryError)
+
+    try {
+      const result = await runDirectTextProvider({
+        provider: 'groq',
+        systemPrompt,
+        userMessages,
+        modelVariant: 'primary',
+      })
+
+      return normalizeUserSummaryPayload(result, totalRedacoes)
+    } catch (primaryError) {
+      console.error('[AI][summary] Groq primary failed, falling back to pipeline:', primaryError?.message || primaryError)
+
+      const result = await runPipeline('text', {
+        systemPrompt,
+        userMessages,
+      }, {
+        historyIndex: safeHistoryIndex,
+        totalRedacoes,
+      })
+
+      return normalizeUserSummaryPayload(result, totalRedacoes)
+    }
+  }
+}
+
+function buildRadarSystemPrompt(searchBundle) {
+  return [
+    'Você é um analista de tendências para temas de redação estilo ENEM.',
+    'Use o contexto factual pesquisado para sugerir temas plausíveis, atuais e não repetitivos.',
+    'O objetivo é estimar temas com chance realista de aparecer na redação.',
+    'Responda somente com JSON válido e siga exatamente este formato:',
+    '{',
+    '  "temas": [',
+    '    {',
+    '      "titulo": "tema curto e claro",',
+    '      "probabilidade": 0,',
+    '      "hot": false,',
+    '      "tags": [',
+    '        { "label": "tema", "tipo": "area-social" }',
+    '      ],',
+    '      "justificativa": "uma frase curta e objetiva"',
+    '    }',
+    '  ],',
+    '  "atualizadoEm": "ISO-8601"',
+    '}',
+    '',
+    'Regras:',
+    '- Gere exatamente 5 temas.',
+    '- Ordene do mais provável para o menos provável.',
+    '- Use probabilidades entre 45 e 95.',
+    '- Destaque os 2 primeiros como hot.',
+    '- Misture áreas sociais, culturais e científicas.',
+    '- Evite repetir o mesmo assunto com palavras diferentes.',
+    '',
+    'Contexto factual pesquisado:',
+    flattenSearchContext(searchBundle),
+  ].join('\n')
+}
+
+function normalizeRadarThemeTag(tag) {
+  const label = String(tag?.label ?? '').trim()
+  const tipo = String(tag?.tipo ?? 'area-social').trim() || 'area-social'
+  return label ? { label, tipo } : null
+}
+
+function normalizeRadarThemesPayload(result) {
+  const temas = ensureArray(result?.temas)
+    .map((tema) => {
+      const tags = ensureArray(tema?.tags)
+        .map((tag) => normalizeRadarThemeTag(tag))
+        .filter(Boolean)
+        .slice(0, 4)
+
+      return {
+        titulo: String(tema?.titulo ?? '').trim(),
+        probabilidade: Math.max(0, Math.min(100, Number.isFinite(Number(tema?.probabilidade)) ? Number(tema.probabilidade) : 0)),
+        hot: Boolean(tema?.hot),
+        tags,
+        justificativa: String(tema?.justificativa ?? '').trim(),
+      }
+    })
+    .filter((tema) => tema.titulo)
+    .slice(0, 5)
+
+  return {
+    temas,
+    atualizadoEm: String(result?.atualizadoEm ?? new Date().toISOString()).trim() || new Date().toISOString(),
+    origem: String(result?.origem ?? 'ai').trim() || 'ai',
+  }
+}
+
+export async function generateRadarSuggestions() {
+  const searchQuery = [
+    'Radar de temas para redação estilo ENEM 2025.',
+    'Preciso de sinais recentes do debate público brasileiro e de áreas recorrentes na prova.',
+  ].join(' ')
+
+  let searchBundle = null
+
+  try {
+    searchBundle = await searchContext(searchQuery)
+  } catch (error) {
+    console.error('[AI][radar] Search failed, falling back to no-search radar:', error?.message || error)
+  }
+
+  const systemPrompt = buildRadarSystemPrompt(searchBundle)
+  const userMessages = [
+    {
+      role: 'user',
+      content: 'Gere o radar com 5 temas ordenados por chance de aparecer na redação do ENEM.',
+    },
+  ]
+
+  try {
+    const result = await runPipeline('text', {
+      systemPrompt,
+      userMessages,
+    }, {
+      searchBundle,
+    })
+
+    const normalized = normalizeRadarThemesPayload({
+      ...result,
+      origem: result?.provider || 'ai',
+    })
+
+    return {
+      ...normalized,
+      resumoPesquisa: String(searchBundle?.resumo ?? '').trim(),
+    }
+  } catch (error) {
+    console.error('[AI][radar] Falling back to static radar data:', error?.message || error)
+
+    return {
+      temas: [
+        {
+          titulo: 'Impacto da inteligência artificial no mercado de trabalho brasileiro',
+          probabilidade: 87,
+          hot: true,
+          tags: [
+            { label: 'Tecnologia', tipo: 'area-ciencia' },
+            { label: 'Trabalho', tipo: 'area-social' },
+            { label: 'Desigualdade', tipo: 'area-social' },
+          ],
+          justificativa: 'Tema dominante no debate público e com alta chance de recorte social na prova.',
+        },
+        {
+          titulo: 'Saúde mental dos jovens na era das redes sociais',
+          probabilidade: 79,
+          hot: true,
+          tags: [
+            { label: 'Saúde', tipo: 'area-social' },
+            { label: 'Cultura digital', tipo: 'area-cultura' },
+            { label: 'Juventude', tipo: 'area-social' },
+          ],
+          justificativa: 'Pauta recorrente na mídia e com aderência ao perfil sociocultural do ENEM.',
+        },
+        {
+          titulo: 'Desafios para a preservação das línguas indígenas no Brasil',
+          probabilidade: 64,
+          hot: false,
+          tags: [
+            { label: 'Cultura', tipo: 'area-cultura' },
+            { label: 'Diversidade', tipo: 'area-social' },
+            { label: 'Direitos', tipo: 'area-social' },
+          ],
+          justificativa: 'A prova costuma retornar a diversidade cultural e a cidadania em ciclos de alguns anos.',
+        },
+        {
+          titulo: 'O papel do Estado no combate à desinformação e fake news',
+          probabilidade: 58,
+          hot: false,
+          tags: [
+            { label: 'Tecnologia', tipo: 'area-ciencia' },
+            { label: 'Democracia', tipo: 'area-social' },
+            { label: 'Comunicação', tipo: 'area-cultura' },
+          ],
+          justificativa: 'Tema atual, com forte ligação entre liberdade de expressão, regulação e cidadania digital.',
+        },
+        {
+          titulo: 'Crise hídrica e acesso à água potável no semiárido brasileiro',
+          probabilidade: 51,
+          hot: false,
+          tags: [
+            { label: 'Meio ambiente', tipo: 'area-ciencia' },
+            { label: 'Desigualdade', tipo: 'area-social' },
+            { label: 'Semiárido', tipo: 'area-social' },
+          ],
+          justificativa: 'Meio ambiente segue recorrente e pode aparecer em recortes de vulnerabilidade regional.',
+        },
+      ],
+      atualizadoEm: new Date().toISOString(),
+      origem: 'fallback',
+      resumoPesquisa: String(searchBundle?.resumo ?? '').trim(),
+    }
+  }
+}
+
 export async function correctEssay({ redacao, tema, material, isRigido }) {
   // Correção não faz search externo.
   // A ideia aqui é só avaliar a redação com o tema/material já obtidos no fluxo de escrita.

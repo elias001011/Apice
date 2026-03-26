@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import { POLICY_URL, loadPolicyConsent, savePolicyConsent } from '../services/policyConsent.js'
 
 function EyeOpen() {
   return (
@@ -27,6 +28,7 @@ export function CadastroPage() {
   const [showPass, setShowPass] = useState(false)
   const [nome, setNome] = useState('')
   const [sobrenome, setSobrenome] = useState('')
+  const [acceptedPolicies, setAcceptedPolicies] = useState(() => loadPolicyConsent())
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   
@@ -36,6 +38,12 @@ export function CadastroPage() {
   const handleSignup = async (e) => {
     e.preventDefault()
     setError('')
+
+    if (!acceptedPolicies) {
+      setError('Você precisa aceitar os Termos de uso e a Política de privacidade para criar sua conta.')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -142,13 +150,23 @@ export function CadastroPage() {
             </div>
 
             <div className="cad-terms">
-              <input type="checkbox" id="termos" required />
+              <input
+                type="checkbox"
+                id="termos"
+                checked={acceptedPolicies}
+                onChange={(e) => {
+                  const next = e.target.checked
+                  setAcceptedPolicies(next)
+                  savePolicyConsent(next)
+                }}
+                required
+              />
               <label htmlFor="termos">
-                Concordo com os <Link to="/termos">Termos de uso</Link> e a <Link to="/privacidade">Política de privacidade</Link>
+                Concordo com os <a href={POLICY_URL} target="_blank" rel="noreferrer">Termos de uso</a> e a <a href={POLICY_URL} target="_blank" rel="noreferrer">Política de privacidade</a>
               </label>
             </div>
 
-            <button className="btn-primary" type="submit" disabled={loading}>
+            <button className="btn-primary" type="submit" disabled={loading || !acceptedPolicies}>
               {loading ? 'Criando conta...' : 'Criar minha conta'}
             </button>
           </form>
@@ -282,6 +300,10 @@ const cadastroCss = `
     color: var(--accent);
     text-decoration: none;
     font-weight: 500;
+  }
+
+  .cad-terms label a:hover {
+    text-decoration: underline;
   }
 
   .pass-wrap {

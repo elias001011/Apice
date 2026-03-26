@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { POLICY_URL } from '../services/policyConsent.js'
 
 export function SobrePage() {
   return (
@@ -17,7 +18,7 @@ export function SobrePage() {
           </svg>
         </div>
         <div className="sobre-nome">Ápice</div>
-        <div className="sobre-versao">Versão 0.1 — MVP</div>
+        <div className="sobre-versao">Versão 1.0</div>
       </div>
 
       <div className="sobre-missao anim anim-d2">
@@ -25,7 +26,7 @@ export function SobrePage() {
       </div>
 
       <div className="card anim anim-d3">
-        <Link to="#" className="settings-item" style={{ textDecoration: 'none' }}>
+        <a href={POLICY_URL} target="_blank" rel="noreferrer" className="settings-item" style={{ textDecoration: 'none' }}>
           <div className="settings-left">
             <div className="settings-icon">
               <svg viewBox="0 0 24 24">
@@ -36,8 +37,8 @@ export function SobrePage() {
             <div className="settings-name">Termos de uso</div>
           </div>
           <div className="settings-chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg></div>
-        </Link>
-        <Link to="#" className="settings-item" style={{ textDecoration: 'none' }}>
+        </a>
+        <a href={POLICY_URL} target="_blank" rel="noreferrer" className="settings-item" style={{ textDecoration: 'none' }}>
           <div className="settings-left">
             <div className="settings-icon">
               <svg viewBox="0 0 24 24">
@@ -48,7 +49,7 @@ export function SobrePage() {
             <div className="settings-name">Política de privacidade</div>
           </div>
           <div className="settings-chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg></div>
-        </Link>
+        </a>
       </div>
     </>
   )

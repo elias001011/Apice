@@ -2,18 +2,25 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { corrigirRedacao, salvarNoHistorico, gerarTemaDinamico } from '../services/aiService.js'
 import { clearCorretorDraft, loadCorretorDraft, saveCorretorDraft } from '../services/corretorDraft.js'
-
-const draftBootstrap = loadCorretorDraft()
+import { useAppBusy } from '../ui/AppBusyContext.jsx'
 
 export function CorretorPage() {
   const navigate = useNavigate()
+  const { beginBusy, endBusy } = useAppBusy()
+  const draftBootstrap = loadCorretorDraft()
   // O draft é restaurado no primeiro render para evitar flicker entre reloads.
   // Se você mudar de aba ou voltar depois, a página sobe já no ponto exato onde parou.
-  const [hasStarted, setHasStarted] = useState(Boolean(draftBootstrap?.hasStarted || draftBootstrap?.tema || draftBootstrap?.redacao || draftBootstrap?.material))
-  const [tema, setTema] = useState(draftBootstrap?.tema || '')
-  const [material, setMaterial] = useState(draftBootstrap?.material ?? null)
-  const [redacao, setRedacao] = useState(draftBootstrap?.redacao || '')
-  const [isRigido, setIsRigido] = useState(Boolean(draftBootstrap?.isRigido))
+  const [hasStarted, setHasStarted] = useState(() => Boolean(draftBootstrap?.hasStarted || draftBootstrap?.tema || draftBootstrap?.redacao || draftBootstrap?.material))
+  const [tema, setTema] = useState(() => draftBootstrap?.tema || '')
+  const [material, setMaterial] = useState(() => draftBootstrap?.material ?? null)
+  const [redacao, setRedacao] = useState(() => draftBootstrap?.redacao || '')
+  const [isRigido, setIsRigido] = useState(() => Boolean(draftBootstrap?.isRigido))
+  const [temaModo, setTemaModo] = useState(() => {
+    if (draftBootstrap?.themeMode) return draftBootstrap.themeMode
+    if (draftBootstrap?.material) return 'dynamic'
+    if (draftBootstrap?.tema || draftBootstrap?.redacao || draftBootstrap?.hasStarted) return 'manual'
+    return 'intro'
+  })
   const [loading, setLoading] = useState(false)
   const [generatingTheme, setGeneratingTheme] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -27,10 +34,11 @@ export function CorretorPage() {
   const materialCards = materialIsObject && Array.isArray(material.cards) ? material.cards : []
   const materialSources = materialIsObject && Array.isArray(material.fontes) ? material.fontes : []
   const materialSummary = materialIsObject ? String(material.resumo || '').trim() : ''
+  const isDynamicTheme = temaModo === 'dynamic'
   // Se existir qualquer pedaço do conteúdo salvo, o draft continua ativo.
   // Isso evita perder contexto só porque a página recarregou ou trocou de rota.
   const materialFilled = Boolean(materialSummary || materialCards.length > 0 || (typeof material === 'string' && material.trim()))
-  const shouldPersistDraft = Boolean(hasStarted || tema.trim() || materialFilled || redacao.trim() || isRigido)
+  const shouldPersistDraft = Boolean(temaModo !== 'intro' || hasStarted || tema.trim() || materialFilled || redacao.trim() || isRigido)
   
   const getCountClass = () => {
     if (wordCount === 0) return 'char-count'
@@ -52,8 +60,9 @@ export function CorretorPage() {
       material,
       redacao,
       isRigido,
+      themeMode: temaModo,
     })
-  }, [hasStarted, tema, material, redacao, isRigido, shouldPersistDraft])
+  }, [hasStarted, tema, material, redacao, isRigido, temaModo, shouldPersistDraft])
 
   const invalidateRequests = () => {
     // Qualquer troca brusca de fluxo invalida requisições pendentes.
@@ -71,6 +80,7 @@ export function CorretorPage() {
     setMaterial(null)
     setRedacao('')
     setIsRigido(false)
+    setTemaModo('intro')
     setErrorMsg('')
     setLoading(false)
     setGeneratingTheme(false)
@@ -81,6 +91,7 @@ export function CorretorPage() {
     // Você controla o tema na mão e o corretor só acompanha o texto.
     invalidateRequests()
     setHasStarted(true)
+    setTemaModo('manual')
     setErrorMsg('')
   }
 
@@ -88,6 +99,7 @@ export function CorretorPage() {
     // Aqui é o único caminho da UI que dispara search + geração de tema.
     // A IA busca contexto factual antes de montar o material de apoio.
     const requestId = ++themeRequestSeq.current
+    beginBusy()
     setGeneratingTheme(true)
     setErrorMsg('')
 
@@ -97,13 +109,15 @@ export function CorretorPage() {
       setTema(novoTema)
       setMaterial(novoMaterial)
       setHasStarted(true)
-    } catch {
+      setTemaModo('dynamic')
+    } catch (err) {
       if (themeRequestSeq.current !== requestId) return
-      setErrorMsg('Não foi possível gerar um tema agora. Tente digitar um manualmente.')
+      setErrorMsg(err?.message || 'Não foi possível gerar um tema agora. Tente digitar um manualmente.')
     } finally {
       if (themeRequestSeq.current === requestId) {
         setGeneratingTheme(false)
       }
+      endBusy()
     }
   }
 
@@ -116,6 +130,7 @@ export function CorretorPage() {
     }
 
     const requestId = ++correctionRequestSeq.current
+    beginBusy()
     setLoading(true)
     setErrorMsg('')
 
@@ -131,6 +146,7 @@ export function CorretorPage() {
       if (correctionRequestSeq.current === requestId) {
         setLoading(false)
       }
+      endBusy()
     }
   }
 
@@ -140,10 +156,11 @@ export function CorretorPage() {
         <style>{corretorCss}</style>
         <div className="corretor-intro-new anim anim-d1">
           <div className="intro-header">
-          <div className="badge-new">Ápice Lab</div>
-          <h1 className="intro-title-new">Laboratório de Redação</h1>
-          <p className="intro-subtitle-new">Escolha como deseja praticar sua escrita hoje. O tema dinâmico agora usa busca com fontes.</p>
-        </div>
+            <div className="badge-new">Ápice Lab</div>
+            <h1 className="intro-title-new">Laboratório de Redação</h1>
+            <p className="intro-subtitle-new">Escolha como deseja praticar sua escrita hoje. O tema dinâmico agora usa busca com fontes.</p>
+            {errorMsg && <div className="intro-error">{errorMsg}</div>}
+          </div>
 
           <div className="intro-options-grid">
             <button 
@@ -296,6 +313,7 @@ export function CorretorPage() {
           <div className="corretor-column-side">
             <div className="card anim anim-d3 sticky-side">
               <div className="card-title">Status da Análise</div>
+              <div className="status-mode">Modo {isDynamicTheme ? 'dinâmico' : 'manual'}</div>
               <div className="status-item">
                 <div className={`status-dot ${wordCount > 300 ? 'done' : 'pending'}`}></div>
                 <span>Extensão adequada</span>
@@ -319,14 +337,16 @@ export function CorretorPage() {
                 {loading ? 'Analisando...' : 'Finalizar e Corrigir'}
                 {!loading && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>}
               </button>
-              
-              <button 
-                className="btn-ghost-small" 
-                onClick={handleGerarTema}
-                disabled={generatingTheme}
-              >
-                {generatingTheme ? 'Gerando...' : 'Trocar tema'}
-              </button>
+
+              {isDynamicTheme && (
+                <button 
+                  className="btn-ghost-small" 
+                  onClick={handleGerarTema}
+                  disabled={generatingTheme}
+                >
+                  {generatingTheme ? 'Gerando...' : 'Trocar tema'}
+                </button>
+              )}
 
               <button
                 className="btn-ghost-small"
@@ -383,6 +403,17 @@ const corretorCss = `
   .intro-subtitle-new {
     font-size: 1.05rem;
     color: var(--text2);
+  }
+
+  .intro-error {
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 14px;
+    background: rgba(234, 67, 53, 0.08);
+    border: 1px solid rgba(234, 67, 53, 0.18);
+    color: var(--red);
+    font-size: 0.85rem;
+    line-height: 1.55;
   }
 
   .intro-options-grid {
@@ -679,6 +710,18 @@ const corretorCss = `
     margin-bottom: 12px;
     font-size: 0.85rem;
     color: var(--text2);
+  }
+  .status-mode {
+    display: inline-flex;
+    margin-bottom: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text3);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
   }
   .status-dot {
     width: 8px;

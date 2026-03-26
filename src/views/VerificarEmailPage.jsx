@@ -28,10 +28,6 @@ export function VerificarEmailPage() {
 
   // Contador regressivo
   useEffect(() => {
-    if (countdown <= 0) {
-      setCanResend(true)
-      return
-    }
     intervalRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {

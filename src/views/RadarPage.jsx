@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { buscarRadarTemas } from '../services/radarService.js'
+import { useAppBusy } from '../ui/AppBusyContext.jsx'
 
-const TEMAS = [
+const DEFAULT_TEMAS = [
   {
     titulo: 'Impacto da inteligência artificial no mercado de trabalho brasileiro',
     probabilidade: 87,
@@ -60,15 +62,47 @@ const TEMAS = [
 ]
 
 export function RadarPage() {
+  const { beginBusy, endBusy } = useAppBusy()
   const [status, setStatus] = useState('intro') // 'intro', 'loading', 'results'
+  const [temas, setTemas] = useState(DEFAULT_TEMAS)
+  const [searchResumo, setSearchResumo] = useState('')
+  const [atualizadoEm, setAtualizadoEm] = useState('')
+  const [errorMsg, setErrorMsg] = useState('')
+  const [loadingLabel, setLoadingLabel] = useState('Analisando padrões e tendências…')
 
-  const handleBuscar = () => {
+  const handleBuscar = async () => {
+    if (status === 'loading') return
+
     setStatus('loading')
-    setTimeout(() => {
-      setStatus('intro')
-      alert('🚧 Em breve! O algoritmo inteligente de tendências está sendo calibrado com os microdados do INEP de 2024. Volte nas próximas atualizações.')
-    }, 1200)
+    setErrorMsg('')
+    setLoadingLabel('Analisando padrões e tendências…')
+    beginBusy()
+
+    try {
+      const result = await buscarRadarTemas()
+      setTemas(result.temas.length > 0 ? result.temas : DEFAULT_TEMAS)
+      setSearchResumo(result.resumoPesquisa || '')
+      setAtualizadoEm(result.atualizadoEm || new Date().toISOString())
+      setStatus('results')
+    } catch (error) {
+      console.error('Radar fetch error:', error)
+      setErrorMsg(error?.message || 'Não foi possível atualizar o radar agora.')
+      setTemas(DEFAULT_TEMAS)
+      setSearchResumo('')
+      setAtualizadoEm(new Date().toISOString())
+      setStatus('results')
+    } finally {
+      endBusy()
+    }
   }
+
+  const updatedLabel = atualizadoEm
+    ? new Date(atualizadoEm).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      })
+    : ''
 
   return (
     <>
@@ -96,13 +130,14 @@ export function RadarPage() {
             </svg>
             Buscar Temas
           </button>
+          {errorMsg && <div className="radar-error">{errorMsg}</div>}
         </div>
       )}
 
       {status === 'loading' && (
         <div className="radar-loading show" id="radar-loading">
           <div className="radar-spinner"></div>
-          <div className="radar-loading-text">Analisando padrões e tendências…</div>
+          <div className="radar-loading-text">{loadingLabel}</div>
         </div>
       )}
 
@@ -117,14 +152,34 @@ export function RadarPage() {
             </div>
             <div className="radar-hero-text">
               <div className="radar-hero-title">Atualizado para o ENEM 2025</div>
-              <div className="radar-hero-sub">Nossa IA analisa 10 anos de provas e o contexto atual para estimar os temas mais prováveis desta edição.</div>
+              <div className="radar-hero-sub">
+                Nossa IA cruza busca factual e padrões recorrentes para estimar os temas mais prováveis desta edição.
+              </div>
             </div>
           </div>
+          {searchResumo && (
+            <div className="radar-summary anim anim-d1">
+              <div className="radar-summary-label">Resumo da busca</div>
+              <div className="radar-summary-text">{searchResumo}</div>
+            </div>
+          )}
+
+          {errorMsg && (
+            <div className="radar-error inline anim anim-d1">
+              {errorMsg}
+            </div>
+          )}
 
           <div className="section-label">Temas em alta — maior probabilidade</div>
 
-          {TEMAS.map((tema, idx) => (
-            <Link to="/tema-detalhe" className={`tema-card ${tema.hot ? 'hot' : ''}`} key={idx} style={{ animationDelay: `${0.15 + (idx * 0.07)}s` }}>
+          {temas.map((tema, idx) => (
+            <Link
+              to="/tema-detalhe"
+              state={{ tema }}
+              className={`tema-card ${tema.hot ? 'hot' : ''}`}
+              key={idx}
+              style={{ animationDelay: `${0.15 + (idx * 0.07)}s` }}
+            >
               <div className="tema-top">
                 <div className="tema-titulo">{tema.titulo}</div>
                 <div className="probabilidade">
@@ -142,7 +197,13 @@ export function RadarPage() {
           ))}
 
           <div className="atualizado" style={{ animationDelay: '0.5s' }}>
-            Radar atualizado em março de 2025 · Próxima atualização em abril
+            {updatedLabel ? `Radar atualizado em ${updatedLabel}` : 'Radar atualizado recentemente'}
+          </div>
+
+          <div style={{ marginTop: '0.75rem' }}>
+            <button className="btn-ghost" type="button" onClick={handleBuscar} disabled={status === 'loading'}>
+              {status === 'loading' ? 'Atualizando...' : 'Atualizar radar'}
+            </button>
           </div>
         </div>
       )}
@@ -425,6 +486,44 @@ const radarCss = `
 
   .radar-loading-text {
     font-size: 0.85rem;
+    color: var(--text2);
+  }
+
+  .radar-error {
+    margin-top: 12px;
+    padding: 0.9rem 1rem;
+    border-radius: 16px;
+    border: 1px solid rgba(234, 67, 53, 0.18);
+    background: rgba(234, 67, 53, 0.08);
+    color: var(--red);
+    font-size: 0.84rem;
+    line-height: 1.55;
+  }
+
+  .radar-error.inline {
+    margin: 0 0 1rem;
+  }
+
+  .radar-summary {
+    background: var(--bg2);
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    padding: 1rem 1.1rem;
+    margin-bottom: 12px;
+  }
+
+  .radar-summary-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.75px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 0.45rem;
+  }
+
+  .radar-summary-text {
+    font-size: 0.86rem;
+    line-height: 1.6;
     color: var(--text2);
   }
 

@@ -1,6 +1,6 @@
 const HISTORY_KEY = 'apice:historico'
+const HISTORY_TOTAL_KEY = 'apice:historico:total:v1'
 const HISTORY_UPDATED_EVENT = 'apice:historico-updated'
-
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
 }
@@ -25,6 +25,17 @@ function readHistoryRaw() {
   }
 }
 
+function readTotalHistoryCount() {
+  if (!canUseStorage()) return 0
+
+  try {
+    const raw = Number(localStorage.getItem(HISTORY_TOTAL_KEY) || 0)
+    return Number.isFinite(raw) && raw > 0 ? raw : 0
+  } catch {
+    return 0
+  }
+}
+
 export function loadEssayHistory(limit = 0) {
   const raw = readHistoryRaw()
   const mapped = raw
@@ -46,6 +57,66 @@ export function loadEssayHistory(limit = 0) {
   return mapped
 }
 
+export function loadEssayHistoryCount() {
+  const storedCount = readTotalHistoryCount()
+  if (storedCount > 0) return storedCount
+  return loadEssayHistory().length
+}
+
+export function compactEssayHistoryEntry(item) {
+  if (!item || typeof item !== 'object') return null
+
+  const feedback = item.feedback && typeof item.feedback === 'object'
+    ? {
+        notaTotal: Number.isFinite(Number(item.feedback.notaTotal))
+          ? Number(item.feedback.notaTotal)
+          : Number(item.nota) || 0,
+        competencias: Array.isArray(item.feedback.competencias)
+          ? item.feedback.competencias.map((competencia) => ({
+              nome: String(competencia?.nome ?? '').trim(),
+              nota: Number.isFinite(Number(competencia?.nota)) ? Number(competencia.nota) : 0,
+              descricao: String(competencia?.descricao ?? '').trim(),
+            }))
+          : [],
+        pontoForte: String(item.feedback.pontoForte ?? '').trim(),
+        atencao: String(item.feedback.atencao ?? '').trim(),
+        principalMelhorar: String(item.feedback.principalMelhorar ?? '').trim(),
+        errosPt: Array.isArray(item.feedback.errosPt)
+          ? item.feedback.errosPt.slice(0, 5).map((erro) => ({
+              errado: String(erro?.errado ?? '').trim(),
+              corrigido: String(erro?.corrigido ?? '').trim(),
+              motivo: String(erro?.motivo ?? '').trim(),
+            }))
+          : [],
+      }
+    : null
+
+  return {
+    id: item.id ?? Date.now(),
+    data: typeof item.data === 'string' ? item.data : new Date().toISOString(),
+    tema: typeof item.tema === 'string' ? item.tema : '',
+    preview: typeof item.preview === 'string' ? item.preview : '',
+    nota: Number.isFinite(Number(item.nota)) ? Number(item.nota) : 0,
+    redacao: typeof item.redacao === 'string' ? item.redacao.trim().slice(0, 1200) : '',
+    feedback,
+  }
+}
+
+export function saveEssayHistorySnapshot(history = [], totalCount = null) {
+  if (!canUseStorage()) return
+
+  const normalized = Array.isArray(history)
+    ? history.map((item) => compactEssayHistoryEntry(item)).filter(Boolean)
+    : []
+
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(normalized))
+  const nextCount = Number.isFinite(Number(totalCount)) && Number(totalCount) > 0
+    ? Number(totalCount)
+    : normalized.length
+  localStorage.setItem(HISTORY_TOTAL_KEY, String(nextCount))
+  window.dispatchEvent(new CustomEvent(HISTORY_UPDATED_EVENT))
+}
+
 export function buildEssayInsights(history = loadEssayHistory()) {
   const now = today()
   const month = now.getMonth()
@@ -57,7 +128,7 @@ export function buildEssayInsights(history = loadEssayHistory()) {
     .map(item => toDate(item.data))
     .filter(Boolean)
 
-  const totalEssays = entries.length
+  const totalEssays = loadEssayHistoryCount()
   const essaysThisMonth = entries.filter(item => {
     const date = toDate(item.data)
     return Boolean(date) && date.getMonth() === month && date.getFullYear() === year
@@ -115,6 +186,28 @@ export function buildRecentEssayContext(limit = 3) {
       return lines.join('\n')
     })
     .join('\n\n')
+}
+
+export function buildRecentEssaySummaryIndex(limit = 5) {
+  const items = loadEssayHistory(limit)
+
+  return items.map((item, index) => ({
+    indice: index + 1,
+    data: item.data || '',
+    tema: item.tema || 'Tema livre',
+    nota: Number.isFinite(Number(item.nota)) ? Number(item.nota) : 0,
+    preview: item.preview || '',
+    redacaoTrecho: item.redacao ? item.redacao.slice(0, 180) : '',
+    competencias: Array.isArray(item.feedback?.competencias)
+      ? item.feedback.competencias.map((competencia) => ({
+          nome: competencia?.nome || '',
+          nota: Number.isFinite(Number(competencia?.nota)) ? Number(competencia.nota) : 0,
+        }))
+      : [],
+    pontoForte: item.feedback?.pontoForte || '',
+    atencao: item.feedback?.atencao || '',
+    principalMelhorar: item.feedback?.principalMelhorar || '',
+  }))
 }
 
 export function subscribeEssayHistory(handler) {
