@@ -18,7 +18,11 @@ export const FREE_PLAN_LIMITS = {
     group: 'manual',
   },
   radarSearch: {
-    label: 'Radar de temas',
+    label: 'Radar: busca',
+    group: 'manual',
+  },
+  radarDetail: {
+    label: 'Radar: detalhes',
     group: 'manual',
   },
   userSummary: {

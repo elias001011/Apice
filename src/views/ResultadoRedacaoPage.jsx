@@ -1,9 +1,13 @@
-import { Link, useLocation, Navigate } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useLocation, Navigate, useNavigate } from 'react-router-dom'
 import { clearCorretorDraft } from '../services/corretorDraft.js'
+import { ConfirmDialog } from '../ui/ConfirmDialog.jsx'
 
 export function ResultadoRedacaoPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const res = location.state?.resultado;
+  const [restartConfirmOpen, setRestartConfirmOpen] = useState(false);
 
   if (!res) {
     // Caso a pessoa entre direto na URL, volta pro corretor.
@@ -12,6 +16,11 @@ export function ResultadoRedacaoPage() {
 
   // Define os blocos de competências baseados na resposta ou num falback
   const comps = res.competencias || [];
+
+  const handleNovaRedacao = () => {
+    clearCorretorDraft()
+    navigate('/corretor')
+  }
 
   return (
     <>
@@ -96,15 +105,33 @@ export function ResultadoRedacaoPage() {
             )}
 
             <div className="action-row">
-              <Link to="/corretor" className="btn-primary" onClick={clearCorretorDraft}>
+              <button
+                type="button"
+                className="btn-primary result-primary-action"
+                onClick={() => setRestartConfirmOpen(true)}
+              >
                 Gerar nova redação
-              </Link>
+              </button>
               <Link to="/historico-redacoes" className="btn-ghost">
                 Ver histórico completo
               </Link>
             </div>
           </div>
         </div>
+
+        <ConfirmDialog
+          open={restartConfirmOpen}
+          title="Gerar uma nova redação?"
+          message="Isso vai limpar o rascunho atual e voltar para o corretor. A análise já feita continua salva no histórico."
+          confirmLabel="Sim, gerar"
+          cancelLabel="Cancelar"
+          danger
+          onCancel={() => setRestartConfirmOpen(false)}
+          onConfirm={() => {
+            setRestartConfirmOpen(false)
+            handleNovaRedacao()
+          }}
+        />
       </div>
     </>
   )
@@ -197,6 +224,17 @@ const resultadoCss = `
   .error-reason { font-size: 0.75rem; color: var(--text3); }
 
   .action-row { display: flex; gap: 12px; margin-top: 1rem; }
-  .action-row .btn-primary { flex: 1.5; height: 48px; }
+  .action-row .btn-primary {
+    flex: 1.5;
+    height: 48px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: 1px solid rgba(var(--accent-rgb), 0.22);
+    box-shadow: 0 14px 30px rgba(var(--accent-rgb), 0.18), 0 0 0 1px rgba(var(--accent-rgb), 0.06);
+    font-weight: 700;
+  }
+  .action-row .btn-primary:hover {
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    box-shadow: 0 18px 36px rgba(var(--accent-rgb), 0.22), 0 0 0 1px rgba(var(--accent-rgb), 0.08);
+  }
   .action-row .btn-ghost { flex: 1; height: 48px; }
 `

@@ -20,6 +20,7 @@ export default async function handler(req) {
     const body = await req.json().catch(() => ({}))
     const historyIndex = Array.isArray(body?.historyIndex) ? body.historyIndex : []
     const historyCount = Number.isFinite(Number(body?.historyCount)) ? Number(body.historyCount) : historyIndex.length
+    const responsePreference = body?.responsePreference ?? null
 
     if (historyIndex.length === 0) {
       return new Response(JSON.stringify({ error: 'historyIndex é obrigatório' }), { status: 400, headers })
@@ -28,6 +29,7 @@ export default async function handler(req) {
     const result = await generateUserSummary({
       historyIndex,
       historyCount,
+      responsePreference,
     })
 
     return new Response(JSON.stringify(result), { status: 200, headers })

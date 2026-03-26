@@ -1,4 +1,5 @@
 import { buildRecentEssaySummaryIndex, loadEssayHistoryCount } from './essayInsights.js'
+import { loadAiResponsePreferenceText } from './aiResponsePreferences.js'
 
 const SUMMARY_KEY = 'apice:user-summary:v1'
 const SUMMARY_UPDATED_EVENT = 'apice:user-summary-updated'
@@ -187,12 +188,14 @@ export async function refreshUserSummaryFromHistory({ force = false } = {}) {
   }
 
   try {
+    const responsePreference = loadAiResponsePreferenceText()
     const response = await fetch(SUMMARY_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         historyIndex,
         historyCount: totalRedacoes,
+        ...(responsePreference ? { responsePreference } : {}),
       }),
     })
 

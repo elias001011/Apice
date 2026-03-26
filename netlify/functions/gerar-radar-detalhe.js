@@ -1,4 +1,4 @@
-import { correctEssay } from '../ai/ai.js'
+import { generateRadarThemeDetails } from '../ai/ai.js'
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -18,30 +18,15 @@ export default async function handler(req) {
 
   try {
     const body = await req.json().catch(() => ({}))
-    const redacao = String(body?.redacao ?? '').trim()
-    const tema = String(body?.tema ?? '').trim()
-    const material = body?.material ?? null
-    const isRigido = Boolean(body?.isRigido)
+    const tema = body?.tema ?? null
     const responsePreference = body?.responsePreference ?? null
-
-    if (!redacao) {
-      return new Response(JSON.stringify({ error: 'redacao é obrigatória' }), { status: 400, headers })
-    }
-
-    const result = await correctEssay({
-      redacao,
-      tema,
-      material,
-      isRigido,
-      responsePreference,
-    })
-
+    const result = await generateRadarThemeDetails({ tema, responsePreference })
     return new Response(JSON.stringify(result), { status: 200, headers })
   } catch (error) {
-    console.error('[corrigir-redacao] erro:', error)
+    console.error('[gerar-radar-detalhe] erro:', error)
     return new Response(
       JSON.stringify({
-        error: 'Falha ao corrigir redação',
+        error: 'Falha ao gerar detalhes do radar',
         details: error?.message || 'Erro desconhecido',
       }),
       { status: 502, headers },

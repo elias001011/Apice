@@ -1,23 +1,36 @@
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { ThemeToggleButton } from './ThemeToggleButton.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { useAppBusy } from './AppBusyContext.jsx'
+import { useTheme } from '../theme/ThemeProvider.jsx'
+import { AvatarVisual } from './AvatarVisual.jsx'
+import {
+  loadAvatarSettings,
+  resolveAvatarAppearance,
+  subscribeAvatarSettings,
+} from '../services/avatarSettings.js'
 
 export function AppShell() {
   const { user } = useAuth()
   const { busy } = useAppBusy()
-  
-  const getInitials = (name) => {
-    if (!name) return '?'
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase()
-  }
+  const { theme, accent } = useTheme()
+  const [avatarSettings, setAvatarSettings] = useState(() => loadAvatarSettings())
+
+  useEffect(() => {
+    const refresh = () => setAvatarSettings(loadAvatarSettings())
+    refresh()
+    const unsubscribe = subscribeAvatarSettings(refresh)
+    return unsubscribe
+  }, [])
 
   const name = user?.user_metadata?.full_name || user?.email || 'User'
+  const avatarAppearance = resolveAvatarAppearance({
+    name,
+    settings: avatarSettings,
+    theme,
+    accent,
+  })
 
   return (
     <>
@@ -32,8 +45,17 @@ export function AppShell() {
         </div>
         <div className="nav-right">
           <ThemeToggleButton />
-          <NavLink to="/perfil" className="nav-avatar" aria-label="Perfil">
-            {getInitials(name)}
+          <NavLink
+            to="/perfil"
+            className="nav-avatar"
+            aria-label={`Perfil · ${avatarAppearance.summary}`}
+            title={avatarAppearance.summary}
+            style={avatarAppearance.palette}
+          >
+            <AvatarVisual
+              key={`${avatarAppearance.mode}|${avatarAppearance.accent}|${avatarAppearance.imageUrl}|${avatarAppearance.updatedAt}`}
+              appearance={avatarAppearance}
+            />
           </NavLink>
         </div>
       </nav>

@@ -17,7 +17,9 @@ export default async function handler(req) {
   }
 
   try {
-    const result = await generateRadarSuggestions()
+    const body = await req.json().catch(() => ({}))
+    const responsePreference = body?.responsePreference ?? null
+    const result = await generateRadarSuggestions({ responsePreference })
     return new Response(JSON.stringify(result), { status: 200, headers })
   } catch (error) {
     console.error('[gerar-radar] erro:', error)

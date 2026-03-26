@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { corrigirRedacao, salvarNoHistorico, gerarTemaDinamico } from '../services/aiService.js'
 import { clearCorretorDraft, loadCorretorDraft, saveCorretorDraft } from '../services/corretorDraft.js'
 import { useAppBusy } from '../ui/AppBusyContext.jsx'
+import { ConfirmDialog } from '../ui/ConfirmDialog.jsx'
 
 export function CorretorPage() {
   const navigate = useNavigate()
@@ -24,6 +25,7 @@ export function CorretorPage() {
   const [loading, setLoading] = useState(false)
   const [generatingTheme, setGeneratingTheme] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const [novaRedacaoConfirmOpen, setNovaRedacaoConfirmOpen] = useState(false)
   const themeRequestSeq = useRef(0)
   const correctionRequestSeq = useRef(0)
 
@@ -84,6 +86,10 @@ export function CorretorPage() {
     setErrorMsg('')
     setLoading(false)
     setGeneratingTheme(false)
+  }
+
+  const handleNovaRedacaoRequest = () => {
+    setNovaRedacaoConfirmOpen(true)
   }
 
   const handleManualStart = () => {
@@ -350,21 +356,21 @@ export function CorretorPage() {
               </button>
 
               {isDynamicTheme && (
-                <button 
-                  className="btn-ghost-small" 
-                  onClick={handleGerarTema}
-                  disabled={generatingTheme}
-                >
+              <button
+                className="btn-ghost-small"
+                onClick={handleGerarTema}
+                disabled={generatingTheme}
+              >
                   {generatingTheme ? 'Gerando...' : 'Trocar tema'}
                 </button>
               )}
 
               <button
-                className="btn-ghost-small"
-                onClick={handleNovaRedacao}
+                className="btn-primary main-reset-btn"
+                onClick={handleNovaRedacaoRequest}
                 disabled={loading || generatingTheme}
               >
-                {/* Esse botão limpa o rascunho porque "nova redação" não deve reaproveitar estado antigo. */}
+                {/* Este botão apaga o rascunho atual, então exige confirmação antes de limpar tudo. */}
                 Gerar nova redação
               </button>
             </div>
@@ -381,6 +387,20 @@ export function CorretorPage() {
             </div>
           </div>
         </div>
+
+        <ConfirmDialog
+          open={novaRedacaoConfirmOpen}
+          title="Começar uma nova redação?"
+          message="Isso vai limpar o tema, o material e o texto atual do corretor. A redação já corrigida continua no histórico."
+          confirmLabel="Sim, limpar"
+          cancelLabel="Continuar escrevendo"
+          danger
+          onCancel={() => setNovaRedacaoConfirmOpen(false)}
+          onConfirm={() => {
+            setNovaRedacaoConfirmOpen(false)
+            handleNovaRedacao()
+          }}
+        />
       </div>
     </>
   )
@@ -751,6 +771,19 @@ const corretorCss = `
   .main-submit {
     margin-top: 1rem;
     box-shadow: 0 4px 15px var(--accent-dim);
+  }
+
+  .main-reset-btn {
+    margin-top: 12px;
+    background: linear-gradient(135deg, var(--accent-dim), rgba(var(--accent-rgb), 0.18));
+    border: 1px solid rgba(var(--accent-rgb), 0.25);
+    color: var(--accent);
+    box-shadow: none;
+  }
+
+  .main-reset-btn:hover {
+    background: linear-gradient(135deg, var(--accent-dim2), rgba(var(--accent-rgb), 0.24));
+    color: var(--accent);
   }
 
   .btn-ghost-small {

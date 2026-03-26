@@ -1,4 +1,7 @@
 import process from 'node:process'
+import { buildAiResponsePreferencePrompt } from '../../src/services/aiResponsePreferences.js'
+import { getEnemYearLabel } from '../../src/services/examYear.js'
+import { normalizeRadarTheme } from '../../src/services/radarState.js'
 
 // Este arquivo é o "cérebro" da IA.
 // A regra prática aqui é:
@@ -403,10 +406,17 @@ function buildSearchSystemPrompt(query) {
   ].join('\n')
 }
 
-function buildThemeSystemPrompt(searchBundle) {
+function appendResponsePreference(lines, responsePreference) {
+  const preferencePrompt = buildAiResponsePreferencePrompt(responsePreference)
+  if (preferencePrompt) {
+    lines.push(preferencePrompt)
+  }
+}
+
+function buildThemeSystemPrompt(searchBundle, responsePreference) {
   // Prompt principal do tema dinâmico.
   // Ele recebe o resultado da busca e transforma isso em tema + material estilo ENEM.
-  return [
+  const lines = [
     'Você é um gerador de temas de redação estilo ENEM.',
     'Crie um tema atual, socialmente relevante e com boa chance de virar proposta de redação.',
     'O material de apoio deve parecer ENEM: curto, factual, organizado em cards e com fontes visíveis.',
@@ -439,13 +449,16 @@ function buildThemeSystemPrompt(searchBundle) {
     '',
     'Contexto factual pesquisado:',
     flattenSearchContext(searchBundle),
-  ].join('\n')
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
 }
 
-function buildFallbackThemeSystemPrompt() {
+function buildFallbackThemeSystemPrompt(responsePreference) {
   // Fallback quando o search falha.
   // Esse caminho evita quebrar o corretor mesmo se todas as buscas estiverem indisponíveis.
-  return [
+  const lines = [
     'Você é um gerador de temas de redação estilo ENEM.',
     'Crie um tema atual, socialmente relevante e com material de apoio organizado.',
     'O material deve ser curto, factual e em formato de cards.',
@@ -475,16 +488,19 @@ function buildFallbackThemeSystemPrompt() {
     '}',
     '',
     `Data de execução: ${nowIsoDate()}`,
-  ].join('\n')
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
 }
 
-function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint }) {
+function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, responsePreference }) {
   // Prompt da correção.
   // O material de apoio aqui é contexto da prova, não repertório autoral do aluno.
   const modo = isRigido ? 'Rígido (muito criterioso)' : 'Padrão (fiel ao ENEM)'
   const materialTexto = flattenMaterialForPrompt(material)
 
-  return [
+  const lines = [
     `Modo de correção: ${modo}.`,
     `Tema da redação: ${tema || 'Não informado.'}`,
     '',
@@ -523,7 +539,10 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint }) {
     copyHint.copiedPhrases.length > 0
       ? `- Trechos repetidos detectados: ${copyHint.copiedPhrases.join(' | ')}`
       : '- Trechos repetidos detectados: nenhum trecho longo detectado.',
-  ].join('\n')
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
 }
 
 function getEnabledProviders(kind) {
@@ -1058,6 +1077,7 @@ export async function generateTextDirect({
   userMessages,
   modelVariant = 'primary',
   modelOverride = '',
+  responsePreference,
 }) {
   // Este export existe para rotas futuras que queiram chamar um modelo específico sem search.
   // Ele não substitui o fallback atual; é um atalho quando você quer forçar um provider/modelo.
@@ -1065,16 +1085,21 @@ export async function generateTextDirect({
     throw new Error('provider é obrigatório para chamada direta')
   }
 
+  const decoratedSystemPrompt = [
+    buildAiResponsePreferencePrompt(responsePreference),
+    String(systemPrompt ?? '').trim(),
+  ].filter(Boolean).join('\n\n')
+
   return await runDirectTextProvider({
     provider,
-    systemPrompt,
+    systemPrompt: decoratedSystemPrompt,
     userMessages,
     modelVariant,
     modelOverride,
   })
 }
 
-export async function generateDynamicTheme() {
+export async function generateDynamicTheme({ responsePreference } = {}) {
   // Primeiro tenta buscar contexto factual atual.
   // Se a busca falhar por qualquer motivo, ainda tenta gerar um tema sem search,
   // para não deixar o fluxo de escrita inutilizável.
@@ -1088,8 +1113,8 @@ export async function generateDynamicTheme() {
   }
 
   const systemPrompt = searchBundle
-    ? buildThemeSystemPrompt(searchBundle)
-    : buildFallbackThemeSystemPrompt()
+    ? buildThemeSystemPrompt(searchBundle, responsePreference)
+    : buildFallbackThemeSystemPrompt(responsePreference)
 
   const userMessages = [
     {
@@ -1127,8 +1152,8 @@ export async function generateDynamicTheme() {
   }
 }
 
-function buildUserSummarySystemPrompt(historyIndex) {
-  return [
+function buildUserSummarySystemPrompt(historyIndex, responsePreference) {
+  const lines = [
     'Você é um analista curto e direto do desempenho de escrita de um estudante do ENEM.',
     'Use apenas o JSON recebido e não invente dados que não estejam evidentes no histórico.',
     'Seu trabalho é gerar uma análise breve, prática e útil para monitorar evolução.',
@@ -1152,7 +1177,10 @@ function buildUserSummarySystemPrompt(historyIndex) {
     '',
     'Índice resumido das últimas redações:',
     JSON.stringify(historyIndex, null, 2),
-  ].join('\n')
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
 }
 
 function normalizeUserSummaryPayload(result, historyCount) {
@@ -1243,10 +1271,14 @@ function buildFallbackUserSummaryPayload(historyIndex = [], totalRedacoes = hist
   }
 }
 
-export async function generateUserSummary({ historyIndex = [], historyCount = historyIndex.length } = {}) {
+export async function generateUserSummary({
+  historyIndex = [],
+  historyCount = historyIndex.length,
+  responsePreference,
+} = {}) {
   const safeHistoryIndex = Array.isArray(historyIndex) ? historyIndex.slice(0, 5) : []
   const totalRedacoes = Number.isFinite(Number(historyCount)) ? Number(historyCount) : safeHistoryIndex.length
-  const systemPrompt = buildUserSummarySystemPrompt(safeHistoryIndex)
+  const systemPrompt = buildUserSummarySystemPrompt(safeHistoryIndex, responsePreference)
   const userMessages = [
     {
       role: 'user',
@@ -1299,22 +1331,18 @@ export async function generateUserSummary({ historyIndex = [], historyCount = hi
   }
 }
 
-function buildRadarSystemPrompt(searchBundle) {
-  return [
-    'Você é um analista de tendências para temas de redação estilo ENEM.',
-    'Use o contexto factual pesquisado para sugerir temas plausíveis, atuais e não repetitivos.',
-    'O objetivo é estimar temas com chance realista de aparecer na redação.',
+function buildRadarSystemPrompt(searchBundle, responsePreference, enemLabel) {
+  const lines = [
+    `Você é um analista de tendências para temas de redação estilo ${enemLabel}.`,
+    'Use o contexto factual pesquisado para sugerir apenas os temas mais prováveis.',
+    'Retorne somente a lista principal de temas, sem detalhes explicativos.',
     'Responda somente com JSON válido e siga exatamente este formato:',
     '{',
     '  "temas": [',
     '    {',
     '      "titulo": "tema curto e claro",',
     '      "probabilidade": 0,',
-    '      "hot": false,',
-    '      "tags": [',
-    '        { "label": "tema", "tipo": "area-social" }',
-    '      ],',
-    '      "justificativa": "uma frase curta e objetiva"',
+    '      "hot": false',
     '    }',
     '  ],',
     '  "atualizadoEm": "ISO-8601"',
@@ -1330,30 +1358,66 @@ function buildRadarSystemPrompt(searchBundle) {
     '',
     'Contexto factual pesquisado:',
     flattenSearchContext(searchBundle),
-  ].join('\n')
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
 }
 
-function normalizeRadarThemeTag(tag) {
-  const label = String(tag?.label ?? '').trim()
-  const tipo = String(tag?.tipo ?? 'area-social').trim() || 'area-social'
-  return label ? { label, tipo } : null
+function buildRadarDetailSystemPrompt(searchBundle, responsePreference, enemLabel, themeTitle) {
+  const lines = [
+    `Você é um analista de apoio para um tema potencial de redação estilo ${enemLabel}.`,
+    'Use o contexto factual pesquisado para detalhar o tema sem inventar dados.',
+    'O foco é oferecer apoio pratico, fontes e motivos claros para o aluno escrever.',
+    'Responda somente com JSON válido e siga exatamente este formato:',
+    '{',
+    '  "tema": "tema analisado",',
+    '  "probabilidade": 0,',
+    '  "resumo": "analise curta em ate duas frases",',
+    '  "porQueProvavel": ["motivo curto", "motivo curto"],',
+    '  "recorteSugerido": "recorte seguro para a redacao",',
+    '  "palavrasChave": ["palavra", "palavra"],',
+    '  "dicasDeEscrita": ["dica curta", "dica curta"],',
+    '  "material": {',
+    '    "titulo": "Material de apoio",',
+    '    "resumo": "sintese curta",',
+    '    "cards": [',
+    '      { "titulo": "card", "texto": "dado objetivo", "fonte": "nome", "url": "link", "trecho": "trecho curto opcional" }',
+    '    ],',
+    '    "fontes": [',
+    '      { "nome": "nome", "url": "link", "trecho": "trecho curto opcional" }',
+    '    ]',
+    '  },',
+    '  "searchResumo": "sintese breve do que a busca encontrou",',
+    '  "geradoEm": "ISO-8601",',
+    '  "origem": "ai"',
+    '}',
+    '',
+    'Regras:',
+    '- Gere no maximo 4 motivos, 4 dicas, 5 cards e 6 fontes.',
+    '- Nao repita frases genericas em todos os temas.',
+    '- Use apenas informacoes suportadas pelo contexto da busca.',
+    '- Se faltar dado, seja cauteloso e explicito.',
+    '',
+    `Tema a detalhar: ${themeTitle}`,
+    `Data de execucao: ${nowIsoDate()}`,
+    'Contexto factual pesquisado:',
+    flattenSearchContext(searchBundle),
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
 }
 
 function normalizeRadarThemesPayload(result) {
   const temas = ensureArray(result?.temas)
     .map((tema) => {
-      const tags = ensureArray(tema?.tags)
-        .map((tag) => normalizeRadarThemeTag(tag))
-        .filter(Boolean)
-        .slice(0, 4)
-
-      return {
-        titulo: String(tema?.titulo ?? '').trim(),
-        probabilidade: Math.max(0, Math.min(100, Number.isFinite(Number(tema?.probabilidade)) ? Number(tema.probabilidade) : 0)),
-        hot: Boolean(tema?.hot),
-        tags,
-        justificativa: String(tema?.justificativa ?? '').trim(),
-      }
+      return normalizeRadarTheme({
+        id: tema?.id,
+        titulo: tema?.titulo,
+        probabilidade: tema?.probabilidade,
+        hot: tema?.hot,
+      })
     })
     .filter((tema) => tema.titulo)
     .slice(0, 5)
@@ -1365,10 +1429,71 @@ function normalizeRadarThemesPayload(result) {
   }
 }
 
-export async function generateRadarSuggestions() {
+function buildFallbackRadarDetailPayload(theme, searchBundle, enemLabel) {
+  const normalizedTheme = normalizeRadarTheme(theme) || {
+    id: normalizeText(String(theme?.titulo ?? theme?.title ?? 'tema')),
+    titulo: String(theme?.titulo ?? theme?.title ?? `Tema para ${enemLabel}`).trim(),
+    probabilidade: Number.isFinite(Number(theme?.probabilidade)) ? Number(theme.probabilidade) : 70,
+    hot: Boolean(theme?.hot),
+  }
+
+  const cards = ensureArray(searchBundle?.cards)
+    .slice(0, 4)
+    .map((card, index) => ({
+      titulo: String(card?.titulo ?? `Card ${index + 1}`).trim(),
+      texto: String(card?.texto ?? card?.trecho ?? '').trim(),
+      fonte: String(card?.fonte ?? '').trim(),
+      url: String(card?.url ?? '').trim(),
+      trecho: String(card?.trecho ?? '').trim(),
+    }))
+
+  const fontes = ensureArray(searchBundle?.fontes)
+    .slice(0, 6)
+    .map((source) => ({
+      nome: String(source?.nome ?? source?.fonte ?? '').trim(),
+      url: String(source?.url ?? '').trim(),
+      trecho: String(source?.trecho ?? '').trim(),
+    }))
+
+  const keywords = uniqueStrings([
+    ...tokenize(normalizedTheme.titulo),
+    ...tokenize(String(searchBundle?.resumo ?? '')),
+  ]).slice(0, 8)
+
+  return {
+    tema: normalizedTheme.titulo,
+    probabilidade: normalizedTheme.probabilidade || 70,
+    resumo: searchBundle?.resumo
+      ? `A busca factual aponta contexto recente ligado a ${normalizedTheme.titulo}.`
+      : `Tema atual e recorrente ligado a ${normalizedTheme.titulo}.`,
+    porQueProvavel: uniqueStrings([
+      searchBundle?.resumo ? `Resumo factual pesquisado: ${searchBundle.resumo}` : '',
+      ...cards.slice(0, 3).map((card) => card.texto),
+    ]).slice(0, 4),
+    recorteSugerido: 'Foque em impacto social, políticas públicas, desigualdade de acesso e direitos coletivos.',
+    palavrasChave: keywords,
+    dicasDeEscrita: uniqueStrings([
+      'Conecte o recorte ao cotidiano e a políticas públicas.',
+      'Use repertório objetivo em vez de frases genéricas.',
+      'Mostre causa, efeito e proposta de intervenção.',
+    ]).slice(0, 4),
+    material: {
+      titulo: `Material de apoio - ${normalizedTheme.titulo}`,
+      resumo: searchBundle?.resumo || `Leitura objetiva do tema ${normalizedTheme.titulo}.`,
+      cards,
+      fontes,
+    },
+    searchResumo: searchBundle?.resumo || '',
+    geradoEm: new Date().toISOString(),
+    origem: 'fallback',
+  }
+}
+
+export async function generateRadarSuggestions({ responsePreference } = {}) {
+  const enemLabel = getEnemYearLabel()
   const searchQuery = [
-    'Radar de temas para redação estilo ENEM 2025.',
-    'Preciso de sinais recentes do debate público brasileiro e de áreas recorrentes na prova.',
+    `Radar de temas para redação estilo ${enemLabel}.`,
+    `Preciso de sinais recentes do debate público brasileiro e de áreas recorrentes na prova do ${enemLabel}.`,
   ].join(' ')
 
   let searchBundle = null
@@ -1379,11 +1504,11 @@ export async function generateRadarSuggestions() {
     console.error('[AI][radar] Search failed, falling back to no-search radar:', error?.message || error)
   }
 
-  const systemPrompt = buildRadarSystemPrompt(searchBundle)
+  const systemPrompt = buildRadarSystemPrompt(searchBundle, responsePreference, enemLabel)
   const userMessages = [
     {
       role: 'user',
-      content: 'Gere o radar com 5 temas ordenados por chance de aparecer na redação do ENEM.',
+      content: `Gere o radar com 5 temas ordenados por chance de aparecer na redação do ${enemLabel}.`,
     },
   ]
 
@@ -1408,63 +1533,35 @@ export async function generateRadarSuggestions() {
     console.error('[AI][radar] Falling back to static radar data:', error?.message || error)
 
     return {
-      temas: [
-        {
-          titulo: 'Impacto da inteligência artificial no mercado de trabalho brasileiro',
-          probabilidade: 87,
-          hot: true,
-          tags: [
-            { label: 'Tecnologia', tipo: 'area-ciencia' },
-            { label: 'Trabalho', tipo: 'area-social' },
-            { label: 'Desigualdade', tipo: 'area-social' },
-          ],
-          justificativa: 'Tema dominante no debate público e com alta chance de recorte social na prova.',
-        },
-        {
-          titulo: 'Saúde mental dos jovens na era das redes sociais',
-          probabilidade: 79,
-          hot: true,
-          tags: [
-            { label: 'Saúde', tipo: 'area-social' },
-            { label: 'Cultura digital', tipo: 'area-cultura' },
-            { label: 'Juventude', tipo: 'area-social' },
-          ],
-          justificativa: 'Pauta recorrente na mídia e com aderência ao perfil sociocultural do ENEM.',
-        },
-        {
-          titulo: 'Desafios para a preservação das línguas indígenas no Brasil',
-          probabilidade: 64,
-          hot: false,
-          tags: [
-            { label: 'Cultura', tipo: 'area-cultura' },
-            { label: 'Diversidade', tipo: 'area-social' },
-            { label: 'Direitos', tipo: 'area-social' },
-          ],
-          justificativa: 'A prova costuma retornar a diversidade cultural e a cidadania em ciclos de alguns anos.',
-        },
-        {
-          titulo: 'O papel do Estado no combate à desinformação e fake news',
-          probabilidade: 58,
-          hot: false,
-          tags: [
-            { label: 'Tecnologia', tipo: 'area-ciencia' },
-            { label: 'Democracia', tipo: 'area-social' },
-            { label: 'Comunicação', tipo: 'area-cultura' },
-          ],
-          justificativa: 'Tema atual, com forte ligação entre liberdade de expressão, regulação e cidadania digital.',
-        },
-        {
-          titulo: 'Crise hídrica e acesso à água potável no semiárido brasileiro',
-          probabilidade: 51,
-          hot: false,
-          tags: [
-            { label: 'Meio ambiente', tipo: 'area-ciencia' },
-            { label: 'Desigualdade', tipo: 'area-social' },
-            { label: 'Semiárido', tipo: 'area-social' },
-          ],
-          justificativa: 'Meio ambiente segue recorrente e pode aparecer em recortes de vulnerabilidade regional.',
-        },
-      ],
+      temas: normalizeRadarThemesPayload({
+        temas: [
+          {
+            titulo: 'Impacto da inteligência artificial no mercado de trabalho brasileiro',
+            probabilidade: 87,
+            hot: true,
+          },
+          {
+            titulo: 'Saúde mental dos jovens na era das redes sociais',
+            probabilidade: 79,
+            hot: true,
+          },
+          {
+            titulo: 'Desafios para a preservação das línguas indígenas no Brasil',
+            probabilidade: 64,
+            hot: false,
+          },
+          {
+            titulo: 'O papel do Estado no combate à desinformação e fake news',
+            probabilidade: 58,
+            hot: false,
+          },
+          {
+            titulo: 'Crise hídrica e acesso à água potável no semiárido brasileiro',
+            probabilidade: 51,
+            hot: false,
+          },
+        ],
+      }).temas,
       atualizadoEm: new Date().toISOString(),
       origem: 'fallback',
       resumoPesquisa: String(searchBundle?.resumo ?? '').trim(),
@@ -1472,7 +1569,122 @@ export async function generateRadarSuggestions() {
   }
 }
 
-export async function correctEssay({ redacao, tema, material, isRigido }) {
+export async function generateRadarThemeDetails({ tema, responsePreference } = {}) {
+  const normalizedTheme = normalizeRadarTheme(tema)
+  if (!normalizedTheme) {
+    throw new Error('Tema inválido para gerar detalhes.')
+  }
+
+  const enemLabel = getEnemYearLabel()
+  const searchQuery = [
+    `Pesquise sobre esse tema potencial para redação do ${enemLabel}: ${normalizedTheme.titulo}.`,
+    'Use fontes recentes, confiáveis e úteis para apoiar a escrita.',
+    'Retorne dados bem restritos, com foco em justificativa, recorte e fontes.',
+  ].join(' ')
+
+  let searchBundle = null
+  try {
+    searchBundle = await searchContext(searchQuery)
+  } catch (error) {
+    console.error('[AI][radar-detail] Search failed, falling back to no-search details:', error?.message || error)
+  }
+
+  const systemPrompt = buildRadarDetailSystemPrompt(searchBundle, responsePreference, enemLabel, normalizedTheme.titulo)
+  const userMessages = [
+    {
+      role: 'user',
+      content: `Detalhe o tema abaixo para ajudar o aluno a escrever no ${enemLabel}.\n\nTema: ${normalizedTheme.titulo}\nProbabilidade: ${normalizedTheme.probabilidade}%`,
+    },
+  ]
+
+  try {
+    const result = await runDirectTextProvider({
+      provider: 'groq',
+      systemPrompt,
+      userMessages,
+      modelVariant: 'secondary',
+    })
+
+    return {
+      ...result,
+      tema: result?.tema || normalizedTheme.titulo,
+      probabilidade: Number.isFinite(Number(result?.probabilidade))
+        ? Number(result.probabilidade)
+        : normalizedTheme.probabilidade,
+      searchResumo: String(result?.searchResumo ?? searchBundle?.resumo ?? '').trim(),
+      origem: String(result?.origem ?? 'groq').trim() || 'groq',
+      material: result?.material || {
+        titulo: `Material de apoio - ${normalizedTheme.titulo}`,
+        resumo: String(searchBundle?.resumo ?? result?.resumo ?? '').trim(),
+        cards: ensureArray(searchBundle?.cards),
+        fontes: ensureArray(searchBundle?.fontes),
+      },
+      geradoEm: String(result?.geradoEm ?? new Date().toISOString()).trim() || new Date().toISOString(),
+    }
+  } catch (secondaryError) {
+    console.error('[AI][radar-detail] Groq secondary failed:', secondaryError?.message || secondaryError)
+
+    try {
+      const result = await runDirectTextProvider({
+        provider: 'groq',
+        systemPrompt,
+        userMessages,
+        modelVariant: 'primary',
+      })
+
+      return {
+        ...result,
+        tema: result?.tema || normalizedTheme.titulo,
+        probabilidade: Number.isFinite(Number(result?.probabilidade))
+          ? Number(result.probabilidade)
+          : normalizedTheme.probabilidade,
+        searchResumo: String(result?.searchResumo ?? searchBundle?.resumo ?? '').trim(),
+        origem: String(result?.origem ?? 'groq').trim() || 'groq',
+        material: result?.material || {
+          titulo: `Material de apoio - ${normalizedTheme.titulo}`,
+          resumo: String(searchBundle?.resumo ?? result?.resumo ?? '').trim(),
+          cards: ensureArray(searchBundle?.cards),
+          fontes: ensureArray(searchBundle?.fontes),
+        },
+        geradoEm: String(result?.geradoEm ?? new Date().toISOString()).trim() || new Date().toISOString(),
+      }
+    } catch (primaryError) {
+      console.error('[AI][radar-detail] Groq primary failed, falling back to pipeline:', primaryError?.message || primaryError)
+
+      try {
+        const result = await runPipeline('text', {
+          systemPrompt,
+          userMessages,
+        }, {
+          searchBundle,
+          theme: normalizedTheme,
+        })
+
+        return {
+          ...result,
+          tema: result?.tema || normalizedTheme.titulo,
+          probabilidade: Number.isFinite(Number(result?.probabilidade))
+            ? Number(result.probabilidade)
+            : normalizedTheme.probabilidade,
+          searchResumo: String(result?.searchResumo ?? searchBundle?.resumo ?? '').trim(),
+          origem: String(result?.origem ?? result?.provider ?? 'ai').trim() || 'ai',
+          material: result?.material || {
+            titulo: `Material de apoio - ${normalizedTheme.titulo}`,
+            resumo: String(searchBundle?.resumo ?? result?.resumo ?? '').trim(),
+            cards: ensureArray(searchBundle?.cards),
+            fontes: ensureArray(searchBundle?.fontes),
+          },
+          geradoEm: String(result?.geradoEm ?? new Date().toISOString()).trim() || new Date().toISOString(),
+        }
+      } catch (pipelineError) {
+        console.error('[AI][radar-detail] Pipeline fallback failed, using local detail:', pipelineError?.message || pipelineError)
+        return buildFallbackRadarDetailPayload(normalizedTheme, searchBundle, enemLabel)
+      }
+    }
+  }
+}
+
+export async function correctEssay({ redacao, tema, material, isRigido, responsePreference }) {
   // Correção não faz search externo.
   // A ideia aqui é só avaliar a redação com o tema/material já obtidos no fluxo de escrita.
   const copyHint = buildCopyRiskHint(redacao, material)
@@ -1481,6 +1693,7 @@ export async function correctEssay({ redacao, tema, material, isRigido }) {
     material,
     isRigido,
     copyHint,
+    responsePreference,
   })
 
   const userMessages = [

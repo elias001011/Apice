@@ -9,6 +9,15 @@ import {
   loadUserSummary,
   subscribeUserSummary,
 } from '../services/userSummary.js'
+import { getEnemYearLabel } from '../services/examYear.js'
+
+function getGreetingLabel(date = new Date()) {
+  const hour = date.getHours()
+
+  if (hour >= 5 && hour < 12) return 'Bom dia'
+  if (hour >= 12 && hour < 18) return 'Boa tarde'
+  return 'Boa noite'
+}
 
 export function HomePage() {
   const { user } = useAuth()
@@ -20,9 +29,11 @@ export function HomePage() {
 
   const [insights, setInsights] = useState(() => buildEssayInsights(loadEssayHistory()))
   const [userSummary, setUserSummary] = useState(() => loadUserSummary())
+  const [greeting, setGreeting] = useState(() => getGreetingLabel())
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [pwaInstalled, setPwaInstalled] = useState(() => Boolean(typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)')?.matches))
   const [pwaHint, setPwaHint] = useState('')
+  const enemLabel = getEnemYearLabel()
 
   // Captura evento de instalação PWA
   useEffect(() => {
@@ -62,6 +73,11 @@ export function HomePage() {
   }
 
   useEffect(() => {
+    const refreshGreeting = () => setGreeting(getGreetingLabel())
+    refreshGreeting()
+
+    const intervalId = window.setInterval(refreshGreeting, 60_000)
+
     // O home escuta o histórico para mostrar dados reais sem precisar recarregar.
     const refresh = () => setInsights(buildEssayInsights(loadEssayHistory()))
     const refreshSummary = () => setUserSummary(loadUserSummary())
@@ -72,6 +88,7 @@ export function HomePage() {
     const unlistenSummary = subscribeUserSummary(refreshSummary)
 
     return () => {
+      window.clearInterval(intervalId)
       unlistenHistory()
       unlistenSummary()
     }
@@ -93,10 +110,11 @@ export function HomePage() {
           {/* Hero */}
           <div className="hero anim anim-d1">
             <div className="hero-content">
-              <div className="hero-label">Bem-vindo de volta</div>
+              <div className="hero-label">{greeting}</div>
               <div className="hero-name">
                 {firstName} {lastName && <em>{lastName}</em>}
               </div>
+              <div className="hero-sub">Chegue ao ápice no ENEM com o poder da IA.</div>
               <button className="hero-cta hero-cta--pwa" type="button" onClick={handleInstallPwa} disabled={pwaInstalled}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M12 2v13M7 11l5 5 5-5" />
@@ -105,7 +123,6 @@ export function HomePage() {
                 {pwaInstalled ? 'PWA instalado' : 'Instalar PWA'}
               </button>
               {pwaHint && <div className="hero-pwa-hint">{pwaHint}</div>}
-              <div className="hero-sub">Sua preparação inteligente para o ENEM com o poder da IA.</div>
             </div>
             <div className="hero-deco" aria-hidden="true">
               <svg className="hero-star" viewBox="0 0 100 100">
@@ -227,7 +244,7 @@ export function HomePage() {
               <div className="pv-feature-content">
                 <div className="pv-feature-title">Radar 1000</div>
                 <div className="pv-feature-desc">Descubra os temas com maior probabilidade de cair na redação do ENEM.</div>
-                <div className="pv-pill">ENEM 2025 • Atualizado</div>
+                <div className="pv-pill">{enemLabel} • Atualizado</div>
                 <div className="pv-feature-btn">
                   Ver temas
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -291,8 +308,9 @@ const homeCss = `
   .hero-label {
     font-size: 0.75rem;
     color: var(--text2);
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 600;
     margin-bottom: 8px;
   }
 
@@ -315,7 +333,7 @@ const homeCss = `
     font-size: 0.85rem;
     color: var(--text2);
     line-height: 1.6;
-    max-width: 280px;
+    max-width: 320px;
     margin-bottom: 14px;
   }
 
@@ -349,6 +367,7 @@ const homeCss = `
   }
 
   .hero-cta--pwa {
+    margin-top: 2px;
     margin-bottom: 0;
   }
 
