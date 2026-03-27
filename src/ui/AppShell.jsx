@@ -10,6 +10,7 @@ import {
   resolveAvatarAppearance,
   subscribeAvatarSettings,
 } from '../services/avatarSettings.js'
+import { Footer } from './Footer.jsx'
 
 export function AppShell() {
   const { user } = useAuth()
@@ -42,6 +43,7 @@ export function AppShell() {
           <NavLink to="/home" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Início</NavLink>
           <NavLink to="/corretor" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Corretor</NavLink>
           <NavLink to="/radar" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Radar</NavLink>
+          <NavLink to="/conquistas" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Conquistas</NavLink>
         </div>
         <div className="nav-right">
           <ThemeToggleButton />
@@ -63,6 +65,7 @@ export function AppShell() {
       <main className="main">
         <Outlet />
       </main>
+      <Footer />
 
       {busy && (
         <div className="app-busy-overlay" role="status" aria-live="polite" aria-busy="true">
@@ -78,6 +81,7 @@ export function AppShell() {
         <TabLink to="/home" label="Início" icon="home" />
         <TabLink to="/corretor" label="Corretor" icon="edit" />
         <TabLink to="/radar" label="Radar" icon="radar" />
+        <TabLink to="/conquistas" label="Conquistas" icon="trophy" />
         <TabLink to="/perfil" label="Perfil" icon="user" />
       </nav>
     </>
@@ -114,6 +118,17 @@ function iconSvg(kind) {
         <svg viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="2" />
           <path d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49m11.31-2.82a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14" />
+        </svg>
+      )
+    case 'trophy':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+          <path d="M4 22h16" />
+          <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+          <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
         </svg>
       )
     case 'user':

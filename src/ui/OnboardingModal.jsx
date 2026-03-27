@@ -5,7 +5,6 @@ const ONBOARDING_KEY = 'apice:onboarding-shown'
 
 export function OnboardingModal({ user, onComplete }) {
   const [step, setStep] = useState(1)
-  const [accepted, setAccepted] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
@@ -23,13 +22,11 @@ export function OnboardingModal({ user, onComplete }) {
   }
 
   const handleFinish = () => {
-    if (accepted) {
-      // Salva consentimento de políticas e marca onboarding como visto
-      savePolicyConsent(true)
-      localStorage.setItem(ONBOARDING_KEY, 'true')
-      setIsVisible(false)
-      if (onComplete) onComplete()
-    }
+    // Marca onboarding como visto
+    savePolicyConsent(true)
+    localStorage.setItem(ONBOARDING_KEY, 'true')
+    setIsVisible(false)
+    if (onComplete) onComplete()
   }
 
   return (
@@ -81,33 +78,24 @@ export function OnboardingModal({ user, onComplete }) {
 
           {step === 3 && (
             <div className="onboarding-step-view anim-fade-in">
-              <div className="step-icon">⚖️</div>
-              <h2>Termos e Privacidade</h2>
+              <div className="step-icon">🎯</div>
+              <h2>Nossa Missão</h2>
               <p>
-                Para continuar sua jornada rumo ao Ápice, precisamos que você concorde com nossas diretrizes.
+                O Ápice nasceu com o objetivo de democratizar o acesso à preparação de alta performance. 
+                Queremos que cada estudante, independentemente de onde venha, tenha uma IA de nível mundial 
+                como seu tutor particular para alcançar o 1000 no ENEM.
               </p>
               
-              <div className="compliance-box">
-                <label className="checkbox-container">
-                  <input 
-                    type="checkbox" 
-                    checked={accepted} 
-                    onChange={(e) => setAccepted(e.target.checked)} 
-                  />
-                  <span className="checkmark"></span>
-                  <span className="checkbox-label">
-                    Li e aceito os <a href={POLICY_URL} target="_blank" rel="noreferrer">Termos de Uso</a> e a <a href={POLICY_URL} target="_blank" rel="noreferrer">Política de Privacidade</a>.
-                  </span>
-                </label>
+              <div className="mission-highlight">
+                Nosso propósito é transformar seu esforço em resultado real e sua redação em uma porta de entrada para a universidade.
               </div>
 
               <div className="step-footer">
                 <button 
                   className="btn-primary" 
-                  onClick={handleFinish} 
-                  disabled={!accepted}
+                  onClick={handleFinish}
                 >
-                  Começar agora
+                  Vamos começar!
                 </button>
               </div>
             </div>
@@ -221,13 +209,17 @@ const onboardingCss = `
     font-weight: bold;
   }
 
-  .compliance-box {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    padding: 1rem;
+  .mission-highlight {
+    background: var(--accent-dim);
+    border: 1.5px solid var(--accent-dim2);
+    padding: 1.25rem;
     border-radius: 16px;
     margin-bottom: 2rem;
-    text-align: left;
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--accent);
+    line-height: 1.4;
   }
 
   .checkbox-container {

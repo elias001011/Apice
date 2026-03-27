@@ -6,6 +6,7 @@ import { PerfilPage } from './views/PerfilPage.jsx'
 import { SimplePage } from './views/SimplePage.jsx'
 import { CorretorPage } from './views/CorretorPage.jsx'
 import { RadarPage } from './views/RadarPage.jsx'
+import { ConquistasPage } from './views/ConquistasPage.jsx'
 import { CadastroPage } from './views/CadastroPage.jsx'
 import { EsqueciSenhaPage } from './views/EsqueciSenhaPage.jsx'
 import { HistoricoRedacoesPage } from './views/HistoricoRedacoesPage.jsx'
@@ -64,6 +65,7 @@ export default function App() {
         <Route path="/home" element={<HomePage />} />
         <Route path="/corretor" element={<CorretorPage />} />
         <Route path="/radar" element={<RadarPage />} />
+        <Route path="/conquistas" element={<ConquistasPage />} />
         <Route path="/perfil" element={<PerfilPage />} />
         <Route path="/editar-perfil" element={<EditarPerfilPage />} />
         <Route path="/notificacoes" element={<NotificacoesPage />} />

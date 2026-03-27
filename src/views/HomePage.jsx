@@ -44,6 +44,33 @@ export function HomePage() {
   const enemLabel = getEnemYearLabel()
   const [dailyQuote] = useState(() => frases[getDailyQuoteIndex()])
 
+  // --- TIMER ENEM ---
+  const [enemDate, setEnemDate] = useState(() => localStorage.getItem('apice:enem-date') || '')
+  const [isEditingEnem, setIsEditingEnem] = useState(false)
+  const [daysToEnem, setDaysToEnem] = useState(null)
+
+  useEffect(() => {
+    if (enemDate) {
+      const target = new Date(enemDate)
+      const now = new Date()
+      const diff = target.getTime() - now.getTime()
+      const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
+      setDaysToEnem(days > 0 ? days : 0)
+    } else {
+      setDaysToEnem(null)
+    }
+  }, [enemDate])
+
+  const handleSaveEnemDate = (date) => {
+    setEnemDate(date)
+    localStorage.setItem('apice:enem-date', date)
+    setIsEditingEnem(false)
+  }
+
+  // --- STREAK (MOCK) ---
+  const streakDays = 4 // Mockado como solicitado
+
+
   // Captura evento de instalação PWA
   useEffect(() => {
     const handler = (e) => {
@@ -111,18 +138,7 @@ export function HomePage() {
       <style>{homeCss}</style>
       <OnboardingModal user={user} />
 
-      {/* Frase de Impacto Diária */}
-      <div className="home-quote-header anim anim-d1">
-        <div className="card quote-card-header">
-          <div className="quote-icon-main">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--accent)"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/></svg>
-          </div>
-          <p className="quote-main-text">
-            {dailyQuote}
-          </p>
-          <div className="quote-tag">Reflexão do dia</div>
-        </div>
-      </div>
+      <OnboardingModal user={user} />
 
       {/* Layout de 2 colunas no desktop / coluna única no mobile */}
       <div className="home-grid">
@@ -137,6 +153,32 @@ export function HomePage() {
               <div className="hero-name">
                 {firstName} {lastName && <em>{lastName}</em>}
               </div>
+              
+              {/* --- TIMER ENEM UI --- */}
+              <div className="enem-timer">
+                {isEditingEnem ? (
+                  <input
+                    type="date"
+                    className="enem-date-input"
+                    value={enemDate}
+                    autoFocus
+                    onBlur={(e) => handleSaveEnemDate(e.target.value)}
+                    onChange={(e) => handleSaveEnemDate(e.target.value)}
+                  />
+                ) : (
+                  <div className="enem-display" onClick={() => setIsEditingEnem(true)}>
+                    {daysToEnem !== null ? (
+                      <span className="enem-counter">📅 {daysToEnem} dias para o ENEM</span>
+                    ) : (
+                      <span className="enem-placeholder">📅 Selecione a data do ENEM</span>
+                    )}
+                    <button className="enem-edit-btn" aria-label="Editar data">
+                      <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="none" strokeWidth="3"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <div className="hero-sub">Chegue ao ápice no ENEM com o poder da IA.</div>
               <button className="hero-cta hero-cta--pwa" type="button" onClick={handleInstallPwa} disabled={pwaInstalled}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -201,39 +243,23 @@ export function HomePage() {
             </div>
           </div>
 
-          {userSummary && (
-            <div className="card anim anim-d3 performance-card">
-              <div className="card-title">Análise de Desempenho</div>
-              <div className="performance-summary">{userSummary.resumo || 'Resumo ainda não disponível.'}</div>
-              <div className="performance-grid">
-                {Array.isArray(userSummary.forcas) && userSummary.forcas.length > 0 && (
-                  <div className="performance-block">
-                    <div className="performance-label">Pontos fortes</div>
-                    <div className="performance-chips">
-                      {userSummary.forcas.slice(0, 3).map((item) => (
-                        <span key={item} className="performance-chip">{item}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {Array.isArray(userSummary.errosRecorrentes) && userSummary.errosRecorrentes.length > 0 && (
-                  <div className="performance-block">
-                    <div className="performance-label">Erros recorrentes</div>
-                    <div className="performance-chips">
-                      {userSummary.errosRecorrentes.slice(0, 3).map((item) => (
-                        <span key={item} className="performance-chip muted">{item}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
+          {/* Streak style Duolingo */}
+          <div className="card streak-card anim anim-d2">
+            <div className="streak-content">
+              <div className="streak-fire">
+                <span className="fire-icon">🔥</span>
+                <div className="fire-glow" />
+              </div>
+              <div className="streak-text">
+                <div className="streak-value">{streakDays} dias de ofensiva!</div>
+                <div className="streak-msg">Continue assim! Não deixe o fogo apagar.</div>
               </div>
             </div>
-          )}
+          </div>
 
         </div>
 
-        {/* ── COLUNA DIREITA: Feature Cards ── */}
+        {/* ── COLUNA DIREITA preexistente: Feature Cards ── */}
         <div className="home-grid-right">
           <div className="section-label anim anim-d3" style={{ marginTop: 0 }}>Ferramentas</div>
 
@@ -290,6 +316,54 @@ export function HomePage() {
           </div>
 
         </div>
+
+        {/* ── CARD DE FRASE (Posicionado via Grid Order) ── */}
+        <div className="home-quote-container anim anim-d4">
+          <div className="card quote-card-header">
+            <div className="quote-icon-main">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--accent)"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/></svg>
+            </div>
+            <p className="quote-main-text">
+              "{dailyQuote.text}"
+            </p>
+            {dailyQuote.author && (
+              <div className="quote-author">
+                — {dailyQuote.author}
+              </div>
+            )}
+            <div className="quote-tag">💡 Inspiração</div>
+          </div>
+          
+          {userSummary && (
+            <div className="card performance-card">
+              <div className="card-title">Análise de Desempenho</div>
+              <div className="performance-summary">{userSummary.resumo || 'Resumo ainda não disponível.'}</div>
+              <div className="performance-grid">
+                {Array.isArray(userSummary.forcas) && userSummary.forcas.length > 0 && (
+                  <div className="performance-block">
+                    <div className="performance-label">Pontos fortes</div>
+                    <div className="performance-chips">
+                      {userSummary.forcas.slice(0, 3).map((item) => (
+                        <span key={item} className="performance-chip">{item}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {Array.isArray(userSummary.errosRecorrentes) && userSummary.errosRecorrentes.length > 0 && (
+                  <div className="performance-block">
+                    <div className="performance-label">Erros recorrentes</div>
+                    <div className="performance-chips">
+                      {userSummary.errosRecorrentes.slice(0, 3).map((item) => (
+                        <span key={item} className="performance-chip muted">{item}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
       </div>
     </>
   )
@@ -303,23 +377,59 @@ const homeCss = `
     gap: 0;
   }
 
-  .home-quote-header {
-    margin-bottom: 24px;
+  /* Grid principal */
+  @media (min-width: 768px) {
+    .home-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    .home-quote-container {
+      grid-column: 1; /* Força ficar na esquerda no desktop */
+    }
+  }
+
+  @media (max-width: 767px) {
+    .home-grid {
+      display: flex;
+      flex-direction: column;
+    }
+    .home-quote-container {
+      order: 99; /* Aparece por último no mobile */
+    }
+  }
+
+  .home-quote-container {
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
 
   .quote-card-header {
-    padding: 2rem;
+    padding: 2.25rem 2rem;
     background: var(--bg2);
     border: 1.5px solid var(--border);
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 1.25rem;
+    gap: 1.15rem;
     position: relative;
     overflow: hidden;
   }
+  
+  html[data-theme="dark"] .quote-main-text {
+    color: var(--text) !important; /* Aumentar contraste no tema escuro */
+  }
+
+  .quote-author {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text2);
+    margin-top: -0.5rem;
+  }
+
 
   @media (max-width: 767px) {
     .quote-card-header {
@@ -397,7 +507,54 @@ const homeCss = `
     color: var(--text);
     letter-spacing: -0.4px;
     line-height: 1.15;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
+  }
+
+  /* ENEM Timer */
+  .enem-timer {
+    margin-bottom: 12px;
+  }
+  .enem-display {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    background: var(--bg3);
+    padding: 4px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border2);
+    transition: all 0.2s;
+  }
+  .enem-display:hover {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .enem-counter {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .enem-placeholder {
+    font-size: 0.75rem;
+    color: var(--text3);
+    font-weight: 500;
+  }
+  .enem-edit-btn {
+    background: none;
+    border: none;
+    color: var(--text3);
+    display: flex;
+    align-items: center;
+  }
+  .enem-date-input {
+    background: var(--bg3);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+    outline: none;
   }
 
   @media (max-width: 767px) {
@@ -483,7 +640,61 @@ const homeCss = `
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
+  }
+
+  /* Streak Card */
+  .streak-card {
+    background: linear-gradient(135deg, var(--bg2), var(--bg3));
+    border-left: 4px solid #ff5722;
+    margin-bottom: 12px;
+  }
+  .streak-content {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+  .streak-fire {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .fire-icon {
+    font-size: 2.2rem;
+    z-index: 2;
+    animation: fireWobble 1.5s ease-in-out infinite;
+  }
+  .fire-glow {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    background: #ff5722;
+    filter: blur(15px);
+    border-radius: 50%;
+    opacity: 0.4;
+    animation: firePulse 2s ease-in-out infinite;
+  }
+  @keyframes fireWobble {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-4px) scale(1.05) rotate(2deg); }
+  }
+  @keyframes firePulse {
+    0%, 100% { transform: scale(1); opacity: 0.4; }
+    50% { transform: scale(1.5); opacity: 0.6; }
+  }
+  .streak-value {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.2px;
+  }
+  .streak-msg {
+    font-size: 0.8rem;
+    color: var(--text2);
+    margin-top: 2px;
   }
 
   .performance-card {
