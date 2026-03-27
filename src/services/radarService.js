@@ -156,9 +156,6 @@ export async function buscarRadarTemaDetalhe(tema) {
     return cachedDetail
   }
 
-  if (!canConsumeFreePlan('radarDetail')) {
-    throw new Error('Limite do plano free atingido para detalhes do radar. Tente mais tarde ou troque de plano.')
-  }
 
   const responsePreference = loadAiResponsePreferenceText()
   const response = await fetch(RADAR_DETAIL_ENDPOINT, {
@@ -177,8 +174,6 @@ export async function buscarRadarTemaDetalhe(tema) {
 
   const data = await response.json()
   const savedDetail = saveRadarThemeDetail(normalizeRadarDetailPayload(data, normalizedTheme))
-
-  consumeFreePlan('radarDetail')
 
   return savedDetail || normalizeRadarDetailPayload(data, normalizedTheme)
 }

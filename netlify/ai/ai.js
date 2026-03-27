@@ -1123,10 +1123,30 @@ export async function generateDynamicTheme({ responsePreference } = {}) {
     },
   ]
 
-  const result = await runPipeline('text', {
-    systemPrompt,
-    userMessages,
-  }, { searchBundle })
+  let result = null
+
+  try {
+    // Groq secondary (llama-3.1-8b-instant) — mais rápido e barato, tentativa principal
+    result = await runDirectTextProvider({
+      provider: 'groq',
+      systemPrompt,
+      userMessages,
+      modelVariant: 'secondary',
+    })
+  } catch (secondaryError) {
+    console.error('[AI][theme] Groq secondary failed, trying primary:', secondaryError?.message || secondaryError)
+    try {
+      result = await runDirectTextProvider({
+        provider: 'groq',
+        systemPrompt,
+        userMessages,
+        modelVariant: 'primary',
+      })
+    } catch (primaryError) {
+      console.error('[AI][theme] Groq primary failed, falling back to pipeline:', primaryError?.message || primaryError)
+      result = await runPipeline('text', { systemPrompt, userMessages }, { searchBundle })
+    }
+  }
 
   const tema = String(result?.tema ?? '').trim()
   const material = isPlainObject(result?.material) ? result.material : {
@@ -1137,7 +1157,7 @@ export async function generateDynamicTheme({ responsePreference } = {}) {
   }
   const normalizedMaterial = normalizeSearchBundle({
     query: searchQuery,
-    provider: result?.provider || 'text',
+    provider: result?.provider || 'groq',
     resumo: material.resumo || '',
     cards: material.cards,
     fontes: material.fontes,

@@ -10,6 +10,7 @@ import {
   normalizeRadarTheme,
 } from '../services/radarState.js'
 import { saveCorretorDraft } from '../services/corretorDraft.js'
+import { useAppBusy } from '../ui/AppBusyContext.jsx'
 
 function formatDateLabel(value) {
   if (!value) return ''
@@ -79,6 +80,7 @@ export function TemaDetalhePage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const enemLabel = getEnemYearLabel()
+  const { beginBusy, endBusy } = useAppBusy()
 
   const routeTheme = location.state?.tema || null
   const routeDetail = location.state?.detail || null
@@ -144,12 +146,14 @@ export function TemaDetalhePage() {
         return
       }
 
-      try {
-        if (active) {
-          setLoading(true)
-          setErrorMsg('')
-        }
+      // Sem cache — vai chamar a IA; ativa overlay global
+      if (active) {
+        setLoading(true)
+        setErrorMsg('')
+        beginBusy()
+      }
 
+      try {
         const fetched = await buscarRadarTemaDetalhe({
           id: currentThemeId,
           titulo: baseTheme.titulo,
@@ -169,6 +173,7 @@ export function TemaDetalhePage() {
       } finally {
         if (active) {
           setLoading(false)
+          endBusy()
         }
       }
     }
@@ -176,8 +181,10 @@ export function TemaDetalhePage() {
     void syncDetail()
     return () => {
       active = false
+      // Se desmontarmos enquanto carregando, libera o overlay
+      endBusy()
     }
-  }, [queryThemeId, baseTheme, enemLabel])
+  }, [queryThemeId, baseTheme, enemLabel, beginBusy, endBusy])
 
   const currentDetail = detail || buildDetailFallback(tema, enemLabel)
   const title = currentDetail.titulo || tema.titulo

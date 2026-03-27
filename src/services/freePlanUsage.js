@@ -2,7 +2,7 @@ const PLAN_TIER_KEY = 'apice:plan:tier'
 const USAGE_KEY = 'apice:free-plan-usage:v1'
 const USAGE_UPDATE_EVENT = 'apice:free-plan-usage-updated'
 
-export const MANUAL_AI_DAILY_LIMIT = 5
+export const MANUAL_AI_DAILY_LIMIT = 10
 
 export const FREE_PLAN_LIMITS = {
   themeDynamic: {
@@ -21,10 +21,7 @@ export const FREE_PLAN_LIMITS = {
     label: 'Radar: busca',
     group: 'manual',
   },
-  radarDetail: {
-    label: 'Radar: detalhes',
-    group: 'manual',
-  },
+  // radarDetail não consome mais cota manual — é gratuito no Groq secondary
   userSummary: {
     label: 'Resumo automático',
     group: 'automatic',
