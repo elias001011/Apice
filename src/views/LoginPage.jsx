@@ -196,9 +196,24 @@ const loginCss = `
 
   .login-wrap {
     width: 100%;
-    max-width: 460px;
+    max-width: 480px;
     position: relative;
     z-index: 1;
+    background: var(--bg2);
+    padding: 3rem 2.5rem;
+    border-radius: 32px;
+    border: 1.5px solid var(--border);
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.4);
+  }
+
+  @media (max-width: 600px) {
+    .login-wrap {
+      max-width: 100%;
+      padding: 2rem 1.5rem;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+    }
   }
 
   .login-top {

@@ -12,7 +12,7 @@ const ACCENT_OPTIONS = [
 ]
 
 export function AparenciaPage() {
-  const { theme, toggleTheme, accent, setAccent, fontSize, setFontSize, fontFamily, setFontFamily } = useTheme()
+  const { theme, toggleTheme, accent, setAccent, fontSize, setFontSize, fontFamily, setFontFamily, layoutMode, setLayoutMode } = useTheme()
   const isDark = theme === 'dark'
 
   const currentAccentColor = ACCENT_OPTIONS.find(o => o.key === accent)
@@ -128,6 +128,38 @@ export function AparenciaPage() {
                   <span>{s.label}</span>
                 </button>
               ))}
+            </div>
+          </div>
+          
+          {/* ── MODO DE LAYOUT ── */}
+          <div className="card anim anim-d3">
+            <div className="card-title">Modo de Layout</div>
+            <div className="ap-layout-grid">
+              <button
+                className={`ap-layout-btn ${layoutMode === 'comfortable' ? 'active' : ''}`}
+                onClick={() => setLayoutMode('comfortable')}
+              >
+                <div className="ap-layout-preview comfortable">
+                  <div className="prev-card" />
+                  <div className="prev-card" />
+                </div>
+                <div className="ap-layout-label">Confortável</div>
+                <div className="ap-layout-sub">Padrão com mais respiro</div>
+                {layoutMode === 'comfortable' && <span className="ap-layout-dot" />}
+              </button>
+              <button
+                className={`ap-layout-btn ${layoutMode === 'compact' ? 'active' : ''}`}
+                onClick={() => setLayoutMode('compact')}
+              >
+                <div className="ap-layout-preview compact">
+                  <div className="prev-card" />
+                  <div className="prev-card" />
+                  <div className="prev-card" />
+                </div>
+                <div className="ap-layout-label">Compacto</div>
+                <div className="ap-layout-sub">Foco em densidade rústica</div>
+                {layoutMode === 'compact' && <span className="ap-layout-dot" />}
+              </button>
             </div>
           </div>
 
@@ -313,6 +345,72 @@ const aparenciaCss = `
     color: var(--accent);
   }
   .ap-size-btn.active span:first-child { color: var(--accent); }
+
+  /* ── LAYOUT ── */
+  .ap-layout-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .ap-layout-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 10px;
+    border-radius: 16px;
+    border: 1.5px solid var(--border2);
+    background: var(--bg3);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    text-align: center;
+    width: 100%;
+  }
+  .ap-layout-btn:hover { border-color: var(--accent); }
+  .ap-layout-btn.active {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .ap-layout-preview {
+    width: 60px;
+    height: 44px;
+    background: var(--bg2);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--border);
+  }
+  .ap-layout-preview.comfortable { gap: 6px; padding: 8px; }
+  .prev-card {
+    height: 8px;
+    background: var(--border2);
+    border-radius: 2px;
+  }
+  .comfortable .prev-card { height: 10px; }
+  .ap-layout-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .ap-layout-sub {
+    font-size: 0.72rem;
+    color: var(--text3);
+    line-height: 1.2;
+  }
+  .ap-layout-dot {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+  }
 
   /* ── PREVIEW ── */
   .ap-preview-box {

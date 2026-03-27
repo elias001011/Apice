@@ -174,6 +174,10 @@ export function AuthProvider({ children }) {
         console.error('Logout error:', err)
       }
     }
+    // Limpeza total do localStorage para isolamento de contas
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.clear()
+    }
     setUser(null)
   }
 

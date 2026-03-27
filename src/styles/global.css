@@ -60,6 +60,12 @@ html {
   scroll-behavior: smooth;
 }
 
+html.layout-compact {
+  --radius: 8px;
+  --radius-sm: 4px;
+  --radius-xs: 2px;
+}
+
 /* ── FONT SIZE SCALING ── */
 html[data-font="sm"] { font-size: 13px; }
 html[data-font="md"] { font-size: 15px; }
@@ -496,12 +502,18 @@ body,
 
 /* ── MAIN ── */
 .main {
-  padding-top: calc(var(--nav-h) + 1.5rem);
+  padding-top: calc(var(--nav-h) + 1.25rem);
   padding-bottom: calc(var(--tab-h) + 1.5rem);
-  padding-left: 1.25rem;
-  padding-right: 1.25rem;
-  max-width: 560px;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  max-width: 600px;
   margin: 0 auto;
+}
+
+.layout-compact .main {
+  max-width: 100%;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
 }
 
 /* ── PAGE HEADER ── */
@@ -539,11 +551,22 @@ body,
 
 .card-title {
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text3);
   text-transform: uppercase;
   letter-spacing: 0.8px;
   margin-bottom: 14px;
+}
+
+.layout-compact .card {
+  padding: 1rem;
+  margin-bottom: 8px;
+  border-radius: var(--radius);
+}
+
+.layout-compact .home-quote-header,
+.layout-compact .hero {
+  margin-bottom: 8px;
 }
 
 /* ── TOGGLE ROW ── */
@@ -802,11 +825,17 @@ body,
 /* ══ DESKTOP (768px+) ══ */
 @media (min-width: 768px) {
   .main {
-    max-width: 1180px;
-    padding-top: calc(var(--nav-h) + 2.5rem);
+    max-width: 1200px;
+    padding-top: calc(var(--nav-h) + 2rem);
     padding-bottom: 3rem;
-    padding-left: 2.25rem;
-    padding-right: 2.25rem;
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+
+  .layout-compact .main {
+    max-width: 100%;
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 
   .bottom-tab {

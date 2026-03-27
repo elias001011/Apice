@@ -10,6 +10,14 @@ import {
   subscribeUserSummary,
 } from '../services/userSummary.js'
 import { getEnemYearLabel } from '../services/examYear.js'
+import frases from '../data/frases.json'
+import { OnboardingModal } from '../ui/OnboardingModal.jsx'
+
+function getDailyQuoteIndex() {
+  const date = new Date()
+  const val = date.getFullYear() * 1000 + (date.getMonth() * 31) + date.getDate()
+  return val % frases.length
+}
 
 function getGreetingLabel(date = new Date()) {
   const hour = date.getHours()
@@ -34,6 +42,7 @@ export function HomePage() {
   const [pwaInstalled, setPwaInstalled] = useState(() => Boolean(typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)')?.matches))
   const [pwaHint, setPwaHint] = useState('')
   const enemLabel = getEnemYearLabel()
+  const [dailyQuote] = useState(() => frases[getDailyQuoteIndex()])
 
   // Captura evento de instalação PWA
   useEffect(() => {
@@ -100,30 +109,18 @@ export function HomePage() {
   return (
     <>
       <style>{homeCss}</style>
+      <OnboardingModal user={user} />
 
-      {/* Landing Page Header: Explanation and Quote */}
-      <div className="home-landing-intro anim anim-d1">
-        <div className="card landing-card">
-          <div className="landing-card-content">
-            <h1 className="landing-title">Como o Ápice funciona?</h1>
-            <p className="landing-desc">
-              O Ápice é a sua ferramenta inteligente para dominar a redação do <strong>ENEM</strong>. 
-              Use a nossa IA para corrigir seus textos em segundos, prever temas com o Radar 
-              e focar nos seus pontos fracos de forma automática para você alcançar a nota 1000.
-            </p>
+      {/* Frase de Impacto Diária */}
+      <div className="home-quote-header anim anim-d1">
+        <div className="card quote-card-header">
+          <div className="quote-icon-main">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--accent)"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/></svg>
           </div>
-          
-          <div className="landing-divider" />
-
-          <div className="landing-quote">
-            <div className="quote-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--accent)"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/></svg>
-            </div>
-            <p className="quote-text">
-              "A educação é a arma mais poderosa que você pode usar para mudar o mundo."
-            </p>
-            <strong className="quote-author">— Nelson Mandela</strong>
-          </div>
+          <p className="quote-main-text">
+            {dailyQuote}
+          </p>
+          <div className="quote-tag">Reflexão do dia</div>
         </div>
       </div>
 
@@ -306,78 +303,58 @@ const homeCss = `
     gap: 0;
   }
 
-  .home-landing-intro {
+  .home-quote-header {
     margin-bottom: 24px;
     width: 100%;
   }
 
-  .landing-card {
+  .quote-card-header {
     padding: 2rem;
     background: var(--bg2);
     border: 1.5px solid var(--border);
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    gap: 2rem;
-  }
-
-  @media (max-width: 900px) {
-    .landing-card {
-      grid-template-columns: 1fr;
-      gap: 1.5rem;
-      padding: 1.5rem;
-    }
-    .landing-divider { display: none; }
-  }
-
-  .landing-title {
-    font-family: 'DM Serif Display', serif;
-    font-size: 1.8rem;
-    color: var(--accent);
-    margin: 0 0 12px 0;
-  }
-
-  .landing-desc {
-    font-size: 0.95rem;
-    color: var(--text2);
-    line-height: 1.7;
-    margin: 0;
-  }
-
-  .landing-divider {
-    width: 1.5px;
-    height: 80px;
-    background: var(--border);
-    opacity: 0.5;
-  }
-
-  .landing-quote {
-    text-align: center;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    text-align: center;
+    gap: 1.25rem;
+    position: relative;
+    overflow: hidden;
   }
 
-  .quote-icon {
-    margin-bottom: 4px;
+  @media (max-width: 767px) {
+    .quote-card-header {
+      padding: 1.5rem 1.25rem;
+    }
+  }
+
+  .quote-icon-main {
     opacity: 0.8;
   }
 
-  .quote-text {
-    font-size: 0.95rem;
+  .quote-main-text {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.6rem;
     color: var(--text);
-    font-style: italic;
-    line-height: 1.5;
+    line-height: 1.4;
+    max-width: 800px;
     margin: 0;
-    max-width: 300px;
   }
 
-  .quote-author {
-    font-size: 0.8rem;
+  @media (max-width: 767px) {
+    .quote-main-text {
+      font-size: 1.25rem;
+    }
+  }
+
+  .quote-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
     color: var(--accent);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
+    background: var(--accent-dim);
+    padding: 4px 12px;
+    border-radius: 999px;
   }
 
   /* Hero */
