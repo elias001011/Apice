@@ -214,7 +214,8 @@ export function RadarPage() {
   return (
     <>
       <style>{radarCss}</style>
-      <div className="page-header anim anim-d1">
+      <div className="view-container">
+        <div className="page-header anim anim-d1">
         <div className="page-title">Radar <span>1000</span></div>
         <div className="page-sub">Análise dos temas mais prováveis para a redação do {enemLabel}, baseada em padrões históricos e contexto sociopolítico atual.</div>
       </div>
@@ -351,6 +352,7 @@ export function RadarPage() {
           setPendingRemoval(null)
         }}
       />
+    </div>
     </>
   )
 }

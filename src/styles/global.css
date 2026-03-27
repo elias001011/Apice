@@ -508,8 +508,19 @@ body,
   padding-bottom: calc(var(--tab-h) + 1.5rem);
   padding-left: 1rem;
   padding-right: 1rem;
-  max-width: 600px;
+  width: 100%;
   margin: 0 auto;
+  min-height: calc(100vh - var(--tab-h));
+}
+
+.view-container {
+  max-width: 880px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.view-container--narrow {
+  max-width: 680px;
 }
 
 .layout-compact .main {
@@ -549,6 +560,8 @@ body,
 
 .card:hover {
   border-color: var(--border2);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
 }
 
 .card-title {

@@ -230,10 +230,11 @@ export function TemaDetalhePage() {
   return (
     <>
       <style>{temaDetalheCss}</style>
-      <Link to="/radar" className="back-link">
-        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-        Voltar ao Radar 1000
-      </Link>
+      <div className="view-container">
+        <Link to="/radar" className="back-link">
+          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+          Voltar ao Radar 1000
+        </Link>
 
       <div className="prob-hero anim anim-d1">
         <div className="prob-hero-left">
@@ -355,6 +356,7 @@ export function TemaDetalhePage() {
         </button>
         <Link to="/radar" className="btn-ghost">Ver outros temas</Link>
       </div>
+    </div>
     </>
   )
 }

@@ -154,8 +154,9 @@ export function HomePage() {
       <style>{homeCss}</style>
       <OnboardingModal user={user} />
 
-      {/* Layout de 2 colunas no desktop / coluna única no mobile */}
-      <div className="home-grid">
+      <div className="view-container">
+        {/* Layout de 2 colunas no desktop / coluna única no mobile */}
+        <div className="home-grid">
 
         {/* ── COLUNA ESQUERDA: Hero + Stats ── */}
         <div className="home-grid-left">
@@ -358,6 +359,7 @@ export function HomePage() {
         </div>
 
       </div>
+    </div>
     </>
   )
 }
@@ -604,9 +606,25 @@ const homeCss = `
     border-color: var(--border2);
   }
 
-  .pv-stat { border-radius: 20px; padding: 1.25rem; position: relative; overflow: hidden; min-height: 130px; display: flex; flex-direction: column; justify-content: space-between; }
+  .pv-stat { 
+    border-radius: 20px; 
+    padding: 1.25rem; 
+    position: relative; 
+    overflow: hidden; 
+    min-height: 130px; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: space-between; 
+    transition: transform 0.25s ease, border-color 0.2s, box-shadow 0.25s;
+  }
+  .pv-stat:hover { 
+    transform: translateY(-4px); 
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); 
+  }
   .pv-stat--dark { background: var(--bg3); border: 1.5px solid var(--border); }
+  .pv-stat--dark:hover { border-color: var(--accent); }
   .pv-stat--lime { background: var(--accent); border: 1.5px solid var(--accent2); }
+  .pv-stat--lime:hover { border-color: var(--accent2); }
 
   .pv-stat-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
 
@@ -658,7 +676,11 @@ const homeCss = `
     transition: transform 0.25s ease, box-shadow 0.25s ease;
   }
 
-  .pv-feature:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12); }
+  .pv-feature:hover { 
+    transform: translateY(-4px); 
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12); 
+    border-color: var(--accent);
+  }
   .pv-feature--dark { background: var(--bg2); border: 1.5px solid var(--border); }
   .pv-feature--lime { background: var(--accent); border: 1.5px solid var(--accent2); }
   .pv-feature--enem { 
