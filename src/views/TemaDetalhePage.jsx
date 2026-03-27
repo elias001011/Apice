@@ -214,6 +214,19 @@ export function TemaDetalhePage() {
     navigate('/corretor')
   }
 
+  // Se não tem detalhes E está carregando, mostra tela cheia de loading (como no Radar)
+  if (!detail && loading) {
+    return (
+      <>
+        <style>{temaDetalheCss}</style>
+        <div className="radar-loading show" style={{ height: '70vh', justifyContent: 'center' }}>
+          <div className="radar-spinner" />
+          <div className="radar-loading-text">Analisando o tema com IA...</div>
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <style>{temaDetalheCss}</style>
