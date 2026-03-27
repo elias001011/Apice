@@ -11,6 +11,7 @@ import {
   saveEssayHistorySnapshot,
 } from './essayInsights.js'
 import { refreshUserSummaryFromHistory } from './userSummary.js'
+import { checkConquistasRedacao } from './conquistas.js'
 
 export async function gerarTemaDinamico({ retryCount = 1 } = {}) {
   // O frontend chama só o endpoint Netlify.
@@ -130,8 +131,12 @@ export function salvarNoHistorico(resultadoJSON, temaStr, redacao = '') {
 
     historico.unshift(novoItem)
     if (historico.length > MAX_ESSAY_HISTORY_ENTRIES) historico.length = MAX_ESSAY_HISTORY_ENTRIES
-    saveEssayHistorySnapshot(historico, loadEssayHistoryCount() + 1)
+    const totalEssays = loadEssayHistoryCount() + 1
+    saveEssayHistorySnapshot(historico, totalEssays)
     void refreshUserSummaryFromHistory()
+
+    // Verificar conquistas após salvar
+    checkConquistasRedacao({ totalEssays, nota: resultadoJSON.notaTotal || 0 })
   } catch (err) {
     console.error('Erro ao salvar histórico', err)
   }

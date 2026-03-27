@@ -11,6 +11,7 @@ import {
   subscribeAvatarSettings,
 } from '../services/avatarSettings.js'
 import { Footer } from './Footer.jsx'
+import { ConquistaToast } from './ConquistaToast.jsx'
 
 export function AppShell() {
   const { user } = useAuth()
@@ -66,6 +67,7 @@ export function AppShell() {
         <Outlet />
       </main>
       <Footer />
+      <ConquistaToast />
 
       {busy && (
         <div className="app-busy-overlay" role="status" aria-live="polite" aria-busy="true">

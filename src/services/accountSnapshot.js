@@ -45,6 +45,11 @@ import {
   normalizeUserSummary,
   saveUserSummary,
 } from './userSummary.js'
+import {
+  loadConquistas,
+  normalizeConquistasSnapshot,
+  setConquistasSnapshot,
+} from './conquistas.js'
 
 const THEME_KEY = 'apice:theme'
 const ACCENT_KEY = 'apice:accent'
@@ -123,6 +128,7 @@ export function buildAccountSnapshot(user, historyLimit = MAX_ESSAY_HISTORY_ENTR
     aiResponsePreference: loadAiResponsePreference(),
     avatarSettings: loadAvatarSettings(),
     notifications: loadNotificationPreferences(),
+    conquistas: loadConquistas(),
     savedAt: new Date().toISOString(),
   }
 }
@@ -180,6 +186,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
     summary: rawSnapshot.summary ? normalizeUserSummary(rawSnapshot.summary) : null,
     avatarSettings: normalizeAvatarSettings(rawSnapshot.avatarSettings || rawSnapshot.avatar || null),
     notifications: loadNotificationPreferencesFromObject(rawSnapshot.notifications),
+    conquistas: normalizeConquistasSnapshot(rawSnapshot.conquistas || null),
     savedAt: String(rawSnapshot.savedAt ?? new Date().toISOString()),
   }
 
@@ -251,6 +258,10 @@ export function applyAccountSnapshot(snapshot) {
     resetNotificationPreferences()
   }
 
+  if (snapshot.conquistas) {
+    setConquistasSnapshot(snapshot.conquistas)
+  }
+
   window.dispatchEvent(new CustomEvent('apice:theme-updated'))
   window.dispatchEvent(new CustomEvent('apice:historico-updated'))
   window.dispatchEvent(new CustomEvent('apice:free-plan-usage-updated'))
@@ -258,5 +269,6 @@ export function applyAccountSnapshot(snapshot) {
   window.dispatchEvent(new CustomEvent('apice:radar-state-updated'))
   window.dispatchEvent(new CustomEvent('apice:user-summary-updated'))
   window.dispatchEvent(new CustomEvent('apice:notificacoes-updated'))
+  window.dispatchEvent(new CustomEvent('apice:conquistas-updated'))
   window.dispatchEvent(new CustomEvent('apice:account-state-updated'))
 }

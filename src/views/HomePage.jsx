@@ -87,11 +87,6 @@ export function HomePage() {
     setIsEditingEnem(false)
   }
 
-  // --- STREAK (MOCK) ---
-
-  const streakDays = 4 // Mockado como solicitado
-
-
   // Captura evento de instalação PWA
   useEffect(() => {
     const handler = (e) => {
@@ -233,20 +228,6 @@ export function HomePage() {
               </div>
               <div className="pv-bar" aria-hidden="true">
                 <div className="pv-bar-fill" style={{ width: `${ultimaNotaPercent}%` }}></div>
-              </div>
-            </div>
-          </div>
-
-          {/* Streak style Duolingo */}
-          <div className="card streak-card anim anim-d2">
-            <div className="streak-content">
-              <div className="streak-fire">
-                <span className="fire-icon">🔥</span>
-                <div className="fire-glow" />
-              </div>
-              <div className="streak-text">
-                <div className="streak-value">{streakDays} dias de ofensiva!</div>
-                <div className="streak-msg">Continue assim! Não deixe o fogo apagar.</div>
               </div>
             </div>
           </div>
@@ -539,7 +520,11 @@ const homeCss = `
     font-weight: 600;
     margin-bottom: 8px;
   }
-
+  .hero-name {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.8rem;
+    line-height: 1.1;
+    color: var(--text);
     margin-bottom: 4px;
   }
 
@@ -628,60 +613,6 @@ const homeCss = `
     grid-template-columns: 1fr 1fr;
     gap: 12px;
     margin-bottom: 12px;
-  }
-
-  /* Streak Card */
-  .streak-card {
-    background: linear-gradient(135deg, var(--bg2), var(--bg3));
-    border-left: 4px solid #ff5722;
-    margin-bottom: 12px;
-  }
-  .streak-content {
-    display: flex;
-    align-items: center;
-    gap: 1.25rem;
-  }
-  .streak-fire {
-    position: relative;
-    width: 48px;
-    height: 48px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .fire-icon {
-    font-size: 2.2rem;
-    z-index: 2;
-    animation: fireWobble 1.5s ease-in-out infinite;
-  }
-  .fire-glow {
-    position: absolute;
-    width: 30px;
-    height: 30px;
-    background: #ff5722;
-    filter: blur(15px);
-    border-radius: 50%;
-    opacity: 0.4;
-    animation: firePulse 2s ease-in-out infinite;
-  }
-  @keyframes fireWobble {
-    0%, 100% { transform: translateY(0) scale(1); }
-    50% { transform: translateY(-4px) scale(1.05) rotate(2deg); }
-  }
-  @keyframes firePulse {
-    0%, 100% { transform: scale(1); opacity: 0.4; }
-    50% { transform: scale(1.5); opacity: 0.6; }
-  }
-  .streak-value {
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: var(--text);
-    letter-spacing: -0.2px;
-  }
-  .streak-msg {
-    font-size: 0.8rem;
-    color: var(--text2);
-    margin-top: 2px;
   }
 
   .performance-card {
