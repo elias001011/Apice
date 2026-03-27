@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
-import { POLICY_URL, loadPolicyConsent, savePolicyConsent } from '../services/policyConsent.js'
+import { POLICY_URL, loadPolicyConsent } from '../services/policyConsent.js'
 
 // Ícone olho aberto
 function EyeOpen() {
@@ -28,7 +28,6 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
-  const [acceptedPolicies, setAcceptedPolicies] = useState(() => loadPolicyConsent())
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   
@@ -37,11 +36,6 @@ export function LoginPage() {
   const handleLogin = async (e) => {
     e.preventDefault()
     setError('')
-
-    if (!acceptedPolicies) {
-      setError('Você precisa aceitar os Termos de uso e a Política de privacidade para entrar.')
-      return
-    }
 
     setLoading(true)
     
@@ -126,28 +120,7 @@ export function LoginPage() {
               </div>
             </div>
 
-            <label className="login-terms">
-              <input
-                type="checkbox"
-                checked={acceptedPolicies}
-                onChange={(e) => {
-                  const next = e.target.checked
-                  setAcceptedPolicies(next)
-                  savePolicyConsent(next)
-                }}
-              />
-              <span>
-                Li e aceito os <a href={POLICY_URL} target="_blank" rel="noreferrer">Termos de uso</a> e a <a href={POLICY_URL} target="_blank" rel="noreferrer">Política de privacidade</a>.
-              </span>
-            </label>
-
-            {!acceptedPolicies && (
-              <p className="login-terms-note" aria-live="polite">
-                Você precisa aceitar os termos para entrar.
-              </p>
-            )}
-
-            <button className="btn-primary" style={{ marginTop: 4 }} type="submit" disabled={loading}>
+            <button className="btn-primary" style={{ marginTop: 12 }} type="submit" disabled={loading}>
               {loading ? 'Entrando...' : 'Entrar'}
             </button>
           </form>
@@ -325,41 +298,6 @@ const loginCss = `
   }
 
   .pass-toggle:hover { color: var(--text); }
-
-  .login-terms {
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-    margin: 1rem 0 1rem;
-    font-size: 0.8rem;
-    color: var(--text2);
-    line-height: 1.5;
-  }
-
-  .login-terms input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    margin-top: 2px;
-    accent-color: var(--accent);
-    flex-shrink: 0;
-  }
-
-  .login-terms a {
-    color: var(--accent);
-    text-decoration: none;
-    font-weight: 500;
-  }
-
-  .login-terms a:hover {
-    text-decoration: underline;
-  }
-
-  .login-terms-note {
-    margin: -0.35rem 0 1rem 26px;
-    font-size: 0.75rem;
-    color: var(--amber);
-    line-height: 1.45;
-  }
 
   .login-footer {
     text-align: center;
