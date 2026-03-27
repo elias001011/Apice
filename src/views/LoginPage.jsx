@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { POLICY_URL, loadPolicyConsent } from '../services/policyConsent.js'
+import { EmailSuggestions } from '../ui/EmailSuggestions.jsx'
 
 // Ícone olho aberto
 function EyeOpen() {
@@ -90,7 +91,9 @@ export function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                list="login-email-list"
               />
+              <EmailSuggestions id="login-email-list" value={email} />
             </div>
 
             <div className="login-input-group">

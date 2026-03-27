@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { POLICY_URL, loadPolicyConsent, savePolicyConsent } from '../services/policyConsent.js'
+import { EmailSuggestions } from '../ui/EmailSuggestions.jsx'
 
 function EyeOpen() {
   return (
@@ -124,7 +125,9 @@ export function CadastroPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                list="cad-email-list"
               />
+              <EmailSuggestions id="cad-email-list" value={email} />
             </div>
 
             <div className="cad-input-group">

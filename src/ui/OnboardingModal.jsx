@@ -1,17 +1,17 @@
 import { useState, useEffect } from 'react'
-import { POLICY_URL, savePolicyConsent, loadPolicyConsent } from '../services/policyConsent.js'
+import { POLICY_URL, savePolicyConsent } from '../services/policyConsent.js'
+
+const ONBOARDING_KEY = 'apice:onboarding-shown'
 
 export function OnboardingModal({ user, onComplete }) {
   const [step, setStep] = useState(1)
   const [accepted, setAccepted] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
 
-  // O componente verifica se o onboarding já foi aceito para este usuário.
-  // Note: Usamos a lógica de consentimento global mas podemos atrelar ao user.id se necessário.
-  // Por enquanto seguimos a lógica do sistema.
   useEffect(() => {
-    const isAccepted = loadPolicyConsent()
-    if (!isAccepted) {
+    // Verifica se o onboarding já foi mostrado neste dispositivo/uma vez após o login
+    const shown = localStorage.getItem(ONBOARDING_KEY)
+    if (!shown) {
       setIsVisible(true)
     }
   }, [])
@@ -24,7 +24,9 @@ export function OnboardingModal({ user, onComplete }) {
 
   const handleFinish = () => {
     if (accepted) {
+      // Salva consentimento de políticas e marca onboarding como visto
       savePolicyConsent(true)
+      localStorage.setItem(ONBOARDING_KEY, 'true')
       setIsVisible(false)
       if (onComplete) onComplete()
     }
@@ -34,6 +36,7 @@ export function OnboardingModal({ user, onComplete }) {
     <div className="onboarding-overlay">
       <style>{onboardingCss}</style>
       <div className="onboarding-card anim-scale-up">
+        {/* Progress dots */}
         <div className="onboarding-progress">
           <div className={`progress-dot ${step >= 1 ? 'active' : ''}`} />
           <div className={`progress-dot ${step >= 2 ? 'active' : ''}`} />
@@ -124,7 +127,7 @@ const onboardingCss = `
     height: 100%;
     background: rgba(0, 0, 0, 0.85);
     backdrop-filter: blur(8px);
-    z-index: 9999;
+    z-index: 10000;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -207,6 +210,7 @@ const onboardingCss = `
     line-height: 1.5;
     position: relative;
     padding-left: 24px;
+    color: var(--text3);
   }
 
   .features-list li::before {
@@ -242,11 +246,12 @@ const onboardingCss = `
   .checkmark {
     width: 20px;
     height: 20px;
-    border: 2px solid var(--border);
+    border: 2px solid var(--border2);
     border-radius: 6px;
     position: relative;
     flex-shrink: 0;
     transition: all 0.2s;
+    background: var(--bg2);
   }
 
   .checkbox-container input:checked + .checkmark {
