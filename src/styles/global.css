@@ -33,6 +33,7 @@
   --nav-h: 64px;
   --tab-h: 72px;
   --accent-rgb: 184, 232, 79;
+  --theme-invert: 0;
 }
 
 html[data-theme="dark"] {
@@ -54,6 +55,7 @@ html[data-theme="dark"] {
   --nav-bg: rgba(10, 10, 10, 0.9);
   --tab-bg: rgba(18, 18, 18, 0.94);
   --accent-rgb: 200, 240, 96;
+  --theme-invert: 1;
 }
 
 html {

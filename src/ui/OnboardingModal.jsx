@@ -193,12 +193,22 @@ const onboardingCss = `
   }
 
   .features-list li {
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     color: var(--text2);
-    line-height: 1.5;
+    line-height: 1.6;
     position: relative;
-    padding-left: 24px;
-    color: var(--text3);
+    padding-left: 28px;
+  }
+
+  html[data-theme="dark"] .features-list li {
+    color: var(--text) !important;
+  }
+
+  .features-list li strong {
+    color: var(--accent);
+    display: block;
+    font-size: 1rem;
+    margin-bottom: 2px;
   }
 
   .features-list li::before {

@@ -159,8 +159,6 @@ export function HomePage() {
       <style>{homeCss}</style>
       <OnboardingModal user={user} />
 
-      <OnboardingModal user={user} />
-
       {/* Layout de 2 colunas no desktop / coluna única no mobile */}
       <div className="home-grid">
 
@@ -266,13 +264,18 @@ export function HomePage() {
                 <div className="pv-feature-title" style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Contagem para o ENEM</div>
                 {isEditingEnem ? (
                   <div className="enem-edit-box">
-                    <input
-                      type="date"
-                      className="enem-input-new"
-                      value={tempDate}
-                      onChange={(e) => setTempDate(e.target.value)}
-                    />
-                    <button className="enem-confirm-btn" onClick={handleConfirmDate}>Confirmar</button>
+                    <div className="enem-input-wrapper">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                      <input
+                        type="date"
+                        className="enem-input-new"
+                        value={tempDate}
+                        onChange={(e) => setTempDate(e.target.value)}
+                      />
+                    </div>
+                    <button className="enem-confirm-btn" onClick={handleConfirmDate}>
+                      Confirmar
+                    </button>
                   </div>
                 ) : !enemDate ? (
                   <button className="enem-setup-btn" onClick={() => setIsEditingEnem(true)}>
@@ -825,10 +828,6 @@ const homeCss = `
     background: rgba(var(--accent-rgb), 0.05);
   }
 
-  .enem-edit-box {
-    padding: 1.5rem;
-  }
-
   .enem-live-timer {
     padding: 1.25rem 1.5rem;
     cursor: pointer;
@@ -842,66 +841,97 @@ const homeCss = `
     gap: 12px;
     flex-wrap: wrap;
   }
+
   .timer-unit {
     display: flex;
     flex-direction: column;
     align-items: center;
     min-width: 35px;
   }
+
   .timer-unit strong {
     font-size: 1.2rem;
     color: var(--text);
     font-family: 'DM Serif Display', serif;
     line-height: 1;
   }
+
   .timer-unit span {
     font-size: 0.65rem;
     color: var(--text3);
     text-transform: uppercase;
     font-weight: 700;
   }
+
   .enem-empty {
     font-size: 0.9rem;
     color: var(--text2);
     font-weight: 500;
   }
+
   .enem-edit-hint {
     font-size: 0.65rem;
     color: var(--accent);
     opacity: 0.7;
     font-weight: 600;
   }
+
   .enem-edit-box {
+    padding: 1.5rem;
     display: flex;
     flex-direction: column;
+    gap: 12px;
+  }
+
+  .enem-input-wrapper {
+    display: flex;
+    align-items: center;
     gap: 10px;
-    width: 100%;
-    max-width: 200px;
-  }
-  .enem-input-new {
     background: var(--bg3);
-    border: 1.5px solid var(--accent);
-    color: var(--text);
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-family: inherit;
-    font-size: 0.85rem;
-    outline: none;
+    border: 1.5px solid var(--border2);
+    border-radius: 12px;
+    padding: 8px 12px;
+    transition: all 0.2s;
   }
+
+  .enem-input-wrapper:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.1);
+  }
+
+  .enem-input-new {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.9rem;
+    outline: none;
+    width: 100%;
+    cursor: pointer;
+  }
+
+  .enem-input-new::-webkit-calendar-picker-indicator {
+    filter: invert(var(--theme-invert));
+    cursor: pointer;
+  }
+
   .enem-confirm-btn {
     background: var(--accent);
     color: #0f0f0f;
     border: none;
-    padding: 6px 12px;
-    border-radius: 8px;
-    font-size: 0.8rem;
+    padding: 10px 16px;
+    border-radius: 12px;
+    font-size: 0.9rem;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s;
+    width: 100%;
   }
+
   .enem-confirm-btn:hover {
     background: var(--accent2);
     transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.2);
   }
 
   .pv-feature-content { display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 2; }
