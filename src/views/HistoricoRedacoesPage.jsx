@@ -36,10 +36,11 @@ export function HistoricoRedacoesPage() {
   return (
     <>
       <style>{historicoCss}</style>
-      <Link to="/corretor" className="back-link">
-        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-        Voltar ao corretor
-      </Link>
+      <div className="view-container">
+        <Link to="/corretor" className="back-link">
+          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+          Voltar ao corretor
+        </Link>
 
       <div className="page-header anim anim-d1">
         <div className="page-title">Histórico</div>
@@ -75,6 +76,7 @@ export function HistoricoRedacoesPage() {
           </div>
         </Link>
       ))}
+    </div>
     </>
   )
 }

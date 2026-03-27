@@ -37,29 +37,31 @@ export function AppShell() {
   return (
     <>
       <nav className="nav">
-        <NavLink to="/home" className="nav-logo">
-          Áp<em>i</em>ce
-        </NavLink>
-        <div className="nav-center">
-          <NavLink to="/home" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Início</NavLink>
-          <NavLink to="/corretor" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Corretor</NavLink>
-          <NavLink to="/radar" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Radar</NavLink>
-          <NavLink to="/conquistas" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Conquistas</NavLink>
-        </div>
-        <div className="nav-right">
-          <ThemeToggleButton />
-          <NavLink
-            to="/perfil"
-            className="nav-avatar"
-            aria-label={`Perfil · ${avatarAppearance.summary}`}
-            title={avatarAppearance.summary}
-            style={avatarAppearance.palette}
-          >
-            <AvatarVisual
-              key={`${avatarAppearance.mode}|${avatarAppearance.accent}|${avatarAppearance.imageUrl}|${avatarAppearance.updatedAt}`}
-              appearance={avatarAppearance}
-            />
+        <div className="nav-inner">
+          <NavLink to="/home" className="nav-logo">
+            Áp<em>i</em>ce
           </NavLink>
+          <div className="nav-center">
+            <NavLink to="/home" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Início</NavLink>
+            <NavLink to="/corretor" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Corretor</NavLink>
+            <NavLink to="/radar" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Radar</NavLink>
+            <NavLink to="/conquistas" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Conquistas</NavLink>
+          </div>
+          <div className="nav-right">
+            <ThemeToggleButton />
+            <NavLink
+              to="/perfil"
+              className="nav-avatar"
+              aria-label={`Perfil · ${avatarAppearance.summary}`}
+              title={avatarAppearance.summary}
+              style={avatarAppearance.palette}
+            >
+              <AvatarVisual
+                key={`${avatarAppearance.mode}|${avatarAppearance.accent}|${avatarAppearance.imageUrl}|${avatarAppearance.updatedAt}`}
+                appearance={avatarAppearance}
+              />
+            </NavLink>
+          </div>
         </div>
       </nav>
 

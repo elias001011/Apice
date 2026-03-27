@@ -90,10 +90,11 @@ export function EditarPerfilPage() {
   return (
     <>
       <style>{editCss}</style>
-      <Link to="/perfil" className="back-link">
-        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-        Voltar ao perfil
-      </Link>
+      <div className="view-container">
+        <Link to="/perfil" className="back-link">
+          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+          Voltar ao perfil
+        </Link>
 
       <div className="page-header anim anim-d1">
         <div className="page-title">Editar perfil</div>
@@ -170,7 +171,7 @@ export function EditarPerfilPage() {
           />
         </div>
 
-        <button className="btn-primary" style={{ marginTop: 18 }} type="submit" disabled={loading}>
+        <button className="btn-primary" style={{ marginTop: 18, width: 'auto', padding: '0 2.5rem' }} type="submit" disabled={loading}>
           {loading ? 'Salvando...' : 'Salvar alterações'}
         </button>
       </form>
@@ -187,6 +188,7 @@ export function EditarPerfilPage() {
       <div className="edit-hint">
         Se você alterar o e-mail, o Netlify Identity pode pedir confirmação no novo endereço.
       </div>
+    </div>
     </>
   )
 }

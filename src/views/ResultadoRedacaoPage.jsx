@@ -26,7 +26,7 @@ export function ResultadoRedacaoPage() {
     <>
       <style>{resultadoCss}</style>
       
-      <div className="result-container anim anim-d1">
+      <div className="view-container anim anim-d1">
         <Link to="/corretor" className="back-link">
           <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
           Voltar ao corretor
@@ -139,9 +139,7 @@ export function ResultadoRedacaoPage() {
 
 const resultadoCss = `
   .result-container {
-    max-width: 1200px;
     margin: 2rem auto;
-    padding: 0 1rem;
   }
   .result-grid {
     display: grid;
@@ -152,7 +150,7 @@ const resultadoCss = `
   }
   @media (min-width: 1000px) {
     .result-grid {
-      grid-template-columns: 400px 1fr;
+      grid-template-columns: 320px 1fr;
     }
   }
 

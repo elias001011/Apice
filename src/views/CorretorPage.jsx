@@ -160,7 +160,8 @@ export function CorretorPage() {
     return (
       <>
         <style>{corretorCss}</style>
-        <div className="corretor-intro-new anim anim-d1">
+        <div className="view-container">
+          <div className="corretor-intro-new anim anim-d1">
           <div className="intro-header">
             <div className="badge-new">Ápice Lab</div>
             <h1 className="intro-title-new">Laboratório de Redação</h1>
@@ -203,6 +204,7 @@ export function CorretorPage() {
               </div>
             </button>
           </div>
+          </div>
         </div>
       </>
     )
@@ -211,8 +213,8 @@ export function CorretorPage() {
   return (
     <>
       <style>{corretorCss}</style>
-      
-      <div className={`corretor-container ${isRigido ? 'modo-rigido' : ''}`}>
+      <div className="view-container">
+        <div className={`corretor-container ${isRigido ? 'modo-rigido' : ''}`}>
         {isRigido && (
           <div className="particles-overlay" aria-hidden="true">
             {[...Array(30)].map((_, i) => (
@@ -402,13 +404,13 @@ export function CorretorPage() {
           }}
         />
       </div>
+      </div>
     </>
   )
 }
 
 const corretorCss = `
   .corretor-intro-new {
-    max-width: 900px;
     margin: 4rem auto;
     padding: 0 1rem;
   }

@@ -5,10 +5,11 @@ export function SobrePage() {
   return (
     <>
       <style>{sobreCss}</style>
-      <Link to="/perfil" className="back-link">
-        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-        Voltar ao perfil
-      </Link>
+      <div className="view-container">
+        <Link to="/perfil" className="back-link">
+          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+          Voltar ao perfil
+        </Link>
 
       <div className="sobre-logo anim anim-d1">
         <div className="sobre-mark">
@@ -48,6 +49,7 @@ export function SobrePage() {
           <div className="settings-chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg></div>
         </a>
       </div>
+    </div>
     </>
   )
 }

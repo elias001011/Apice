@@ -29,7 +29,7 @@ export function ConquistasPage() {
   const unlockedCount = TODAS_CONQUISTAS.filter((c) => state[c.id]?.unlockedAt).length
 
   return (
-    <div className="conq-page">
+    <div className="view-container">
       <style>{conqCss}</style>
 
       {/* Header */}
@@ -148,7 +148,6 @@ function ConqCard({ conquista, status, unlockedAt }) {
 
 const conqCss = `
   .conq-page {
-    max-width: 900px;
     margin: 0 auto;
   }
 
