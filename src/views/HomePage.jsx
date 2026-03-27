@@ -306,51 +306,27 @@ export function HomePage() {
               </div>
             </a>
 
-            <a href="/radar" className="pv-feature pv-feature--lime anim anim-d4">
+            {/* CARD DE FRASE (Agora integrado nas ferramentas) */}
+            <div className="pv-feature pv-feature--quote anim anim-d4">
               <div className="pv-feature-content">
-                <div className="pv-feature-title">Radar 1000</div>
-                <div className="pv-feature-desc">Descubra os temas com maior probabilidade de cair na redação do ENEM.</div>
-                <div className="pv-pill">{enemLabel} • Atualizado</div>
-                <div className="pv-feature-btn">
-                  Ver temas
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <path d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
+                <div className="quote-icon-small">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--accent)"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/></svg>
                 </div>
+                <p className="pv-quote-text">
+                  "{dailyQuote.text}"
+                </p>
+                {dailyQuote.author && (
+                  <div className="pv-quote-author">
+                    — {dailyQuote.author}
+                  </div>
+                )}
               </div>
-              <div className="pv-feature-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="2" />
-                  <path d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49m11.31-2.82a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14" />
-                </svg>
-              </div>
-              <div className="pv-feature-deco deco-circle" aria-hidden="true">
-                <svg viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="45" strokeWidth="1.5" />
-                </svg>
-              </div>
-            </a>
+            </div>
           </div>
-
         </div>
 
-        {/* ── CARD DE FRASE (Posicionado via Grid Order) ── */}
-        <div className="home-quote-container anim anim-d4">
-          <div className="card quote-card-header">
-            <div className="quote-icon-main">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--accent)"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/></svg>
-            </div>
-            <p className="quote-main-text">
-              "{dailyQuote.text}"
-            </p>
-            {dailyQuote.author && (
-              <div className="quote-author">
-                — {dailyQuote.author}
-              </div>
-            )}
-            <div className="quote-tag">💡 Inspiração</div>
-          </div>
-          
+        {/* ── CARD DE PERFORMANCE ── */}
+        <div className="home-grid-full anim anim-d4">
           {userSummary && (
             <div className="card performance-card">
               <div className="card-title">Análise de Desempenho</div>
@@ -401,90 +377,47 @@ const homeCss = `
       grid-template-columns: 1fr 1fr;
       gap: 1.5rem;
     }
-    .home-quote-container {
-      grid-column: 1 / -1; /* Ocupa as 2 colunas */
-      margin: 0 auto;
-      max-width: 800px;
-    }
-
   }
 
-  @media (max-width: 767px) {
-    .home-grid {
-      display: flex;
-      flex-direction: column;
-    }
-    .home-quote-container {
-      order: 99; /* Aparece por último no mobile */
-    }
+  .home-grid-full {
+    grid-column: 1 / -1;
+    margin-top: 1rem;
   }
 
-  .home-quote-container {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .quote-card-header {
-    padding: 2.25rem 2rem;
-    background: var(--bg2);
+  .pv-feature--quote {
+    background: var(--bg3);
     border: 1.5px solid var(--border);
+    min-height: auto;
+    padding: 1.5rem;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 1.15rem;
-    position: relative;
-    overflow: hidden;
-  }
-  
-  html[data-theme="dark"] .quote-main-text {
-    color: var(--text) !important; /* Aumentar contraste no tema escuro */
+    gap: 0.75rem;
+    cursor: default;
   }
 
-  .quote-author {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--text2);
-    margin-top: -0.5rem;
+  .pv-feature--quote:hover {
+    transform: none;
+    box-shadow: none;
   }
 
-
-  @media (max-width: 767px) {
-    .quote-card-header {
-      padding: 1.5rem 1.25rem;
-    }
+  .quote-icon-small {
+    opacity: 0.5;
+    margin-bottom: -4px;
   }
 
-  .quote-icon-main {
-    opacity: 0.8;
-  }
-
-  .quote-main-text {
+  .pv-quote-text {
     font-family: 'DM Serif Display', serif;
-    font-size: 1.6rem;
+    font-size: 1.25rem;
     color: var(--text);
-    line-height: 1.4;
-    max-width: 800px;
+    line-height: 1.45;
     margin: 0;
   }
 
-  @media (max-width: 767px) {
-    .quote-main-text {
-      font-size: 1.25rem;
-    }
-  }
-
-  .quote-tag {
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--accent);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    background: var(--accent-dim);
-    padding: 4px 12px;
-    border-radius: 999px;
+  .pv-quote-author {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text3);
+    opacity: 0.8;
   }
 
   /* Hero */
