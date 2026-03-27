@@ -274,22 +274,23 @@ export function HomePage() {
                     />
                     <button className="enem-confirm-btn" onClick={handleConfirmDate}>Confirmar</button>
                   </div>
+                ) : !enemDate ? (
+                  <button className="enem-setup-btn" onClick={() => setIsEditingEnem(true)}>
+                    Clique aqui para selecionar a data do enem
+                  </button>
                 ) : (
                   <div className="enem-live-timer" onClick={() => { setTempDate(enemDate); setIsEditingEnem(true); }}>
-                    {enemDate ? (
-                      <div className="timer-units">
-                        <div className="timer-unit"><strong>{timeLeft.months}</strong><span>meses</span></div>
-                        <div className="timer-unit"><strong>{timeLeft.days}</strong><span>dias</span></div>
-                        <div className="timer-unit"><strong>{timeLeft.hours}</strong><span>h</span></div>
-                        <div className="timer-unit"><strong>{timeLeft.minutes}</strong><span>m</span></div>
-                        <div className="timer-unit"><strong>{timeLeft.seconds}</strong><span>s</span></div>
-                      </div>
-                    ) : (
-                      <div className="enem-empty">📅 Toque para definir a data</div>
-                    )}
+                    <div className="timer-units">
+                      <div className="timer-unit"><strong>{timeLeft.months}</strong><span>meses</span></div>
+                      <div className="timer-unit"><strong>{timeLeft.days}</strong><span>dias</span></div>
+                      <div className="timer-unit"><strong>{timeLeft.hours}</strong><span>h</span></div>
+                      <div className="timer-unit"><strong>{timeLeft.minutes}</strong><span>m</span></div>
+                      <div className="timer-unit"><strong>{timeLeft.seconds}</strong><span>s</span></div>
+                    </div>
                     <div className="enem-edit-hint">Clique para alterar</div>
                   </div>
                 )}
+
               </div>
               <div className="pv-feature-icon" style={{ opacity: 0.15 }}>
                 <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -417,8 +418,11 @@ const homeCss = `
       gap: 1.5rem;
     }
     .home-quote-container {
-      grid-column: 1; /* Força ficar na esquerda no desktop */
+      grid-column: 1 / -1; /* Ocupa as 2 colunas */
+      margin: 0 auto;
+      max-width: 800px;
     }
+
   }
 
   @media (max-width: 767px) {
@@ -794,16 +798,45 @@ const homeCss = `
     background: linear-gradient(135deg, var(--bg2), var(--accent-dim)); 
     border: 1.5px solid var(--accent);
     min-height: auto;
-    padding: 1.25rem 1.5rem;
+    padding: 0; /* Tiramos o padding para o botão ocupar tudo */
   }
 
-  /* Enem Live Timer Styles */
+  .pv-feature--enem .pv-feature-content {
+    width: 100%;
+    height: 100%;
+  }
+
+  .enem-setup-btn {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-size: 1rem;
+    font-weight: 700;
+    padding: 2rem 1.5rem;
+    cursor: pointer;
+    text-align: center;
+    line-height: 1.4;
+    transition: background 0.2s;
+  }
+
+  .enem-setup-btn:hover {
+    background: rgba(var(--accent-rgb), 0.05);
+  }
+
+  .enem-edit-box {
+    padding: 1.5rem;
+  }
+
   .enem-live-timer {
+    padding: 1.25rem 1.5rem;
     cursor: pointer;
     display: flex;
     flex-direction: column;
     gap: 8px;
   }
+
   .timer-units {
     display: flex;
     gap: 12px;
