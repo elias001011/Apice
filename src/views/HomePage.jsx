@@ -47,27 +47,48 @@ export function HomePage() {
   // --- TIMER ENEM ---
   const [enemDate, setEnemDate] = useState(() => localStorage.getItem('apice:enem-date') || '')
   const [isEditingEnem, setIsEditingEnem] = useState(false)
-  const [daysToEnem, setDaysToEnem] = useState(null)
+  const [tempDate, setTempDate] = useState(enemDate)
+  const [timeLeft, setTimeLeft] = useState({ months: 0, days: 0, hours: 0, minutes: 0, seconds: 0 })
 
   useEffect(() => {
-    if (enemDate) {
-      const target = new Date(enemDate)
+    const update = () => {
+      if (!enemDate) return
+      const target = new Date(enemDate + 'T00:00:00')
       const now = new Date()
-      const diff = target.getTime() - now.getTime()
-      const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
-      setDaysToEnem(days > 0 ? days : 0)
-    } else {
-      setDaysToEnem(null)
+      const diff = target - now
+
+      if (diff <= 0) {
+        setTimeLeft({ months: 0, days: 0, hours: 0, minutes: 0, seconds: 0 })
+        return
+      }
+
+      const totSeconds = Math.floor(diff / 1000)
+      const totMinutes = Math.floor(totSeconds / 60)
+      const totHours = Math.floor(totMinutes / 60)
+      const totDays = Math.floor(totHours / 24)
+      
+      const months = Math.floor(totDays / 30)
+      const days = totDays % 30
+      const hours = totHours % 24
+      const minutes = totMinutes % 60
+      const seconds = totSeconds % 60
+
+      setTimeLeft({ months, days, hours, minutes, seconds })
     }
+
+    update()
+    const timerId = setInterval(update, 1000)
+    return () => clearInterval(timerId)
   }, [enemDate])
 
-  const handleSaveEnemDate = (date) => {
-    setEnemDate(date)
-    localStorage.setItem('apice:enem-date', date)
+  const handleConfirmDate = () => {
+    setEnemDate(tempDate)
+    localStorage.setItem('apice:enem-date', tempDate)
     setIsEditingEnem(false)
   }
 
   // --- STREAK (MOCK) ---
+
   const streakDays = 4 // Mockado como solicitado
 
 
@@ -154,31 +175,6 @@ export function HomePage() {
                 {firstName} {lastName && <em>{lastName}</em>}
               </div>
               
-              {/* --- TIMER ENEM UI --- */}
-              <div className="enem-timer">
-                {isEditingEnem ? (
-                  <input
-                    type="date"
-                    className="enem-date-input"
-                    value={enemDate}
-                    autoFocus
-                    onBlur={(e) => handleSaveEnemDate(e.target.value)}
-                    onChange={(e) => handleSaveEnemDate(e.target.value)}
-                  />
-                ) : (
-                  <div className="enem-display" onClick={() => setIsEditingEnem(true)}>
-                    {daysToEnem !== null ? (
-                      <span className="enem-counter">📅 {daysToEnem} dias para o ENEM</span>
-                    ) : (
-                      <span className="enem-placeholder">📅 Selecione a data do ENEM</span>
-                    )}
-                    <button className="enem-edit-btn" aria-label="Editar data">
-                      <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="none" strokeWidth="3"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                    </button>
-                  </div>
-                )}
-              </div>
-
               <div className="hero-sub">Chegue ao ápice no ENEM com o poder da IA.</div>
               <button className="hero-cta hero-cta--pwa" type="button" onClick={handleInstallPwa} disabled={pwaInstalled}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -264,6 +260,42 @@ export function HomePage() {
           <div className="section-label anim anim-d3" style={{ marginTop: 0 }}>Ferramentas</div>
 
           <div className="features-stack">
+            {/* NOVO CARD DO TIMER ENEM */}
+            <div className="pv-feature pv-feature--enem anim anim-d3">
+              <div className="pv-feature-content">
+                <div className="pv-feature-title" style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Contagem para o ENEM</div>
+                {isEditingEnem ? (
+                  <div className="enem-edit-box">
+                    <input
+                      type="date"
+                      className="enem-input-new"
+                      value={tempDate}
+                      onChange={(e) => setTempDate(e.target.value)}
+                    />
+                    <button className="enem-confirm-btn" onClick={handleConfirmDate}>Confirmar</button>
+                  </div>
+                ) : (
+                  <div className="enem-live-timer" onClick={() => { setTempDate(enemDate); setIsEditingEnem(true); }}>
+                    {enemDate ? (
+                      <div className="timer-units">
+                        <div className="timer-unit"><strong>{timeLeft.months}</strong><span>meses</span></div>
+                        <div className="timer-unit"><strong>{timeLeft.days}</strong><span>dias</span></div>
+                        <div className="timer-unit"><strong>{timeLeft.hours}</strong><span>h</span></div>
+                        <div className="timer-unit"><strong>{timeLeft.minutes}</strong><span>m</span></div>
+                        <div className="timer-unit"><strong>{timeLeft.seconds}</strong><span>s</span></div>
+                      </div>
+                    ) : (
+                      <div className="enem-empty">📅 Toque para definir a data</div>
+                    )}
+                    <div className="enem-edit-hint">Clique para alterar</div>
+                  </div>
+                )}
+              </div>
+              <div className="pv-feature-icon" style={{ opacity: 0.15 }}>
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+            </div>
+
             <a href="/corretor" className="pv-feature pv-feature--dark anim anim-d3">
               <div className="pv-feature-content">
                 <div className="pv-feature-title">Corretor de Redação</div>
@@ -501,65 +533,13 @@ const homeCss = `
     margin-bottom: 8px;
   }
 
-  .hero-name {
-    font-family: 'DM Serif Display', serif;
-    font-size: 1.8rem;
-    color: var(--text);
-    letter-spacing: -0.4px;
-    line-height: 1.15;
     margin-bottom: 4px;
-  }
-
-  /* ENEM Timer */
-  .enem-timer {
-    margin-bottom: 12px;
-  }
-  .enem-display {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    background: var(--bg3);
-    padding: 4px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--border2);
-    transition: all 0.2s;
-  }
-  .enem-display:hover {
-    border-color: var(--accent);
-    background: var(--accent-dim);
-  }
-  .enem-counter {
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: var(--accent);
-  }
-  .enem-placeholder {
-    font-size: 0.75rem;
-    color: var(--text3);
-    font-weight: 500;
-  }
-  .enem-edit-btn {
-    background: none;
-    border: none;
-    color: var(--text3);
-    display: flex;
-    align-items: center;
-  }
-  .enem-date-input {
-    background: var(--bg3);
-    border: 1px solid var(--accent);
-    color: var(--text);
-    font-family: inherit;
-    font-size: 0.75rem;
-    padding: 3px 8px;
-    border-radius: 6px;
-    outline: none;
   }
 
   @media (max-width: 767px) {
     .hero-name { font-size: 1.45rem; }
   }
+
 
   .hero-name em { font-style: normal; color: var(--accent); }
 
@@ -810,6 +790,86 @@ const homeCss = `
   .pv-feature:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12); }
   .pv-feature--dark { background: var(--bg2); border: 1.5px solid var(--border); }
   .pv-feature--lime { background: var(--accent); border: 1.5px solid var(--accent2); }
+  .pv-feature--enem { 
+    background: linear-gradient(135deg, var(--bg2), var(--accent-dim)); 
+    border: 1.5px solid var(--accent);
+    min-height: auto;
+    padding: 1.25rem 1.5rem;
+  }
+
+  /* Enem Live Timer Styles */
+  .enem-live-timer {
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .timer-units {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .timer-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 35px;
+  }
+  .timer-unit strong {
+    font-size: 1.2rem;
+    color: var(--text);
+    font-family: 'DM Serif Display', serif;
+    line-height: 1;
+  }
+  .timer-unit span {
+    font-size: 0.65rem;
+    color: var(--text3);
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .enem-empty {
+    font-size: 0.9rem;
+    color: var(--text2);
+    font-weight: 500;
+  }
+  .enem-edit-hint {
+    font-size: 0.65rem;
+    color: var(--accent);
+    opacity: 0.7;
+    font-weight: 600;
+  }
+  .enem-edit-box {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 200px;
+  }
+  .enem-input-new {
+    background: var(--bg3);
+    border: 1.5px solid var(--accent);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    outline: none;
+  }
+  .enem-confirm-btn {
+    background: var(--accent);
+    color: #0f0f0f;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .enem-confirm-btn:hover {
+    background: var(--accent2);
+    transform: translateY(-1px);
+  }
 
   .pv-feature-content { display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 2; }
 
