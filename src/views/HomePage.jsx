@@ -288,14 +288,6 @@ export function HomePage() {
               </button>
               {pwaHint && <div className="hero-pwa-hint">{pwaHint}</div>}
             </div>
-            <div className="hero-deco" aria-hidden="true">
-              <svg className="hero-star" viewBox="0 0 100 100">
-                <path d="M50 0 C52 38, 62 48, 100 50 C62 52, 52 62, 50 100 C48 62, 38 52, 0 50 C38 48, 48 38, 50 0Z" />
-              </svg>
-            </div>
-            <span className="hero-dot hero-dot-1" aria-hidden="true"></span>
-            <span className="hero-dot hero-dot-2" aria-hidden="true"></span>
-            <span className="hero-dot hero-dot-3" aria-hidden="true"></span>
           </div>
 
           {/* Stats */}
@@ -366,11 +358,6 @@ export function HomePage() {
                 <path d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49m11.31-2.82a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14" />
               </svg>
             </div>
-            <div className="pv-feature-deco deco-circle" aria-hidden="true">
-              <svg viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="45" strokeWidth="1.5" />
-              </svg>
-            </div>
           </Link>
 
           {showPerformance ? enemCard : null}
@@ -399,11 +386,6 @@ export function HomePage() {
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
               </div>
-              <div className="pv-feature-deco deco-sparkle" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                  <path d="M12 0C12.5 9,14.5 11.5,24 12C14.5 12.5,12.5 15,12 24C11.5 15,9.5 12.5,0 12C9.5 11.5,11.5 9,12 0Z" />
-                </svg>
-              </div>
             </Link>
 
             {userSummary && (
@@ -412,7 +394,7 @@ export function HomePage() {
                 <div className="performance-summary">{userSummary.resumo || 'Resumo ainda não disponível.'}</div>
                 <div className="performance-grid">
                   {Array.isArray(userSummary.forcas) && userSummary.forcas.length > 0 && (
-                    <div className="performance-block">
+                    <div className="performance-block performance-block--positive">
                       <div className="performance-label">Pontos fortes</div>
                       <div className="performance-chips">
                         {userSummary.forcas.slice(0, 3).map((item) => (
@@ -422,7 +404,7 @@ export function HomePage() {
                     </div>
                   )}
                   {Array.isArray(userSummary.errosRecorrentes) && userSummary.errosRecorrentes.length > 0 && (
-                    <div className="performance-block">
+                    <div className="performance-block performance-block--negative">
                       <div className="performance-label">Erros recorrentes</div>
                       <div className="performance-chips">
                         {userSummary.errosRecorrentes.slice(0, 3).map((item) => (
@@ -487,7 +469,7 @@ const homeCss = `
 
 
   .features-stack .pv-feature--quote {
-    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.03), transparent 44%), var(--bg3);
+    background: var(--bg3);
     border: 1.5px solid var(--border);
     min-height: auto;
     padding: 1.15rem 1.25rem;
@@ -498,6 +480,16 @@ const homeCss = `
     width: 100%;
     height: fit-content;
     align-self: start;
+  }
+
+  html[data-fx="gradients"] .features-stack .pv-feature--quote {
+    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.015), transparent 60%), var(--bg3);
+  }
+
+  html[data-fx="blur"] .features-stack .pv-feature--quote {
+    background: var(--bg2-glass);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
   }
 
   .features-stack .pv-feature--quote:hover {
@@ -522,7 +514,7 @@ const homeCss = `
     padding: 1rem 1.05rem;
     border-radius: 22px;
     border: 1.5px solid var(--border);
-    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.03), transparent 42%), linear-gradient(135deg, var(--bg2), var(--bg3));
+    background: var(--bg2);
     display: flex;
     flex-direction: column;
     gap: 0.85rem;
@@ -530,6 +522,16 @@ const homeCss = `
     position: relative;
     overflow: hidden;
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.05);
+  }
+
+  html[data-fx="gradients"] .enem-card {
+    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.015), transparent 58%), var(--bg2);
+  }
+
+  html[data-fx="blur"] .enem-card {
+    background: var(--bg2-glass);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
   }
 
   .enem-card-header,
@@ -822,18 +824,28 @@ const homeCss = `
 
   /* Hero */
   .hero {
-    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.035), transparent 42%), var(--bg2);
+    background: var(--bg2);
     border: 1.5px solid var(--border);
     border-radius: 24px;
     padding: 1.75rem 1.5rem;
     margin-bottom: 0;
     display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: 1rem;
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 0.9rem;
     position: relative;
     overflow: hidden;
     min-height: 180px;
+  }
+
+  html[data-fx="gradients"] .hero {
+    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.02), transparent 58%), var(--bg2);
+  }
+
+  html[data-fx="blur"] .hero {
+    background: var(--bg2-glass);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
   }
 
   @media (max-width: 767px) {
@@ -919,27 +931,6 @@ const homeCss = `
     max-width: 280px;
   }
 
-  .hero-deco { position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; }
-
-  .hero-star {
-    width: 80px;
-    height: 80px;
-    fill: var(--accent);
-    animation: spinSlow 12s linear infinite;
-    opacity: 0.85;
-  }
-
-  @media (max-width: 767px) {
-    .hero-star { width: 56px; height: 56px; }
-  }
-
-  @keyframes spinSlow { to { transform: rotate(360deg); } }
-
-  .hero-dot { position: absolute; width: 4px; height: 4px; background: var(--accent); border-radius: 50%; opacity: 0.3; }
-  .hero-dot-1 { top: 18px; right: 28px; }
-  .hero-dot-2 { bottom: 24px; right: 60px; opacity: 0.15; width: 3px; height: 3px; }
-  .hero-dot-3 { top: 50%; left: 45%; opacity: 0.12; width: 3px; height: 3px; }
-
   /* Stats */
   .stats-grid {
     display: grid;
@@ -966,7 +957,7 @@ const homeCss = `
   }
 
   .performance-block {
-    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.02), transparent 46%), var(--bg3);
+    background: var(--bg3);
     border: 1px solid var(--border);
     border-radius: 16px;
     padding: 0.85rem 0.95rem;
@@ -1020,9 +1011,9 @@ const homeCss = `
     transform: translateY(-4px);
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
   }
-  .pv-stat--dark { background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.03), transparent 42%), var(--bg3); border: 1.5px solid var(--border); }
+  .pv-stat--dark { background: var(--bg3); border: 1.5px solid var(--border); }
   .pv-stat--dark:hover { border-color: var(--accent); }
-  .pv-stat--lime { background: linear-gradient(145deg, rgba(255, 255, 255, 0.06), transparent 35%), var(--accent); border: 1.5px solid var(--accent2); }
+  .pv-stat--lime { background: var(--accent); border: 1.5px solid var(--accent2); }
   .pv-stat--lime:hover { border-color: var(--accent2); }
 
   .pv-stat-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
@@ -1072,11 +1063,26 @@ const homeCss = `
 
   @media (max-width: 480px) {
     .stats-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .pv-stat {
+      padding: 0.9rem;
+      min-height: 112px;
+    }
+
+    .pv-stat-value {
+      font-size: 1.7rem;
+    }
+
+    .pv-stat-label {
+      font-size: 0.68rem;
+      margin-bottom: 8px;
     }
 
     .pv-stat-delta {
-      max-width: calc(100% - 44px);
+      max-width: calc(100% - 40px);
       white-space: nowrap;
     }
   }
@@ -1115,9 +1121,19 @@ const homeCss = `
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12); 
     border-color: var(--accent);
   }
-  .pv-feature--dark { background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.035), transparent 42%), var(--bg2); border: 1.5px solid var(--border); }
-  .pv-feature--lime { background: linear-gradient(145deg, rgba(255, 255, 255, 0.06), transparent 35%), var(--accent); border: 1.5px solid var(--accent2); }
+  .pv-feature--dark { background: var(--bg2); border: 1.5px solid var(--border); }
+  .pv-feature--lime { background: var(--accent); border: 1.5px solid var(--accent2); }
   .pv-feature-content { display: flex; flex-direction: column; gap: 7px; position: relative; z-index: 2; }
+
+  html[data-fx="gradients"] .pv-feature--dark {
+    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.015), transparent 58%), var(--bg2);
+  }
+
+  html[data-fx="blur"] .pv-feature--dark {
+    background: var(--bg2-glass);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+  }
 
   .pv-feature-title { font-family: 'DM Serif Display', serif; font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.3px; }
   .pv-feature--dark .pv-feature-title { color: var(--text); }
@@ -1159,22 +1175,22 @@ const homeCss = `
   .pv-feature--lime .pv-feature-icon { background: rgba(15, 15, 15, 0.06); }
   .pv-feature--lime .pv-feature-icon svg { stroke: #0f0f0f; }
   .pv-feature-icon svg { width: 26px; height: 26px; fill: none; stroke-width: 1.5; }
-
-  .pv-feature-deco { position: absolute; opacity: 0.06; }
   .performance-card {
-    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.03), transparent 44%), linear-gradient(135deg, var(--bg2), var(--bg3));
-    border-left: 4px solid var(--accent);
+    background: var(--bg2);
+    border: 1.5px solid var(--border);
     padding: 1.35rem 1.5rem;
     position: relative;
     overflow: hidden;
   }
-  .performance-card::after {
-    content: '';
-    position: absolute;
-    top: -10px; right: -10px;
-    width: 60px; height: 60px;
-    background: radial-gradient(circle at center, rgba(var(--accent-rgb), 0.15), transparent 70%);
-    pointer-events: none;
+
+  html[data-fx="gradients"] .performance-card {
+    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.015), transparent 58%), var(--bg2);
+  }
+
+  html[data-fx="blur"] .performance-card {
+    background: var(--bg2-glass);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
   }
   .performance-summary {
     font-size: 0.95rem;
@@ -1187,7 +1203,36 @@ const homeCss = `
     grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     gap: 0.9rem;
   }
-  .performance-block { min-width: 0; }
+  .performance-block {
+    min-width: 0;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 0.85rem 0.95rem;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  }
+
+  .performance-block:hover {
+    transform: translateY(-1px);
+    background: var(--bg2);
+    border-color: var(--border2);
+  }
+
+  html[data-fx="gradients"] .performance-block--positive {
+    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.12), transparent 88%), var(--bg3);
+    border-color: rgba(var(--accent-rgb), 0.16);
+  }
+
+  html[data-fx="gradients"] .performance-block--negative {
+    background: linear-gradient(145deg, rgba(225, 68, 68, 0.09), transparent 88%), var(--bg3);
+    border-color: rgba(225, 68, 68, 0.16);
+  }
+
+  html[data-fx="blur"] .performance-block--positive,
+  html[data-fx="blur"] .performance-block--negative {
+    background: var(--bg2-glass);
+  }
+
   .performance-label {
     font-size: 0.7rem;
     font-weight: 700;
@@ -1196,29 +1241,68 @@ const homeCss = `
     color: var(--text3);
     margin-bottom: 0.75rem;
   }
+  .performance-block--positive .performance-label {
+    color: var(--accent);
+  }
+
+  .performance-block--negative .performance-label {
+    color: var(--red);
+  }
+
   .performance-chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .performance-chip {
     font-size: 0.75rem;
-    background: var(--bg3);
+    background: var(--bg2);
     border: 1px solid var(--border);
     padding: 6px 12px;
     border-radius: 11px;
     color: var(--text2);
     transition: all 0.2s;
   }
-  .performance-chip:hover {
-    border-color: var(--accent);
+
+  html[data-fx="gradients"] .performance-block--positive .performance-chip {
+    background: var(--accent-dim);
     color: var(--accent);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-color: var(--accent-dim2);
   }
 
-  .pv-feature--dark .pv-feature-deco svg { stroke: var(--accent); }
-  .pv-feature--lime .pv-feature-deco svg { stroke: #0f0f0f; }
-  .pv-feature-deco svg { fill: none; stroke-width: 1; }
+  html[data-fx="gradients"] .performance-block--negative .performance-chip {
+    background: rgba(225, 68, 68, 0.08);
+    color: var(--red);
+    border-color: rgba(225, 68, 68, 0.16);
+  }
 
-  .deco-circle { bottom: -20px; right: -20px; width: 100px; height: 100px; opacity: 0.08; }
-  .deco-sparkle { top: 14px; right: 70px; width: 20px; height: 20px; opacity: 0.15; }
+  html[data-fx="blur"] .performance-block--positive .performance-chip,
+  html[data-fx="blur"] .performance-block--negative .performance-chip {
+    background: var(--bg2-glass);
+  }
+
+  .performance-chip:hover {
+    transform: none;
+    box-shadow: none;
+    background: var(--bg2);
+    color: var(--text2);
+    border-color: var(--border2);
+  }
+
+  html[data-fx="gradients"] .performance-block--negative .performance-chip.muted {
+    background: rgba(225, 68, 68, 0.06);
+    color: var(--red);
+    border-color: rgba(225, 68, 68, 0.12);
+  }
+
+  html[data-fx="none"] .hero,
+  html[data-fx="none"] .enem-card,
+  html[data-fx="none"] .performance-card,
+  html[data-fx="none"] .features-stack .pv-feature--quote,
+  html[data-fx="none"] .pv-feature--dark {
+    background: var(--bg2);
+  }
+
+  html[data-fx="none"] .pv-stat--dark,
+  html[data-fx="none"] .performance-block {
+    background: var(--bg3);
+  }
 
   .pwa-home-btn {
     display: inline-flex;

@@ -115,7 +115,6 @@ export function AppShell() {
                       <span>Atalho da jornada de evolução.</span>
                     </span>
                   </NavLink>
-                  <div className="nav-more-note">Outras opções secundárias entrarão aqui.</div>
                 </div>
               )}
             </div>

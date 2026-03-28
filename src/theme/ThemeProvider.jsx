@@ -10,6 +10,7 @@ const STORAGE_KEY_CONTAINER_SIZE = 'apice:containerSize'
 const STORAGE_KEY_ANIMATIONS = 'apice:animationsEnabled'
 const STORAGE_KEY_CARD_HOVER = 'apice:cardHoverEffects'
 const STORAGE_KEY_VISUAL_EFFECTS = 'apice:visualEffects'
+const STORAGE_KEY_CARD_GRADIENTS = 'apice:cardGradients'
 const MOBILE_LAYOUT_QUERY = '(max-width: 767px)'
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
@@ -175,11 +176,12 @@ function applyLayoutToDom(layoutMode) {
   }
 }
 
-function applyUiPreferencesToDom(animationsEnabled, cardHoverEffects, visualEffects) {
+function applyUiPreferencesToDom(animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled) {
   const html = document.documentElement
   html.setAttribute('data-animations', animationsEnabled ? 'on' : 'off')
   html.setAttribute('data-card-hover', cardHoverEffects ? 'on' : 'off')
   html.setAttribute('data-fx', visualEffects || 'gradients')
+  html.setAttribute('data-card-gradients', cardGradientsEnabled ? 'on' : 'off')
 }
 
 function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
@@ -214,6 +216,7 @@ function syncThemeFromStorage(
   setAnimationsEnabled,
   setCardHoverEffects,
   setVisualEffects,
+  setCardGradientsEnabled,
 ) {
   setTheme(readSaved(STORAGE_KEY_THEME, getSystemTheme()))
   setAccent(readSaved(STORAGE_KEY_ACCENT, 'lime'))
@@ -224,6 +227,7 @@ function syncThemeFromStorage(
   setAnimationsEnabled(readSavedBoolean(STORAGE_KEY_ANIMATIONS, getSystemAnimationsEnabled()))
   setCardHoverEffects(readSavedBoolean(STORAGE_KEY_CARD_HOVER, !getIsMobileLayout()))
   setVisualEffects(readSaved(STORAGE_KEY_VISUAL_EFFECTS, 'gradients'))
+  setCardGradientsEnabled(readSavedBoolean(STORAGE_KEY_CARD_GRADIENTS, false))
 }
 
 const ThemeContext = createContext(null)
@@ -238,12 +242,13 @@ export function ThemeProvider({ children }) {
   const [animationsEnabled, setAnimationsEnabled] = useState(() => readSavedBoolean(STORAGE_KEY_ANIMATIONS, getSystemAnimationsEnabled()))
   const [cardHoverEffects, setCardHoverEffects] = useState(() => readSavedBoolean(STORAGE_KEY_CARD_HOVER, !getIsMobileLayout()))
   const [visualEffects, setVisualEffects] = useState(() => readSaved(STORAGE_KEY_VISUAL_EFFECTS, 'gradients'))
+  const [cardGradientsEnabled, setCardGradientsEnabled] = useState(() => readSavedBoolean(STORAGE_KEY_CARD_GRADIENTS, false))
   const [isMobileLayout, setIsMobileLayout] = useState(() => getIsMobileLayout())
   const resolvedContainerSize = isMobileLayout ? 'sm' : normalizeContainerSize(containerSize)
 
   useEffect(() => {
     applyThemeToDom(theme, accent, fontSize, fontFamily, resolvedContainerSize)
-    applyUiPreferencesToDom(animationsEnabled, cardHoverEffects, visualEffects)
+    applyUiPreferencesToDom(animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled)
     applyLayoutToDom(layoutMode)
     try {
       localStorage.setItem(STORAGE_KEY_THEME, theme)
@@ -255,11 +260,12 @@ export function ThemeProvider({ children }) {
       localStorage.setItem(STORAGE_KEY_ANIMATIONS, String(animationsEnabled))
       localStorage.setItem(STORAGE_KEY_CARD_HOVER, String(cardHoverEffects))
       localStorage.setItem(STORAGE_KEY_VISUAL_EFFECTS, visualEffects)
+      localStorage.setItem(STORAGE_KEY_CARD_GRADIENTS, String(cardGradientsEnabled))
       window.dispatchEvent(new CustomEvent('apice:theme-updated'))
     } catch {
       // ignore
     }
-  }, [theme, accent, fontSize, fontFamily, layoutMode, resolvedContainerSize, containerSize, animationsEnabled, cardHoverEffects, visualEffects])
+  }, [theme, accent, fontSize, fontFamily, layoutMode, resolvedContainerSize, containerSize, animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled])
 
   useEffect(() => {
     const refresh = () => syncThemeFromStorage(
@@ -272,6 +278,7 @@ export function ThemeProvider({ children }) {
       setAnimationsEnabled,
       setCardHoverEffects,
       setVisualEffects,
+      setCardGradientsEnabled,
     )
 
     window.addEventListener('apice:theme-updated', refresh)
@@ -324,9 +331,10 @@ export function ThemeProvider({ children }) {
     animationsEnabled, setAnimationsEnabled,
     cardHoverEffects, setCardHoverEffects,
     visualEffects, setVisualEffects,
+    cardGradientsEnabled, setCardGradientsEnabled,
     isMobileLayout,
     resolvedContainerSize,
-  }), [theme, toggleTheme, accent, fontSize, fontFamily, layoutMode, containerSize, animationsEnabled, cardHoverEffects, visualEffects, isMobileLayout, resolvedContainerSize])
+  }), [theme, toggleTheme, accent, fontSize, fontFamily, layoutMode, containerSize, animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled, isMobileLayout, resolvedContainerSize])
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }

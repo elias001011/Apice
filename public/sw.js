@@ -1,5 +1,16 @@
-const CACHE_NAME = 'apice-pwa-v1.3'
-const PRECACHE_URLS = ['/', '/index.html', '/manifest.webmanifest', '/favicon-arrow.svg', '/favicon.svg', '/Icon.svg']
+const CACHE_NAME = 'apice-pwa-v1.4'
+const PRECACHE_URLS = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest?v=1.4',
+  '/manifest.webmanifest',
+  '/favicon-arrow.svg',
+  '/favicon.svg',
+  '/Icon.svg',
+  '/Icon-192.png',
+  '/Icon-512.png',
+  '/apple-touch-icon.png',
+]
 const BYPASS_PATH_PREFIXES = ['/src/', '/@vite/', '/@react-refresh', '/@fs/', '/@id/', '/node_modules/']
 
 self.addEventListener('install', (event) => {

@@ -214,17 +214,6 @@ export function CorretorPage() {
       <style>{corretorCss}</style>
       <div className="view-container--wide">
         <div className={`corretor-container ${isRigido ? 'modo-rigido' : ''}`}>
-        {isRigido && (
-          <div className="particles-overlay" aria-hidden="true">
-            {[...Array(30)].map((_, i) => (
-              <div key={i} className="particle" style={{
-                left: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 4}s`,
-                animationDuration: `${3 + Math.random() * 4}s`
-              }} />
-            ))}
-          </div>
-        )}
         <div className="corretor-header anim anim-d1">
           <div className="corretor-header-left">
             <h2 className="corretor-title">Oficina de Escrita</h2>
@@ -743,7 +732,7 @@ const corretorCss = `
     border-radius: 50%;
     background: var(--border2);
   }
-  .status-dot.done { background: var(--accent); box-shadow: 0 0 8px var(--accent-dim2); }
+  .status-dot.done { background: var(--accent); box-shadow: none; }
 
   .side-separator {
     height: 1px;
@@ -804,18 +793,7 @@ const corretorCss = `
   .criteria-card {
     position: relative;
     overflow: hidden;
-    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.04), transparent 42%), var(--bg2);
-  }
-
-  .criteria-card::before {
-    content: '';
-    position: absolute;
-    top: -36px;
-    right: -36px;
-    width: 140px;
-    height: 140px;
-    background: radial-gradient(circle, rgba(var(--accent-rgb), 0.16), transparent 68%);
-    pointer-events: none;
+    background: var(--bg2);
   }
 
   .intro-card-option:disabled {
@@ -851,38 +829,9 @@ const corretorCss = `
   .modo-rigido .dynamic-input:focus { border-bottom-color: var(--red); }
   .modo-rigido .material-box { border-left-color: var(--red); }
   .modo-rigido .material-label { color: var(--red); }
-  .modo-rigido .status-dot.done { background: var(--red); box-shadow: 0 0 8px rgba(255, 82, 82, 0.4); }
+  .modo-rigido .status-dot.done { background: var(--red); }
   .modo-rigido .main-submit { background: var(--red); box-shadow: 0 4px 15px rgba(255, 82, 82, 0.3); }
   .modo-rigido .criteria-list li span { color: var(--red); }
 
   .corretor-container { position: relative; }
-  
-  .particles-overlay {
-    position: absolute;
-    top: 0;
-    left: -20px;
-    width: calc(100% + 40px);
-    height: 100%;
-    pointer-events: none;
-    overflow: hidden;
-    z-index: 0;
-  }
-
-  .particle {
-    position: absolute;
-    top: -20px;
-    width: 3px;
-    height: 12px;
-    background: var(--red, #ff5252);
-    opacity: 0.6;
-    border-radius: 4px;
-    animation: fall linear infinite;
-  }
-
-  @keyframes fall {
-    0% { transform: translateY(-20px) rotate(15deg); opacity: 0; }
-    10% { opacity: 0.8; }
-    90% { opacity: 0.8; }
-    100% { transform: translateY(110vh) rotate(15deg); opacity: 0; }
-  }
 `

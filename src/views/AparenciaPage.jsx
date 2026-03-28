@@ -31,6 +31,8 @@ export function AparenciaPage() {
     setCardHoverEffects,
     visualEffects,
     setVisualEffects,
+    cardGradientsEnabled,
+    setCardGradientsEnabled,
     isMobileLayout,
   } = useTheme()
   const isDark = theme === 'dark'
@@ -113,9 +115,9 @@ export function AparenciaPage() {
             <div className="card-title">Efeitos Visuais</div>
             <div className="ap-fx-options">
               {[
-                { key: 'none', label: 'Desligado', sub: 'Mantém apenas as cores chapadas e minimalistas, sem decorações.' },
-                { key: 'gradients', label: 'Gradiente', sub: 'O visual padrão com cores gradientes contínuas em cards.' },
-                { key: 'blur', label: 'Glassmorphism', sub: 'Adiciona textura e efeitos de vidro temperado pelo app.' },
+                { key: 'none', label: 'Desligado', sub: 'Interface limpa, sem gradientes decorativos nos cards ou no fundo.' },
+                { key: 'gradients', label: 'Gradiente', sub: 'Gradientes sutis no fundo, header e alguns elementos destacados.' },
+                { key: 'blur', label: 'Vidro leve', sub: 'Vidro discreto em áreas sobrepostas, como header e modais.' },
               ].map(f => (
                 <button
                   key={f.key}
@@ -134,6 +136,25 @@ export function AparenciaPage() {
                 </button>
               ))}
             </div>
+            {visualEffects === 'gradients' && (
+              <div className="ap-fx-extra">
+                <div className="toggle-row">
+                  <div className="toggle-info">
+                    <div className="toggle-label">Gradiente em todos os cards</div>
+                    <div className="toggle-sub">
+                      Desative para manter os cards comuns limpos e deixar o gradiente só nas superfícies destacadas.
+                    </div>
+                  </div>
+                  <button
+                    className={`toggle ${cardGradientsEnabled ? 'on' : ''}`}
+                    onClick={() => setCardGradientsEnabled((current) => !current)}
+                    aria-label="Alternar gradiente em todos os cards"
+                  >
+                    <span className="toggle-knob" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -565,7 +586,6 @@ const aparenciaCss = `
     height: 8px;
     background: var(--accent);
     border-radius: 50%;
-    box-shadow: 0 0 8px var(--accent);
   }
 
   .ap-experience-row + .ap-experience-row {

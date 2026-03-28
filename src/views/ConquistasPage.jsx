@@ -171,7 +171,7 @@ const conqCss = `
     background: var(--accent);
     border-radius: 99px;
     transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.4);
+    box-shadow: none;
   }
 
   .conq-progress-label {

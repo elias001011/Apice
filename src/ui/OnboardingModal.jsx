@@ -111,12 +111,17 @@ const onboardingCss = `
     width: 100%;
     height: 100%;
     background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(8px);
+    backdrop-filter: none;
     z-index: 10000;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 20px;
+  }
+
+  html[data-fx="blur"] .onboarding-overlay {
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
   }
 
   .onboarding-card {
@@ -148,7 +153,6 @@ const onboardingCss = `
   .progress-dot.active {
     background: var(--accent);
     transform: scale(1.2);
-    box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.3);
   }
 
   .onboarding-step-view {

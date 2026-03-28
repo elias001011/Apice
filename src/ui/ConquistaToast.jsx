@@ -45,14 +45,12 @@ export function ConquistaToast() {
             className={`conquista-toast ${t.exiting ? 'conquista-toast--exit' : ''}`}
             role="status"
           >
-            <div className="ct-glow" aria-hidden="true" />
             <div className="ct-icon">{t.conquista.icon}</div>
             <div className="ct-body">
               <div className="ct-label">Conquista desbloqueada!</div>
               <div className="ct-title">{t.conquista.title}</div>
               <div className="ct-desc">{t.conquista.desc}</div>
             </div>
-            <div className="ct-sparkle" aria-hidden="true">✦</div>
           </div>
         ))}
       </div>
@@ -95,10 +93,7 @@ const toastCss = `
     border-radius: 20px;
     padding: 14px 18px;
     width: 100%;
-    box-shadow:
-      0 8px 32px rgba(0,0,0,0.18),
-      0 0 0 1px rgba(var(--accent-rgb), 0.12),
-      0 0 40px rgba(var(--accent-rgb), 0.08);
+    box-shadow: 0 14px 32px rgba(0,0,0,0.16);
     overflow: hidden;
     animation: ctSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
@@ -127,13 +122,6 @@ const toastCss = `
       opacity: 0;
       transform: translateY(16px) scale(0.95);
     }
-  }
-
-  .ct-glow {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.06) 0%, transparent 60%);
-    pointer-events: none;
   }
 
   .ct-icon {
@@ -187,20 +175,5 @@ const toastCss = `
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-
-  .ct-sparkle {
-    font-size: 1rem;
-    color: var(--accent);
-    opacity: 0.6;
-    flex-shrink: 0;
-    position: relative;
-    z-index: 1;
-    animation: ctSparkle 1.5s ease-in-out infinite;
-  }
-
-  @keyframes ctSparkle {
-    0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.6; }
-    50% { transform: scale(1.4) rotate(20deg); opacity: 1; }
   }
 `

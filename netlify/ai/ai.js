@@ -1,5 +1,6 @@
 import process from 'node:process'
 import { buildAiResponsePreferencePrompt } from '../../src/services/aiResponsePreferences.js'
+import { normalizeEssayFeedbackScore } from '../../src/services/essayInsights.js'
 import { getEnemYearLabel } from '../../src/services/examYear.js'
 import { normalizeRadarTheme } from '../../src/services/radarState.js'
 
@@ -497,7 +498,7 @@ function buildFallbackThemeSystemPrompt(responsePreference) {
 function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, responsePreference }) {
   // Prompt da correção.
   // O material de apoio aqui é contexto da prova, não repertório autoral do aluno.
-  const modo = isRigido ? 'Rígido (muito criterioso)' : 'Padrão (fiel ao ENEM)'
+  const modo = isRigido ? 'Rígido (muito criterioso)' : 'Padrão (conservador)'
   const materialTexto = flattenMaterialForPrompt(material)
 
   const lines = [
@@ -513,6 +514,12 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, respo
     '- Se a redação fugir totalmente do tema, a nota de todas as competências deve ser 0.',
     '- Se a redação usar o material de apoio sem elaboração própria, não premie como se fosse repertório externo.',
     '- Use a escala ENEM real: cada competência vai de 0 a 200 e a notaTotal vai de 0 a 1000. Nunca responda em escala 0 a 10.',
+    '- Seja conservador: 200 em qualquer competência deve ser raro, 180+ só quando o critério estiver praticamente impecável.',
+    '- Se houver dúvida entre duas faixas, escolha a mais baixa.',
+    '- Não infle nota por texto longo, bonito ou genérico; qualidade real vale mais do que volume.',
+    '- Em redações boas, mas comuns, a faixa média é mais realista do que notas muito altas.',
+    '- C5 só merece nota alta quando a proposta tiver agente, ação, meio, finalidade e detalhamento claros.',
+    '- C2 e C3 devem ser duras com repertório fraco, tese vaga ou argumento genérico.',
     '- Responda somente com JSON válido no formato abaixo.',
     '',
     'Formato de resposta:',
@@ -546,6 +553,60 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, respo
 
   appendResponsePreference(lines, responsePreference)
   return lines.join('\n')
+}
+
+function dampenEssayCompetenceScore(score) {
+  const value = Number(score) || 0
+
+  if (value >= 190) return value - 14
+  if (value >= 175) return value - 12
+  if (value >= 160) return value - 10
+  if (value >= 145) return value - 8
+  if (value >= 120) return value - 5
+  if (value >= 90) return value - 3
+  return value
+}
+
+function dampenEssayTotalScore(score) {
+  const value = Number(score) || 0
+
+  if (value >= 900) return value - 55
+  if (value >= 800) return value - 45
+  if (value >= 700) return value - 35
+  if (value >= 600) return value - 25
+  if (value >= 450) return value - 15
+  if (value >= 300) return value - 8
+  return value
+}
+
+function calibrateEssayFeedbackScore(result) {
+  const normalized = normalizeEssayFeedbackScore(result)
+  if (!normalized || typeof normalized !== 'object') {
+    return result
+  }
+
+  const adjustedCompetencias = ensureArray(normalized.competencias).map((competencia) => {
+    const adjusted = clampNumber(
+      roundScore(dampenEssayCompetenceScore(competencia?.nota)),
+      0,
+      200,
+    )
+
+    return {
+      ...competencia,
+      nota: adjusted,
+    }
+  })
+
+  const notaTotal = adjustedCompetencias.length > 0
+    ? adjustedCompetencias.reduce((sum, competencia) => sum + (Number(competencia?.nota) || 0), 0)
+    : clampNumber(roundScore(dampenEssayTotalScore(normalized.notaTotal)), 0, 1000)
+
+  return {
+    ...normalized,
+    competencias: adjustedCompetencias,
+    notaTotal,
+  }
 }
 
 function getEnabledProviders(kind) {
@@ -1731,7 +1792,7 @@ export async function correctEssay({ redacao, tema, material, isRigido, response
     userMessages,
   }, { copyHint, tema, material })
 
-  return result
+  return calibrateEssayFeedbackScore(result)
 }
 
 export function summarizeMaterial(material) {
