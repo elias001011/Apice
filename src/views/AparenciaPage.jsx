@@ -12,7 +12,21 @@ const ACCENT_OPTIONS = [
 ]
 
 export function AparenciaPage() {
-  const { theme, toggleTheme, accent, setAccent, fontSize, setFontSize, fontFamily, setFontFamily, layoutMode, setLayoutMode, containerSize, setContainerSize } = useTheme()
+  const {
+    theme,
+    toggleTheme,
+    accent,
+    setAccent,
+    fontSize,
+    setFontSize,
+    fontFamily,
+    setFontFamily,
+    layoutMode,
+    setLayoutMode,
+    containerSize,
+    setContainerSize,
+    isMobileLayout,
+  } = useTheme()
   const isDark = theme === 'dark'
 
   const currentAccentColor = ACCENT_OPTIONS.find(o => o.key === accent)
@@ -164,28 +178,30 @@ export function AparenciaPage() {
           </div>
 
           {/* ── TAMANHO DO CONTEÚDO (DESKTOP) ── */}
-          <div className="card anim anim-d3 desktop-only-feature">
-            <div className="card-title">Tamanho do Conteúdo (Desktop)</div>
-            <div className="ap-size-row">
-              {[
-                { key: 'sm', label: 'Pequeno', desc: '880px' },
-                { key: 'md', label: 'Médio', desc: '1040px' },
-                { key: 'lg', label: 'Grande', desc: '1240px' },
-              ].map((s) => (
-                <button
-                  key={s.key}
-                  className={`ap-size-btn ${containerSize === s.key ? 'active' : ''}`}
-                  onClick={() => setContainerSize(s.key)}
-                >
-                  <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{s.desc}</span>
-                  <span>{s.label}</span>
-                </button>
-              ))}
+          {!isMobileLayout && (
+            <div className="card anim anim-d3 desktop-only-feature">
+              <div className="card-title">Tamanho do Conteúdo (Desktop)</div>
+              <div className="ap-size-row">
+                {[
+                  { key: 'sm', label: 'Pequeno', desc: '880px' },
+                  { key: 'md', label: 'Médio', desc: '1000px' },
+                  { key: 'lg', label: 'Grande', desc: '1160px' },
+                ].map((s) => (
+                  <button
+                    key={s.key}
+                    className={`ap-size-btn ${containerSize === s.key ? 'active' : ''}`}
+                    onClick={() => setContainerSize(s.key)}
+                  >
+                    <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{s.desc}</span>
+                    <span>{s.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="card-footer-tip" style={{ marginTop: '12px', fontSize: '0.72rem', opacity: 0.5, textAlign: 'center' }}>
+                Dica: O Corretor mantém sua largura ideal independente desta escolha.
+              </div>
             </div>
-            <div className="card-footer-tip" style={{ marginTop: '12px', fontSize: '0.72rem', opacity: 0.5, textAlign: 'center' }}>
-              Dica: O Corretor mantém sua largura ideal independente desta escolha.
-            </div>
-          </div>
+          )}
 
           {/* ── PREVIEW AO VIVO ── */}
           <div className="card ap-preview anim anim-d4">

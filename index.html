@@ -12,9 +12,16 @@
     <script>
       (() => {
         try {
+          const savedContainerSize = localStorage.getItem('apice:containerSize')
+          const validContainerSize = savedContainerSize === 'md' || savedContainerSize === 'lg'
+            ? savedContainerSize
+            : 'sm'
+          const mobileLayout = window.matchMedia('(max-width: 900px)').matches
           const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
           const theme = systemTheme
           const html = document.documentElement
+          html.setAttribute('data-layout-size', mobileLayout ? 'sm' : validContainerSize)
+          html.setAttribute('data-layout-ready', 'false')
           if (theme === 'dark') html.setAttribute('data-theme', 'dark')
           else html.removeAttribute('data-theme')
           html.style.colorScheme = theme

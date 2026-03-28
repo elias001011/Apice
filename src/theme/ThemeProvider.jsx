@@ -7,6 +7,9 @@ const STORAGE_KEY_FONT = 'apice:font'
 const STORAGE_KEY_FONT_FAMILY = 'apice:fontFamily'
 const STORAGE_KEY_LAYOUT = 'apice:layoutMode'
 const STORAGE_KEY_CONTAINER_SIZE = 'apice:containerSize'
+const MOBILE_LAYOUT_QUERY = '(max-width: 900px)'
+
+const VALID_CONTAINER_SIZES = new Set(['sm', 'md', 'lg'])
 
 function readSaved(key, defaultVal) {
   try {
@@ -21,6 +24,31 @@ function readSaved(key, defaultVal) {
 function getSystemTheme() {
   if (typeof window === 'undefined') return 'light'
   return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light'
+}
+
+function getIsMobileLayout() {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia?.(MOBILE_LAYOUT_QUERY)?.matches ?? false
+}
+
+function normalizeContainerSize(size) {
+  return VALID_CONTAINER_SIZES.has(size) ? size : 'sm'
+}
+
+function attachMediaQueryListener(mediaQuery, handler) {
+  if (!mediaQuery) return () => {}
+
+  if (typeof mediaQuery.addEventListener === 'function') {
+    mediaQuery.addEventListener('change', handler)
+    return () => mediaQuery.removeEventListener('change', handler)
+  }
+
+  if (typeof mediaQuery.addListener === 'function') {
+    mediaQuery.addListener(handler)
+    return () => mediaQuery.removeListener(handler)
+  }
+
+  return () => {}
 }
 
 const ACCENT_COLORS = {
@@ -135,7 +163,7 @@ function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
   html.style.colorScheme = theme === 'dark' ? 'dark' : 'light'
   
   html.setAttribute('data-font', fontSize || 'md')
-  html.setAttribute('data-layout-size', containerSize || 'sm')
+  html.setAttribute('data-layout-size', normalizeContainerSize(containerSize))
 
   const safeAccent = ACCENT_COLORS[accent] ? accent : 'lime'
   const colors = ACCENT_COLORS[safeAccent][theme === 'dark' ? 'dark' : 'light']
@@ -168,9 +196,11 @@ export function ThemeProvider({ children }) {
   const [fontFamily, setFontFamily] = useState(() => readSaved(STORAGE_KEY_FONT_FAMILY, 'dm-sans'))
   const [layoutMode, setLayoutMode] = useState(() => readSaved(STORAGE_KEY_LAYOUT, 'comfortable'))
   const [containerSize, setContainerSize] = useState(() => readSaved(STORAGE_KEY_CONTAINER_SIZE, 'sm'))
+  const [isMobileLayout, setIsMobileLayout] = useState(() => getIsMobileLayout())
+  const resolvedContainerSize = isMobileLayout ? 'sm' : normalizeContainerSize(containerSize)
 
   useEffect(() => {
-    applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize)
+    applyThemeToDom(theme, accent, fontSize, fontFamily, resolvedContainerSize)
     applyLayoutToDom(layoutMode)
     try {
       localStorage.setItem(STORAGE_KEY_THEME, theme)
@@ -183,7 +213,7 @@ export function ThemeProvider({ children }) {
     } catch {
       // ignore
     }
-  }, [theme, accent, fontSize, fontFamily, layoutMode, containerSize])
+  }, [theme, accent, fontSize, fontFamily, layoutMode, resolvedContainerSize, containerSize])
 
   useEffect(() => {
     const refresh = () => syncThemeFromStorage(setTheme, setAccent, setFontSize, setFontFamily, setLayoutMode, setContainerSize)
@@ -197,6 +227,27 @@ export function ThemeProvider({ children }) {
     }
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+
+    const mediaQuery = window.matchMedia?.(MOBILE_LAYOUT_QUERY) || null
+    const refreshMobileLayout = () => setIsMobileLayout(Boolean(mediaQuery?.matches))
+
+    refreshMobileLayout()
+    const detachMediaQuery = attachMediaQueryListener(mediaQuery, refreshMobileLayout)
+
+    return detachMediaQuery
+  }, [])
+
+  useEffect(() => {
+    const html = document.documentElement
+    const readyFrame = window.requestAnimationFrame(() => {
+      html.setAttribute('data-layout-ready', 'true')
+    })
+
+    return () => window.cancelAnimationFrame(readyFrame)
+  }, [])
+
   const toggleTheme = useCallback(() => {
     setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
   }, [])
@@ -207,8 +258,10 @@ export function ThemeProvider({ children }) {
     fontSize, setFontSize,
     fontFamily, setFontFamily,
     layoutMode, setLayoutMode,
-    containerSize, setContainerSize
-  }), [theme, toggleTheme, accent, fontSize, fontFamily, layoutMode, containerSize])
+    containerSize, setContainerSize,
+    isMobileLayout,
+    resolvedContainerSize,
+  }), [theme, toggleTheme, accent, fontSize, fontFamily, layoutMode, containerSize, isMobileLayout, resolvedContainerSize])
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
