@@ -48,9 +48,10 @@ function TrashIcon() {
 export function RadarPage() {
   const { beginBusy, endBusy } = useAppBusy()
   const initialRadarSnapshot = loadRadarSnapshot()
+  const hasInitialRadarThemes = Boolean(initialRadarSnapshot?.temas?.length)
   const enemLabel = getEnemYearLabel()
-  const [status, setStatus] = useState(() => (initialRadarSnapshot ? 'results' : 'intro')) // 'intro', 'loading', 'results'
-  const [temas, setTemas] = useState(() => initialRadarSnapshot?.temas?.length ? initialRadarSnapshot.temas : DEFAULT_RADAR_THEMES)
+  const [status, setStatus] = useState(() => (hasInitialRadarThemes ? 'results' : 'intro')) // 'intro', 'loading', 'results'
+  const [temas, setTemas] = useState(() => hasInitialRadarThemes ? initialRadarSnapshot.temas : [])
   const [savedTemas, setSavedTemas] = useState(() => loadRadarFavorites())
   const [searchResumo, setSearchResumo] = useState(() => initialRadarSnapshot?.resumoPesquisa || '')
   const [atualizadoEm, setAtualizadoEm] = useState(() => initialRadarSnapshot?.atualizadoEm || '')
@@ -64,14 +65,17 @@ export function RadarPage() {
     const refreshRadar = () => {
       const snapshot = loadRadarSnapshot()
 
-      if (snapshot) {
+      if (snapshot?.temas?.length) {
         setTemas(snapshot.temas)
         setSearchResumo(snapshot.resumoPesquisa || '')
         setAtualizadoEm(snapshot.atualizadoEm || '')
         setSearchCooldown(getRadarSearchCooldown(snapshot))
         setStatus('results')
       } else {
-        setSearchCooldown(getRadarSearchCooldown(null))
+        setTemas([])
+        setSearchResumo(snapshot?.resumoPesquisa || '')
+        setAtualizadoEm(snapshot?.atualizadoEm || '')
+        setSearchCooldown(getRadarSearchCooldown(snapshot))
         setStatus((currentStatus) => (currentStatus === 'loading' ? currentStatus : 'intro'))
       }
     }
@@ -108,7 +112,10 @@ export function RadarPage() {
     } catch (error) {
       console.error('Radar fetch error:', error)
       setErrorMsg(error?.message || 'Não foi possível atualizar o radar agora.')
-      if (!loadRadarSnapshot()) {
+      const currentSnapshot = loadRadarSnapshot()
+      const hasCurrentThemes = Boolean(currentSnapshot?.temas?.length)
+
+      if (!currentSnapshot) {
         const fallbackSnapshot = {
           temas: DEFAULT_RADAR_THEMES,
           resumoPesquisa: '',
@@ -123,8 +130,10 @@ export function RadarPage() {
         setAtualizadoEm(fallbackSnapshot.atualizadoEm)
         saveRadarSnapshot(fallbackSnapshot)
         setSearchCooldown(getRadarSearchCooldown(fallbackSnapshot))
+        setStatus('results')
+      } else {
+        setStatus(hasCurrentThemes ? 'results' : 'intro')
       }
-      setStatus('results')
     } finally {
       endBusy()
     }

@@ -343,6 +343,8 @@ export function HomePage() {
               <div className="pv-pill">
                 {radarSnapshot?.temas?.length
                   ? `${radarSnapshot.temas.length} temas salvos`
+                  : radarSnapshot?.nextSearchAt
+                    ? 'Radar sincronizado'
                   : `${enemLabel} • Atualizado`}
               </div>
               <div className="pv-feature-btn">

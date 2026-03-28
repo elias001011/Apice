@@ -28,6 +28,7 @@ import {
   normalizeRadarFavorites,
 } from './radarFavorites.js'
 import {
+  loadRadarSnapshot,
   saveRadarSnapshot,
   normalizeRadarSnapshot,
 } from './radarState.js'
@@ -168,6 +169,31 @@ function compactRadarFavoriteSnapshot(favorite) {
   }
 }
 
+function compactRadarSnapshotForCloud(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return null
+
+  const resumoPesquisa = String(snapshot.resumoPesquisa ?? '').trim()
+  const lastSearchAt = String(snapshot.lastSearchAt ?? '').trim()
+  const nextSearchAt = String(snapshot.nextSearchAt ?? '').trim()
+  const savedAt = String(snapshot.savedAt ?? snapshot.atualizadoEm ?? '').trim()
+  const atualizadoEm = String(snapshot.atualizadoEm ?? savedAt ?? '').trim()
+  const origem = String(snapshot.origem ?? 'ai').trim() || 'ai'
+
+  if (!resumoPesquisa && !lastSearchAt && !nextSearchAt && !savedAt && !atualizadoEm) {
+    return null
+  }
+
+  return {
+    version: Number(snapshot.version ?? 2) || 2,
+    resumoPesquisa,
+    atualizadoEm: atualizadoEm || savedAt || new Date().toISOString(),
+    origem,
+    savedAt: savedAt || new Date().toISOString(),
+    lastSearchAt,
+    nextSearchAt,
+  }
+}
+
 export function buildAccountSnapshot(user) {
   return {
     version: 12,
@@ -177,6 +203,7 @@ export function buildAccountSnapshot(user) {
     historyCount: loadEssayHistoryCount(),
     usage: normalizeUsage(getFreePlanUsageSnapshot()),
     planTier: getCurrentPlanTier(),
+    radarSnapshot: compactRadarSnapshotForCloud(loadRadarSnapshot()),
     radarFavorites: loadRadarFavorites()
       .map((favorite) => compactRadarFavoriteSnapshot(favorite))
       .filter(Boolean),
@@ -325,7 +352,28 @@ export function applyAccountSnapshot(snapshot) {
   }
 
   if (Object.prototype.hasOwnProperty.call(snapshot, 'radarSnapshot')) {
-    saveRadarSnapshot(snapshot.radarSnapshot ? normalizeRadarSnapshot(snapshot.radarSnapshot) : null)
+    const incomingRadarSnapshot = snapshot.radarSnapshot ? normalizeRadarSnapshot(snapshot.radarSnapshot) : null
+    if (incomingRadarSnapshot) {
+      const localRadarSnapshot = loadRadarSnapshot()
+      const incomingHasThemes = Array.isArray(incomingRadarSnapshot.temas) && incomingRadarSnapshot.temas.length > 0
+      const incomingHasDetails = Boolean(incomingRadarSnapshot.detalhesPorId && Object.keys(incomingRadarSnapshot.detalhesPorId).length > 0)
+      const localHasThemes = Array.isArray(localRadarSnapshot?.temas) && localRadarSnapshot.temas.length > 0
+      const localHasDetails = Boolean(localRadarSnapshot?.detalhesPorId && Object.keys(localRadarSnapshot.detalhesPorId).length > 0)
+
+      if (incomingHasThemes || incomingHasDetails || (!localHasThemes && !localHasDetails)) {
+        saveRadarSnapshot(incomingRadarSnapshot)
+      } else {
+        saveRadarSnapshot({
+          ...localRadarSnapshot,
+          resumoPesquisa: incomingRadarSnapshot.resumoPesquisa || localRadarSnapshot?.resumoPesquisa || '',
+          atualizadoEm: incomingRadarSnapshot.atualizadoEm || localRadarSnapshot?.atualizadoEm || new Date().toISOString(),
+          origem: incomingRadarSnapshot.origem || localRadarSnapshot?.origem || 'ai',
+          savedAt: incomingRadarSnapshot.savedAt || localRadarSnapshot?.savedAt || new Date().toISOString(),
+          lastSearchAt: incomingRadarSnapshot.lastSearchAt || localRadarSnapshot?.lastSearchAt || '',
+          nextSearchAt: incomingRadarSnapshot.nextSearchAt || localRadarSnapshot?.nextSearchAt || '',
+        })
+      }
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(snapshot, 'summary')) {
