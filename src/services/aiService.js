@@ -8,6 +8,7 @@ import {
   compactEssayHistoryEntry,
   loadEssayHistoryCount,
   MAX_ESSAY_HISTORY_ENTRIES,
+  normalizeEssayFeedbackScore,
   saveEssayHistorySnapshot,
 } from './essayInsights.js'
 import { refreshUserSummaryFromHistory } from './userSummary.js'
@@ -79,8 +80,9 @@ export async function corrigirRedacao({ redacao, tema, material, isRigido }) {
   }
 
   const data = await res.json()
+  const normalized = normalizeEssayFeedbackScore(data)
   consumeFreePlan('essayCorrection')
-  return data
+  return normalized || data
 }
 
 export async function chamarIAEspecifica({ provider, systemPrompt, userMessages = [], modelVariant = 'primary', modelOverride = '' }) {
@@ -118,14 +120,15 @@ export function salvarNoHistorico(resultadoJSON, temaStr, redacao = '') {
   // Histórico local para recuperar correções antigas sem depender de backend.
   try {
     const historico = JSON.parse(localStorage.getItem('apice:historico') || '[]')
+    const normalizedResult = normalizeEssayFeedbackScore(resultadoJSON) || resultadoJSON
 
     const novoItem = compactEssayHistoryEntry({
       id: Date.now(),
       data: new Date().toISOString(),
       tema: temaStr || 'Tema livre',
       preview: (temaStr || 'Tema livre').substring(0, 60) + '...',
-      nota: resultadoJSON.notaTotal,
-      feedback: resultadoJSON,
+      nota: normalizedResult?.notaTotal ?? resultadoJSON.notaTotal,
+      feedback: normalizedResult,
       redacao: typeof redacao === 'string' ? redacao : '',
     })
 
@@ -136,7 +139,7 @@ export function salvarNoHistorico(resultadoJSON, temaStr, redacao = '') {
     void refreshUserSummaryFromHistory()
 
     // Verificar conquistas após salvar
-    checkConquistasRedacao({ totalEssays, nota: resultadoJSON.notaTotal || 0 })
+    checkConquistasRedacao({ totalEssays, nota: normalizedResult?.notaTotal || 0 })
   } catch (err) {
     console.error('Erro ao salvar histórico', err)
   }

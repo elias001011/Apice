@@ -4,6 +4,8 @@ const HISTORY_UPDATED_EVENT = 'apice:historico-updated'
 export const MAX_LOCAL_ESSAY_HISTORY_ENTRIES = 50
 export const MAX_CLOUD_ESSAY_HISTORY_ENTRIES = 15
 export const MAX_ESSAY_HISTORY_ENTRIES = MAX_LOCAL_ESSAY_HISTORY_ENTRIES
+const ENEM_TOTAL_MAX = 1000
+const ENEM_COMPETENCIA_MAX = 200
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
@@ -16,6 +18,56 @@ function today() {
 function toDate(value) {
   const parsed = new Date(value)
   return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function roundScore(value) {
+  return Math.round(Number(value) || 0)
+}
+
+export function normalizeEssayFeedbackScore(feedback = null, fallbackNota = 0) {
+  if (!feedback || typeof feedback !== 'object') return null
+
+  const competencias = Array.isArray(feedback.competencias)
+    ? feedback.competencias.map((competencia) => ({
+        nome: String(competencia?.nome ?? '').trim(),
+        nota: Number.isFinite(Number(competencia?.nota)) ? Number(competencia.nota) : 0,
+        descricao: String(competencia?.descricao ?? '').trim(),
+      }))
+    : []
+
+  const rawTotal = Number.isFinite(Number(feedback.notaTotal))
+    ? Number(feedback.notaTotal)
+    : Number(fallbackNota) || 0
+  const rawCompetencias = competencias.map((competencia) => Number(competencia.nota) || 0)
+  const maxObserved = Math.max(rawTotal, ...rawCompetencias, 0)
+  const shouldScaleFromTen = maxObserved > 0 && maxObserved <= 10.5
+
+  const normalizedCompetencias = competencias.map((competencia) => ({
+    ...competencia,
+    nota: clampNumber(
+      shouldScaleFromTen ? roundScore(competencia.nota * (ENEM_COMPETENCIA_MAX / 10)) : roundScore(competencia.nota),
+      0,
+      ENEM_COMPETENCIA_MAX,
+    ),
+  }))
+
+  const normalizedTotal = clampNumber(
+    shouldScaleFromTen
+      ? roundScore(rawTotal * (ENEM_TOTAL_MAX / 10))
+      : roundScore(rawTotal || normalizedCompetencias.reduce((sum, competencia) => sum + competencia.nota, 0)),
+    0,
+    ENEM_TOTAL_MAX,
+  )
+
+  return {
+    ...feedback,
+    notaTotal: normalizedTotal,
+    competencias: normalizedCompetencias,
+  }
 }
 
 function readHistoryRaw() {
@@ -44,15 +96,20 @@ export function loadEssayHistory(limit = 0) {
   const raw = readHistoryRaw()
   const mapped = raw
     .filter(item => item && typeof item === 'object')
-    .map(item => ({
-      id: item.id ?? null,
-      data: typeof item.data === 'string' ? item.data : null,
-      tema: typeof item.tema === 'string' ? item.tema : '',
-      preview: typeof item.preview === 'string' ? item.preview : '',
-      nota: Number.isFinite(Number(item.nota)) ? Number(item.nota) : 0,
-      redacao: typeof item.redacao === 'string' ? item.redacao : '',
-      feedback: item.feedback ?? null,
-    }))
+    .map(item => {
+      const feedback = normalizeEssayFeedbackScore(item.feedback, item.nota)
+      return {
+        id: item.id ?? null,
+        data: typeof item.data === 'string' ? item.data : null,
+        tema: typeof item.tema === 'string' ? item.tema : '',
+        preview: typeof item.preview === 'string' ? item.preview : '',
+        nota: Number.isFinite(Number(feedback?.notaTotal))
+          ? Number(feedback.notaTotal)
+          : (Number.isFinite(Number(item.nota)) ? Number(item.nota) : 0),
+        redacao: typeof item.redacao === 'string' ? item.redacao : '',
+        feedback,
+      }
+    })
 
   if (limit > 0) {
     return mapped.slice(0, limit)
@@ -72,16 +129,7 @@ export function compactEssayHistoryEntry(item) {
 
   const feedback = item.feedback && typeof item.feedback === 'object'
     ? {
-        notaTotal: Number.isFinite(Number(item.feedback.notaTotal))
-          ? Number(item.feedback.notaTotal)
-          : Number(item.nota) || 0,
-        competencias: Array.isArray(item.feedback.competencias)
-          ? item.feedback.competencias.map((competencia) => ({
-              nome: String(competencia?.nome ?? '').trim(),
-              nota: Number.isFinite(Number(competencia?.nota)) ? Number(competencia.nota) : 0,
-              descricao: String(competencia?.descricao ?? '').trim(),
-            }))
-          : [],
+        ...normalizeEssayFeedbackScore(item.feedback, item.nota),
         pontoForte: String(item.feedback.pontoForte ?? '').trim(),
         atencao: String(item.feedback.atencao ?? '').trim(),
         principalMelhorar: String(item.feedback.principalMelhorar ?? '').trim(),
@@ -100,7 +148,9 @@ export function compactEssayHistoryEntry(item) {
     data: typeof item.data === 'string' ? item.data : new Date().toISOString(),
     tema: typeof item.tema === 'string' ? item.tema : '',
     preview: typeof item.preview === 'string' ? item.preview : '',
-    nota: Number.isFinite(Number(item.nota)) ? Number(item.nota) : 0,
+    nota: Number.isFinite(Number(feedback?.notaTotal))
+      ? Number(feedback.notaTotal)
+      : (Number.isFinite(Number(item.nota)) ? Number(item.nota) : 0),
     redacao: typeof item.redacao === 'string' ? item.redacao.trim().slice(0, 1200) : '',
     feedback,
   }

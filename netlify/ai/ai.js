@@ -510,6 +510,7 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, respo
     '- Se houver cópia literal ou quase literal do material, puna fortemente C2, C3 e, se necessário, C5.',
     '- Se a redação fugir totalmente do tema, a nota de todas as competências deve ser 0.',
     '- Se a redação usar o material de apoio sem elaboração própria, não premie como se fosse repertório externo.',
+    '- Use a escala ENEM real: cada competência vai de 0 a 200 e a notaTotal vai de 0 a 1000. Nunca responda em escala 0 a 10.',
     '- Responda somente com JSON válido no formato abaixo.',
     '',
     'Formato de resposta:',
