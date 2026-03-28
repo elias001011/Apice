@@ -1,3 +1,12 @@
 {
-  "type": "module"
+  "name": "apice-politicas",
+  "version": "1.0.0",
+  "description": "Políticas de Privacidade e Termos de Uso do Projeto Ápice",
+  "main": "index.html",
+  "scripts": {
+    "build": "mkdir -p dist && cp index.html styles.css Icon.svg dist/ 2>/dev/null || cp index.html styles.css dist/"
+  },
+  "keywords": [],
+  "author": "Elias Juriatti",
+  "license": "MIT"
 }
