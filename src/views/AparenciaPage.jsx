@@ -29,6 +29,8 @@ export function AparenciaPage() {
     setAnimationsEnabled,
     cardHoverEffects,
     setCardHoverEffects,
+    visualEffects,
+    setVisualEffects,
     isMobileLayout,
   } = useTheme()
   const isDark = theme === 'dark'
@@ -97,6 +99,34 @@ export function AparenciaPage() {
                   <span className="ap-color-circle" />
                   <span className="ap-color-name">{o.label}</span>
                   {accent === o.key && (
+                    <span className="ap-color-check">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── EFEITOS VISUAIS ── */}
+          <div className="card anim anim-d4">
+            <div className="card-title">Efeitos Visuais</div>
+            <div className="ap-fx-options">
+              {[
+                { key: 'none', label: 'Desligado', sub: 'Mantém apenas as cores chapadas e minimalistas, sem decorações.' },
+                { key: 'gradients', label: 'Gradiente', sub: 'O visual padrão com cores gradientes contínuas em cards.' },
+                { key: 'blur', label: 'Glassmorphism', sub: 'Adiciona textura e efeitos de vidro temperado pelo app.' },
+              ].map(f => (
+                <button
+                  key={f.key}
+                  className={`ap-fx-btn ${visualEffects === f.key ? 'active' : ''}`}
+                  onClick={() => setVisualEffects(f.key)}
+                >
+                  <div className="ap-fx-content">
+                    <div className="ap-fx-label">{f.label}</div>
+                    <div className="ap-fx-sub">{f.sub}</div>
+                  </div>
+                  {visualEffects === f.key && (
                     <span className="ap-color-check">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                     </span>
@@ -399,6 +429,46 @@ const aparenciaCss = `
     border-radius: 50%;
     background: var(--accent);
     flex-shrink: 0;
+  }
+
+  /* ── EFEITOS VISUAIS ── */
+  .ap-fx-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ap-fx-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1.5px solid var(--border2);
+    background: var(--bg3);
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    width: 100%;
+    position: relative;
+    text-align: left;
+  }
+  .ap-fx-btn:hover { border-color: var(--accent); }
+  .ap-fx-btn.active {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .ap-fx-content {
+    flex: 1;
+  }
+  .ap-fx-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .ap-fx-sub {
+    font-size: 0.72rem;
+    color: var(--text3);
+    line-height: 1.25;
   }
 
   /* ── TAMANHO ── */

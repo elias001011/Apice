@@ -32,42 +32,17 @@ export function ResultadoRedacaoPage() {
           Voltar ao corretor
         </Link>
 
-        <div className="result-grid">
-          {/* Coluna Esquerda: Nota e Competências */}
-          <div className="result-col-stats">
-            <div className="score-hero">
-              <div className="score-label">Desempenho Geral</div>
-              <div className="score-number">{res.notaTotal || 0}</div>
-              <div className="score-max">de 1000 pontos possíveis</div>
-            </div>
-
-            <div className="card comps-card">
-              <div className="card-title">Análise por Competência</div>
-              <div className="comp-list">
-                {comps.map((c, idx) => (
-                  <div className="comp-row" key={idx}>
-                    <div className="comp-header">
-                      <span className="comp-name">{c.nome}</span>
-                      <span className="comp-score-val">{c.nota}</span>
-                    </div>
-                    <div className="progress-bg">
-                      <div 
-                        className={`progress-fill ${c.nota < 120 ? 'mid' : ''}`} 
-                        style={{ width: `${(c.nota / 200) * 100}%`, background: c.nota < 120 ? 'var(--amber)' : 'var(--accent)' }}
-                      ></div>
-                    </div>
-                    {c.descricao && <div className="comp-desc">{c.descricao}</div>}
-                  </div>
-                ))}
-              </div>
-            </div>
+        <div className="result-top-row">
+          <div className="score-hero">
+            <div className="score-label">Desempenho Geral</div>
+            <div className="score-number">{res.notaTotal || 0}</div>
+            <div className="score-max">de 1000 pontos possíveis</div>
           </div>
 
-          {/* Coluna Direita: Feedback Detalhado */}
           <div className="result-col-feedback">
             {res.pontoForte && (
               <div className="feedback-block">
-                <div className="feedback-tag positive">✓ Ponto forte</div>
+                <div className="feedback-tag positive">✓ Ponto forte / Análise Geral</div>
                 <div className="feedback-text">{res.pontoForte}</div>
               </div>
             )}
@@ -103,20 +78,41 @@ export function ResultadoRedacaoPage() {
                 </div>
               </div>
             )}
-
-            <div className="action-row">
-              <button
-                type="button"
-                className="btn-primary result-primary-action"
-                onClick={() => setRestartConfirmOpen(true)}
-              >
-                Gerar nova redação
-              </button>
-              <Link to="/historico-redacoes" className="btn-ghost">
-                Ver histórico completo
-              </Link>
-            </div>
           </div>
+        </div>
+
+        <div className="card comps-card">
+          <div className="card-title">Desempenho por Competência</div>
+          <div className="comp-list">
+            {comps.map((c, idx) => (
+              <div className="comp-row" key={idx}>
+                <div className="comp-header">
+                  <span className="comp-name">{c.nome}</span>
+                  <span className="comp-score-val">{c.nota}</span>
+                </div>
+                <div className="progress-bg">
+                  <div 
+                    className={`progress-fill ${c.nota < 120 ? 'mid' : ''}`} 
+                    style={{ width: `${(c.nota / 200) * 100}%`, background: c.nota < 120 ? 'var(--amber)' : 'var(--accent)' }}
+                  ></div>
+                </div>
+                {c.descricao && <div className="comp-desc">{c.descricao}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="action-row" style={{ marginTop: '2rem' }}>
+          <button
+            type="button"
+            className="btn-primary result-primary-action"
+            onClick={() => setRestartConfirmOpen(true)}
+          >
+            Gerar nova redação
+          </button>
+          <Link to="/historico-redacoes" className="btn-ghost">
+            Ver histórico completo
+          </Link>
         </div>
 
         <ConfirmDialog
@@ -141,16 +137,24 @@ const resultadoCss = `
   .result-container {
     margin: 2rem auto;
   }
-  .result-grid {
-    display: grid;
-    grid-template-columns: 1fr;
+  .result-top-row {
+    display: flex;
+    flex-direction: column;
     gap: 2rem;
-    align-items: start;
     margin-top: 1.5rem;
+    margin-bottom: 2rem;
   }
-  @media (min-width: 1000px) {
-    .result-grid {
-      grid-template-columns: 320px 1fr;
+  @media (min-width: 900px) {
+    .result-top-row {
+      flex-direction: row;
+      align-items: flex-start;
+    }
+    .score-hero {
+      flex: 0 0 320px;
+    }
+    .result-col-feedback {
+      flex: 1;
+      min-width: 0;
     }
   }
 
@@ -162,7 +166,10 @@ const resultadoCss = `
     text-align: center;
     position: relative;
     overflow: hidden;
-    margin-bottom: 2rem;
+    margin-bottom: 0;
+  }
+  @media (max-width: 899px) {
+    .score-hero { margin-bottom: 0; }
   }
   .score-label {
     font-size: 0.75rem;
@@ -185,11 +192,33 @@ const resultadoCss = `
   }
 
   .comps-card { padding: 1.5rem; }
-  .comp-list { display: flex; flex-direction: column; gap: 1.5rem; }
+  .comp-list { 
+    display: grid; 
+    grid-template-columns: 1fr; 
+    gap: 1.5rem; 
+  }
+  @media (min-width: 768px) {
+    .comp-list {
+      grid-template-columns: 1fr 1fr;
+      column-gap: 2.5rem;
+      row-gap: 2rem;
+    }
+    .comp-row:last-child {
+      grid-column: span 2;
+    }
+  }
+  @media (min-width: 1060px) {
+    .comp-list {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+    .comp-row:last-child {
+      grid-column: span 1;
+    }
+  }
   .comp-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
-  .comp-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
-  .comp-score-val { font-family: 'DM Serif Display', serif; font-size: 1.3rem; color: var(--accent); }
-  .comp-desc { font-size: 0.75rem; color: var(--text2); line-height: 1.5; margin-top: 8px; padding-left: 4px; border-left: 2px solid var(--border); }
+  .comp-name { font-size: 0.95rem; font-weight: 600; color: var(--text); }
+  .comp-score-val { font-family: 'DM Serif Display', serif; font-size: 1.4rem; color: var(--accent); }
+  .comp-desc { font-size: 0.82rem; color: var(--text2); line-height: 1.5; margin-top: 10px; padding-left: 6px; border-left: 2px solid var(--border); }
 
   .feedback-block {
     background: var(--bg2);
@@ -221,7 +250,7 @@ const resultadoCss = `
   .word-right { color: var(--accent); font-weight: 700; }
   .error-reason { font-size: 0.75rem; color: var(--text3); }
 
-  .action-row { display: flex; gap: 12px; margin-top: 1rem; }
+  .action-row { display: flex; gap: 12px; }
   .action-row .btn-primary {
     flex: 1.5;
     height: 48px;

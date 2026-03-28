@@ -506,6 +506,8 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, respo
     '',
     'Regras de correção:',
     '- Corrija conforme a matriz do ENEM.',
+    '- Na propriedade "descricao" de cada competência, exiba o MÉRITO DIRETAMENTE e seja MEGA CONCISO (ex: "Apresenta boa coesão, mas falha no uso de crase."). Nunca escreva introduções como "A redação demonstra...". O espaço lá é apertado, use 1 ou 2 frases curtas.',
+    '- Compense essa ausência de detalhes escrevendo análises SUPER DENSAS, extensas e ricas nas chaves "pontoForte", "atencao" e "principalMelhorar". Abuse do espaço ali para aprofundar a correção.',
     '- O material de apoio abaixo é apenas contexto de prova. Ele não conta como repertório autoral se o aluno apenas copiar, parafrasear ou repetir seus dados.',
     '- Se houver cópia literal ou quase literal do material, puna fortemente C2, C3 e, se necessário, C5.',
     '- Se a redação fugir totalmente do tema, a nota de todas as competências deve ser 0.',
