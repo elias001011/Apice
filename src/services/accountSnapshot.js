@@ -11,7 +11,9 @@ import {
 } from './avatarSettings.js'
 import {
   compactEssayHistoryEntry,
+  buildCloudEssayHistorySnapshot,
   saveEssayHistorySnapshot,
+  loadEssayHistoryCount,
 } from './essayInsights.js'
 import {
   getFreePlanUsageSnapshot,
@@ -150,14 +152,34 @@ function normalizeUsage(usage) {
   }
 }
 
+function compactRadarFavoriteSnapshot(favorite) {
+  if (!favorite || typeof favorite !== 'object') return null
+
+  const titulo = String(favorite.titulo ?? favorite.title ?? '').trim()
+  if (!titulo) return null
+
+  return {
+    id: String(favorite.id ?? titulo).trim() || titulo,
+    titulo,
+    probabilidade: Number.isFinite(Number(favorite.probabilidade)) ? Number(favorite.probabilidade) : 0,
+    hot: Boolean(favorite.hot),
+    savedAt: String(favorite.savedAt ?? favorite.createdAt ?? new Date().toISOString()).trim() || new Date().toISOString(),
+    origem: String(favorite.origem ?? 'ai').trim() || 'ai',
+  }
+}
+
 export function buildAccountSnapshot(user) {
   return {
-    version: 10,
+    version: 12,
     profile: readProfileSnapshot(user),
     preferences: readThemeSnapshot(),
+    history: buildCloudEssayHistorySnapshot(),
+    historyCount: loadEssayHistoryCount(),
     usage: normalizeUsage(getFreePlanUsageSnapshot()),
     planTier: getCurrentPlanTier(),
-    radarFavorites: loadRadarFavorites(),
+    radarFavorites: loadRadarFavorites()
+      .map((favorite) => compactRadarFavoriteSnapshot(favorite))
+      .filter(Boolean),
     summary: loadUserSummary(),
     aiResponsePreference: loadAiResponsePreference(),
     avatarSettings: loadAvatarSettings(),

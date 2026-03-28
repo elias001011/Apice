@@ -117,7 +117,7 @@ export function AparenciaPage() {
               {[
                 { key: 'none', label: 'Desligado', sub: 'Interface limpa, sem gradientes decorativos nos cards ou no fundo.' },
                 { key: 'gradients', label: 'Gradiente', sub: 'Gradientes sutis no fundo, header e alguns elementos destacados.' },
-                { key: 'blur', label: 'Vidro leve', sub: 'Vidro discreto em áreas sobrepostas, como header e modais.' },
+                { key: 'blur', label: 'Vidro leve', sub: 'Vidro discreto em navegação, modais e cards pontuais sobrepostos.' },
               ].map(f => (
                 <button
                   key={f.key}
@@ -138,11 +138,11 @@ export function AparenciaPage() {
             </div>
             {visualEffects === 'gradients' && (
               <div className="ap-fx-extra">
-                <div className="toggle-row">
+                <div className="toggle-row ap-fx-toggle-row">
                   <div className="toggle-info">
                     <div className="toggle-label">Gradiente em todos os cards</div>
                     <div className="toggle-sub">
-                      Desative para manter os cards comuns limpos e deixar o gradiente só nas superfícies destacadas.
+                      Desative para manter os cards comuns limpos e deixar o gradiente só nos pontos de destaque.
                     </div>
                   </div>
                   <button
@@ -490,6 +490,29 @@ const aparenciaCss = `
     font-size: 0.72rem;
     color: var(--text3);
     line-height: 1.25;
+  }
+
+  .ap-fx-extra {
+    margin-top: 12px;
+    padding: 0.95rem 1rem;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.03), transparent 58%), var(--bg3);
+  }
+  .ap-fx-toggle-row {
+    margin: 0;
+    align-items: center;
+    gap: 14px;
+  }
+  .ap-fx-toggle-row .toggle-info {
+    min-width: 0;
+  }
+  .ap-fx-toggle-row .toggle-label {
+    font-size: 0.82rem;
+  }
+  .ap-fx-toggle-row .toggle-sub {
+    font-size: 0.7rem;
+    line-height: 1.35;
   }
 
   /* ── TAMANHO ── */

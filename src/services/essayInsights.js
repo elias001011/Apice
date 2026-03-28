@@ -2,7 +2,7 @@ const HISTORY_KEY = 'apice:historico'
 const HISTORY_TOTAL_KEY = 'apice:historico:total:v1'
 const HISTORY_UPDATED_EVENT = 'apice:historico-updated'
 export const MAX_LOCAL_ESSAY_HISTORY_ENTRIES = 50
-export const MAX_CLOUD_ESSAY_HISTORY_ENTRIES = 15
+export const MAX_CLOUD_ESSAY_HISTORY_ENTRIES = 5
 export const MAX_ESSAY_HISTORY_ENTRIES = MAX_LOCAL_ESSAY_HISTORY_ENTRIES
 const ENEM_TOTAL_MAX = 1000
 const ENEM_COMPETENCIA_MAX = 200
@@ -154,6 +154,67 @@ export function compactEssayHistoryEntry(item) {
     redacao: typeof item.redacao === 'string' ? item.redacao.trim().slice(0, 1200) : '',
     feedback,
   }
+}
+
+function buildMinimalEssayFeedback(feedback, fallbackNota = 0) {
+  if (!feedback || typeof feedback !== 'object') {
+    return {
+      notaTotal: Number.isFinite(Number(fallbackNota)) ? Number(fallbackNota) : 0,
+      competencias: [],
+      pontoForte: '',
+      atencao: '',
+      principalMelhorar: '',
+    }
+  }
+
+  const normalized = normalizeEssayFeedbackScore(feedback, fallbackNota)
+  const competencias = Array.isArray(normalized?.competencias)
+    ? normalized.competencias.slice(0, 5).map((competencia) => ({
+        nome: String(competencia?.nome ?? '').trim(),
+        nota: Number.isFinite(Number(competencia?.nota)) ? Number(competencia.nota) : 0,
+      }))
+    : []
+
+  return {
+    notaTotal: Number.isFinite(Number(normalized?.notaTotal))
+      ? Number(normalized.notaTotal)
+      : (Number.isFinite(Number(fallbackNota)) ? Number(fallbackNota) : 0),
+    competencias,
+    pontoForte: String(feedback.pontoForte ?? '').trim(),
+    atencao: String(feedback.atencao ?? '').trim(),
+    principalMelhorar: String(feedback.principalMelhorar ?? '').trim(),
+  }
+}
+
+export function compactCloudEssayHistoryEntry(item) {
+  if (!item || typeof item !== 'object') return null
+
+  const feedback = buildMinimalEssayFeedback(item.feedback, item.nota)
+  const previewSource = typeof item.preview === 'string' && item.preview.trim()
+    ? item.preview
+    : typeof item.redacao === 'string' && item.redacao.trim()
+      ? item.redacao
+      : typeof item.tema === 'string'
+        ? item.tema
+        : ''
+
+  return {
+    id: item.id ?? Date.now(),
+    data: typeof item.data === 'string' ? item.data : new Date().toISOString(),
+    tema: typeof item.tema === 'string' ? item.tema : '',
+    preview: String(previewSource).trim().slice(0, 120),
+    nota: Number.isFinite(Number(feedback?.notaTotal))
+      ? Number(feedback.notaTotal)
+      : (Number.isFinite(Number(item.nota)) ? Number(item.nota) : 0),
+    feedback,
+  }
+}
+
+export function buildCloudEssayHistorySnapshot(history = loadEssayHistory(MAX_CLOUD_ESSAY_HISTORY_ENTRIES)) {
+  const items = Array.isArray(history) ? history : []
+  return items
+    .map((item) => compactCloudEssayHistoryEntry(item))
+    .filter(Boolean)
 }
 
 export function saveEssayHistorySnapshot(history = [], totalCount = null) {

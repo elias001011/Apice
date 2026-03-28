@@ -486,12 +486,6 @@ const homeCss = `
     background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.015), transparent 60%), var(--bg3);
   }
 
-  html[data-fx="blur"] .features-stack .pv-feature--quote {
-    background: var(--bg2-glass);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-  }
-
   .features-stack .pv-feature--quote:hover {
     transform: none;
     box-shadow: none;
@@ -526,12 +520,6 @@ const homeCss = `
 
   html[data-fx="gradients"] .enem-card {
     background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.015), transparent 58%), var(--bg2);
-  }
-
-  html[data-fx="blur"] .enem-card {
-    background: var(--bg2-glass);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
   }
 
   .enem-card-header,
@@ -1186,12 +1174,6 @@ const homeCss = `
   html[data-fx="gradients"] .performance-card {
     background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.015), transparent 58%), var(--bg2);
   }
-
-  html[data-fx="blur"] .performance-card {
-    background: var(--bg2-glass);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-  }
   .performance-summary {
     font-size: 0.95rem;
     line-height: 1.6;
@@ -1226,11 +1208,6 @@ const homeCss = `
   html[data-fx="gradients"] .performance-block--negative {
     background: linear-gradient(145deg, rgba(225, 68, 68, 0.09), transparent 88%), var(--bg3);
     border-color: rgba(225, 68, 68, 0.16);
-  }
-
-  html[data-fx="blur"] .performance-block--positive,
-  html[data-fx="blur"] .performance-block--negative {
-    background: var(--bg2-glass);
   }
 
   .performance-label {
@@ -1270,11 +1247,6 @@ const homeCss = `
     background: rgba(225, 68, 68, 0.08);
     color: var(--red);
     border-color: rgba(225, 68, 68, 0.16);
-  }
-
-  html[data-fx="blur"] .performance-block--positive .performance-chip,
-  html[data-fx="blur"] .performance-block--negative .performance-chip {
-    background: var(--bg2-glass);
   }
 
   .performance-chip:hover {

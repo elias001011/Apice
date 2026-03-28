@@ -796,6 +796,14 @@ const corretorCss = `
     background: var(--bg2);
   }
 
+  html[data-fx="blur"] .criteria-card {
+    background: var(--bg2-glass);
+    border-color: rgba(var(--accent-rgb), 0.12);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.1);
+  }
+
   .intro-card-option:disabled {
     opacity: 0.7;
     cursor: default;

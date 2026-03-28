@@ -109,24 +109,26 @@ html[data-fx="blur"] {
     radial-gradient(circle at top left, rgba(var(--accent-rgb), 0.02), transparent 28rem),
     radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.015), transparent 22rem),
     var(--bg);
-  --glass-blur: 10px;
-  --overlay-blur: 8px;
-  --nav-bg: rgba(255, 255, 255, 0.86);
-  --tab-bg: rgba(255, 255, 255, 0.86);
+  --bg2-glass: rgba(255, 255, 255, 0.72);
+  --glass-blur: 16px;
+  --overlay-blur: 12px;
+  --nav-bg: rgba(255, 255, 255, 0.72);
+  --tab-bg: rgba(255, 255, 255, 0.72);
 }
 
 html[data-fx="blur"]:not([data-theme="dark"]) {
-  --nav-surface: linear-gradient(180deg, rgba(var(--accent-rgb), 0.015), transparent 72%), rgba(255, 255, 255, 0.86);
-  --tab-surface: rgba(255, 255, 255, 0.86);
-  --footer-surface: rgba(255, 255, 255, 0.84);
+  --nav-surface: linear-gradient(180deg, rgba(var(--accent-rgb), 0.015), transparent 72%), rgba(255, 255, 255, 0.74);
+  --tab-surface: rgba(255, 255, 255, 0.74);
+  --footer-surface: rgba(255, 255, 255, 0.72);
 }
 
 html[data-theme="dark"][data-fx="blur"] {
-  --nav-surface: linear-gradient(180deg, rgba(var(--accent-rgb), 0.015), transparent 72%), rgba(18, 18, 18, 0.86);
-  --tab-surface: rgba(18, 18, 18, 0.86);
-  --footer-surface: rgba(18, 18, 18, 0.84);
-  --nav-bg: rgba(18, 18, 18, 0.86);
-  --tab-bg: rgba(18, 18, 18, 0.86);
+  --nav-surface: linear-gradient(180deg, rgba(var(--accent-rgb), 0.015), transparent 72%), rgba(18, 18, 18, 0.74);
+  --tab-surface: rgba(18, 18, 18, 0.74);
+  --footer-surface: rgba(18, 18, 18, 0.7);
+  --bg2-glass: rgba(18, 18, 18, 0.72);
+  --nav-bg: rgba(18, 18, 18, 0.72);
+  --tab-bg: rgba(18, 18, 18, 0.72);
 }
 
 html {
@@ -265,6 +267,10 @@ body,
   z-index: 1000;
   display: flex;
   align-items: center;
+}
+
+html[data-fx="blur"] .nav {
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.08);
 }
 
 .nav-inner {
@@ -490,6 +496,10 @@ body,
   border-top: 0.5px solid var(--border);
   display: flex;
   z-index: 200;
+}
+
+html[data-fx="blur"] .bottom-tab {
+  box-shadow: 0 -16px 42px rgba(0, 0, 0, 0.08);
 }
 
 .app-busy-overlay {
@@ -828,12 +838,6 @@ html[data-fx="gradients"][data-card-gradients="on"] .card {
   background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.02), transparent 58%), var(--bg2);
 }
 
-html[data-fx="blur"] .card {
-  background: var(--bg2-glass);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-}
-
 html[data-fx="none"] .card {
   background: var(--bg2);
 }
@@ -845,6 +849,8 @@ html[data-fx="blur"] .onboarding-card {
   background: var(--bg2-glass);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.16);
+  border-color: rgba(var(--accent-rgb), 0.14);
 }
 
 .card:hover {
