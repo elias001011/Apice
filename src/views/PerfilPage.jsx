@@ -216,8 +216,9 @@ const perfilCss = `
   .ai-pref-row { 
     display: flex; 
     align-items: center; 
-    justify-content: center; /* Centralizado como pedido */
+    justify-content: space-between;
     gap: 1rem; 
+    width: 100%;
   }
   
   .ai-save-btn {
@@ -227,7 +228,13 @@ const perfilCss = `
     opacity: 0.9;
   }
 
-  .ai-pref-count { font-size: 0.7rem; color: var(--text3); opacity: 0.5; }
+  .ai-pref-count {
+    font-size: 0.72rem;
+    color: var(--text3);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
 
   /* Quota Card Cleanup */
   .quota-card { padding: 1.5rem; }
@@ -392,6 +399,7 @@ export function PerfilPage() {
   const maskedEmail = maskEmail(email)
   const visibleEmail = showEmail ? email : maskedEmail
   const hasAiPreference = Boolean(aiPreference.trim())
+  const aiPreferenceCount = aiPreference.length
   const school = user?.user_metadata?.school || 'Não informada'
   const avatarAppearance = resolveAvatarAppearance({
     name,
@@ -865,7 +873,10 @@ export function PerfilPage() {
               Ajuste de tom e clareza. Pedidos para mudar nota ou burlar critérios são ignorados.
             </div>
 
-            <div className="ai-pref-row" style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center' }}>
+            <div className="ai-pref-row" style={{ marginTop: '1rem' }}>
+              <div className="ai-pref-count" aria-live="polite">
+                {aiPreferenceCount}/{AI_RESPONSE_PREFERENCE_MAX_LENGTH}
+              </div>
               <button className="btn-primary ai-save-btn" type="submit" disabled={aiPreferenceSaving}>
                 {aiPreferenceSaving ? 'Salvando...' : 'Salvar Preferências'}
               </button>

@@ -326,14 +326,13 @@ export function HomePage() {
       </div>
 
       <section className="enem-card anim anim-d5">
-        <div className="enem-card-rail" aria-hidden="true" />
         <div className="enem-card-header">
           <div className="enem-card-kicker">Calendário do {enemLabel}</div>
           <h2 className="enem-card-title">Contagem para a prova</h2>
           <p className="enem-card-copy">
             {enemDate
-              ? `Data ativa: ${formatEnemDateLabel(enemDate)}.`
-              : 'Selecione a data oficial para acompanhar a contagem sem depender de atualização manual.'}
+              ? `Data manual salva: ${formatEnemDateLabel(enemDate)}.`
+              : 'Defina a data oficial manualmente para manter a contagem atualizada.'}
           </p>
         </div>
 
@@ -381,26 +380,26 @@ export function HomePage() {
             </div>
           </div>
         ) : (
-          <div className="enem-display">
+          <>
             {enemDate ? (
-              <div className="enem-countdown-grid">
-                <div className="enem-countdown-cell">
+              <div className="enem-countdown-row">
+                <div className="enem-countdown-chip">
                   <strong>{timeLeft.months}</strong>
                   <span>Meses</span>
                 </div>
-                <div className="enem-countdown-cell">
+                <div className="enem-countdown-chip">
                   <strong>{timeLeft.days}</strong>
                   <span>Dias</span>
                 </div>
-                <div className="enem-countdown-cell">
+                <div className="enem-countdown-chip">
                   <strong>{timeLeft.hours}</strong>
                   <span>Horas</span>
                 </div>
-                <div className="enem-countdown-cell">
+                <div className="enem-countdown-chip">
                   <strong>{timeLeft.minutes}</strong>
                   <span>Minutos</span>
                 </div>
-                <div className="enem-countdown-cell enem-countdown-cell--accent">
+                <div className="enem-countdown-chip enem-countdown-chip--accent">
                   <strong>{timeLeft.seconds}</strong>
                   <span>Segundos</span>
                 </div>
@@ -408,17 +407,10 @@ export function HomePage() {
             ) : (
               <div className="enem-empty-state">
                 <div className="enem-empty-title">Ainda sem data definida</div>
-                <p>Defina a data para liberar a contagem ao vivo e manter o painel alinhado com a prova.</p>
+                <p>Toque em “Definir data” para cadastrar a prova manualmente.</p>
               </div>
             )}
-
-            <div className="enem-side-note">
-              <div className="enem-side-label">Próximo passo</div>
-              <div className="enem-side-copy">
-                No futuro, podemos detectar a data oficial automaticamente e usar o seletor manual apenas como fallback.
-              </div>
-            </div>
-          </div>
+          </>
         )}
       </section>
   </>
@@ -464,33 +456,29 @@ const homeCss = `
 
   .enem-card {
     width: 100%;
-    max-width: var(--content-max-width);
+    max-width: 660px;
     margin: 18px auto 0;
-    padding: 1.5rem;
-    border-radius: 28px;
+    padding: 1.05rem 1.1rem;
+    border-radius: 22px;
     border: 1.5px solid var(--border);
     background: linear-gradient(135deg, var(--bg2), var(--bg3));
-    display: grid;
-    grid-template-columns: 1.08fr 0.92fr;
-    gap: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.05);
   }
 
-  .enem-card-rail {
-    position: absolute;
-    inset: auto -40px -46px auto;
-    width: 260px;
-    height: 260px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(var(--accent-rgb), 0.2) 0%, rgba(var(--accent-rgb), 0.06) 35%, transparent 72%);
-    pointer-events: none;
+  @media (min-width: 768px) {
+    .enem-card {
+      width: fit-content;
+      min-width: 540px;
+    }
   }
 
   .enem-card-header,
-  .enem-editor,
-  .enem-display {
+  .enem-editor {
     position: relative;
     z-index: 1;
   }
@@ -498,8 +486,7 @@ const homeCss = `
   .enem-card-header {
     display: flex;
     flex-direction: column;
-    gap: 0.55rem;
-    justify-content: center;
+    gap: 0.45rem;
   }
 
   .enem-card-kicker {
@@ -513,22 +500,23 @@ const homeCss = `
   .enem-card-title {
     margin: 0;
     font-family: 'DM Serif Display', serif;
-    font-size: 2rem;
-    line-height: 1;
+    font-size: 1.5rem;
+    line-height: 1.05;
     color: var(--text);
   }
 
   .enem-card-copy {
     margin: 0;
-    max-width: 42ch;
-    font-size: 0.92rem;
-    line-height: 1.65;
+    max-width: 46ch;
+    font-size: 0.88rem;
+    line-height: 1.55;
     color: var(--text2);
   }
 
   .enem-card-meta {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 10px;
     flex-wrap: wrap;
   }
@@ -573,8 +561,7 @@ const homeCss = `
   .enem-editor {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    justify-content: center;
+    gap: 0.9rem;
   }
 
   .enem-editor-field {
@@ -591,11 +578,11 @@ const homeCss = `
   .enem-input-wrapper {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     background: var(--bg2);
     border: 1.5px solid var(--border2);
-    border-radius: 16px;
-    padding: 10px 12px;
+    border-radius: 14px;
+    padding: 9px 11px;
   }
 
   .enem-input-new {
@@ -604,8 +591,8 @@ const homeCss = `
     background: transparent;
     color: var(--text);
     font: inherit;
-    font-size: 0.95rem;
-    min-height: 30px;
+    font-size: 0.92rem;
+    min-height: 28px;
     outline: none;
   }
 
@@ -621,24 +608,19 @@ const homeCss = `
     flex-wrap: wrap;
   }
 
-  .enem-display {
+  .enem-countdown-row {
     display: flex;
-    flex-direction: column;
-    gap: 14px;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-start;
   }
 
-  .enem-countdown-grid {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .enem-countdown-cell {
+  .enem-countdown-chip {
     background: var(--bg2);
     border: 1px solid var(--border);
-    border-radius: 18px;
-    padding: 0.9rem 0.75rem;
+    border-radius: 14px;
+    padding: 0.7rem 0.8rem;
+    min-width: 88px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -647,14 +629,14 @@ const homeCss = `
     text-align: center;
   }
 
-  .enem-countdown-cell strong {
+  .enem-countdown-chip strong {
     font-family: 'DM Serif Display', serif;
-    font-size: 1.55rem;
+    font-size: 1.2rem;
     line-height: 1;
     color: var(--text);
   }
 
-  .enem-countdown-cell span {
+  .enem-countdown-chip span {
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -662,28 +644,28 @@ const homeCss = `
     color: var(--text3);
   }
 
-  .enem-countdown-cell--accent {
+  .enem-countdown-chip--accent {
     background: var(--accent);
     border-color: var(--accent2);
   }
 
-  .enem-countdown-cell--accent strong {
+  .enem-countdown-chip--accent strong {
     color: #0f0f0f;
   }
 
-  .enem-countdown-cell--accent span {
+  .enem-countdown-chip--accent span {
     color: rgba(15, 15, 15, 0.68);
   }
 
   .enem-empty-state {
     background: var(--bg2);
     border: 1px dashed var(--border2);
-    border-radius: 20px;
-    padding: 1.2rem;
+    border-radius: 16px;
+    padding: 0.95rem 1rem;
   }
 
   .enem-empty-title {
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 700;
     color: var(--text);
     margin-bottom: 6px;
@@ -692,57 +674,86 @@ const homeCss = `
   .enem-empty-state p {
     margin: 0;
     color: var(--text2);
-    line-height: 1.6;
-    font-size: 0.9rem;
-  }
-
-  .enem-side-note {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 1rem 1.05rem;
-  }
-
-  .enem-side-label {
-    margin-bottom: 4px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text3);
-  }
-
-  .enem-side-copy {
+    line-height: 1.55;
     font-size: 0.86rem;
-    line-height: 1.6;
-    color: var(--text2);
+  }
+
+  .enem-editor-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .enem-editor-actions .btn-primary {
+    margin-left: auto;
+    width: auto;
+    padding-inline: 18px;
+  }
+
+  .enem-editor-actions .btn-ghost {
+    width: auto;
+  }
+
+  .enem-countdown-row .enem-countdown-chip {
+    flex: 0 0 92px;
+  }
+
+  .enem-countdown-row .enem-countdown-chip--accent {
+    flex-basis: 100px;
   }
 
   @media (max-width: 767px) {
     .enem-card {
-      grid-template-columns: 1fr;
-      padding: 1.25rem;
+      padding: 1rem;
       margin: 14px auto 0;
-      gap: 1rem;
+      gap: 0.75rem;
     }
 
     .enem-card-title {
-      font-size: 1.7rem;
+      font-size: 1.35rem;
     }
 
-    .enem-countdown-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    .enem-card-copy {
+      font-size: 0.85rem;
+    }
+
+    .enem-countdown-row {
+      gap: 7px;
+    }
+
+    .enem-countdown-chip {
+      min-width: 0;
+      flex: 1 1 calc(50% - 7px);
+    }
+
+    .enem-editor-actions {
+      justify-content: stretch;
+    }
+
+    .enem-editor-actions .btn-ghost,
+    .enem-editor-actions .btn-primary {
+      width: 100%;
+      margin-left: 0;
     }
   }
 
   @media (max-width: 480px) {
-    .enem-countdown-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
+    .enem-card {
+      padding: 0.95rem;
     }
 
-    .enem-countdown-cell {
-      padding: 0.8rem 0.6rem;
+    .enem-countdown-chip {
+      padding: 0.65rem 0.7rem;
+    }
+
+    .enem-countdown-chip strong {
+      font-size: 1.05rem;
+    }
+
+    .enem-countdown-row .enem-countdown-chip {
+      flex-basis: calc(50% - 4px);
     }
   }
 
