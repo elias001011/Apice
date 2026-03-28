@@ -587,6 +587,10 @@ html[data-layout-ready="true"] .view-container {
   transition: max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+html[data-mobile-layout="true"] .view-container {
+  transition: none;
+}
+
 .view-container--narrow {
   max-width: 680px;
 }
@@ -652,6 +656,11 @@ html[data-layout-ready="true"] .view-container {
   border-color: var(--border2);
   transform: translateY(-4px);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+}
+
+html[data-mobile-layout="true"] .card:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .card-title {

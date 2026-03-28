@@ -7,7 +7,7 @@ const STORAGE_KEY_FONT = 'apice:font'
 const STORAGE_KEY_FONT_FAMILY = 'apice:fontFamily'
 const STORAGE_KEY_LAYOUT = 'apice:layoutMode'
 const STORAGE_KEY_CONTAINER_SIZE = 'apice:containerSize'
-const MOBILE_LAYOUT_QUERY = '(max-width: 900px)'
+const MOBILE_LAYOUT_QUERY = '(max-width: 767px)'
 
 const VALID_CONTAINER_SIZES = new Set(['sm', 'md', 'lg'])
 
@@ -238,6 +238,12 @@ export function ThemeProvider({ children }) {
 
     return detachMediaQuery
   }, [])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+
+    document.documentElement.setAttribute('data-mobile-layout', isMobileLayout ? 'true' : 'false')
+  }, [isMobileLayout])
 
   useEffect(() => {
     const html = document.documentElement
