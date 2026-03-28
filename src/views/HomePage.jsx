@@ -11,6 +11,10 @@ import {
   subscribeUserSummary,
 } from '../services/userSummary.js'
 import { getEnemYearLabel } from '../services/examYear.js'
+import {
+  loadRadarSnapshot,
+  subscribeRadarSnapshot,
+} from '../services/radarState.js'
 import frases from '../data/frases.json'
 import { OnboardingModal } from '../ui/OnboardingModal.jsx'
 
@@ -39,6 +43,7 @@ export function HomePage() {
   const { canInstall: pwaCanInstall, isInstalled: pwaInstalled, installPwa } = usePwaInstall()
   const [insights, setInsights] = useState(() => buildEssayInsights(loadEssayHistory()))
   const [userSummary, setUserSummary] = useState(() => loadUserSummary())
+  const [radarSnapshot, setRadarSnapshot] = useState(() => loadRadarSnapshot())
   const [greeting, setGreeting] = useState(() => getGreetingLabel())
   const [pwaHint, setPwaHint] = useState('')
   const enemLabel = getEnemYearLabel()
@@ -143,16 +148,20 @@ export function HomePage() {
     // O home escuta o histórico para mostrar dados reais sem precisar recarregar.
     const refresh = () => setInsights(buildEssayInsights(loadEssayHistory()))
     const refreshSummary = () => setUserSummary(loadUserSummary())
+    const refreshRadar = () => setRadarSnapshot(loadRadarSnapshot())
     refresh()
     refreshSummary()
+    refreshRadar()
 
     const unlistenHistory = subscribeEssayHistory(refresh)
     const unlistenSummary = subscribeUserSummary(refreshSummary)
+    const unlistenRadar = subscribeRadarSnapshot(refreshRadar)
 
     return () => {
       window.clearInterval(intervalId)
       unlistenHistory()
       unlistenSummary()
+      unlistenRadar()
     }
   }, [])
 
@@ -243,35 +252,36 @@ export function HomePage() {
             </div>
           </div>
 
-          {/* ── CARD DE PERFORMANCE ── */}
-          {userSummary && (
-            <div className="card performance-card anim anim-d4">
-              <div className="card-title">Análise de Desempenho</div>
-              <div className="performance-summary">{userSummary.resumo || 'Resumo ainda não disponível.'}</div>
-              <div className="performance-grid">
-                {Array.isArray(userSummary.forcas) && userSummary.forcas.length > 0 && (
-                  <div className="performance-block">
-                    <div className="performance-label">Pontos fortes</div>
-                    <div className="performance-chips">
-                      {userSummary.forcas.slice(0, 3).map((item) => (
-                        <span key={item} className="performance-chip">{item}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {Array.isArray(userSummary.errosRecorrentes) && userSummary.errosRecorrentes.length > 0 && (
-                  <div className="performance-block">
-                    <div className="performance-label">Erros recorrentes</div>
-                    <div className="performance-chips">
-                      {userSummary.errosRecorrentes.slice(0, 3).map((item) => (
-                        <span key={item} className="performance-chip muted">{item}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
+          <a href="/radar" className="pv-feature pv-feature--lime anim anim-d3 home-radar-card">
+            <div className="pv-feature-content">
+              <div className="pv-feature-title">Radar 1000</div>
+              <div className="pv-feature-desc">
+                Descubra os temas com maior probabilidade de cair na redação do ENEM.
+              </div>
+              <div className="pv-pill">
+                {radarSnapshot?.temas?.length
+                  ? `${radarSnapshot.temas.length} temas salvos`
+                  : `${enemLabel} • Atualizado`}
+              </div>
+              <div className="pv-feature-btn">
+                Ver temas
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
               </div>
             </div>
-          )}
+            <div className="pv-feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="2" />
+                <path d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49m11.31-2.82a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14" />
+              </svg>
+            </div>
+            <div className="pv-feature-deco deco-circle" aria-hidden="true">
+              <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" strokeWidth="1.5" />
+              </svg>
+            </div>
+          </a>
         </div>
 
         {/* ── COLUNA DIREITA preexistente: Feature Cards ── */}
@@ -304,7 +314,6 @@ export function HomePage() {
               </div>
             </a>
 
-            {/* CARD DE FRASE (Agora integrado nas ferramentas) */}
             <div className="pv-feature pv-feature--quote anim anim-d4">
               <div className="pv-feature-content">
                 <div className="quote-icon-small">
@@ -318,9 +327,38 @@ export function HomePage() {
                     — {dailyQuote.author}
                   </div>
                 )}
+              </div>
             </div>
+
+            {userSummary && (
+              <div className="card performance-card anim anim-d4 home-performance-card">
+                <div className="card-title">Análise de Desempenho</div>
+                <div className="performance-summary">{userSummary.resumo || 'Resumo ainda não disponível.'}</div>
+                <div className="performance-grid">
+                  {Array.isArray(userSummary.forcas) && userSummary.forcas.length > 0 && (
+                    <div className="performance-block">
+                      <div className="performance-label">Pontos fortes</div>
+                      <div className="performance-chips">
+                        {userSummary.forcas.slice(0, 3).map((item) => (
+                          <span key={item} className="performance-chip">{item}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {Array.isArray(userSummary.errosRecorrentes) && userSummary.errosRecorrentes.length > 0 && (
+                    <div className="performance-block">
+                      <div className="performance-label">Erros recorrentes</div>
+                      <div className="performance-chips">
+                        {userSummary.errosRecorrentes.slice(0, 3).map((item) => (
+                          <span key={item} className="performance-chip muted">{item}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
         </div>
       </div>
       </div>
@@ -423,14 +461,22 @@ const homeCss = `
     display: flex;
     flex-direction: column;
     gap: 0;
+    min-width: 0;
+  }
+
+  .home-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
   }
 
   /* Grid principal */
   @media (min-width: 768px) {
     .home-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 1.5rem;
+      align-items: start;
     }
   }
 
@@ -452,6 +498,17 @@ const homeCss = `
   .features-stack .pv-feature--quote:hover {
     transform: none;
     box-shadow: none;
+  }
+
+  .home-radar-card {
+    width: 100%;
+    align-self: stretch;
+    margin-top: 12px;
+    min-height: 182px;
+  }
+
+  .home-radar-card .pv-feature-content {
+    gap: 10px;
   }
 
   .enem-card {
