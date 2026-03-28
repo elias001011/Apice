@@ -18,6 +18,11 @@ function readSaved(key, defaultVal) {
   return defaultVal
 }
 
+function getSystemTheme() {
+  if (typeof window === 'undefined') return 'light'
+  return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light'
+}
+
 const ACCENT_COLORS = {
   lime: {
     light: { base: '#b8e84f', rgb: '184, 232, 79', hover: '#9ed634', dim: 'rgba(184, 232, 79, 0.14)', dim2: 'rgba(184, 232, 79, 0.22)' },
@@ -128,6 +133,7 @@ function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
   const html = document.documentElement
   if (theme === 'dark') html.setAttribute('data-theme', 'dark')
   else html.removeAttribute('data-theme')
+  html.style.colorScheme = theme === 'dark' ? 'dark' : 'light'
   
   html.setAttribute('data-font', fontSize || 'md')
   html.setAttribute('data-layout-size', containerSize || 'sm')
@@ -146,7 +152,7 @@ function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
 }
 
 function syncThemeFromStorage(setTheme, setAccent, setFontSize, setFontFamily, setLayoutMode, setContainerSize) {
-  setTheme(readSaved(STORAGE_KEY_THEME, 'light'))
+  setTheme(readSaved(STORAGE_KEY_THEME, getSystemTheme()))
   setAccent(readSaved(STORAGE_KEY_ACCENT, 'lime'))
   setFontSize(readSaved(STORAGE_KEY_FONT, 'md'))
   setFontFamily(readSaved(STORAGE_KEY_FONT_FAMILY, 'dm-sans'))
@@ -157,7 +163,7 @@ function syncThemeFromStorage(setTheme, setAccent, setFontSize, setFontFamily, s
 const ThemeContext = createContext(null)
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => readSaved(STORAGE_KEY_THEME, 'light'))
+  const [theme, setTheme] = useState(() => readSaved(STORAGE_KEY_THEME, getSystemTheme()))
   const [accent, setAccent] = useState(() => readSaved(STORAGE_KEY_ACCENT, 'lime'))
   const [fontSize, setFontSize] = useState(() => readSaved(STORAGE_KEY_FONT, 'md'))
   const [fontFamily, setFontFamily] = useState(() => readSaved(STORAGE_KEY_FONT_FAMILY, 'dm-sans'))
