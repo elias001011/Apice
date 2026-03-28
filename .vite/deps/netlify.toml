@@ -1,0 +1,12 @@
+[build]
+
+Comando que cria a pasta de distribuição
+
+command = "npm run build"
+
+Pasta que o Netlify vai subir para o servidor
+
+publish = "dist"
+
+[build.environment]
+NODE_VERSION = "22.22.2"
