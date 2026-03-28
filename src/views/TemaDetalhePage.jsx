@@ -310,6 +310,29 @@ export function TemaDetalhePage() {
             ))}
           </div>
         )}
+        {fontes.length > 0 && (
+          <div className="material-source-list">
+            <div className="material-source-label">Fontes complementares</div>
+            {fontes.map((f, index) => (
+              f.url ? (
+                <a
+                  key={`${f.url}-${index}`}
+                  className="material-source-item"
+                  href={f.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>{f.nome || f.dominio || 'Fonte'}</span>
+                  <small>{f.url}</small>
+                </a>
+              ) : (
+                <div key={`${f.nome || index}-${index}`} className="material-source-item">
+                  <span>{f.nome || 'Fonte'}</span>
+                </div>
+              )
+            ))}
+          </div>
+        )}
 
       </div>
 

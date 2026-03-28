@@ -1,19 +1,16 @@
-import { useState, useEffect } from 'react'
-import { POLICY_URL, savePolicyConsent } from '../services/policyConsent.js'
+import { useState } from 'react'
+import { savePolicyConsent } from '../services/policyConsent.js'
 
 const ONBOARDING_KEY = 'apice:onboarding-shown'
 
-export function OnboardingModal({ user, onComplete }) {
-  const [step, setStep] = useState(1)
-  const [isVisible, setIsVisible] = useState(false)
+function readShouldShowOnboarding() {
+  if (typeof window === 'undefined') return false
+  return !localStorage.getItem(ONBOARDING_KEY)
+}
 
-  useEffect(() => {
-    // Verifica se o onboarding já foi mostrado neste dispositivo/uma vez após o login
-    const shown = localStorage.getItem(ONBOARDING_KEY)
-    if (!shown) {
-      setIsVisible(true)
-    }
-  }, [])
+export function OnboardingModal({ onComplete }) {
+  const [step, setStep] = useState(1)
+  const [isVisible, setIsVisible] = useState(readShouldShowOnboarding)
 
   if (!isVisible) return null
 

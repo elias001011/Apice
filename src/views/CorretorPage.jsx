@@ -34,7 +34,6 @@ export function CorretorPage() {
   const wordCount = words.length
   const materialIsObject = Boolean(material && typeof material === 'object' && !Array.isArray(material))
   const materialCards = materialIsObject && Array.isArray(material.cards) ? material.cards : []
-  const materialSources = materialIsObject && Array.isArray(material.fontes) ? material.fontes : []
   const materialSummary = materialIsObject ? String(material.resumo || '').trim() : ''
   const isDynamicTheme = temaModo === 'dynamic'
   // Se existir qualquer pedaço do conteúdo salvo, o draft continua ativo.

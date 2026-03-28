@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
-import { POLICY_URL, loadPolicyConsent } from '../services/policyConsent.js'
+import { POLICY_URL } from '../services/policyConsent.js'
 import { EmailSuggestions } from '../ui/EmailSuggestions.jsx'
 
 // Ícone olho aberto

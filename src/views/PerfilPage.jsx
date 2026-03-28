@@ -11,7 +11,6 @@ import {
 import {
   AVATAR_ACCENT_OPTIONS,
   DEFAULT_AVATAR_SETTINGS,
-  describeAvatarSettings,
   loadAvatarSettings,
   resolveAvatarAppearance,
   saveAvatarSettings,
