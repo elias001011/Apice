@@ -234,6 +234,11 @@ body,
   gap: 10px;
 }
 
+.nav-more-wrap {
+  position: relative;
+  display: none;
+}
+
 .nav-icon-btn {
   width: 36px;
   height: 36px;
@@ -264,6 +269,11 @@ body,
   stroke-width: 1.7;
 }
 
+.nav-more-btn svg {
+  stroke: none;
+  fill: var(--text2);
+}
+
 .nav-icon-btn .icon-moon,
 .nav-icon-btn .icon-sun {
   display: inline-flex;
@@ -292,6 +302,80 @@ body,
 .nav-avatar:hover {
   background: var(--accent-dim);
   border-color: var(--accent);
+}
+
+.nav-more-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(250px, calc(100vw - 2rem));
+  background: var(--bg2);
+  border: 1.5px solid var(--border2);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+  padding: 10px;
+  z-index: 1060;
+}
+
+.nav-more-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+}
+
+.nav-more-link:hover,
+.nav-more-link.active {
+  background: var(--bg3);
+  color: var(--accent);
+}
+
+.nav-more-link-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--accent-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-more-link-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.nav-more-link-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-more-link-text strong {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.nav-more-link-text span {
+  font-size: 0.72rem;
+  color: var(--text3);
+  line-height: 1.35;
+}
+
+.nav-more-note {
+  margin-top: 8px;
+  padding: 0 4px 4px;
+  font-size: 0.72rem;
+  color: var(--text3);
+  line-height: 1.4;
 }
 
 .nav-avatar .avatar-media,
@@ -957,6 +1041,14 @@ html[data-card-hover="off"] .conq-card--unlocked:hover {
   .main {
     padding-left: 1rem;
     padding-right: 1rem;
+  }
+
+  .nav-more-wrap {
+    display: block;
+  }
+
+  .tab-item--secondary {
+    display: none;
   }
 
   .home-grid {

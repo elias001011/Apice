@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { ThemeToggleButton } from './ThemeToggleButton.jsx'
 import { useAuth } from '../auth/useAuth.js'
@@ -18,6 +18,8 @@ export function AppShell() {
   const { busy } = useAppBusy()
   const { theme, accent } = useTheme()
   const [avatarSettings, setAvatarSettings] = useState(() => loadAvatarSettings())
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
+  const mobileMoreRef = useRef(null)
 
   useEffect(() => {
     const refresh = () => setAvatarSettings(loadAvatarSettings())
@@ -25,6 +27,31 @@ export function AppShell() {
     const unsubscribe = subscribeAvatarSettings(refresh)
     return unsubscribe
   }, [])
+
+  useEffect(() => {
+    if (!mobileMoreOpen) return undefined
+
+    const handlePointerDown = (event) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (mobileMoreRef.current?.contains(target)) return
+      setMobileMoreOpen(false)
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setMobileMoreOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [mobileMoreOpen])
 
   const name = user?.user_metadata?.full_name || user?.email || 'User'
   const avatarAppearance = resolveAvatarAppearance({
@@ -49,6 +76,49 @@ export function AppShell() {
           </div>
           <div className="nav-right">
             <ThemeToggleButton />
+            <div className="nav-more-wrap" ref={mobileMoreRef}>
+              <button
+                type="button"
+                className="nav-icon-btn nav-more-btn"
+                aria-label="Mais opções"
+                aria-haspopup="menu"
+                aria-expanded={mobileMoreOpen}
+                title="Mais opções"
+                onClick={() => setMobileMoreOpen((value) => !value)}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="5" r="1.75" />
+                  <circle cx="12" cy="12" r="1.75" />
+                  <circle cx="12" cy="19" r="1.75" />
+                </svg>
+              </button>
+              {mobileMoreOpen && (
+                <div className="nav-more-menu" role="menu" aria-label="Mais opções">
+                  <NavLink
+                    to="/conquistas"
+                    className={({ isActive }) => `nav-more-link${isActive ? ' active' : ''}`}
+                    role="menuitem"
+                    onClick={() => setMobileMoreOpen(false)}
+                  >
+                    <span className="nav-more-link-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                        <path d="M4 22h16" />
+                        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+                        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+                        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                      </svg>
+                    </span>
+                    <span className="nav-more-link-text">
+                      <strong>Conquistas</strong>
+                      <span>Atalho da jornada de evolução.</span>
+                    </span>
+                  </NavLink>
+                  <div className="nav-more-note">Outras opções secundárias entrarão aqui.</div>
+                </div>
+              )}
+            </div>
             <NavLink
               to="/perfil"
               className="nav-avatar"
@@ -90,16 +160,16 @@ export function AppShell() {
         <TabLink to="/home" label="Início" icon="home" />
         <TabLink to="/corretor" label="Corretor" icon="edit" />
         <TabLink to="/radar" label="Radar" icon="radar" />
-        <TabLink to="/conquistas" label="Conquistas" icon="trophy" />
+        <TabLink to="/conquistas" label="Conquistas" icon="trophy" className="tab-item--secondary" />
         <TabLink to="/perfil" label="Perfil" icon="user" />
       </nav>
     </>
   )
 }
 
-function TabLink({ to, label, icon }) {
+function TabLink({ to, label, icon, className = '' }) {
   return (
-    <NavLink to={to} className={({ isActive }) => `tab-item${isActive ? ' active' : ''}`}>
+    <NavLink to={to} className={({ isActive }) => `tab-item${className ? ` ${className}` : ''}${isActive ? ' active' : ''}`}>
       <div className="tab-icon">{iconSvg(icon)}</div>
       <div className="tab-label">{label}</div>
     </NavLink>

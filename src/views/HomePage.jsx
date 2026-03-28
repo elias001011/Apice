@@ -50,6 +50,29 @@ export function HomePage() {
   const [tempDate, setTempDate] = useState(enemDate)
   const [timeLeft, setTimeLeft] = useState({ months: 0, days: 0, hours: 0, minutes: 0, seconds: 0 })
 
+  const formatEnemDateLabel = (value) => {
+    if (!value) return 'Data não definida'
+
+    const parsedDate = new Date(`${value}T00:00:00`)
+    if (Number.isNaN(parsedDate.getTime())) return 'Data não definida'
+
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    }).format(parsedDate)
+  }
+
+  const handleOpenEnemEditor = () => {
+    setTempDate(enemDate || '')
+    setIsEditingEnem(true)
+  }
+
+  const handleCancelEnemEditor = () => {
+    setTempDate(enemDate || '')
+    setIsEditingEnem(false)
+  }
+
   useEffect(() => {
     const update = () => {
       if (!enemDate) return
@@ -82,6 +105,7 @@ export function HomePage() {
   }, [enemDate])
 
   const handleConfirmDate = () => {
+    if (!tempDate) return
     setEnemDate(tempDate)
     localStorage.setItem('apice:enem-date', tempDate)
     setIsEditingEnem(false)
@@ -255,48 +279,6 @@ export function HomePage() {
           <div className="section-label anim anim-d3" style={{ marginTop: 0 }}>Ferramentas</div>
 
           <div className="features-stack">
-            {/* NOVO CARD DO TIMER ENEM */}
-            <div className="pv-feature pv-feature--enem anim anim-d3">
-              <div className="pv-feature-content">
-                <div className="pv-feature-title" style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Contagem para o {enemLabel}</div>
-                {isEditingEnem ? (
-                  <div className="enem-edit-box">
-                    <div className="enem-input-wrapper">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                      <input
-                        type="date"
-                        className="enem-input-new"
-                        value={tempDate}
-                        onChange={(e) => setTempDate(e.target.value)}
-                      />
-                    </div>
-                    <button className="enem-confirm-btn" onClick={handleConfirmDate}>
-                      Confirmar
-                    </button>
-                  </div>
-                ) : !enemDate ? (
-                  <button className="enem-setup-btn" onClick={() => setIsEditingEnem(true)}>
-                    Clique aqui para selecionar a data do enem
-                  </button>
-                ) : (
-                  <div className="enem-live-timer" onClick={() => { setTempDate(enemDate); setIsEditingEnem(true); }}>
-                    <div className="timer-units">
-                      <div className="timer-unit"><strong>{timeLeft.months}</strong><span>meses</span></div>
-                      <div className="timer-unit"><strong>{timeLeft.days}</strong><span>dias</span></div>
-                      <div className="timer-unit"><strong>{timeLeft.hours}</strong><span>h</span></div>
-                      <div className="timer-unit"><strong>{timeLeft.minutes}</strong><span>m</span></div>
-                      <div className="timer-unit"><strong>{timeLeft.seconds}</strong><span>s</span></div>
-                    </div>
-                    <div className="enem-edit-hint">Clique para alterar</div>
-                  </div>
-                )}
-
-              </div>
-              <div className="pv-feature-icon" style={{ opacity: 0.15 }}>
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              </div>
-            </div>
-
             <a href="/corretor" className="pv-feature pv-feature--dark anim anim-d3">
               <div className="pv-feature-content">
                 <div className="pv-feature-title">Corretor de Redação</div>
@@ -339,9 +321,106 @@ export function HomePage() {
             </div>
           </div>
         </div>
+        </div>
       </div>
-    </div>
-  </div>
+      </div>
+
+      <section className="enem-card anim anim-d5">
+        <div className="enem-card-rail" aria-hidden="true" />
+        <div className="enem-card-header">
+          <div className="enem-card-kicker">Calendário do {enemLabel}</div>
+          <h2 className="enem-card-title">Contagem para a prova</h2>
+          <p className="enem-card-copy">
+            {enemDate
+              ? `Data ativa: ${formatEnemDateLabel(enemDate)}.`
+              : 'Selecione a data oficial para acompanhar a contagem sem depender de atualização manual.'}
+          </p>
+        </div>
+
+        <div className="enem-card-meta">
+          <span className={`enem-card-badge${enemDate ? ' active' : ''}`}>
+            {enemDate ? 'Data salva' : 'Data pendente'}
+          </span>
+          <button type="button" className="enem-card-link" onClick={handleOpenEnemEditor}>
+            {enemDate ? 'Alterar data' : 'Definir data'}
+          </button>
+        </div>
+
+        {isEditingEnem ? (
+          <div className="enem-editor">
+            <label className="enem-editor-field">
+              <span>Data da prova</span>
+              <div className="enem-input-wrapper">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                <input
+                  type="date"
+                  className="enem-input-new"
+                  value={tempDate}
+                  onChange={(e) => setTempDate(e.target.value)}
+                />
+              </div>
+            </label>
+            <div className="enem-editor-actions">
+              <button type="button" className="btn-ghost" onClick={handleCancelEnemEditor}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleConfirmDate}
+                disabled={!tempDate}
+                style={{ width: 'auto', paddingInline: '18px' }}
+              >
+                Salvar data
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="enem-display">
+            {enemDate ? (
+              <div className="enem-countdown-grid">
+                <div className="enem-countdown-cell">
+                  <strong>{timeLeft.months}</strong>
+                  <span>Meses</span>
+                </div>
+                <div className="enem-countdown-cell">
+                  <strong>{timeLeft.days}</strong>
+                  <span>Dias</span>
+                </div>
+                <div className="enem-countdown-cell">
+                  <strong>{timeLeft.hours}</strong>
+                  <span>Horas</span>
+                </div>
+                <div className="enem-countdown-cell">
+                  <strong>{timeLeft.minutes}</strong>
+                  <span>Minutos</span>
+                </div>
+                <div className="enem-countdown-cell enem-countdown-cell--accent">
+                  <strong>{timeLeft.seconds}</strong>
+                  <span>Segundos</span>
+                </div>
+              </div>
+            ) : (
+              <div className="enem-empty-state">
+                <div className="enem-empty-title">Ainda sem data definida</div>
+                <p>Defina a data para liberar a contagem ao vivo e manter o painel alinhado com a prova.</p>
+              </div>
+            )}
+
+            <div className="enem-side-note">
+              <div className="enem-side-label">Próximo passo</div>
+              <div className="enem-side-copy">
+                No futuro, podemos detectar a data oficial automaticamente e usar o seletor manual apenas como fallback.
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
   </>
 )
 }
@@ -381,6 +460,290 @@ const homeCss = `
   .features-stack .pv-feature--quote:hover {
     transform: none;
     box-shadow: none;
+  }
+
+  .enem-card {
+    width: 100%;
+    max-width: var(--content-max-width);
+    margin: 18px auto 0;
+    padding: 1.5rem;
+    border-radius: 28px;
+    border: 1.5px solid var(--border);
+    background: linear-gradient(135deg, var(--bg2), var(--bg3));
+    display: grid;
+    grid-template-columns: 1.08fr 0.92fr;
+    gap: 1.25rem;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.06);
+  }
+
+  .enem-card-rail {
+    position: absolute;
+    inset: auto -40px -46px auto;
+    width: 260px;
+    height: 260px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(var(--accent-rgb), 0.2) 0%, rgba(var(--accent-rgb), 0.06) 35%, transparent 72%);
+    pointer-events: none;
+  }
+
+  .enem-card-header,
+  .enem-editor,
+  .enem-display {
+    position: relative;
+    z-index: 1;
+  }
+
+  .enem-card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    justify-content: center;
+  }
+
+  .enem-card-kicker {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text3);
+  }
+
+  .enem-card-title {
+    margin: 0;
+    font-family: 'DM Serif Display', serif;
+    font-size: 2rem;
+    line-height: 1;
+    color: var(--text);
+  }
+
+  .enem-card-copy {
+    margin: 0;
+    max-width: 42ch;
+    font-size: 0.92rem;
+    line-height: 1.65;
+    color: var(--text2);
+  }
+
+  .enem-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .enem-card-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text3);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .enem-card-badge.active {
+    background: var(--accent-dim);
+    border-color: var(--accent-dim2);
+    color: var(--accent);
+  }
+
+  .enem-card-link {
+    border: none;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .enem-card-link:hover {
+    text-decoration: underline;
+  }
+
+  .enem-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    justify-content: center;
+  }
+
+  .enem-editor-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+
+  .enem-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg2);
+    border: 1.5px solid var(--border2);
+    border-radius: 16px;
+    padding: 10px 12px;
+  }
+
+  .enem-input-new {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.95rem;
+    min-height: 30px;
+    outline: none;
+  }
+
+  .enem-input-new::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.7;
+  }
+
+  .enem-editor-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .enem-display {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    justify-content: space-between;
+  }
+
+  .enem-countdown-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .enem-countdown-cell {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 0.9rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    text-align: center;
+  }
+
+  .enem-countdown-cell strong {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.55rem;
+    line-height: 1;
+    color: var(--text);
+  }
+
+  .enem-countdown-cell span {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+
+  .enem-countdown-cell--accent {
+    background: var(--accent);
+    border-color: var(--accent2);
+  }
+
+  .enem-countdown-cell--accent strong {
+    color: #0f0f0f;
+  }
+
+  .enem-countdown-cell--accent span {
+    color: rgba(15, 15, 15, 0.68);
+  }
+
+  .enem-empty-state {
+    background: var(--bg2);
+    border: 1px dashed var(--border2);
+    border-radius: 20px;
+    padding: 1.2rem;
+  }
+
+  .enem-empty-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .enem-empty-state p {
+    margin: 0;
+    color: var(--text2);
+    line-height: 1.6;
+    font-size: 0.9rem;
+  }
+
+  .enem-side-note {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 1rem 1.05rem;
+  }
+
+  .enem-side-label {
+    margin-bottom: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+
+  .enem-side-copy {
+    font-size: 0.86rem;
+    line-height: 1.6;
+    color: var(--text2);
+  }
+
+  @media (max-width: 767px) {
+    .enem-card {
+      grid-template-columns: 1fr;
+      padding: 1.25rem;
+      margin: 14px auto 0;
+      gap: 1rem;
+    }
+
+    .enem-card-title {
+      font-size: 1.7rem;
+    }
+
+    .enem-countdown-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 480px) {
+    .enem-countdown-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .enem-countdown-cell {
+      padding: 0.8rem 0.6rem;
+    }
   }
 
   .quote-icon-small {
@@ -664,143 +1027,6 @@ const homeCss = `
   }
   .pv-feature--dark { background: var(--bg2); border: 1.5px solid var(--border); }
   .pv-feature--lime { background: var(--accent); border: 1.5px solid var(--accent2); }
-  .pv-feature--enem { 
-    background: linear-gradient(135deg, var(--bg2), var(--accent-dim)); 
-    border: 1.5px solid var(--accent);
-    min-height: auto;
-    padding: 0; /* Tiramos o padding para o botão ocupar tudo */
-  }
-
-  .pv-feature--enem .pv-feature-content {
-    width: 100%;
-    height: 100%;
-  }
-
-  .enem-setup-btn {
-    width: 100%;
-    height: 100%;
-    background: transparent;
-    border: none;
-    color: var(--accent);
-    font-size: 1rem;
-    font-weight: 700;
-    padding: 2rem 1.5rem;
-    cursor: pointer;
-    text-align: center;
-    line-height: 1.4;
-    transition: background 0.2s;
-  }
-
-  .enem-setup-btn:hover {
-    background: rgba(var(--accent-rgb), 0.05);
-  }
-
-  .enem-live-timer {
-    padding: 1.25rem 1.5rem;
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .timer-units {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-
-  .timer-unit {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-width: 35px;
-  }
-
-  .timer-unit strong {
-    font-size: 1.2rem;
-    color: var(--text);
-    font-family: 'DM Serif Display', serif;
-    line-height: 1;
-  }
-
-  .timer-unit span {
-    font-size: 0.65rem;
-    color: var(--text3);
-    text-transform: uppercase;
-    font-weight: 700;
-  }
-
-  .enem-empty {
-    font-size: 0.9rem;
-    color: var(--text2);
-    font-weight: 500;
-  }
-
-  .enem-edit-hint {
-    font-size: 0.65rem;
-    color: var(--accent);
-    opacity: 0.7;
-    font-weight: 600;
-  }
-
-  .enem-edit-box {
-    padding: 1.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .enem-input-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: var(--bg3);
-    border: 1.5px solid var(--border2);
-    border-radius: 12px;
-    padding: 8px 12px;
-    transition: all 0.2s;
-  }
-
-  .enem-input-wrapper:focus-within {
-    border-color: var(--accent);
-    box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.1);
-  }
-
-  .enem-input-new {
-    background: transparent;
-    border: none;
-    color: var(--text);
-    font-family: inherit;
-    font-size: 0.9rem;
-    outline: none;
-    width: 100%;
-    cursor: pointer;
-  }
-
-  .enem-input-new::-webkit-calendar-picker-indicator {
-    filter: invert(var(--theme-invert));
-    cursor: pointer;
-  }
-
-  .enem-confirm-btn {
-    background: var(--accent);
-    color: #0f0f0f;
-    border: none;
-    padding: 10px 16px;
-    border-radius: 12px;
-    font-size: 0.9rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s;
-    width: 100%;
-  }
-
-  .enem-confirm-btn:hover {
-    background: var(--accent2);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.2);
-  }
-
   .pv-feature-content { display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 2; }
 
   .pv-feature-title { font-family: 'DM Serif Display', serif; font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.3px; }
