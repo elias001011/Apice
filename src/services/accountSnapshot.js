@@ -10,11 +10,8 @@ import {
   saveAvatarSettings,
 } from './avatarSettings.js'
 import {
-  MAX_CLOUD_ESSAY_HISTORY_ENTRIES,
-  loadEssayHistory,
   compactEssayHistoryEntry,
   saveEssayHistorySnapshot,
-  loadEssayHistoryCount,
 } from './essayInsights.js'
 import {
   getFreePlanUsageSnapshot,
@@ -29,7 +26,6 @@ import {
   normalizeRadarFavorites,
 } from './radarFavorites.js'
 import {
-  loadRadarSnapshot,
   saveRadarSnapshot,
   normalizeRadarSnapshot,
 } from './radarState.js'
@@ -59,7 +55,6 @@ const LAYOUT_MODE_KEY = 'apice:layoutMode'
 const CONTAINER_SIZE_KEY = 'apice:containerSize'
 const ANIMATIONS_ENABLED_KEY = 'apice:animationsEnabled'
 const CARD_HOVER_ENABLED_KEY = 'apice:cardHoverEffects'
-const MAX_CLOUD_SNAPSHOT_BYTES = 12_000
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
@@ -137,108 +132,6 @@ function normalizeHistory(history) {
     .map((item) => compactEssayHistoryEntry(item))
 }
 
-function trimCloudText(value, limit = 0) {
-  const text = String(value ?? '').trim()
-  if (!text || !limit || text.length <= limit) return text
-  return `${text.slice(0, Math.max(0, limit - 1)).trim()}…`
-}
-
-function compactCloudEssayHistoryEntry(item, mode = 'full') {
-  const compact = compactEssayHistoryEntry(item)
-  if (!compact) return null
-
-  const presets = {
-    full: {
-      preview: 160,
-      redacao: 320,
-      competencias: 3,
-      competenciaNome: 60,
-      competenciaDescricao: 80,
-      erros: 3,
-      erroTexto: 60,
-      erroMotivo: 80,
-      tema: 120,
-    },
-    slim: {
-      preview: 120,
-      redacao: 160,
-      competencias: 2,
-      competenciaNome: 48,
-      competenciaDescricao: 60,
-      erros: 0,
-      erroTexto: 0,
-      erroMotivo: 0,
-      tema: 96,
-    },
-    minimal: {
-      preview: 80,
-      redacao: 0,
-      competencias: 1,
-      competenciaNome: 40,
-      competenciaDescricao: 48,
-      erros: 0,
-      erroTexto: 0,
-      erroMotivo: 0,
-      tema: 80,
-    },
-  }
-
-  const limits = presets[mode] || presets.full
-
-  const feedback = compact.feedback && typeof compact.feedback === 'object'
-    ? {
-        notaTotal: Number.isFinite(Number(compact.feedback.notaTotal))
-          ? Number(compact.feedback.notaTotal)
-          : Number(compact.nota) || 0,
-        competencias: Array.isArray(compact.feedback.competencias)
-          ? compact.feedback.competencias.slice(0, limits.competencias).map((competencia) => ({
-              nome: trimCloudText(competencia?.nome, limits.competenciaNome),
-              nota: Number.isFinite(Number(competencia?.nota)) ? Number(competencia.nota) : 0,
-              descricao: trimCloudText(competencia?.descricao, limits.competenciaDescricao),
-            }))
-          : [],
-        pontoForte: trimCloudText(compact.feedback.pontoForte, mode === 'minimal' ? 48 : 80),
-        atencao: trimCloudText(compact.feedback.atencao, mode === 'minimal' ? 48 : 80),
-        principalMelhorar: trimCloudText(compact.feedback.principalMelhorar, mode === 'minimal' ? 48 : 80),
-        errosPt: Array.isArray(compact.feedback.errosPt) && limits.erros > 0
-          ? compact.feedback.errosPt.slice(0, limits.erros).map((erro) => ({
-              errado: trimCloudText(erro?.errado, limits.erroTexto),
-              corrigido: trimCloudText(erro?.corrigido, limits.erroTexto),
-              motivo: trimCloudText(erro?.motivo, limits.erroMotivo),
-            }))
-          : [],
-      }
-    : null
-
-  return {
-    ...compact,
-    tema: trimCloudText(compact.tema, limits.tema),
-    preview: trimCloudText(compact.preview, limits.preview),
-    redacao: limits.redacao > 0 ? trimCloudText(compact.redacao, limits.redacao) : undefined,
-    feedback,
-  }
-}
-
-function buildCloudEssayHistory(history = []) {
-  const normalized = Array.isArray(history) ? history : []
-  const modes = ['full', 'slim', 'minimal']
-
-  for (const mode of modes) {
-    const candidate = normalized
-      .map((item) => compactCloudEssayHistoryEntry(item, mode))
-      .filter(Boolean)
-
-    if (JSON.stringify(candidate).length <= MAX_CLOUD_SNAPSHOT_BYTES || mode === 'minimal') {
-      return candidate
-    }
-  }
-
-  return normalized
-    .map((item) => compactCloudEssayHistoryEntry(item, 'minimal'))
-    .filter(Boolean)
-    .slice(0, Math.max(1, Math.min(normalized.length, 10)))
-}
-
 function normalizeUsage(usage) {
   if (!usage || typeof usage !== 'object') return getFreePlanUsageSnapshot()
 
@@ -257,23 +150,19 @@ function normalizeUsage(usage) {
   }
 }
 
-export function buildAccountSnapshot(user, historyLimit = MAX_CLOUD_ESSAY_HISTORY_ENTRIES) {
+export function buildAccountSnapshot(user) {
   return {
-    version: 9,
+    version: 10,
     profile: readProfileSnapshot(user),
     preferences: readThemeSnapshot(),
-    history: buildCloudEssayHistory(normalizeHistory(loadEssayHistory(historyLimit))),
-    historyCount: loadEssayHistoryCount(),
     usage: normalizeUsage(getFreePlanUsageSnapshot()),
     planTier: getCurrentPlanTier(),
     radarFavorites: loadRadarFavorites(),
-    radarSnapshot: loadRadarSnapshot(),
     summary: loadUserSummary(),
     aiResponsePreference: loadAiResponsePreference(),
     avatarSettings: loadAvatarSettings(),
     notifications: loadNotificationPreferences(),
     conquistas: loadConquistas(),
-    savedAt: new Date().toISOString(),
   }
 }
 
@@ -305,7 +194,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
   )
   const hasAiResponsePreference = Object.prototype.hasOwnProperty.call(rawSnapshot, 'aiResponsePreference')
   const snapshot = {
-    version: Number(rawSnapshot.version ?? 9) || 9,
+    version: Number(rawSnapshot.version ?? 10) || 10,
     profile: readProfileSnapshot({
       user_metadata: rawSnapshot.profile || {},
       email: rawSnapshot.profile?.email || '',
@@ -362,44 +251,67 @@ function loadNotificationPreferencesFromObject(rawPreferences) {
 export function applyAccountSnapshot(snapshot) {
   if (!canUseStorage() || !snapshot || typeof snapshot !== 'object') return
 
-  const preferences = snapshot.preferences || {}
-  const history = Array.isArray(snapshot.history) ? snapshot.history : []
-  const historyCount = Number.isFinite(Number(snapshot.historyCount)) ? Number(snapshot.historyCount) : history.length
-  const usage = snapshot.usage ? normalizeUsage(snapshot.usage) : null
-  const planTier = String(snapshot.planTier ?? 'free').trim() || 'free'
-  const radarFavorites = Array.isArray(snapshot.radarFavorites) ? snapshot.radarFavorites : []
-  const radarSnapshot = snapshot.radarSnapshot ? normalizeRadarSnapshot(snapshot.radarSnapshot) : null
-
-  localStorage.setItem(THEME_KEY, String(preferences.theme ?? 'light'))
-  localStorage.setItem(ACCENT_KEY, String(preferences.accent ?? 'lime'))
-  localStorage.setItem(FONT_SIZE_KEY, String(preferences.fontSize ?? 'md'))
-  localStorage.setItem(FONT_FAMILY_KEY, String(preferences.fontFamily ?? 'dm-sans'))
-  localStorage.setItem(LAYOUT_MODE_KEY, String(preferences.layoutMode ?? 'comfortable'))
-  localStorage.setItem(CONTAINER_SIZE_KEY, String(preferences.containerSize ?? 'sm'))
-  if (Object.prototype.hasOwnProperty.call(preferences, 'animationsEnabled')) {
-    localStorage.setItem(ANIMATIONS_ENABLED_KEY, String(Boolean(preferences.animationsEnabled)))
-  }
-  if (Object.prototype.hasOwnProperty.call(preferences, 'cardHoverEffects')) {
-    localStorage.setItem(CARD_HOVER_ENABLED_KEY, String(Boolean(preferences.cardHoverEffects)))
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'history')) {
+    const history = Array.isArray(snapshot.history) ? snapshot.history : []
+    const historyCount = Number.isFinite(Number(snapshot.historyCount)) ? Number(snapshot.historyCount) : history.length
+    saveEssayHistorySnapshot(history, historyCount)
   }
 
-  saveEssayHistorySnapshot(history, historyCount)
-
-  if (usage) {
-    setFreePlanUsageSnapshot(usage)
-  } else {
-    resetFreePlanUsage()
+  if (snapshot.preferences && typeof snapshot.preferences === 'object') {
+    const preferences = snapshot.preferences
+    if (Object.prototype.hasOwnProperty.call(preferences, 'theme')) {
+      localStorage.setItem(THEME_KEY, String(preferences.theme ?? 'light'))
+    }
+    if (Object.prototype.hasOwnProperty.call(preferences, 'accent')) {
+      localStorage.setItem(ACCENT_KEY, String(preferences.accent ?? 'lime'))
+    }
+    if (Object.prototype.hasOwnProperty.call(preferences, 'fontSize')) {
+      localStorage.setItem(FONT_SIZE_KEY, String(preferences.fontSize ?? 'md'))
+    }
+    if (Object.prototype.hasOwnProperty.call(preferences, 'fontFamily')) {
+      localStorage.setItem(FONT_FAMILY_KEY, String(preferences.fontFamily ?? 'dm-sans'))
+    }
+    if (Object.prototype.hasOwnProperty.call(preferences, 'layoutMode')) {
+      localStorage.setItem(LAYOUT_MODE_KEY, String(preferences.layoutMode ?? 'comfortable'))
+    }
+    if (Object.prototype.hasOwnProperty.call(preferences, 'containerSize')) {
+      localStorage.setItem(CONTAINER_SIZE_KEY, String(preferences.containerSize ?? 'sm'))
+    }
+    if (Object.prototype.hasOwnProperty.call(preferences, 'animationsEnabled')) {
+      localStorage.setItem(ANIMATIONS_ENABLED_KEY, String(Boolean(preferences.animationsEnabled)))
+    }
+    if (Object.prototype.hasOwnProperty.call(preferences, 'cardHoverEffects')) {
+      localStorage.setItem(CARD_HOVER_ENABLED_KEY, String(Boolean(preferences.cardHoverEffects)))
+    }
   }
 
-  setPlanTier(planTier)
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'usage')) {
+    const usage = snapshot.usage ? normalizeUsage(snapshot.usage) : null
+    if (usage) {
+      setFreePlanUsageSnapshot(usage)
+    } else {
+      resetFreePlanUsage()
+    }
+  }
 
-  setRadarFavoritesSnapshot(radarFavorites)
-  saveRadarSnapshot(radarSnapshot)
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'planTier')) {
+    setPlanTier(String(snapshot.planTier ?? 'free').trim() || 'free')
+  }
 
-  if (snapshot.summary) {
-    saveUserSummary(snapshot.summary)
-  } else {
-    clearUserSummary()
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'radarFavorites')) {
+    setRadarFavoritesSnapshot(Array.isArray(snapshot.radarFavorites) ? snapshot.radarFavorites : [])
+  }
+
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'radarSnapshot')) {
+    saveRadarSnapshot(snapshot.radarSnapshot ? normalizeRadarSnapshot(snapshot.radarSnapshot) : null)
+  }
+
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'summary')) {
+    if (snapshot.summary) {
+      saveUserSummary(snapshot.summary)
+    } else {
+      clearUserSummary()
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(snapshot, 'aiResponsePreference')) {
@@ -410,16 +322,20 @@ export function applyAccountSnapshot(snapshot) {
     }
   }
 
-  saveAvatarSettings(snapshot.avatarSettings)
-
-  if (snapshot.notifications) {
-    saveNotificationPreferences(snapshot.notifications)
-  } else {
-    resetNotificationPreferences()
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'avatarSettings')) {
+    saveAvatarSettings(snapshot.avatarSettings)
   }
 
-  if (snapshot.conquistas) {
-    setConquistasSnapshot(snapshot.conquistas)
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'notifications')) {
+    if (snapshot.notifications) {
+      saveNotificationPreferences(snapshot.notifications)
+    } else {
+      resetNotificationPreferences()
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'conquistas')) {
+    setConquistasSnapshot(snapshot.conquistas || {})
   }
 
   window.dispatchEvent(new CustomEvent('apice:theme-updated'))

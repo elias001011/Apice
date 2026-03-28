@@ -18,10 +18,18 @@ import { refreshUserSummaryFromHistory } from '../services/userSummary.js'
 // For local development, it will still work if you have a linked site.
 const authConfig = {
   APIUrl: import.meta.env.VITE_NETLIFY_IDENTITY_URL || '/.netlify/identity',
-  setCookie: true,
+  setCookie: false,
 }
 
 const auth = new GoTrue(authConfig)
+
+function pickSafeUserMetadata(metadata) {
+  return {
+    full_name: String(metadata?.full_name ?? '').trim(),
+    first_name: String(metadata?.first_name ?? '').trim(),
+    school: String(metadata?.school ?? '').trim(),
+  }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => auth.currentUser() || null)
@@ -80,7 +88,7 @@ export function AuthProvider({ children }) {
     try {
       const updatedUser = await currentUser.update({
         data: {
-          ...(currentUser.user_metadata || {}),
+          ...pickSafeUserMetadata(currentUser.user_metadata),
           full_name: snapshot.profile.full_name,
           first_name: snapshot.profile.first_name,
           school: snapshot.profile.school,
@@ -232,7 +240,7 @@ export function AuthProvider({ children }) {
       const nextAttributes = { ...attributes }
       if (nextAttributes.data && typeof nextAttributes.data === 'object') {
         nextAttributes.data = {
-          ...(currentUser.user_metadata || {}),
+          ...pickSafeUserMetadata(currentUser.user_metadata),
           ...nextAttributes.data,
         }
       }
