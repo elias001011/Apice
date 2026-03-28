@@ -173,9 +173,10 @@ export async function buscarRadarTemaDetalhe(tema) {
   }
 
   const data = await response.json()
-  const savedDetail = saveRadarThemeDetail(normalizeRadarDetailPayload(data, normalizedTheme))
+  const detailPayload = normalizeRadarDetailPayload(data, normalizedTheme)
+  saveRadarThemeDetail(detailPayload)
 
-  return savedDetail || normalizeRadarDetailPayload(data, normalizedTheme)
+  return loadRadarThemeDetail(normalizedTheme.id) || detailPayload
 }
 
 export function canSearchRadarThemesNow() {
