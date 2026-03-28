@@ -73,7 +73,16 @@ export function AppShell() {
 
       {busy && (
         <div className="app-busy-overlay" role="status" aria-live="polite" aria-busy="true">
-          {/* Overlay apenas escurece e bloqueia cliques, sem card central para evitar poluição visual */}
+          <div className="app-busy-card">
+            <div className="app-busy-spinner" aria-hidden="true" />
+            <div className="app-busy-label">Processando IA</div>
+            <div className="app-busy-copy">Aguarde um instante enquanto a resposta é preparada.</div>
+            <div className="app-busy-skeleton" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
+          </div>
         </div>
       )}
 

@@ -84,6 +84,12 @@ const footerCss = `
     margin-top: 2rem;
   }
 
+  @media (min-width: 768px) {
+    .footer {
+      margin-top: 4rem;
+    }
+  }
+
   .footer-container {
     max-width: 1200px;
     margin: 0 auto;

@@ -184,8 +184,8 @@ export function AparenciaPage() {
               <div className="ap-size-row">
                 {[
                   { key: 'sm', label: 'Pequeno', desc: '880px' },
-                  { key: 'md', label: 'Médio', desc: '1000px' },
-                  { key: 'lg', label: 'Grande', desc: '1160px' },
+                  { key: 'md', label: 'Médio', desc: '960px' },
+                  { key: 'lg', label: 'Grande', desc: '1120px' },
                 ].map((s) => (
                   <button
                     key={s.key}
