@@ -20,11 +20,11 @@ function toDate(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
-function clampNumber(value, min, max) {
+export function clampNumber(value, min, max) {
   return Math.min(max, Math.max(min, value))
 }
 
-function roundScore(value) {
+export function roundScore(value) {
   return Math.round(Number(value) || 0)
 }
 

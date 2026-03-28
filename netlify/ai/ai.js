@@ -1,6 +1,6 @@
 import process from 'node:process'
 import { buildAiResponsePreferencePrompt } from '../../src/services/aiResponsePreferences.js'
-import { normalizeEssayFeedbackScore } from '../../src/services/essayInsights.js'
+import { clampNumber, normalizeEssayFeedbackScore, roundScore } from '../../src/services/essayInsights.js'
 import { getEnemYearLabel } from '../../src/services/examYear.js'
 import { normalizeRadarTheme } from '../../src/services/radarState.js'
 

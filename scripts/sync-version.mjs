@@ -1,12 +1,10 @@
-import { copyFileSync, readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf-8'))
 const displayVersion = version.replace(/\.0$/, '')
-
-copyFileSync(join(root, 'Icon.svg'), join(root, 'public', 'Icon.svg'))
 
 const swPath = join(root, 'public', 'sw.js')
 let sw = readFileSync(swPath, 'utf-8')

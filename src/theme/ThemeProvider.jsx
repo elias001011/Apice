@@ -125,38 +125,8 @@ function applyFontFamily(fontFamily) {
   }
 }
 
-function buildFaviconDataUri(theme, accent) {
-  const safeAccent = ACCENT_COLORS[accent] ? accent : 'lime'
-  const colors = ACCENT_COLORS[safeAccent][theme === 'dark' ? 'dark' : 'light']
-  const stroke = colors.base
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
-      <polyline points="3 17 9 11 13 15 21 7" stroke="${stroke}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
-      <polyline points="14 7 21 7 21 14" stroke="${stroke}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
-    </svg>
-  `.trim()
-
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
-}
-
-function updateBrandAssets(theme, accent) {
+function updateBrandAssets() {
   if (typeof document === 'undefined') return
-
-  const safeAccent = ACCENT_COLORS[accent] ? accent : 'lime'
-  const faviconHref = buildFaviconDataUri(theme, safeAccent)
-
-  const iconLinks = document.querySelectorAll('link[rel~="icon"]')
-  if (iconLinks.length > 0) {
-    iconLinks.forEach((link) => {
-      link.href = faviconHref
-    })
-  } else {
-    const link = document.createElement('link')
-    link.rel = 'icon'
-    link.type = 'image/svg+xml'
-    link.href = faviconHref
-    document.head.appendChild(link)
-  }
 
   let themeMeta = document.querySelector('meta[name="theme-color"]')
   if (!themeMeta) {
@@ -203,7 +173,7 @@ function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
   html.style.setProperty('--accent-dim2', colors.dim2)
 
   applyFontFamily(fontFamily || 'dm-sans')
-  updateBrandAssets(theme, safeAccent)
+  updateBrandAssets()
 }
 
 function syncThemeFromStorage(

@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Ápice">
-  <rect width="512" height="512" rx="120" fill="#000000"/>
-  <path d="M140 408L256 104L372 408H312L256 260L200 408Z" fill="#FFFFFF"/>
-  <path d="M214 312H298L256 206Z" fill="#000000"/>
-  <circle cx="256" cy="176" r="16" fill="#FFFFFF"/>
-</svg>
