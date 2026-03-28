@@ -1,6 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import {
+  clearLoginThrottle,
+  getLoginThrottleMessage,
+  getLoginThrottleState,
+  recordLoginFailure,
+} from '../services/loginThrottle.js'
+import {
+  isInvalidLoginError,
+  isUnconfirmedAccountError,
+  normalizeIdentityError,
+} from '../services/identityAuth.js'
 import { POLICY_URL } from '../services/policyConsent.js'
 import { EmailSuggestions } from '../ui/EmailSuggestions.jsx'
 
@@ -31,26 +42,48 @@ export function LoginPage() {
   const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [throttleTick, setThrottleTick] = useState(() => Date.now())
   
   const { login } = useAuth()
+  const normalizedEmail = email.trim()
+  const throttleState = getLoginThrottleState(normalizedEmail, throttleTick)
+  const throttleMessage = getLoginThrottleMessage(throttleState)
+
+  useEffect(() => {
+    if (!throttleState.isLocked) return undefined
+
+    const intervalId = window.setInterval(() => {
+      setThrottleTick(Date.now())
+    }, 1000)
+
+    return () => window.clearInterval(intervalId)
+  }, [throttleState.email, throttleState.isLocked])
 
   const handleLogin = async (e) => {
     e.preventDefault()
     setError('')
 
+    if (throttleState.isLocked) {
+      return
+    }
+
     setLoading(true)
     
     try {
-      await login(email, password)
+      await login(normalizedEmail, password)
+      clearLoginThrottle(normalizedEmail)
       // O App.jsx cuida do redirecionamento
     } catch (err) {
       console.error('Login error details:', err)
-      const msg = err.message || err.error_description || 'E-mail ou senha inválidos. Tente novamente.'
-      
-      if (msg.includes('not confirmed')) {
+      if (isUnconfirmedAccountError(err)) {
+        clearLoginThrottle(normalizedEmail)
         setError('E-mail não confirmado. Verifique sua caixa de entrada para ativar sua conta.')
+      } else if (isInvalidLoginError(err)) {
+        recordLoginFailure(normalizedEmail)
+        setThrottleTick(Date.now())
+        setError('E-mail ou senha inválidos. Tente novamente.')
       } else {
-        setError(msg)
+        setError(normalizeIdentityError(err) || 'Não foi possível entrar. Tente novamente mais tarde.')
       }
     } finally {
       setLoading(false)
@@ -79,6 +112,11 @@ export function LoginPage() {
             {error && (
               <div className="error-msg" role="alert" aria-live="assertive">
                 {error}
+              </div>
+            )}
+            {throttleMessage && (
+              <div className="throttle-msg" role="status" aria-live="polite">
+                {throttleMessage}
               </div>
             )}
             
@@ -123,8 +161,12 @@ export function LoginPage() {
               </div>
             </div>
 
-            <button className="btn-primary" style={{ marginTop: 12 }} type="submit" disabled={loading}>
-              {loading ? 'Entrando...' : 'Entrar'}
+            <button className="btn-primary" style={{ marginTop: 12 }} type="submit" disabled={loading || throttleState.isLocked}>
+              {loading
+                ? 'Entrando...'
+                : throttleState.isLocked
+                  ? `Aguarde ${formatThrottleTime(throttleState.remainingMs)}`
+                  : 'Entrar'}
             </button>
           </form>
 
@@ -147,6 +189,17 @@ const loginCss = `
     margin-bottom: 15px;
     text-align: center;
     border: 1px solid rgba(234, 67, 53, 0.2);
+  }
+
+  .throttle-msg {
+    background: rgba(255, 171, 64, 0.12);
+    color: var(--amber);
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-bottom: 15px;
+    text-align: center;
+    border: 1px solid rgba(255, 171, 64, 0.24);
   }
 
   .login-page {
@@ -354,3 +407,15 @@ const loginCss = `
     }
   }
 `
+
+function formatThrottleTime(ms) {
+  const totalSeconds = Math.max(1, Math.ceil(Number(ms) / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+
+  if (minutes > 0) {
+    return `${minutes}m ${String(seconds).padStart(2, '0')}s`
+  }
+
+  return `${seconds}s`
+}
