@@ -270,19 +270,19 @@ body,
 }
 
 html[data-fx="blur"] .nav {
-  background:
-    linear-gradient(180deg, rgba(var(--accent-rgb), 0.08), rgba(255, 255, 255, 0.34)),
-    var(--bg2-glass);
-  border-bottom-color: rgba(var(--accent-rgb), 0.16);
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.12);
+  background: var(--bg2-glass);
+  border-bottom-color: rgba(var(--accent-rgb), 0.12);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.1);
 }
 
 html[data-theme="dark"][data-fx="blur"] .nav {
-  background:
-    linear-gradient(180deg, rgba(var(--accent-rgb), 0.06), rgba(18, 18, 18, 0.4)),
-    var(--bg2-glass);
+  background: var(--bg2-glass);
   border-bottom-color: rgba(var(--accent-rgb), 0.12);
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
 }
 
 .nav-inner {
@@ -334,16 +334,18 @@ html[data-theme="dark"][data-fx="blur"] .nav {
 
 html[data-fx="blur"] .nav-icon-btn,
 html[data-fx="blur"] .nav-avatar {
-  background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(calc(var(--glass-blur) * 0.45)) saturate(1.08);
-  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.45)) saturate(1.08);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+  background: var(--bg2-glass);
+  border-color: rgba(var(--accent-rgb), 0.12);
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.7)) saturate(1.06);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.7)) saturate(1.06);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
 
 html[data-theme="dark"][data-fx="blur"] .nav-icon-btn,
 html[data-theme="dark"][data-fx="blur"] .nav-avatar {
-  background: rgba(18, 18, 18, 0.5);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+  background: var(--bg2-glass);
+  border-color: rgba(var(--accent-rgb), 0.12);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
 }
 
 .nav-icon-btn:hover {
@@ -413,14 +415,14 @@ html[data-theme="dark"][data-fx="blur"] .nav-avatar {
 
 html[data-fx="blur"] .nav-more-menu {
   background: var(--bg2-glass);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.08);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.08);
-  border-color: rgba(var(--accent-rgb), 0.14);
-  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-color: rgba(var(--accent-rgb), 0.12);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.1);
 }
 
 html[data-theme="dark"][data-fx="blur"] .nav-more-menu {
-  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.36);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
 }
 
 .nav-more-link {
