@@ -160,7 +160,7 @@ export function CorretorPage() {
     return (
       <>
         <style>{corretorCss}</style>
-        <div className="view-container">
+        <div className="view-container--wide">
           <div className="corretor-intro-new anim anim-d1">
           <div className="intro-header">
             <div className="badge-new">Ápice Lab</div>
@@ -213,7 +213,7 @@ export function CorretorPage() {
   return (
     <>
       <style>{corretorCss}</style>
-      <div className="view-container">
+      <div className="view-container--wide">
         <div className={`corretor-container ${isRigido ? 'modo-rigido' : ''}`}>
         {isRigido && (
           <div className="particles-overlay" aria-hidden="true">
@@ -284,26 +284,8 @@ export function CorretorPage() {
                           ))}
                         </div>
                       )}
-
-                      {materialSources.length > 0 && (
-                        <div className="material-source-list">
-                          <div className="material-source-label">Fontes usadas</div>
-                          {materialSources.map((source, index) => (
-                            source.url ? (
-                              <a className="material-source-item" href={source.url} target="_blank" rel="noreferrer" key={`${source.nome || 'source'}-${index}`}>
-                                <span>{source.nome || `Fonte ${index + 1}`}</span>
-                                <small>{source.url}</small>
-                              </a>
-                            ) : (
-                              <div className="material-source-item" key={`${source.nome || 'source'}-${index}`}>
-                                <span>{source.nome || `Fonte ${index + 1}`}</span>
-                                <small>{source.trecho || 'Fonte sem URL registrada'}</small>
-                              </div>
-                            )
-                          ))}
-                        </div>
-                      )}
                     </div>
+
                   ) : (
                     <div className="material-content">{material}</div>
                   )}

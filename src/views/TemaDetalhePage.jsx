@@ -311,24 +311,6 @@ export function TemaDetalhePage() {
           </div>
         )}
 
-        {fontes.length > 0 && (
-          <div className="material-source-list">
-            <div className="material-source-label">Fontes usadas</div>
-            {fontes.map((source, index) => (
-              source.url ? (
-                <a className="material-source-item" href={source.url} target="_blank" rel="noreferrer" key={`${source.nome || 'source'}-${index}`}>
-                  <span>{source.nome || `Fonte ${index + 1}`}</span>
-                  <small>{source.url}</small>
-                </a>
-              ) : (
-                <div className="material-source-item" key={`${source.nome || 'source'}-${index}`}>
-                  <span>{source.nome || `Fonte ${index + 1}`}</span>
-                  <small>{source.trecho || 'Fonte sem URL registrada'}</small>
-                </div>
-              )
-            ))}
-          </div>
-        )}
       </div>
 
       <div className="card anim anim-d4">

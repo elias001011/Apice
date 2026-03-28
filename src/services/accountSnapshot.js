@@ -55,6 +55,8 @@ const THEME_KEY = 'apice:theme'
 const ACCENT_KEY = 'apice:accent'
 const FONT_SIZE_KEY = 'apice:font'
 const FONT_FAMILY_KEY = 'apice:fontFamily'
+const LAYOUT_MODE_KEY = 'apice:layoutMode'
+const CONTAINER_SIZE_KEY = 'apice:containerSize'
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
@@ -76,6 +78,8 @@ function readThemeSnapshot() {
     accent: readStoredValue(ACCENT_KEY, 'lime'),
     fontSize: readStoredValue(FONT_SIZE_KEY, 'md'),
     fontFamily: readStoredValue(FONT_FAMILY_KEY, 'dm-sans'),
+    layoutMode: readStoredValue(LAYOUT_MODE_KEY, 'comfortable'),
+    containerSize: readStoredValue(CONTAINER_SIZE_KEY, 'sm'),
   }
 }
 
@@ -171,6 +175,8 @@ export function normalizeAccountSnapshot(rawSnapshot) {
       accent: String(rawSnapshot.preferences?.accent ?? 'lime').trim() || 'lime',
       fontSize: String(rawSnapshot.preferences?.fontSize ?? 'md').trim() || 'md',
       fontFamily: String(rawSnapshot.preferences?.fontFamily ?? 'dm-sans').trim() || 'dm-sans',
+      layoutMode: String(rawSnapshot.preferences?.layoutMode ?? 'comfortable').trim() || 'comfortable',
+      containerSize: String(rawSnapshot.preferences?.containerSize ?? 'sm').trim() || 'sm',
     },
     history,
     historyCount: Number.isFinite(Number(rawSnapshot.historyCount)) ? Number(rawSnapshot.historyCount) : history.length,
@@ -222,6 +228,8 @@ export function applyAccountSnapshot(snapshot) {
   localStorage.setItem(ACCENT_KEY, String(preferences.accent ?? 'lime'))
   localStorage.setItem(FONT_SIZE_KEY, String(preferences.fontSize ?? 'md'))
   localStorage.setItem(FONT_FAMILY_KEY, String(preferences.fontFamily ?? 'dm-sans'))
+  localStorage.setItem(LAYOUT_MODE_KEY, String(preferences.layoutMode ?? 'comfortable'))
+  localStorage.setItem(CONTAINER_SIZE_KEY, String(preferences.containerSize ?? 'sm'))
 
   saveEssayHistorySnapshot(history, historyCount)
 

@@ -6,6 +6,7 @@ const STORAGE_KEY_ACCENT = 'apice:accent'
 const STORAGE_KEY_FONT = 'apice:font'
 const STORAGE_KEY_FONT_FAMILY = 'apice:fontFamily'
 const STORAGE_KEY_LAYOUT = 'apice:layoutMode'
+const STORAGE_KEY_CONTAINER_SIZE = 'apice:containerSize'
 
 function readSaved(key, defaultVal) {
   try {
@@ -123,12 +124,13 @@ function applyLayoutToDom(layoutMode) {
   }
 }
 
-function applyThemeToDom(theme, accent, fontSize, fontFamily) {
+function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
   const html = document.documentElement
   if (theme === 'dark') html.setAttribute('data-theme', 'dark')
   else html.removeAttribute('data-theme')
   
   html.setAttribute('data-font', fontSize || 'md')
+  html.setAttribute('data-layout-size', containerSize || 'sm')
 
   const safeAccent = ACCENT_COLORS[accent] ? accent : 'lime'
   const colors = ACCENT_COLORS[safeAccent][theme === 'dark' ? 'dark' : 'light']
@@ -143,12 +145,13 @@ function applyThemeToDom(theme, accent, fontSize, fontFamily) {
   updateBrandAssets(theme, safeAccent)
 }
 
-function syncThemeFromStorage(setTheme, setAccent, setFontSize, setFontFamily, setLayoutMode) {
+function syncThemeFromStorage(setTheme, setAccent, setFontSize, setFontFamily, setLayoutMode, setContainerSize) {
   setTheme(readSaved(STORAGE_KEY_THEME, 'light'))
   setAccent(readSaved(STORAGE_KEY_ACCENT, 'lime'))
   setFontSize(readSaved(STORAGE_KEY_FONT, 'md'))
   setFontFamily(readSaved(STORAGE_KEY_FONT_FAMILY, 'dm-sans'))
   setLayoutMode(readSaved(STORAGE_KEY_LAYOUT, 'comfortable'))
+  setContainerSize(readSaved(STORAGE_KEY_CONTAINER_SIZE, 'sm'))
 }
 
 const ThemeContext = createContext(null)
@@ -159,9 +162,10 @@ export function ThemeProvider({ children }) {
   const [fontSize, setFontSize] = useState(() => readSaved(STORAGE_KEY_FONT, 'md'))
   const [fontFamily, setFontFamily] = useState(() => readSaved(STORAGE_KEY_FONT_FAMILY, 'dm-sans'))
   const [layoutMode, setLayoutMode] = useState(() => readSaved(STORAGE_KEY_LAYOUT, 'comfortable'))
+  const [containerSize, setContainerSize] = useState(() => readSaved(STORAGE_KEY_CONTAINER_SIZE, 'sm'))
 
   useEffect(() => {
-    applyThemeToDom(theme, accent, fontSize, fontFamily)
+    applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize)
     applyLayoutToDom(layoutMode)
     try {
       localStorage.setItem(STORAGE_KEY_THEME, theme)
@@ -169,14 +173,15 @@ export function ThemeProvider({ children }) {
       localStorage.setItem(STORAGE_KEY_FONT, fontSize)
       localStorage.setItem(STORAGE_KEY_FONT_FAMILY, fontFamily)
       localStorage.setItem(STORAGE_KEY_LAYOUT, layoutMode)
+      localStorage.setItem(STORAGE_KEY_CONTAINER_SIZE, containerSize)
       window.dispatchEvent(new CustomEvent('apice:theme-updated'))
     } catch {
       // ignore
     }
-  }, [theme, accent, fontSize, fontFamily, layoutMode])
+  }, [theme, accent, fontSize, fontFamily, layoutMode, containerSize])
 
   useEffect(() => {
-    const refresh = () => syncThemeFromStorage(setTheme, setAccent, setFontSize, setFontFamily, setLayoutMode)
+    const refresh = () => syncThemeFromStorage(setTheme, setAccent, setFontSize, setFontFamily, setLayoutMode, setContainerSize)
 
     window.addEventListener('apice:theme-updated', refresh)
     window.addEventListener('apice:account-state-updated', refresh)
@@ -196,8 +201,9 @@ export function ThemeProvider({ children }) {
     accent, setAccent,
     fontSize, setFontSize,
     fontFamily, setFontFamily,
-    layoutMode, setLayoutMode
-  }), [theme, toggleTheme, accent, fontSize, fontFamily, layoutMode])
+    layoutMode, setLayoutMode,
+    containerSize, setContainerSize
+  }), [theme, toggleTheme, accent, fontSize, fontFamily, layoutMode, containerSize])
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }

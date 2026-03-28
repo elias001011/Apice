@@ -233,6 +233,35 @@ export function HomePage() {
             </div>
           </div>
 
+          {/* ── CARD DE PERFORMANCE ── */}
+          {userSummary && (
+            <div className="card performance-card anim anim-d4">
+              <div className="card-title">Análise de Desempenho</div>
+              <div className="performance-summary">{userSummary.resumo || 'Resumo ainda não disponível.'}</div>
+              <div className="performance-grid">
+                {Array.isArray(userSummary.forcas) && userSummary.forcas.length > 0 && (
+                  <div className="performance-block">
+                    <div className="performance-label">Pontos fortes</div>
+                    <div className="performance-chips">
+                      {userSummary.forcas.slice(0, 3).map((item) => (
+                        <span key={item} className="performance-chip">{item}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {Array.isArray(userSummary.errosRecorrentes) && userSummary.errosRecorrentes.length > 0 && (
+                  <div className="performance-block">
+                    <div className="performance-label">Erros recorrentes</div>
+                    <div className="performance-chips">
+                      {userSummary.errosRecorrentes.slice(0, 3).map((item) => (
+                        <span key={item} className="performance-chip muted">{item}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── COLUNA DIREITA preexistente: Feature Cards ── */}
@@ -321,47 +350,14 @@ export function HomePage() {
                     — {dailyQuote.author}
                   </div>
                 )}
-              </div>
             </div>
           </div>
         </div>
-
-        {/* ── CARD DE PERFORMANCE ── */}
-        <div className="home-grid-full anim anim-d4">
-          {userSummary && (
-            <div className="card performance-card">
-              <div className="card-title">Análise de Desempenho</div>
-              <div className="performance-summary">{userSummary.resumo || 'Resumo ainda não disponível.'}</div>
-              <div className="performance-grid">
-                {Array.isArray(userSummary.forcas) && userSummary.forcas.length > 0 && (
-                  <div className="performance-block">
-                    <div className="performance-label">Pontos fortes</div>
-                    <div className="performance-chips">
-                      {userSummary.forcas.slice(0, 3).map((item) => (
-                        <span key={item} className="performance-chip">{item}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {Array.isArray(userSummary.errosRecorrentes) && userSummary.errosRecorrentes.length > 0 && (
-                  <div className="performance-block">
-                    <div className="performance-label">Erros recorrentes</div>
-                    <div className="performance-chips">
-                      {userSummary.errosRecorrentes.slice(0, 3).map((item) => (
-                        <span key={item} className="performance-chip muted">{item}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
       </div>
     </div>
-    </>
-  )
+  </div>
+  </>
+)
 }
 
 const homeCss = `
@@ -381,10 +377,6 @@ const homeCss = `
     }
   }
 
-  .home-grid-full {
-    grid-column: 1 / -1;
-    margin-top: 1rem;
-  }
 
   .pv-feature--quote {
     background: var(--bg3);
@@ -551,7 +543,7 @@ const homeCss = `
   }
 
   .performance-card {
-    margin-bottom: 16px;
+    margin-top: 12px;
   }
 
   .performance-summary {
@@ -864,6 +856,58 @@ const homeCss = `
   .pv-feature-icon svg { width: 26px; height: 26px; fill: none; stroke-width: 1.5; }
 
   .pv-feature-deco { position: absolute; opacity: 0.06; }
+  .performance-card {
+    background: linear-gradient(135deg, var(--bg2), var(--bg3));
+    border-left: 4px solid var(--accent);
+    padding: 1.5rem 1.75rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .performance-card::after {
+    content: '';
+    position: absolute;
+    top: -10px; right: -10px;
+    width: 60px; height: 60px;
+    background: radial-gradient(circle at center, rgba(var(--accent-rgb), 0.15), transparent 70%);
+    pointer-events: none;
+  }
+  .performance-summary {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text);
+    margin-bottom: 1.5rem;
+  }
+  .performance-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+  }
+  .performance-block { flex: 1; min-width: 200px; }
+  .performance-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text3);
+    margin-bottom: 0.75rem;
+  }
+  .performance-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .performance-chip {
+    font-size: 0.78rem;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 12px;
+    color: var(--text2);
+    transition: all 0.2s;
+  }
+  .performance-chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+
   .pv-feature--dark .pv-feature-deco svg { stroke: var(--accent); }
   .pv-feature--lime .pv-feature-deco svg { stroke: #0f0f0f; }
   .pv-feature-deco svg { fill: none; stroke-width: 1; }

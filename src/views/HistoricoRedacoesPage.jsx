@@ -59,23 +59,27 @@ export function HistoricoRedacoesPage() {
         <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text2)', fontSize: 13 }}>
           Nenhuma redação encontrada.
         </div>
-      ) : filtradas.map((red, idx) => (
-        <Link to="/resultado-redacao" state={{ resultado: red.feedback }} className="redacao-item anim" style={{ animationDelay: `${0.1 + (idx * 0.05)}s` }} key={red.id}>
-          <div className="redacao-top">
-            <div className="redacao-tema">{red.tema}</div>
-            <div className="redacao-nota">{red.nota}</div>
-          </div>
-          <div className="redacao-meta">
-            <span className="redacao-date">{fmtDate(red.data)}</span>
-            <span className="redacao-mode">Registrado</span>
-          </div>
-          <div className="redacao-bars">
-             {red.feedback?.competencias?.map((c, i) => (
-                <div key={i} className="redacao-bar" style={{ height: `${Math.max(20, (c.nota/200)*100)}%`, background: c.nota < 120 ? 'var(--amber)' : 'var(--accent)', opacity: 0.8 }}></div>
-             ))}
-          </div>
-        </Link>
-      ))}
+      ) : (
+        <div className="historico-grid">
+          {filtradas.map((red, idx) => (
+            <Link to="/resultado-redacao" state={{ resultado: red.feedback }} className="redacao-item anim" style={{ animationDelay: `${0.1 + (idx * 0.05)}s` }} key={red.id}>
+              <div className="redacao-top">
+                <div className="redacao-tema">{red.tema}</div>
+                <div className="redacao-nota">{red.nota}</div>
+              </div>
+              <div className="redacao-meta">
+                <span className="redacao-date">{fmtDate(red.data)}</span>
+                <span className="redacao-mode">Registrado</span>
+              </div>
+              <div className="redacao-bars">
+                 {red.feedback?.competencias?.map((c, i) => (
+                    <div key={i} className="redacao-bar" style={{ height: `${Math.max(20, (c.nota/200)*100)}%`, background: c.nota < 120 ? 'var(--amber)' : 'var(--accent)', opacity: 0.8 }}></div>
+                 ))}
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
     </>
   )
@@ -118,6 +122,18 @@ const historicoCss = `
     text-decoration: none;
     display: block;
     transition: border-color 0.2s, transform 0.25s;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: fadeSlideUp 0.4s ease forwards;
+  }
+
+  @media (min-width: 768px) {
+    .historico-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .redacao-item { margin-bottom: 0; }
   }
   .redacao-item:hover {
     border-color: var(--border2);

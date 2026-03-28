@@ -442,6 +442,12 @@ const radarCss = `
     margin-bottom: 1.25rem;
   }
 
+  @media (min-width: 768px) {
+    .saved-radar-stack {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
   .tema-card {
     background: var(--bg2);
     border: 1.5px solid var(--border);

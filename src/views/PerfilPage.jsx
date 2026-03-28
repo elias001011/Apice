@@ -95,6 +95,7 @@ const perfilCss = `
     align-items: center;
     gap: 10px;
     margin-top: 8px;
+    flex-wrap: nowrap; /* Garante lado a lado */
   }
 
   .profile-plan {
@@ -200,18 +201,31 @@ const perfilCss = `
   .ai-pref-box:focus { border-color: var(--accent); outline: none; }
 
   .ai-pref-warning {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--text3);
     line-height: 1.5;
-    background: rgba(var(--accent-rgb), 0.03);
-    padding: 12px;
+    background: var(--bg3);
+    padding: 10px 12px;
     border-radius: 12px;
     border-left: 3px solid var(--accent);
-    margin-bottom: 1.25rem;
+    margin-bottom: 1rem;
   }
 
-  .ai-pref-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-  .ai-pref-count { font-size: 0.75rem; color: var(--text3); }
+  .ai-pref-row { 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; /* Centralizado como pedido */
+    gap: 1rem; 
+  }
+  
+  .ai-save-btn {
+    width: auto !important;
+    padding: 8px 20px !important;
+    font-size: 0.8rem !important;
+    opacity: 0.9;
+  }
+
+  .ai-pref-count { font-size: 0.7rem; color: var(--text3); opacity: 0.5; }
 
   /* Quota Card Cleanup */
   .quota-card { padding: 1.5rem; }
@@ -677,51 +691,6 @@ export function PerfilPage() {
             </Link>
           </div>
 
-          <div className="section-label anim anim-d4">Uso de IA hoje</div>
-          <div className="card anim anim-d4 quota-card" style={{ marginBottom: '1.25rem' }}>
-            <div className="quota-head">
-              <div>
-                <div className="quota-title">Cota diária manual</div>
-                <div className="quota-subtitle">
-                  {MANUAL_AI_DAILY_LIMIT} solicitações por dia. Ver detalhes do radar é gratuito.
-                </div>
-              </div>
-              <div className={`quota-plan-badge ${planTier === 'pro' ? 'pro' : 'free'}`}>
-                {planTier === 'free' ? 'Plano free' : 'Plano pro'}
-              </div>
-            </div>
-
-            <div className="quota-main">
-              <div className="quota-main-count" style={{ color: quotaRow.blocked ? 'var(--red)' : 'var(--accent)' }}>
-                {quotaRow.used}<span style={{ color: quotaRow.blocked ? 'inherit' : '' }}>/{quotaRow.limit}</span>
-                {quotaRow.blocked && (
-                  <span className="quota-alert" title="Limite atingido" style={{ color: 'var(--red)', fontSize: '1rem', marginLeft: '8px', verticalAlign: 'middle', display: 'inline-flex', alignItems: 'center' }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                    <span style={{ fontSize: '0.85rem', marginLeft: '4px', fontWeight: 600 }}>Limite atingido!</span>
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="quota-bar quota-bar--big" aria-hidden="true">
-              <div className="quota-bar-fill" style={{ width: `${quotaRow.percent}%` }} />
-            </div>
-
-            <div className="quota-meta">
-              {quotaRow.blocked
-                ? 'Limite diário atingido.'
-                : `${quotaRow.remaining} solicitações restantes.`}
-            </div>
-
-            <div className="quota-breakdown">
-              {quotaRow.breakdown.map((row) => (
-                <div className="quota-breakdown-item" key={row.key}>
-                  <span>{row.label}</span>
-                  <strong>{row.used}</strong>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
         <div className="perfil-col">
@@ -827,20 +796,63 @@ export function PerfilPage() {
               style={{ minHeight: '120px', marginBottom: '0.85rem' }}
             />
 
-            <div className="ai-pref-warning" style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderLeft: '3px solid var(--accent)', padding: '10px', fontSize: '0.7rem' }}>
-              A IA só usa essas instruções como ajuste de tom. Pedidos para mudar nota ou burlar critérios são ignorados.
+            <div className="ai-pref-warning">
+              Ajuste de tom e clareza. Pedidos para mudar nota ou burlar critérios são ignorados.
             </div>
 
-            <div className="ai-pref-row" style={{ marginTop: '1rem' }}>
-              <div className="ai-pref-count" style={{ opacity: 0.5 }}>
-                {aiPreference.trim().length}/{AI_RESPONSE_PREFERENCE_MAX_LENGTH}
-              </div>
-              <button className="btn-primary" type="submit" disabled={aiPreferenceSaving} style={{ width: 'auto', padding: '10px 24px', fontSize: '0.85rem' }}>
-                {aiPreferenceSaving ? 'Salvando...' : 'Salvar Alterações'}
+            <div className="ai-pref-row" style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center' }}>
+              <button className="btn-primary ai-save-btn" type="submit" disabled={aiPreferenceSaving}>
+                {aiPreferenceSaving ? 'Salvando...' : 'Salvar Preferências'}
               </button>
             </div>
-            {aiPreferenceMsg && <div className="avatar-msg" style={{ marginTop: '8px' }}>{aiPreferenceMsg}</div>}
+            {aiPreferenceMsg && <div className="avatar-msg" style={{ marginTop: '8px', textAlign: 'center' }}>{aiPreferenceMsg}</div>}
           </form>
+
+          <div className="section-label anim anim-d4">Uso de IA hoje</div>
+          <div className="card anim anim-d4 quota-card" style={{ marginBottom: '1.25rem' }}>
+            <div className="quota-head">
+              <div>
+                <div className="quota-title">Cota diária manual</div>
+                <div className="quota-subtitle">
+                  {MANUAL_AI_DAILY_LIMIT} solicitações por dia. Ver detalhes do radar é gratuito.
+                </div>
+              </div>
+              <div className={`quota-plan-badge ${planTier === 'pro' ? 'pro' : 'free'}`}>
+                {planTier === 'free' ? 'Plano free' : 'Plano pro'}
+              </div>
+            </div>
+
+            <div className="quota-main">
+              <div className="quota-main-count" style={{ color: quotaRow.blocked ? 'var(--red)' : 'var(--accent)' }}>
+                {quotaRow.used}<span style={{ color: quotaRow.blocked ? 'inherit' : '' }}>/{quotaRow.limit}</span>
+                {quotaRow.blocked && (
+                  <span className="quota-alert" title="Limite atingido" style={{ color: 'var(--red)', fontSize: '1rem', marginLeft: '8px', verticalAlign: 'middle', display: 'inline-flex', alignItems: 'center' }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span style={{ fontSize: '0.85rem', marginLeft: '4px', fontWeight: 600 }}>Limite atingido!</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="quota-bar quota-bar--big" aria-hidden="true">
+              <div className="quota-bar-fill" style={{ width: `${quotaRow.percent}%` }} />
+            </div>
+
+            <div className="quota-meta">
+              {quotaRow.blocked
+                ? 'Limite diário atingido.'
+                : `${quotaRow.remaining} solicitações restantes.`}
+            </div>
+
+            <div className="quota-breakdown">
+              {quotaRow.breakdown.map((row) => (
+                <div className="quota-breakdown-item" key={row.key}>
+                  <span>{row.label}</span>
+                  <strong>{row.used}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
 
           <button
             className="logout-btn anim anim-d4"
