@@ -358,7 +358,7 @@ export function CorretorPage() {
               </button>
             </div>
 
-            <div className="card anim anim-d4 criteria-card">
+          <div className="card anim anim-d4 criteria-card">
               <div className="card-title">Critérios Avaliados</div>
               <ul className="criteria-list">
                 <li><span>C1</span> Gramática e Norma</li>
@@ -783,6 +783,10 @@ const corretorCss = `
   .criteria-list {
     list-style: none;
     padding: 0;
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 8px;
   }
   .criteria-list li {
     font-size: 0.8rem;
@@ -790,12 +794,28 @@ const corretorCss = `
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 8px;
   }
   .criteria-list li span {
     font-weight: 700;
     color: var(--accent);
     width: 20px;
+  }
+
+  .criteria-card {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.04), transparent 42%), var(--bg2);
+  }
+
+  .criteria-card::before {
+    content: '';
+    position: absolute;
+    top: -36px;
+    right: -36px;
+    width: 140px;
+    height: 140px;
+    background: radial-gradient(circle, rgba(var(--accent-rgb), 0.16), transparent 68%);
+    pointer-events: none;
   }
 
   .intro-card-option:disabled {
