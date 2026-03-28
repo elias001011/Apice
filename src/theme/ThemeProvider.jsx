@@ -95,7 +95,6 @@ function updateBrandAssets(theme, accent) {
   if (typeof document === 'undefined') return
 
   const safeAccent = ACCENT_COLORS[accent] ? accent : 'lime'
-  const colors = ACCENT_COLORS[safeAccent][theme === 'dark' ? 'dark' : 'light']
   const faviconHref = buildFaviconDataUri(theme, safeAccent)
 
   const iconLinks = document.querySelectorAll('link[rel~="icon"]')
@@ -117,7 +116,7 @@ function updateBrandAssets(theme, accent) {
     themeMeta.name = 'theme-color'
     document.head.appendChild(themeMeta)
   }
-  themeMeta.setAttribute('content', theme === 'dark' ? '#0a0a0a' : colors.base)
+  themeMeta.setAttribute('content', '#000000')
 }
 
 function applyLayoutToDom(layoutMode) {
@@ -163,7 +162,7 @@ function syncThemeFromStorage(setTheme, setAccent, setFontSize, setFontFamily, s
 const ThemeContext = createContext(null)
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => readSaved(STORAGE_KEY_THEME, getSystemTheme()))
+  const [theme, setTheme] = useState(() => getSystemTheme())
   const [accent, setAccent] = useState(() => readSaved(STORAGE_KEY_ACCENT, 'lime'))
   const [fontSize, setFontSize] = useState(() => readSaved(STORAGE_KEY_FONT, 'md'))
   const [fontFamily, setFontFamily] = useState(() => readSaved(STORAGE_KEY_FONT_FAMILY, 'dm-sans'))
