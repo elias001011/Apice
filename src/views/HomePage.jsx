@@ -364,18 +364,21 @@ const homeCss = `
   }
 
 
-  .pv-feature--quote {
+  .features-stack .pv-feature--quote {
     background: var(--bg3);
     border: 1.5px solid var(--border);
     min-height: auto;
-    padding: 1.5rem;
+    padding: 1.3rem 1.35rem;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.55rem;
     cursor: default;
+    width: 100%;
+    height: fit-content;
+    align-self: start;
   }
 
-  .pv-feature--quote:hover {
+  .features-stack .pv-feature--quote:hover {
     transform: none;
     box-shadow: none;
   }
