@@ -9,8 +9,7 @@ import { AppBusyProvider } from './ui/AppBusyContext.jsx'
 import { PwaInstallProvider } from './pwa/PwaInstallProvider.jsx'
 
 const isLocalDevHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
-const isNetlifyDevPort = window.location.port === '8888'
-const shouldRegisterServiceWorker = import.meta.env.PROD || (isLocalDevHost && isNetlifyDevPort)
+const shouldRegisterServiceWorker = import.meta.env.PROD
 
 if ('serviceWorker' in navigator && shouldRegisterServiceWorker) {
   window.addEventListener('load', () => {

@@ -1,5 +1,6 @@
 const CACHE_NAME = 'apice-pwa-v1.2'
 const PRECACHE_URLS = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg', '/Icon.svg']
+const BYPASS_PATH_PREFIXES = ['/src/', '/@vite/', '/@react-refresh', '/@fs/', '/@id/', '/node_modules/']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -22,6 +23,10 @@ self.addEventListener('fetch', (event) => {
 
   const requestUrl = new URL(event.request.url)
   if (requestUrl.origin !== self.location.origin) return
+
+  const pathname = requestUrl.pathname
+  if (BYPASS_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return
+  if (pathname.endsWith('.map')) return
 
   if (event.request.mode === 'navigate') {
     event.respondWith(
