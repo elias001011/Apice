@@ -472,7 +472,7 @@ const homeCss = `
   .home-grid {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.1rem;
   }
 
   /* Grid principal */
@@ -480,7 +480,7 @@ const homeCss = `
     .home-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 1rem;
+      gap: 1.1rem;
       align-items: start;
     }
   }
@@ -490,7 +490,7 @@ const homeCss = `
     background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.03), transparent 44%), var(--bg3);
     border: 1.5px solid var(--border);
     min-height: auto;
-    padding: 1.1rem 1.2rem;
+    padding: 1.15rem 1.25rem;
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
@@ -508,7 +508,7 @@ const homeCss = `
   .home-radar-card {
     width: 100%;
     align-self: stretch;
-    margin-top: 8px;
+    margin-top: 10px;
     min-height: 172px;
   }
 
@@ -944,8 +944,8 @@ const homeCss = `
   .stats-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 8px;
+    gap: 12px;
+    margin-bottom: 10px;
   }
 
   .performance-card {
@@ -1085,15 +1085,15 @@ const homeCss = `
   .features-stack {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
   }
 
   .home-enem-card--left {
-    margin-top: 8px;
+    margin-top: 10px;
   }
 
   .home-enem-card--right {
-    margin-top: 0;
+    margin-top: 4px;
   }
 
   .pv-feature {
