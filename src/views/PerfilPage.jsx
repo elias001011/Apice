@@ -198,6 +198,7 @@ const perfilCss = `
     color: var(--text);
     margin-bottom: 1rem;
     transition: border-color 0.2s;
+    resize: none;
   }
   .ai-pref-box:focus { border-color: var(--accent); outline: none; }
 
@@ -378,6 +379,10 @@ export function PerfilPage() {
   const [avatarSaving, setAvatarSaving] = useState(false)
   const [avatarMsg, setAvatarMsg] = useState('')
   const [pwaHint, setPwaHint] = useState('')
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
+  const [logoutLoading, setLogoutLoading] = useState(false)
+  const [logoutError, setLogoutError] = useState('')
+  const [avatarResetDialogOpen, setAvatarResetDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteAccountLoading, setDeleteAccountLoading] = useState(false)
   const [deleteAccountError, setDeleteAccountError] = useState('')
@@ -432,13 +437,49 @@ export function PerfilPage() {
     }
   }
 
+  const handleLogoutRequest = () => {
+    setLogoutError('')
+    setLogoutDialogOpen(true)
+  }
+
   const handleLogout = async () => {
+    setLogoutError('')
+    setLogoutLoading(true)
+
     try {
       await logout()
-      navigate('/login')
+      if (isMountedRef.current) {
+        setLogoutDialogOpen(false)
+        navigate('/login', { replace: true })
+      }
     } catch (err) {
       console.error('Logout error:', err)
+      if (isMountedRef.current) {
+        setLogoutError(err?.message || 'Não foi possível sair agora.')
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setLogoutLoading(false)
+      }
     }
+  }
+
+  const handleAvatarResetRequest = () => {
+    setAvatarResetDialogOpen(true)
+  }
+
+  const handleAvatarReset = () => {
+    setAvatarMsg('')
+    const reset = saveAvatarSettings({
+      ...DEFAULT_AVATAR_SETTINGS,
+      updatedAt: new Date().toISOString(),
+    })
+    if (reset) {
+      setAvatarSettingsState(reset)
+      setAvatarDraft(reset)
+      setAvatarMsg('Avatar restaurado para o padrão.')
+    }
+    setAvatarResetDialogOpen(false)
   }
 
   const handleDeleteAccount = async () => {
@@ -550,19 +591,6 @@ export function PerfilPage() {
       }
     } finally {
       setAvatarSaving(false)
-    }
-  }
-
-  const handleAvatarReset = () => {
-    setAvatarMsg('')
-    const reset = saveAvatarSettings({
-      ...DEFAULT_AVATAR_SETTINGS,
-      updatedAt: new Date().toISOString(),
-    })
-    if (reset) {
-      setAvatarSettingsState(reset)
-      setAvatarDraft(reset)
-      setAvatarMsg('Avatar restaurado para o padrão.')
     }
   }
 
@@ -799,8 +827,9 @@ export function PerfilPage() {
               <button
                 type="button"
                 className="btn-ghost"
-                onClick={handleAvatarReset}
+                onClick={handleAvatarResetRequest}
                 title="Restaurar padrão"
+                aria-label="Restaurar avatar padrão"
                 style={{ width: '40px', height: '40px', padding: 0, justifyContent: 'center', borderRadius: '10px' }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
@@ -893,7 +922,7 @@ export function PerfilPage() {
           <button
             className="logout-btn anim anim-d4"
             type="button"
-            onClick={handleLogout}
+            onClick={handleLogoutRequest}
           >
             Sair da minha conta
           </button>
@@ -918,6 +947,34 @@ export function PerfilPage() {
         </div>
       </div>
     </div>
+      <ConfirmDialog
+        open={logoutDialogOpen}
+        title="Sair da conta?"
+        message={
+          logoutError
+            || 'Isso encerra sua sessão e limpa os dados locais deste navegador. Você poderá entrar novamente quando quiser.'
+        }
+        confirmLabel={logoutLoading ? 'Saindo...' : 'Sair da conta'}
+        cancelLabel="Cancelar"
+        danger
+        confirmDisabled={logoutLoading}
+        onConfirm={handleLogout}
+        onCancel={() => {
+          if (!logoutLoading) {
+            setLogoutDialogOpen(false)
+            setLogoutError('')
+          }
+        }}
+      />
+      <ConfirmDialog
+        open={avatarResetDialogOpen}
+        title="Restaurar avatar padrão?"
+        message="Isso substitui seu avatar atual pelo padrão do Ápice. Você pode configurar tudo de novo depois."
+        confirmLabel="Restaurar"
+        cancelLabel="Cancelar"
+        onConfirm={handleAvatarReset}
+        onCancel={() => setAvatarResetDialogOpen(false)}
+      />
       <ConfirmDialog
         open={deleteDialogOpen}
         title="Excluir conta permanentemente?"

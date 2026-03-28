@@ -24,6 +24,27 @@ import {
 import { useAppBusy } from '../ui/AppBusyContext.jsx'
 import { ConfirmDialog } from '../ui/ConfirmDialog.jsx'
 
+function PinIcon({ filled = false }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 21s6-5.33 6-10a6 6 0 10-12 0c0 4.67 6 10 6 10z" fill={filled ? 'currentColor' : 'none'} />
+      <circle cx="12" cy="11" r={filled ? 2.6 : 2} fill={filled ? 'currentColor' : 'none'} />
+    </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M6 6l1 14h10l1-14" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  )
+}
+
 export function RadarPage() {
   const { beginBusy, endBusy } = useAppBusy()
   const initialRadarSnapshot = loadRadarSnapshot()
@@ -179,8 +200,14 @@ export function RadarPage() {
               type="button"
               className={`tema-save-btn${allowRemove ? ' danger' : ''}${alreadySaved ? ' saved' : ''}`}
               onClick={handleAction}
+              title={allowRemove ? 'Remover card salvo' : alreadySaved ? 'Card fixado' : 'Fixar card'}
+              aria-label={allowRemove ? `Remover card salvo ${tema.titulo}` : alreadySaved ? `Card fixado ${tema.titulo}` : `Fixar card ${tema.titulo}`}
+              aria-pressed={!allowRemove && alreadySaved}
             >
-              {allowRemove ? 'Remover' : alreadySaved ? 'Salvo' : 'Salvar card'}
+              <span className="sr-only">
+                {allowRemove ? 'Remover card salvo' : alreadySaved ? 'Card fixado' : 'Fixar card'}
+              </span>
+              {allowRemove ? <TrashIcon /> : <PinIcon filled={alreadySaved} />}
             </button>
             <div className="probabilidade">
               <div className="prob-num">{tema.probabilidade}%</div>
@@ -495,7 +522,8 @@ const radarCss = `
   .tema-meta {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
+    align-items: center;
+    gap: 8px;
     flex-shrink: 0;
   }
 
@@ -591,16 +619,22 @@ const radarCss = `
   }
 
   .tema-save-btn {
+    width: 38px;
+    height: 38px;
     border: 1px solid var(--border2);
     background: var(--bg3);
     color: var(--text2);
     border-radius: 999px;
-    padding: 7px 10px;
+    padding: 0;
     font-size: 0.7rem;
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
-    transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.1s;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.1s, opacity 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
   }
 
   .tema-save-btn:hover {
@@ -611,6 +645,14 @@ const radarCss = `
 
   .tema-save-btn:active {
     transform: scale(0.97);
+  }
+
+  .tema-save-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
   }
 
   .tema-save-btn.saved {
@@ -624,6 +666,16 @@ const radarCss = `
     border-color: rgba(255, 107, 107, 0.25);
     color: var(--red);
     background: rgba(255, 107, 107, 0.05);
+  }
+
+  .tema-save-btn.saved:hover {
+    color: var(--accent);
+  }
+
+  .tema-save-btn.danger:hover {
+    background: rgba(255, 107, 107, 0.12);
+    border-color: var(--red);
+    color: var(--red);
   }
 
   .tema-fixed-note {
