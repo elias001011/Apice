@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/useAuth.js'
+import { usePwaInstall } from '../pwa/usePwaInstall.js'
 import {
   buildEssayInsights,
   loadEssayHistory,
@@ -35,11 +36,10 @@ export function HomePage() {
   const firstName = nameParts[0]
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
 
+  const { canInstall: pwaCanInstall, isInstalled: pwaInstalled, installPwa } = usePwaInstall()
   const [insights, setInsights] = useState(() => buildEssayInsights(loadEssayHistory()))
   const [userSummary, setUserSummary] = useState(() => loadUserSummary())
   const [greeting, setGreeting] = useState(() => getGreetingLabel())
-  const [deferredPrompt, setDeferredPrompt] = useState(null)
-  const [pwaInstalled, setPwaInstalled] = useState(() => Boolean(typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)')?.matches))
   const [pwaHint, setPwaHint] = useState('')
   const enemLabel = getEnemYearLabel()
   const [dailyQuote] = useState(() => frases[getDailyQuoteIndex()])
@@ -87,41 +87,27 @@ export function HomePage() {
     setIsEditingEnem(false)
   }
 
-  // Captura evento de instalação PWA
-  useEffect(() => {
-    const handler = (e) => {
-      e.preventDefault()
-      setDeferredPrompt(e)
-      setPwaHint('')
-    }
-    const installedHandler = () => {
-      setPwaInstalled(true)
-      setPwaHint('')
-    }
-
-    window.addEventListener('beforeinstallprompt', handler)
-    window.addEventListener('appinstalled', installedHandler)
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handler)
-      window.removeEventListener('appinstalled', installedHandler)
-    }
-  }, [])
-
   const handleInstallPwa = async () => {
     if (pwaInstalled) return
 
-    if (!deferredPrompt) {
+    if (!pwaCanInstall) {
       setPwaHint('Abra o app no Chrome ou no Edge para instalar como PWA.')
       return
     }
 
-    deferredPrompt.prompt()
-    const { outcome } = await deferredPrompt.userChoice
-    if (outcome === 'accepted') {
-      setPwaInstalled(true)
-      setPwaHint('')
+    try {
+      const result = await installPwa()
+      if (result?.outcome === 'accepted') {
+        setPwaHint('')
+        return
+      }
+
+      if (result?.outcome === 'dismissed') {
+        setPwaHint('A instalação foi cancelada. Você pode tentar novamente quando quiser.')
+      }
+    } catch (error) {
+      setPwaHint(error?.message || 'A instalação do PWA ainda não está disponível neste navegador.')
     }
-    setDeferredPrompt(null)
   }
 
   useEffect(() => {

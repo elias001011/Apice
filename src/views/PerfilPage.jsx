@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import {
@@ -23,7 +23,9 @@ import {
   MANUAL_AI_DAILY_LIMIT,
   subscribeFreePlanUsage,
 } from '../services/freePlanUsage.js'
+import { usePwaInstall } from '../pwa/usePwaInstall.js'
 import { useTheme } from '../theme/ThemeProvider.jsx'
+import { ConfirmDialog } from '../ui/ConfirmDialog.jsx'
 import { AvatarVisual } from '../ui/AvatarVisual.jsx'
 
 const perfilCss = `
@@ -310,6 +312,22 @@ const perfilCss = `
     transition: all 0.2s;
   }
   .logout-btn:hover { background: rgba(255, 100, 100, 0.05); border-color: var(--red); }
+  .logout-btn.danger {
+    margin-top: 12px;
+    border-color: rgba(225, 68, 68, 0.26);
+    color: var(--red);
+  }
+  .logout-btn.danger:hover {
+    background: rgba(225, 68, 68, 0.08);
+    border-color: var(--red);
+  }
+
+  .account-danger-msg {
+    margin-top: 10px;
+    color: var(--red);
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
 
   @media (max-width: 768px) {
     .perfil-grid { grid-template-columns: 1fr; }
@@ -344,8 +362,10 @@ function maskEmail(email) {
 
 export function PerfilPage() {
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user, logout, deleteAccount } = useAuth()
+  const { canInstall: pwaCanInstall, isInstalled: pwaInstalled, installPwa } = usePwaInstall()
   const { theme, accent } = useTheme()
+  const isMountedRef = useRef(true)
   const [planTier, setPlanTierState] = useState(getCurrentPlanTier())
   const [usageRows, setUsageRows] = useState(getFreePlanUsageRows())
   const [insights, setInsights] = useState(() => buildEssayInsights(loadEssayHistory()))
@@ -357,9 +377,10 @@ export function PerfilPage() {
   const [avatarDraft, setAvatarDraft] = useState(() => loadAvatarSettings())
   const [avatarSaving, setAvatarSaving] = useState(false)
   const [avatarMsg, setAvatarMsg] = useState('')
-  const [deferredPrompt, setDeferredPrompt] = useState(null)
-  const [pwaInstalled, setPwaInstalled] = useState(() => Boolean(typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)')?.matches))
   const [pwaHint, setPwaHint] = useState('')
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false)
+  const [deleteAccountError, setDeleteAccountError] = useState('')
 
   const name = user?.user_metadata?.full_name || 'Usuário'
   const email = user?.email || 'Sem e-mail'
@@ -388,41 +409,27 @@ export function PerfilPage() {
     breakdown: [],
   }
 
-  // Captura o evento de instalação PWA
-  useEffect(() => {
-    const handler = (e) => {
-      e.preventDefault()
-      setDeferredPrompt(e)
-      setPwaHint('')
-    }
-    const installedHandler = () => {
-      setPwaInstalled(true)
-      setPwaHint('')
-    }
-
-    window.addEventListener('beforeinstallprompt', handler)
-    window.addEventListener('appinstalled', installedHandler)
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handler)
-      window.removeEventListener('appinstalled', installedHandler)
-    }
-  }, [])
-
   const handleInstallPwa = async () => {
     if (pwaInstalled) return
 
-    if (!deferredPrompt) {
+    if (!pwaCanInstall) {
       setPwaHint('Abra o app no Chrome ou no Edge para instalar como PWA.')
       return
     }
 
-    deferredPrompt.prompt()
-    const { outcome } = await deferredPrompt.userChoice
-    if (outcome === 'accepted') {
-      setPwaInstalled(true)
-      setPwaHint('')
+    try {
+      const result = await installPwa()
+      if (result?.outcome === 'accepted') {
+        setPwaHint('')
+        return
+      }
+
+      if (result?.outcome === 'dismissed') {
+        setPwaHint('A instalação foi cancelada. Você pode tentar novamente quando quiser.')
+      }
+    } catch (error) {
+      setPwaHint(error?.message || 'A instalação do PWA ainda não está disponível neste navegador.')
     }
-    setDeferredPrompt(null)
   }
 
   const handleLogout = async () => {
@@ -434,7 +441,31 @@ export function PerfilPage() {
     }
   }
 
+  const handleDeleteAccount = async () => {
+    setDeleteAccountError('')
+    setDeleteAccountLoading(true)
+
+    try {
+      await deleteAccount()
+      if (isMountedRef.current) {
+        setDeleteDialogOpen(false)
+        navigate('/login', { replace: true })
+      }
+    } catch (err) {
+      console.error('Delete account error:', err)
+      if (isMountedRef.current) {
+        setDeleteAccountError(err?.message || 'Não foi possível excluir sua conta agora.')
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setDeleteAccountLoading(false)
+      }
+    }
+  }
+
   useEffect(() => {
+    isMountedRef.current = true
+
     // Esse painel é local, então ele reage aos eventos do próprio navegador.
     // Quando qualquer tela consumir IA, os números aqui sobem sem precisar recarregar.
     const refresh = () => {
@@ -463,6 +494,12 @@ export function PerfilPage() {
       unlistenInsights()
       unlistenAiPreference()
       unlistenAvatar()
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
     }
   }, [])
 
@@ -860,10 +897,46 @@ export function PerfilPage() {
           >
             Sair da minha conta
           </button>
+
+          <button
+            className="logout-btn danger anim anim-d4"
+            type="button"
+            onClick={() => {
+              setDeleteAccountError('')
+              setDeleteDialogOpen(true)
+            }}
+            style={{ marginTop: 12 }}
+          >
+            Excluir minha conta
+          </button>
+
+          {deleteAccountError && (
+            <div className="account-danger-msg" role="alert" aria-live="assertive">
+              {deleteAccountError}
+            </div>
+          )}
         </div>
       </div>
     </div>
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="Excluir conta permanentemente?"
+        message={
+          deleteAccountError
+            || 'Essa ação remove sua conta, histórico sincronizado, preferências e dados locais deste navegador. Não será possível recuperar depois.'
+        }
+        confirmLabel={deleteAccountLoading ? 'Excluindo...' : 'Excluir conta'}
+        cancelLabel="Cancelar"
+        danger
+        confirmDisabled={deleteAccountLoading}
+        onConfirm={handleDeleteAccount}
+        onCancel={() => {
+          if (!deleteAccountLoading) {
+            setDeleteDialogOpen(false)
+            setDeleteAccountError('')
+          }
+        }}
+      />
     </>
   )
 }
-

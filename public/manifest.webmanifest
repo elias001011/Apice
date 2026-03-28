@@ -1,16 +1,16 @@
 {
   "name": "Ápice",
   "short_name": "Ápice",
-  "version": "1.1.1",
+  "version": "1.2",
   "description": "Plataforma de redação com IA, correção e análise de desempenho.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#c8f060",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "/Icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
