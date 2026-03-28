@@ -10,11 +10,11 @@ import {
   saveAvatarSettings,
 } from './avatarSettings.js'
 import {
+  MAX_CLOUD_ESSAY_HISTORY_ENTRIES,
   loadEssayHistory,
   compactEssayHistoryEntry,
   saveEssayHistorySnapshot,
   loadEssayHistoryCount,
-  MAX_ESSAY_HISTORY_ENTRIES,
 } from './essayInsights.js'
 import {
   getFreePlanUsageSnapshot,
@@ -57,6 +57,8 @@ const FONT_SIZE_KEY = 'apice:font'
 const FONT_FAMILY_KEY = 'apice:fontFamily'
 const LAYOUT_MODE_KEY = 'apice:layoutMode'
 const CONTAINER_SIZE_KEY = 'apice:containerSize'
+const ANIMATIONS_ENABLED_KEY = 'apice:animationsEnabled'
+const CARD_HOVER_ENABLED_KEY = 'apice:cardHoverEffects'
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
@@ -72,6 +74,39 @@ function readStoredValue(key, fallback) {
   }
 }
 
+function readStoredBoolean(key, fallback) {
+  if (!canUseStorage()) return fallback
+
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw === null) return fallback
+    return raw === 'true'
+  } catch {
+    return fallback
+  }
+}
+
+function normalizeBooleanPreference(value, fallback) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true
+    if (['false', '0', 'no', 'off'].includes(normalized)) return false
+  }
+  return fallback
+}
+
+function getSystemAnimationsEnabled() {
+  if (typeof window === 'undefined') return true
+  return !(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false)
+}
+
+function getIsMobileLayout() {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia?.('(max-width: 767px)')?.matches ?? false
+}
+
 function readThemeSnapshot() {
   return {
     theme: readStoredValue(THEME_KEY, 'light'),
@@ -80,6 +115,8 @@ function readThemeSnapshot() {
     fontFamily: readStoredValue(FONT_FAMILY_KEY, 'dm-sans'),
     layoutMode: readStoredValue(LAYOUT_MODE_KEY, 'comfortable'),
     containerSize: readStoredValue(CONTAINER_SIZE_KEY, 'sm'),
+    animationsEnabled: readStoredBoolean(ANIMATIONS_ENABLED_KEY, getSystemAnimationsEnabled()),
+    cardHoverEffects: readStoredBoolean(CARD_HOVER_ENABLED_KEY, !getIsMobileLayout()),
   }
 }
 
@@ -117,9 +154,9 @@ function normalizeUsage(usage) {
   }
 }
 
-export function buildAccountSnapshot(user, historyLimit = MAX_ESSAY_HISTORY_ENTRIES) {
+export function buildAccountSnapshot(user, historyLimit = MAX_CLOUD_ESSAY_HISTORY_ENTRIES) {
   return {
-    version: 6,
+    version: 7,
     profile: readProfileSnapshot(user),
     preferences: readThemeSnapshot(),
     history: normalizeHistory(loadEssayHistory(historyLimit)),
@@ -165,7 +202,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
   )
   const hasAiResponsePreference = Object.prototype.hasOwnProperty.call(rawSnapshot, 'aiResponsePreference')
   const snapshot = {
-    version: Number(rawSnapshot.version ?? 6) || 6,
+    version: Number(rawSnapshot.version ?? 7) || 7,
     profile: readProfileSnapshot({
       user_metadata: rawSnapshot.profile || {},
       email: rawSnapshot.profile?.email || '',
@@ -177,6 +214,12 @@ export function normalizeAccountSnapshot(rawSnapshot) {
       fontFamily: String(rawSnapshot.preferences?.fontFamily ?? 'dm-sans').trim() || 'dm-sans',
       layoutMode: String(rawSnapshot.preferences?.layoutMode ?? 'comfortable').trim() || 'comfortable',
       containerSize: String(rawSnapshot.preferences?.containerSize ?? 'sm').trim() || 'sm',
+      ...(Object.prototype.hasOwnProperty.call(rawSnapshot.preferences || {}, 'animationsEnabled')
+        ? { animationsEnabled: normalizeBooleanPreference(rawSnapshot.preferences?.animationsEnabled, getSystemAnimationsEnabled()) }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(rawSnapshot.preferences || {}, 'cardHoverEffects')
+        ? { cardHoverEffects: normalizeBooleanPreference(rawSnapshot.preferences?.cardHoverEffects, !getIsMobileLayout()) }
+        : {}),
     },
     history,
     historyCount: Number.isFinite(Number(rawSnapshot.historyCount)) ? Number(rawSnapshot.historyCount) : history.length,
@@ -230,6 +273,12 @@ export function applyAccountSnapshot(snapshot) {
   localStorage.setItem(FONT_FAMILY_KEY, String(preferences.fontFamily ?? 'dm-sans'))
   localStorage.setItem(LAYOUT_MODE_KEY, String(preferences.layoutMode ?? 'comfortable'))
   localStorage.setItem(CONTAINER_SIZE_KEY, String(preferences.containerSize ?? 'sm'))
+  if (Object.prototype.hasOwnProperty.call(preferences, 'animationsEnabled')) {
+    localStorage.setItem(ANIMATIONS_ENABLED_KEY, String(Boolean(preferences.animationsEnabled)))
+  }
+  if (Object.prototype.hasOwnProperty.call(preferences, 'cardHoverEffects')) {
+    localStorage.setItem(CARD_HOVER_ENABLED_KEY, String(Boolean(preferences.cardHoverEffects)))
+  }
 
   saveEssayHistorySnapshot(history, historyCount)
 

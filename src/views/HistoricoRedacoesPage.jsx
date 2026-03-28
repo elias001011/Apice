@@ -1,22 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { subscribeEssayHistory } from '../services/essayInsights.js'
-
-function readHistoricoFromStorage() {
-  try {
-    const h = JSON.parse(localStorage.getItem('apice:historico') || '[]')
-    return Array.isArray(h) ? h : []
-  } catch {
-    return []
-  }
-}
+import { loadEssayHistory, subscribeEssayHistory } from '../services/essayInsights.js'
 
 export function HistoricoRedacoesPage() {
   const [filtro, setFiltro] = useState('Todas')
-  const [historico, setHistorico] = useState(() => readHistoricoFromStorage())
+  const [historico, setHistorico] = useState(() => loadEssayHistory())
 
   useEffect(() => {
-    const refresh = () => setHistorico(readHistoricoFromStorage())
+    const refresh = () => setHistorico(loadEssayHistory())
     return subscribeEssayHistory(refresh)
   }, [])
 

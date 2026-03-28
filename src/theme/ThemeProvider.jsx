@@ -7,7 +7,10 @@ const STORAGE_KEY_FONT = 'apice:font'
 const STORAGE_KEY_FONT_FAMILY = 'apice:fontFamily'
 const STORAGE_KEY_LAYOUT = 'apice:layoutMode'
 const STORAGE_KEY_CONTAINER_SIZE = 'apice:containerSize'
+const STORAGE_KEY_ANIMATIONS = 'apice:animationsEnabled'
+const STORAGE_KEY_CARD_HOVER = 'apice:cardHoverEffects'
 const MOBILE_LAYOUT_QUERY = '(max-width: 767px)'
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
 const VALID_CONTAINER_SIZES = new Set(['sm', 'md', 'lg'])
 
@@ -21,9 +24,24 @@ function readSaved(key, defaultVal) {
   return defaultVal
 }
 
+function readSavedBoolean(key, defaultVal) {
+  try {
+    const v = localStorage.getItem(key)
+    if (v === null) return defaultVal
+    return v === 'true'
+  } catch {
+    return defaultVal
+  }
+}
+
 function getSystemTheme() {
   if (typeof window === 'undefined') return 'light'
   return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light'
+}
+
+function getSystemAnimationsEnabled() {
+  if (typeof window === 'undefined') return true
+  return !(window.matchMedia?.(REDUCED_MOTION_QUERY)?.matches ?? false)
 }
 
 function getIsMobileLayout() {
@@ -156,6 +174,12 @@ function applyLayoutToDom(layoutMode) {
   }
 }
 
+function applyUiPreferencesToDom(animationsEnabled, cardHoverEffects) {
+  const html = document.documentElement
+  html.setAttribute('data-animations', animationsEnabled ? 'on' : 'off')
+  html.setAttribute('data-card-hover', cardHoverEffects ? 'on' : 'off')
+}
+
 function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
   const html = document.documentElement
   if (theme === 'dark') html.setAttribute('data-theme', 'dark')
@@ -178,13 +202,24 @@ function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
   updateBrandAssets(theme, safeAccent)
 }
 
-function syncThemeFromStorage(setTheme, setAccent, setFontSize, setFontFamily, setLayoutMode, setContainerSize) {
+function syncThemeFromStorage(
+  setTheme,
+  setAccent,
+  setFontSize,
+  setFontFamily,
+  setLayoutMode,
+  setContainerSize,
+  setAnimationsEnabled,
+  setCardHoverEffects,
+) {
   setTheme(readSaved(STORAGE_KEY_THEME, getSystemTheme()))
   setAccent(readSaved(STORAGE_KEY_ACCENT, 'lime'))
   setFontSize(readSaved(STORAGE_KEY_FONT, 'md'))
   setFontFamily(readSaved(STORAGE_KEY_FONT_FAMILY, 'dm-sans'))
   setLayoutMode(readSaved(STORAGE_KEY_LAYOUT, 'comfortable'))
   setContainerSize(readSaved(STORAGE_KEY_CONTAINER_SIZE, 'sm'))
+  setAnimationsEnabled(readSavedBoolean(STORAGE_KEY_ANIMATIONS, getSystemAnimationsEnabled()))
+  setCardHoverEffects(readSavedBoolean(STORAGE_KEY_CARD_HOVER, !getIsMobileLayout()))
 }
 
 const ThemeContext = createContext(null)
@@ -196,11 +231,14 @@ export function ThemeProvider({ children }) {
   const [fontFamily, setFontFamily] = useState(() => readSaved(STORAGE_KEY_FONT_FAMILY, 'dm-sans'))
   const [layoutMode, setLayoutMode] = useState(() => readSaved(STORAGE_KEY_LAYOUT, 'comfortable'))
   const [containerSize, setContainerSize] = useState(() => readSaved(STORAGE_KEY_CONTAINER_SIZE, 'sm'))
+  const [animationsEnabled, setAnimationsEnabled] = useState(() => readSavedBoolean(STORAGE_KEY_ANIMATIONS, getSystemAnimationsEnabled()))
+  const [cardHoverEffects, setCardHoverEffects] = useState(() => readSavedBoolean(STORAGE_KEY_CARD_HOVER, !getIsMobileLayout()))
   const [isMobileLayout, setIsMobileLayout] = useState(() => getIsMobileLayout())
   const resolvedContainerSize = isMobileLayout ? 'sm' : normalizeContainerSize(containerSize)
 
   useEffect(() => {
     applyThemeToDom(theme, accent, fontSize, fontFamily, resolvedContainerSize)
+    applyUiPreferencesToDom(animationsEnabled, cardHoverEffects)
     applyLayoutToDom(layoutMode)
     try {
       localStorage.setItem(STORAGE_KEY_THEME, theme)
@@ -209,14 +247,25 @@ export function ThemeProvider({ children }) {
       localStorage.setItem(STORAGE_KEY_FONT_FAMILY, fontFamily)
       localStorage.setItem(STORAGE_KEY_LAYOUT, layoutMode)
       localStorage.setItem(STORAGE_KEY_CONTAINER_SIZE, containerSize)
+      localStorage.setItem(STORAGE_KEY_ANIMATIONS, String(animationsEnabled))
+      localStorage.setItem(STORAGE_KEY_CARD_HOVER, String(cardHoverEffects))
       window.dispatchEvent(new CustomEvent('apice:theme-updated'))
     } catch {
       // ignore
     }
-  }, [theme, accent, fontSize, fontFamily, layoutMode, resolvedContainerSize, containerSize])
+  }, [theme, accent, fontSize, fontFamily, layoutMode, resolvedContainerSize, containerSize, animationsEnabled, cardHoverEffects])
 
   useEffect(() => {
-    const refresh = () => syncThemeFromStorage(setTheme, setAccent, setFontSize, setFontFamily, setLayoutMode, setContainerSize)
+    const refresh = () => syncThemeFromStorage(
+      setTheme,
+      setAccent,
+      setFontSize,
+      setFontFamily,
+      setLayoutMode,
+      setContainerSize,
+      setAnimationsEnabled,
+      setCardHoverEffects,
+    )
 
     window.addEventListener('apice:theme-updated', refresh)
     window.addEventListener('apice:account-state-updated', refresh)
@@ -265,9 +314,11 @@ export function ThemeProvider({ children }) {
     fontFamily, setFontFamily,
     layoutMode, setLayoutMode,
     containerSize, setContainerSize,
+    animationsEnabled, setAnimationsEnabled,
+    cardHoverEffects, setCardHoverEffects,
     isMobileLayout,
     resolvedContainerSize,
-  }), [theme, toggleTheme, accent, fontSize, fontFamily, layoutMode, containerSize, isMobileLayout, resolvedContainerSize])
+  }), [theme, toggleTheme, accent, fontSize, fontFamily, layoutMode, containerSize, animationsEnabled, cardHoverEffects, isMobileLayout, resolvedContainerSize])
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }

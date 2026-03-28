@@ -25,6 +25,10 @@ export function AparenciaPage() {
     setLayoutMode,
     containerSize,
     setContainerSize,
+    animationsEnabled,
+    setAnimationsEnabled,
+    cardHoverEffects,
+    setCardHoverEffects,
     isMobileLayout,
   } = useTheme()
   const isDark = theme === 'dark'
@@ -174,6 +178,47 @@ export function AparenciaPage() {
                 <div className="ap-layout-sub">Foco em densidade rústica</div>
                 {layoutMode === 'compact' && <span className="ap-layout-dot" />}
               </button>
+            </div>
+          </div>
+
+          {/* ── EXPERIÊNCIA ── */}
+          <div className="card anim anim-d3">
+            <div className="card-title">Experiência</div>
+
+            <div className="toggle-row ap-experience-row">
+              <div className="toggle-info">
+                <div className="toggle-label">Animações da interface</div>
+                <div className="toggle-sub">
+                  {animationsEnabled ? 'Transições, entradas e loaders estão ativas.' : 'Entradas, loaders e transições ficam reduzidas.'}
+                </div>
+              </div>
+              <button
+                className={`toggle ${animationsEnabled ? 'on' : ''}`}
+                onClick={() => setAnimationsEnabled((current) => !current)}
+                aria-label="Alternar animações da interface"
+              >
+                <span className="toggle-knob" />
+              </button>
+            </div>
+
+            <div className="toggle-row ap-experience-row">
+              <div className="toggle-info">
+                <div className="toggle-label">Responsividade de cards</div>
+                <div className="toggle-sub">
+                  {cardHoverEffects ? 'Cards elevam e destacam bordas ao passar o mouse.' : 'Cards permanecem estáticos, útil para toque e mobile.'}
+                </div>
+              </div>
+              <button
+                className={`toggle ${cardHoverEffects ? 'on' : ''}`}
+                onClick={() => setCardHoverEffects((current) => !current)}
+                aria-label="Alternar responsividade dos cards"
+              >
+                <span className="toggle-knob" />
+              </button>
+            </div>
+
+            <div className="card-footer-tip" style={{ marginTop: '12px', fontSize: '0.72rem', opacity: 0.5, textAlign: 'center' }}>
+              Essas preferências acompanham sua conta e são reaplicadas na nuvem.
             </div>
           </div>
 
@@ -451,6 +496,12 @@ const aparenciaCss = `
     background: var(--accent);
     border-radius: 50%;
     box-shadow: 0 0 8px var(--accent);
+  }
+
+  .ap-experience-row + .ap-experience-row {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
   }
 
   /* ── PREVIEW ── */

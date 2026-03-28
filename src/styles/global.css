@@ -72,6 +72,10 @@ html {
   scroll-behavior: smooth;
 }
 
+html[data-animations="off"] {
+  scroll-behavior: auto;
+}
+
 html.layout-compact {
   --radius: 8px;
   --radius-sm: 4px;
@@ -591,6 +595,28 @@ html[data-mobile-layout="true"] .view-container {
   transition: none;
 }
 
+html[data-animations="off"] *,
+html[data-animations="off"] *::before,
+html[data-animations="off"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+html[data-animations="off"] .anim,
+html[data-animations="off"] .anim-fade-in,
+html[data-animations="off"] .anim-scale-up,
+html[data-animations="off"] .redacao-item,
+html[data-animations="off"] .conquista-toast,
+html[data-animations="off"] .ct-icon,
+html[data-animations="off"] .ct-sparkle,
+html[data-animations="off"] #radar-results .tema-card,
+html[data-animations="off"] #radar-results .radar-hero,
+html[data-animations="off"] #radar-results .section-label,
+html[data-animations="off"] #radar-results .atualizado {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
 .view-container--narrow {
   max-width: 680px;
 }
@@ -658,9 +684,18 @@ html[data-mobile-layout="true"] .view-container {
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
 }
 
-html[data-mobile-layout="true"] .card:hover {
-  transform: none;
-  box-shadow: none;
+html[data-card-hover="off"] .card:hover,
+html[data-card-hover="off"] .pv-stat:hover,
+html[data-card-hover="off"] .pv-stat--dark:hover,
+html[data-card-hover="off"] .pv-stat--lime:hover,
+html[data-card-hover="off"] .pv-feature:hover,
+html[data-card-hover="off"] .intro-card-option:hover,
+html[data-card-hover="off"] .tema-card:hover,
+html[data-card-hover="off"] .redacao-item:hover,
+html[data-card-hover="off"] .conq-card--unlocked:hover {
+  border-color: var(--border) !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 .card-title {

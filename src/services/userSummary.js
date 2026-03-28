@@ -1,4 +1,8 @@
-import { buildRecentEssaySummaryIndex, loadEssayHistoryCount } from './essayInsights.js'
+import {
+  MAX_CLOUD_ESSAY_HISTORY_ENTRIES,
+  buildRecentEssaySummaryIndex,
+  loadEssayHistoryCount,
+} from './essayInsights.js'
 import { loadAiResponsePreferenceText } from './aiResponsePreferences.js'
 
 const SUMMARY_KEY = 'apice:user-summary:v1'
@@ -173,7 +177,7 @@ export async function refreshUserSummaryFromHistory({ force = false } = {}) {
 
   const totalRedacoes = loadEssayHistoryCount()
   const currentSummary = loadUserSummary()
-  const historyIndex = buildRecentEssaySummaryIndex(5)
+  const historyIndex = buildRecentEssaySummaryIndex(MAX_CLOUD_ESSAY_HISTORY_ENTRIES)
 
   if (totalRedacoes <= 0) {
     return currentSummary
