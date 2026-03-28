@@ -1,6 +1,7 @@
 {
   "name": "Ápice",
   "short_name": "Ápice",
+  "version": "1.1.1",
   "description": "Plataforma de redação com IA, correção e análise de desempenho.",
   "start_url": "/",
   "scope": "/",

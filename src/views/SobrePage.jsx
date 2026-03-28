@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { APP_VERSION } from '../appVersion.js'
 import { POLICY_URL } from '../services/policyConsent.js'
 
 export function SobrePage() {
@@ -16,7 +17,7 @@ export function SobrePage() {
             <div className="logo-icon" />
         </div>
         <div className="sobre-nome">Ápice</div>
-        <div className="sobre-versao">Versão 1.1</div>
+        <div className="sobre-versao">Versão {APP_VERSION}</div>
       </div>
 
       <div className="sobre-missao anim anim-d2">
