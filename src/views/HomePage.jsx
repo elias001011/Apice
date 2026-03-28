@@ -398,22 +398,6 @@ export function HomePage() {
               </div>
             </Link>
 
-            <div className="pv-feature pv-feature--quote anim anim-d4">
-              <div className="pv-feature-content">
-                <div className="quote-icon-small">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--accent)"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/></svg>
-                </div>
-                <p className="pv-quote-text">
-                  "{dailyQuote.text}"
-                </p>
-                {dailyQuote.author && (
-                  <div className="pv-quote-author">
-                    — {dailyQuote.author}
-                  </div>
-                )}
-              </div>
-            </div>
-
             {userSummary && (
               <div className="card performance-card anim anim-d4 home-performance-card">
                 <div className="card-title">Análise de Desempenho</div>
@@ -442,6 +426,22 @@ export function HomePage() {
                 </div>
               </div>
             )}
+
+            <div className="pv-feature pv-feature--quote anim anim-d4">
+              <div className="pv-feature-content">
+                <div className="quote-icon-small">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--accent)"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/></svg>
+                </div>
+                <p className="pv-quote-text">
+                  "{dailyQuote.text}"
+                </p>
+                {dailyQuote.author && (
+                  <div className="pv-quote-author">
+                    — {dailyQuote.author}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -462,7 +462,7 @@ const homeCss = `
   .home-grid {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 0.875rem;
   }
 
   /* Grid principal */
@@ -470,7 +470,7 @@ const homeCss = `
     .home-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 1.25rem;
+      gap: 0.875rem;
       align-items: start;
     }
   }
@@ -480,7 +480,7 @@ const homeCss = `
     background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.03), transparent 44%), var(--bg3);
     border: 1.5px solid var(--border);
     min-height: auto;
-    padding: 1.2rem 1.25rem;
+    padding: 1.05rem 1.15rem;
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
@@ -498,8 +498,8 @@ const homeCss = `
   .home-radar-card {
     width: 100%;
     align-self: stretch;
-    margin-top: 10px;
-    min-height: 176px;
+    margin-top: 6px;
+    min-height: 172px;
   }
 
   .home-radar-card .pv-feature-content {
@@ -509,7 +509,7 @@ const homeCss = `
   .enem-card {
     width: 100%;
     max-width: none;
-    margin: 10px 0 0;
+    margin: 6px 0 0;
     padding: 1rem 1.05rem;
     border-radius: 22px;
     border: 1.5px solid var(--border);
@@ -817,7 +817,7 @@ const homeCss = `
     border: 1.5px solid var(--border);
     border-radius: 24px;
     padding: 1.75rem 1.5rem;
-    margin-bottom: 10px;
+    margin-bottom: 6px;
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: center;
@@ -935,12 +935,12 @@ const homeCss = `
   .stats-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 10px;
+    gap: 8px;
+    margin-bottom: 6px;
   }
 
   .performance-card {
-    margin-top: 10px;
+    margin-top: 0;
   }
 
   .performance-summary {
@@ -1045,11 +1045,38 @@ const homeCss = `
   .pv-stat--dark .pv-bar-fill { background: var(--accent); }
   .pv-stat--lime .pv-bar-fill { background: #0f0f0f; }
 
+  @media (max-width: 767px) {
+    .pv-stat-top {
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .pv-stat-delta {
+      font-size: 0.6rem;
+      padding: 2px 6px;
+      line-height: 1.2;
+      margin-left: auto;
+      text-align: right;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .stats-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .pv-stat-delta {
+      max-width: calc(100% - 44px);
+      white-space: nowrap;
+    }
+  }
+
   /* Features */
   .features-stack {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
   }
 
   .pv-feature {
