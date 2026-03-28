@@ -166,6 +166,97 @@ export function HomePage() {
 
   const ultimaNota = insights.latestEssay?.nota || 0
   const ultimaNotaPercent = Math.round((ultimaNota / 1000) * 100)
+  const showPerformance = Boolean(userSummary)
+  const enemCard = (
+    <section
+      className={`enem-card anim anim-d5 home-enem-card ${
+        showPerformance ? 'home-enem-card--left' : 'home-enem-card--right'
+      }`}
+    >
+      <div className="enem-card-header">
+        <div className="enem-card-kicker">Calendário do {enemLabel}</div>
+        <h2 className="enem-card-title">Contagem para a prova</h2>
+        <p className="enem-card-copy">
+          {enemDate
+            ? `Data manual salva: ${formatEnemDateLabel(enemDate)}.`
+            : 'Defina a data oficial manualmente para manter a contagem atualizada.'}
+        </p>
+      </div>
+
+      <div className="enem-card-meta">
+        <span className={`enem-card-badge${enemDate ? ' active' : ''}`}>
+          {enemDate ? 'Data salva' : 'Data pendente'}
+        </span>
+        <button type="button" className="enem-card-link" onClick={handleOpenEnemEditor}>
+          {enemDate ? 'Alterar data' : 'Definir data'}
+        </button>
+      </div>
+
+      {isEditingEnem ? (
+        <div className="enem-editor">
+          <label className="enem-editor-field">
+            <span>Data da prova</span>
+            <div className="enem-input-wrapper">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              <input
+                type="date"
+                className="enem-input-new"
+                value={tempDate}
+                onChange={(e) => setTempDate(e.target.value)}
+              />
+            </div>
+          </label>
+          <div className="enem-editor-actions">
+            <button type="button" className="btn-ghost" onClick={handleCancelEnemEditor}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleConfirmDate}
+              disabled={!tempDate}
+              style={{ width: 'auto', paddingInline: '18px' }}
+            >
+              Salvar data
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {enemDate ? (
+            <div className="enem-countdown-row">
+              <div className="enem-countdown-chip">
+                <strong>{timeLeft.months}</strong>
+                <span>Meses</span>
+              </div>
+              <div className="enem-countdown-chip">
+                <strong>{timeLeft.days}</strong>
+                <span>Dias</span>
+              </div>
+              <div className="enem-countdown-chip">
+                <strong>{timeLeft.hours}</strong>
+                <span>Horas</span>
+              </div>
+              <div className="enem-countdown-chip enem-countdown-chip--accent">
+                <strong>{timeLeft.minutes}</strong>
+                <span>Minutos</span>
+              </div>
+            </div>
+          ) : (
+            <div className="enem-empty-state">
+              <div className="enem-empty-title">Ainda sem data definida</div>
+              <p>Toque em “Definir data” para cadastrar a prova manualmente.</p>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  )
 
   return (
     <>
@@ -282,90 +373,7 @@ export function HomePage() {
             </div>
           </Link>
 
-          <section className="enem-card anim anim-d5">
-            <div className="enem-card-header">
-              <div className="enem-card-kicker">Calendário do {enemLabel}</div>
-              <h2 className="enem-card-title">Contagem para a prova</h2>
-              <p className="enem-card-copy">
-                {enemDate
-                  ? `Data manual salva: ${formatEnemDateLabel(enemDate)}.`
-                  : 'Defina a data oficial manualmente para manter a contagem atualizada.'}
-              </p>
-            </div>
-
-            <div className="enem-card-meta">
-              <span className={`enem-card-badge${enemDate ? ' active' : ''}`}>
-                {enemDate ? 'Data salva' : 'Data pendente'}
-              </span>
-              <button type="button" className="enem-card-link" onClick={handleOpenEnemEditor}>
-                {enemDate ? 'Alterar data' : 'Definir data'}
-              </button>
-            </div>
-
-            {isEditingEnem ? (
-              <div className="enem-editor">
-                <label className="enem-editor-field">
-                  <span>Data da prova</span>
-                  <div className="enem-input-wrapper">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                      <line x1="16" y1="2" x2="16" y2="6" />
-                      <line x1="8" y1="2" x2="8" y2="6" />
-                      <line x1="3" y1="10" x2="21" y2="10" />
-                    </svg>
-                    <input
-                      type="date"
-                      className="enem-input-new"
-                      value={tempDate}
-                      onChange={(e) => setTempDate(e.target.value)}
-                    />
-                  </div>
-                </label>
-                <div className="enem-editor-actions">
-                  <button type="button" className="btn-ghost" onClick={handleCancelEnemEditor}>
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={handleConfirmDate}
-                    disabled={!tempDate}
-                    style={{ width: 'auto', paddingInline: '18px' }}
-                  >
-                    Salvar data
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                {enemDate ? (
-                  <div className="enem-countdown-row">
-                    <div className="enem-countdown-chip">
-                      <strong>{timeLeft.months}</strong>
-                      <span>Meses</span>
-                    </div>
-                    <div className="enem-countdown-chip">
-                      <strong>{timeLeft.days}</strong>
-                      <span>Dias</span>
-                    </div>
-                    <div className="enem-countdown-chip">
-                      <strong>{timeLeft.hours}</strong>
-                      <span>Horas</span>
-                    </div>
-                    <div className="enem-countdown-chip enem-countdown-chip--accent">
-                      <strong>{timeLeft.minutes}</strong>
-                      <span>Minutos</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="enem-empty-state">
-                    <div className="enem-empty-title">Ainda sem data definida</div>
-                    <p>Toque em “Definir data” para cadastrar a prova manualmente.</p>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
+          {showPerformance ? enemCard : null}
         </div>
 
         {/* ── COLUNA DIREITA preexistente: Feature Cards ── */}
@@ -442,6 +450,8 @@ export function HomePage() {
                 )}
               </div>
             </div>
+
+            {!showPerformance ? enemCard : null}
           </div>
         </div>
       </div>
@@ -462,7 +472,7 @@ const homeCss = `
   .home-grid {
     display: flex;
     flex-direction: column;
-    gap: 0.875rem;
+    gap: 1rem;
   }
 
   /* Grid principal */
@@ -470,7 +480,7 @@ const homeCss = `
     .home-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 0.875rem;
+      gap: 1rem;
       align-items: start;
     }
   }
@@ -480,7 +490,7 @@ const homeCss = `
     background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.03), transparent 44%), var(--bg3);
     border: 1.5px solid var(--border);
     min-height: auto;
-    padding: 1.05rem 1.15rem;
+    padding: 1.1rem 1.2rem;
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
@@ -498,7 +508,7 @@ const homeCss = `
   .home-radar-card {
     width: 100%;
     align-self: stretch;
-    margin-top: 6px;
+    margin-top: 8px;
     min-height: 172px;
   }
 
@@ -509,7 +519,6 @@ const homeCss = `
   .enem-card {
     width: 100%;
     max-width: none;
-    margin: 6px 0 0;
     padding: 1rem 1.05rem;
     border-radius: 22px;
     border: 1.5px solid var(--border);
@@ -817,7 +826,7 @@ const homeCss = `
     border: 1.5px solid var(--border);
     border-radius: 24px;
     padding: 1.75rem 1.5rem;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: center;
@@ -935,8 +944,8 @@ const homeCss = `
   .stats-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 6px;
+    gap: 10px;
+    margin-bottom: 8px;
   }
 
   .performance-card {
@@ -1076,7 +1085,15 @@ const homeCss = `
   .features-stack {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
+  }
+
+  .home-enem-card--left {
+    margin-top: 8px;
+  }
+
+  .home-enem-card--right {
+    margin-top: 0;
   }
 
   .pv-feature {
