@@ -43,6 +43,31 @@ function humanizeThemeLabel(value) {
     .trim()
 }
 
+const SOURCE_KEY_SEP = '\u001f'
+
+/** Stable id from entry fields (no list index). Collisions resolved in materialSourceKeysForList. */
+function materialSourceKeyBase(f) {
+  const url = String(f?.url ?? '').trim()
+  if (url) return `u:${url}`
+  const nome = String(f?.nome ?? '').trim()
+  const trecho = String(f?.trecho ?? '').trim()
+  const dominio = String(f?.dominio ?? '').trim()
+  if (nome || trecho || dominio) {
+    return `s:${nome}${SOURCE_KEY_SEP}${trecho}${SOURCE_KEY_SEP}${dominio}`
+  }
+  return 'z:empty'
+}
+
+function materialSourceKeysForList(fontes) {
+  const counts = new Map()
+  return fontes.map((f) => {
+    const base = materialSourceKeyBase(f)
+    const n = counts.get(base) ?? 0
+    counts.set(base, n + 1)
+    return n === 0 ? base : `${base}~${n}`
+  })
+}
+
 function buildDetailFallback(theme, enemLabel) {
   const title = theme?.titulo || humanizeThemeLabel(theme?.id) || `Tema do ${enemLabel}`
   return {
@@ -201,6 +226,7 @@ export function TemaDetalhePage() {
     : { titulo: `Material de apoio - ${title}`, resumo: '', cards: [], fontes: [] }
   const cards = Array.isArray(material.cards) ? material.cards : []
   const fontes = Array.isArray(material.fontes) ? material.fontes : []
+  const fonteRowKeys = materialSourceKeysForList(fontes)
 
   const handleWriteTheme = () => {
     saveCorretorDraft({
@@ -313,10 +339,10 @@ export function TemaDetalhePage() {
         {fontes.length > 0 && (
           <div className="material-source-list">
             <div className="material-source-label">Fontes complementares</div>
-            {fontes.map((f, index) => (
+            {fontes.map((f, i) => (
               f.url ? (
                 <a
-                  key={`${f.url}-${index}`}
+                  key={fonteRowKeys[i]}
                   className="material-source-item"
                   href={f.url}
                   target="_blank"
@@ -326,7 +352,7 @@ export function TemaDetalhePage() {
                   <small>{f.url}</small>
                 </a>
               ) : (
-                <div key={`${f.nome || index}-${index}`} className="material-source-item">
+                <div key={fonteRowKeys[i]} className="material-source-item">
                   <span>{f.nome || 'Fonte'}</span>
                 </div>
               )
