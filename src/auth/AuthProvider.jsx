@@ -6,6 +6,11 @@ import {
   buildAccountSnapshot,
   extractAccountSnapshot,
 } from '../services/accountSnapshot.js'
+import {
+  clearVerificationPassword,
+  resendVerificationEmail,
+  requestAccountDeletion,
+} from '../services/identityAuth.js'
 import { refreshUserSummaryFromHistory } from '../services/userSummary.js'
 
 // Configure GoTrue instance
@@ -20,12 +25,47 @@ const auth = new GoTrue(authConfig)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => auth.currentUser() || null)
+  const [loading, setLoading] = useState(true)
   const syncLockRef = useRef(false)
   const lastSyncedSnapshotRef = useRef('')
-  const loading = false
+  const syncSuspendedRef = useRef(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const hydrateSession = async () => {
+      try {
+        const validatedUser = await auth.validateCurrentSession()
+        if (cancelled) return
+
+        setUser(validatedUser)
+        if (!validatedUser) {
+          syncLockRef.current = false
+          lastSyncedSnapshotRef.current = ''
+        }
+      } catch (error) {
+        console.error('Auth session validation error:', error)
+        if (!cancelled) {
+          setUser(null)
+          syncLockRef.current = false
+          lastSyncedSnapshotRef.current = ''
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void hydrateSession()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const syncLocalStateToCloud = useCallback(async () => {
-    if (!user || syncLockRef.current) return null
+    if (!user || syncLockRef.current || syncSuspendedRef.current) return null
 
     const currentUser = auth.currentUser()
     if (!currentUser) return null
@@ -62,9 +102,13 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!user) {
+      syncLockRef.current = false
+      lastSyncedSnapshotRef.current = ''
+      syncSuspendedRef.current = false
       return undefined
     }
 
+    let cancelled = false
     const remoteSnapshot = extractAccountSnapshot(user)
 
     if (remoteSnapshot) {
@@ -94,9 +138,17 @@ export function AuthProvider({ children }) {
     window.addEventListener('apice:notificacoes-updated', handleAccountStateChange)
     window.addEventListener('apice:conquistas-updated', handleAccountStateChange)
 
-    void refreshUserSummaryFromHistory()
+    const initializeCloudState = async () => {
+      await refreshUserSummaryFromHistory()
+      if (!cancelled) {
+        void syncLocalStateToCloud()
+      }
+    }
+
+    void initializeCloudState()
 
     return () => {
+      cancelled = true
       window.removeEventListener('apice:historico-updated', handleAccountStateChange)
       window.removeEventListener('apice:free-plan-usage-updated', handleAccountStateChange)
       window.removeEventListener('apice:radar-favorites-updated', handleAccountStateChange)
@@ -116,58 +168,32 @@ export function AuthProvider({ children }) {
 
   const confirmAccount = async (token) => {
     const response = await auth.confirm(token, true)
+    clearVerificationPassword()
     // Após confirmar, o GoTrue retorna o usuário logado
     if (response) setUser(response)
     return response
   }
 
   const resendConfirmation = async (email) => {
-    // O GoTrue/Netlify Identity reenvía o e-mail de confirmação quando um usuário
-    // não confirmado tenta fazer signup novamente com o mesmo email + senha.
-    // Lemos a senha salva temporariamente no sessionStorage durante o cadastro.
-    const apiRoot = import.meta.env.VITE_NETLIFY_IDENTITY_URL || '/.netlify/identity'
-    const password = sessionStorage.getItem('_apice_verif_pw') || ''
-    
-    const res = await fetch(`${apiRoot}/signup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
-    
-    // Limpamos a senha do sessionStorage após o uso
-    sessionStorage.removeItem('_apice_verif_pw')
-    
-    if (!res.ok) {
-      let errMsg = 'Erro ao reenviar'
-      try {
-        const json = await res.json()
-        // Netlify Identity retorna 422 com msg "User already registered" quando
-        // o usuário já foi confirmado — neste caso o reenvio não faz sentido
-        errMsg = json.msg || json.error_description || json.error || errMsg
-        if (errMsg.toLowerCase().includes('already registered')) {
-          errMsg = 'Este e-mail já foi confirmado. Tente fazer login.'
-        }
-      } catch (error) {
-        void error
-      }
-      throw new Error(errMsg)
-    }
-    return res.json().catch(() => null)
+    return await resendVerificationEmail(auth, email)
   }
 
   const login = async (email, password, remember = true) => {
     const response = await auth.login(email, password, remember)
+    clearVerificationPassword()
     setUser(response)
     return response
   }
 
   const confirmRecovery = async (token) => {
     const response = await auth.recover(token, true)
+    clearVerificationPassword()
     setUser(response)
     return response
   }
 
   const logout = async () => {
+    syncSuspendedRef.current = true
     const currentUser = auth.currentUser()
     if (currentUser) {
       try {
@@ -176,11 +202,28 @@ export function AuthProvider({ children }) {
         console.error('Logout error:', err)
       }
     }
+    clearVerificationPassword()
     // Limpeza total do localStorage para isolamento de contas
     if (typeof window !== 'undefined' && window.localStorage) {
       localStorage.clear()
     }
+    syncLockRef.current = false
+    lastSyncedSnapshotRef.current = ''
     setUser(null)
+  }
+
+  const deleteAccount = async () => {
+    syncSuspendedRef.current = true
+    try {
+      const result = await requestAccountDeletion()
+      clearVerificationPassword()
+      await logout()
+      return result
+    } finally {
+      if (auth.currentUser()) {
+        syncSuspendedRef.current = false
+      }
+    }
   }
 
   const updateAccount = async (attributes) => {
@@ -214,6 +257,7 @@ export function AuthProvider({ children }) {
     login,
     confirmRecovery,
     logout,
+    deleteAccount,
     updateAccount,
     updateMetadata,
     auth,

@@ -65,7 +65,9 @@ export function VerificarEmailPage() {
       }, 1000)
     } catch (err) {
       console.error('Resend error:', err)
-      setResendError('Não foi possível reenviar. Tente novamente mais tarde.')
+      setResendError(
+        err?.message || 'Não foi possível reenviar. Tente novamente mais tarde.',
+      )
     } finally {
       setResending(false)
     }

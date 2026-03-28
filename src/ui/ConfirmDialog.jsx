@@ -8,6 +8,7 @@ export function ConfirmDialog({
   confirmLabel = 'Confirmar',
   cancelLabel = 'Cancelar',
   danger = false,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }) {
@@ -63,6 +64,7 @@ export function ConfirmDialog({
             type="button"
             className={`btn-primary${danger ? ' danger' : ''}`}
             onClick={onConfirm}
+            disabled={confirmDisabled}
           >
             {confirmLabel}
           </button>

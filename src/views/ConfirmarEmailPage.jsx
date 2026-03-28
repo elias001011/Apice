@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import { clearVerificationPassword } from '../services/identityAuth.js'
 
 export function ConfirmarEmailPage() {
   const [loading, setLoading] = useState(true)
@@ -25,6 +26,7 @@ export function ConfirmarEmailPage() {
           const token = tokenMatch[1]
           try {
             await confirmAccountRef.current(token)
+            clearVerificationPassword()
             setSuccess(true)
           } catch (err) {
             console.error('Confirmation error:', err)

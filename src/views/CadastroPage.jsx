@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import { saveVerificationPassword } from '../services/identityAuth.js'
 import { POLICY_URL, loadPolicyConsent, savePolicyConsent } from '../services/policyConsent.js'
 import { EmailSuggestions } from '../ui/EmailSuggestions.jsx'
 
@@ -53,7 +54,7 @@ export function CadastroPage() {
         first_name: nome
       })
       // Salva a senha temporariamente para possível reenvio de confirmação
-      sessionStorage.setItem('_apice_verif_pw', password)
+      saveVerificationPassword(password)
       navigate('/verificar-email', { state: { email } })
     } catch (err) {
       console.error('Signup error:', err)
