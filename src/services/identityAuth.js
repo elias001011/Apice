@@ -131,11 +131,24 @@ export async function resendVerificationEmail(auth, email) {
   }
 }
 
-export async function requestAccountDeletion() {
+export async function requestAccountDeletion(authClient) {
+  const currentUser = authClient?.currentUser?.()
+  if (!currentUser) {
+    throw new Error('Usuário não autenticado. Faça login novamente para excluir a conta.')
+  }
+
+  let jwt = ''
+  try {
+    jwt = await currentUser.jwt()
+  } catch {
+    throw new Error('Não foi possível validar sua sessão. Faça login novamente para excluir a conta.')
+  }
+
   const response = await fetch(DELETE_ACCOUNT_ENDPOINT, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${jwt}`,
     },
     credentials: 'same-origin',
   })

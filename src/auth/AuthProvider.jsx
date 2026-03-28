@@ -215,7 +215,7 @@ export function AuthProvider({ children }) {
   const deleteAccount = async () => {
     syncSuspendedRef.current = true
     try {
-      const result = await requestAccountDeletion()
+      const result = await requestAccountDeletion(auth)
       clearVerificationPassword()
       await logout()
       return result
