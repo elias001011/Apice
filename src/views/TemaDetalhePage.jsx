@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { buscarRadarTemaDetalhe } from '../services/radarService.js'
 import { getEnemYearLabel } from '../services/examYear.js'
@@ -8,6 +8,7 @@ import {
   loadRadarThemeDetail,
   normalizeRadarDetail,
   normalizeRadarTheme,
+  subscribeRadarSnapshot,
 } from '../services/radarState.js'
 import { saveCorretorDraft } from '../services/corretorDraft.js'
 import { useAppBusy } from '../ui/AppBusyContext.jsx'
@@ -129,17 +130,18 @@ export function TemaDetalhePage() {
     )
   }, [routeTheme, routeDetail, snapshotTheme, queryThemeId, enemLabel])
 
+  const currentThemeId = useMemo(() => queryThemeId || getRadarThemeId(baseTheme), [queryThemeId, baseTheme])
+
   const initialDetail = useMemo(() => {
     if (routeDetail) {
       return normalizeRadarDetail(routeDetail) || buildDetailFallback(baseTheme, enemLabel)
     }
 
-    const themeId = queryThemeId || getRadarThemeId(baseTheme)
-    if (!themeId) return null
+    if (!currentThemeId) return null
 
-    const cached = loadRadarThemeDetail(themeId)
+    const cached = loadRadarThemeDetail(currentThemeId)
     return cached || null
-  }, [routeDetail, queryThemeId, baseTheme, enemLabel])
+  }, [routeDetail, currentThemeId, baseTheme, enemLabel])
 
   const [tema, setTema] = useState(baseTheme)
   const [detail, setDetail] = useState(initialDetail)
@@ -150,9 +152,34 @@ export function TemaDetalhePage() {
     setTema(baseTheme)
   }, [baseTheme])
 
+  const syncDetailFromStorage = useCallback(() => {
+    if (!currentThemeId) return null
+
+    const cached = loadRadarThemeDetail(currentThemeId)
+    if (!cached) return null
+
+    setDetail(cached)
+    setTema(buildThemeFallback(cached.titulo, cached.probabilidade))
+    setErrorMsg('')
+    setLoading(false)
+    return cached
+  }, [currentThemeId])
+
+  useEffect(() => {
+    if (!currentThemeId) return undefined
+
+    const refreshFromStorage = () => {
+      syncDetailFromStorage()
+    }
+
+    refreshFromStorage()
+    const unsubscribe = subscribeRadarSnapshot(refreshFromStorage)
+    return unsubscribe
+  }, [currentThemeId, syncDetailFromStorage])
+
   useEffect(() => {
     let active = true
-    const currentThemeId = queryThemeId || getRadarThemeId(baseTheme)
+    let busyStarted = false
 
     const syncDetail = async () => {
       if (!currentThemeId) {
@@ -176,6 +203,7 @@ export function TemaDetalhePage() {
         setLoading(true)
         setErrorMsg('')
         beginBusy()
+        busyStarted = true
       }
 
       try {
@@ -188,9 +216,11 @@ export function TemaDetalhePage() {
 
         if (!active) return
 
-        const normalizedDetail = normalizeRadarDetail(fetched) || buildDetailFallback(baseTheme, enemLabel)
+        const storedDetail = loadRadarThemeDetail(currentThemeId)
+        const normalizedDetail = storedDetail || normalizeRadarDetail(fetched) || buildDetailFallback(baseTheme, enemLabel)
         setDetail(normalizedDetail)
         setTema(buildThemeFallback(normalizedDetail.titulo, normalizedDetail.probabilidade))
+        setErrorMsg('')
       } catch (error) {
         if (!active) return
         setErrorMsg(error?.message || 'Não foi possível carregar os detalhes deste tema agora.')
@@ -198,7 +228,10 @@ export function TemaDetalhePage() {
       } finally {
         if (active) {
           setLoading(false)
-          endBusy()
+          if (busyStarted) {
+            endBusy()
+            busyStarted = false
+          }
         }
       }
     }
@@ -206,10 +239,11 @@ export function TemaDetalhePage() {
     void syncDetail()
     return () => {
       active = false
-      // Se desmontarmos enquanto carregando, libera o overlay
-      endBusy()
+      if (busyStarted) {
+        endBusy()
+      }
     }
-  }, [queryThemeId, baseTheme, enemLabel, beginBusy, endBusy])
+  }, [currentThemeId, baseTheme, enemLabel, beginBusy, endBusy])
 
   const currentDetail = detail || buildDetailFallback(tema, enemLabel)
   const title = currentDetail.titulo || tema.titulo

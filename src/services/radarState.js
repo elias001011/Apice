@@ -450,11 +450,6 @@ export function saveRadarThemeDetail(detail) {
 
   const currentSnapshot = loadRadarSnapshot()
   const currentThemes = Array.isArray(currentSnapshot?.temas) ? currentSnapshot.temas : []
-  const isCurrentTheme = currentThemes.some((theme) => getRadarThemeId(theme) === normalized.id)
-
-  if (currentThemes.length > 0 && !isCurrentTheme) {
-    return normalized
-  }
 
   const nextThemes = currentThemes.length > 0
     ? currentThemes
