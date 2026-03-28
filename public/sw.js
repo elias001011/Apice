@@ -1,4 +1,4 @@
-const CACHE_NAME = 'apice-pwa-v1.2'
+const CACHE_NAME = 'apice-pwa-v1.3'
 const PRECACHE_URLS = ['/', '/index.html', '/manifest.webmanifest', '/favicon-arrow.svg', '/favicon.svg', '/Icon.svg']
 const BYPASS_PATH_PREFIXES = ['/src/', '/@vite/', '/@react-refresh', '/@fs/', '/@id/', '/node_modules/']
 

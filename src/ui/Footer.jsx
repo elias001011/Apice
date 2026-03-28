@@ -133,10 +133,10 @@ export function Footer() {
         <div className="footer-col">
           <h4 className="footer-title">Legal</h4>
           <div className="footer-legal-actions">
-            <a href={POLICY_URL} target="_blank" rel="noreferrer" className="footer-legal-btn">
+            <a href={POLICY_URL} target="_blank" rel="noreferrer" className="footer-legal-link">
               Termos de uso
             </a>
-            <a href={POLICY_URL} target="_blank" rel="noreferrer" className="footer-legal-btn">
+            <a href={POLICY_URL} target="_blank" rel="noreferrer" className="footer-legal-link">
               Política de privacidade
             </a>
           </div>
@@ -236,21 +236,25 @@ const footerCss = `
     }
 
     .footer-contact-item {
-      grid-template-columns: 1fr;
-      justify-items: center;
-      text-align: center;
-      gap: 6px;
+      grid-template-columns: 30px minmax(0, 1fr);
+      justify-items: start;
+      text-align: left;
+      gap: 10px;
     }
 
     .footer-contact-content {
-      align-items: center;
-      text-align: center;
+      align-items: flex-start;
+      text-align: left;
     }
 
     .footer-legal-actions {
       width: 100%;
       max-width: 320px;
       align-items: center;
+    }
+
+    .footer-legal-link {
+      justify-content: center;
     }
   }
 
@@ -357,14 +361,14 @@ const footerCss = `
 
   .footer-contact-item {
     display: grid;
-    grid-template-columns: 34px minmax(0, 1fr);
-    gap: 12px;
-    align-items: start;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
   }
 
   .footer-contact-icon {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     border-radius: 10px;
     background: var(--accent-dim);
     color: var(--accent);
@@ -386,7 +390,7 @@ const footerCss = `
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 2px;
+    gap: 1px;
     min-width: 0;
   }
 
@@ -411,30 +415,28 @@ const footerCss = `
   .footer-legal-actions {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.4rem;
+    align-items: flex-start;
   }
 
-  .footer-legal-btn {
+  .footer-legal-link {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    min-height: 42px;
-    padding: 0 14px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.04), transparent 62%), var(--bg3);
+    justify-content: flex-start;
+    min-height: 0;
+    padding: 0.2rem 0;
+    border: 0;
+    background: transparent;
     color: var(--text2);
-    font-size: 0.88rem;
+    font-size: 0.9rem;
     font-weight: 600;
     text-decoration: none;
-    transition: transform 0.2s, border-color 0.2s, color 0.2s, background 0.2s;
+    transition: transform 0.2s, color 0.2s, opacity 0.2s;
   }
 
-  .footer-legal-btn:hover {
-    transform: translateY(-2px);
-    border-color: var(--accent);
+  .footer-legal-link:hover {
     color: var(--accent);
-    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.08), transparent 62%), var(--bg3);
+    transform: translateX(2px);
   }
 
   .footer-bottom {
