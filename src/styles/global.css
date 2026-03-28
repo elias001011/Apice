@@ -37,8 +37,8 @@
   
   /* Larguras de contêiner */
   --max-w-sm: 880px;
-  --max-w-md: 960px;
-  --max-w-lg: 1120px;
+  --max-w-md: 920px;
+  --max-w-lg: 1060px;
   --content-max-width: var(--max-w-sm);
 }
 
@@ -714,7 +714,7 @@ html[data-animations="off"] #radar-results .atualizado {
 }
 
 .view-container--wide {
-  max-width: var(--max-w-lg); /* Largura ampla (1120px) */
+  max-width: var(--max-w-lg); /* Largura ampla (1060px) */
   margin: 0 auto;
 }
 

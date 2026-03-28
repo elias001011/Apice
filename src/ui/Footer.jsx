@@ -108,18 +108,44 @@ const footerCss = `
   }
 
   @media (max-width: 600px) {
+    .footer {
+      padding: 2.75rem 1.25rem calc(2.75rem + var(--tab-h) + env(safe-area-inset-bottom));
+    }
+
     .footer-container {
       grid-template-columns: 1fr;
       text-align: center;
-      gap: 2.5rem;
+      gap: 2rem;
+      justify-items: center;
+    }
+
+    .footer-col {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
     .footer-brand {
       max-width: none;
     }
 
+    .footer-links,
+    .footer-contact {
+      align-items: center;
+      width: 100%;
+    }
+
+    .footer-links a {
+      justify-content: center;
+      width: 100%;
+    }
+
     .footer-contact li {
       align-items: center;
+      justify-content: center;
+      width: 100%;
+      text-align: center;
     }
 
     .footer-contact a {

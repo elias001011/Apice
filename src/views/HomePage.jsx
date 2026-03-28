@@ -465,7 +465,7 @@ const homeCss = `
   .home-grid-right {
     display: flex;
     flex-direction: column;
-    gap: 0;
+    gap: 1.15rem;
     min-width: 0;
   }
 
@@ -508,7 +508,7 @@ const homeCss = `
   .home-radar-card {
     width: 100%;
     align-self: stretch;
-    margin-top: 14px;
+    margin-top: 0;
     min-height: 172px;
   }
 
@@ -826,7 +826,7 @@ const homeCss = `
     border: 1.5px solid var(--border);
     border-radius: 24px;
     padding: 1.75rem 1.5rem;
-    margin-bottom: 8px;
+    margin-bottom: 0;
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: center;
@@ -945,7 +945,7 @@ const homeCss = `
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 14px;
-    margin-bottom: 12px;
+    margin-bottom: 0;
   }
 
   .performance-card {
@@ -1089,11 +1089,11 @@ const homeCss = `
   }
 
   .home-enem-card--left {
-    margin-top: 14px;
+    margin-top: 0;
   }
 
   .home-enem-card--right {
-    margin-top: 10px;
+    margin-top: 0;
   }
 
   .pv-feature {
