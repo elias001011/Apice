@@ -16,6 +16,10 @@ import {
   loadEssayHistoryCount,
 } from './essayInsights.js'
 import {
+  loadManualEnemDate,
+  saveManualEnemDate,
+} from './enemCalendar.js'
+import {
   getFreePlanUsageSnapshot,
   setFreePlanUsageSnapshot,
   resetFreePlanUsage,
@@ -196,13 +200,14 @@ function compactRadarSnapshotForCloud(snapshot) {
 
 export function buildAccountSnapshot(user) {
   return {
-    version: 12,
+    version: 13,
     profile: readProfileSnapshot(user),
     preferences: readThemeSnapshot(),
     history: buildCloudEssayHistorySnapshot(),
     historyCount: loadEssayHistoryCount(),
     usage: normalizeUsage(getFreePlanUsageSnapshot()),
     planTier: getCurrentPlanTier(),
+    enemDate: loadManualEnemDate(),
     radarSnapshot: compactRadarSnapshotForCloud(loadRadarSnapshot()),
     radarFavorites: loadRadarFavorites()
       .map((favorite) => compactRadarFavoriteSnapshot(favorite))
@@ -266,6 +271,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
     historyCount: Number.isFinite(Number(rawSnapshot.historyCount)) ? Number(rawSnapshot.historyCount) : history.length,
     usage: normalizeUsage(rawSnapshot.usage),
     planTier: String(rawSnapshot.planTier ?? 'free').trim() || 'free',
+    enemDate: String(rawSnapshot.enemDate ?? rawSnapshot.examDate ?? '').trim(),
     radarFavorites,
     radarSnapshot: normalizeRadarSnapshot(
       rawSnapshot.radarSnapshot
@@ -345,6 +351,10 @@ export function applyAccountSnapshot(snapshot) {
 
   if (Object.prototype.hasOwnProperty.call(snapshot, 'planTier')) {
     setPlanTier(String(snapshot.planTier ?? 'free').trim() || 'free')
+  }
+
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'enemDate')) {
+    saveManualEnemDate(snapshot.enemDate || '')
   }
 
   if (Object.prototype.hasOwnProperty.call(snapshot, 'radarFavorites')) {

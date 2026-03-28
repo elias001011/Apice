@@ -137,6 +137,7 @@ export function AuthProvider({ children }) {
 
     window.addEventListener('apice:historico-updated', handleAccountStateChange)
     window.addEventListener('apice:free-plan-usage-updated', handleAccountStateChange)
+    window.addEventListener('apice:enem-date-updated', handleAccountStateChange)
     window.addEventListener('apice:radar-favorites-updated', handleAccountStateChange)
     window.addEventListener('apice:radar-state-updated', handleAccountStateChange)
     window.addEventListener('apice:theme-updated', handleAccountStateChange)
@@ -159,6 +160,7 @@ export function AuthProvider({ children }) {
       cancelled = true
       window.removeEventListener('apice:historico-updated', handleAccountStateChange)
       window.removeEventListener('apice:free-plan-usage-updated', handleAccountStateChange)
+      window.removeEventListener('apice:enem-date-updated', handleAccountStateChange)
       window.removeEventListener('apice:radar-favorites-updated', handleAccountStateChange)
       window.removeEventListener('apice:radar-state-updated', handleAccountStateChange)
       window.removeEventListener('apice:theme-updated', handleAccountStateChange)

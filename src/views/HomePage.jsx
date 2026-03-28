@@ -13,6 +13,11 @@ import {
 } from '../services/userSummary.js'
 import { getEnemYearLabel } from '../services/examYear.js'
 import {
+  getEnemCalendarState,
+  loadManualEnemDate,
+  saveManualEnemDate,
+} from '../services/enemCalendar.js'
+import {
   loadRadarSnapshot,
   subscribeRadarSnapshot,
 } from '../services/radarState.js'
@@ -51,67 +56,51 @@ export function HomePage() {
   const [dailyQuote] = useState(() => frases[getDailyQuoteIndex()])
 
   // --- TIMER ENEM ---
-  const [enemDate, setEnemDate] = useState(() => localStorage.getItem('apice:enem-date') || '')
+  const [initialManualEnemDate] = useState(() => loadManualEnemDate())
+  const [enemDate, setEnemDate] = useState(() => initialManualEnemDate)
   const [isEditingEnem, setIsEditingEnem] = useState(false)
   const [tempDate, setTempDate] = useState(enemDate)
-  const [timeLeft, setTimeLeft] = useState({ months: 0, days: 0, hours: 0, minutes: 0 })
-
-  const formatEnemDateLabel = (value) => {
-    if (!value) return 'Data não definida'
-
-    const parsedDate = new Date(`${value}T00:00:00`)
-    if (Number.isNaN(parsedDate.getTime())) return 'Data não definida'
-
-    return new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    }).format(parsedDate)
-  }
+  const [enemState, setEnemState] = useState(() => getEnemCalendarState({ manualDate: initialManualEnemDate }))
 
   const handleOpenEnemEditor = () => {
-    setTempDate(enemDate || '')
+    setTempDate(loadManualEnemDate() || enemDate || '')
     setIsEditingEnem(true)
   }
 
   const handleCancelEnemEditor = () => {
-    setTempDate(enemDate || '')
+    setTempDate(loadManualEnemDate() || enemDate || '')
     setIsEditingEnem(false)
   }
 
   useEffect(() => {
     const update = () => {
-      if (!enemDate) return
-      const target = new Date(enemDate + 'T00:00:00')
-      const now = new Date()
-      const diff = target - now
-
-      if (diff <= 0) {
-        setTimeLeft({ months: 0, days: 0, hours: 0, minutes: 0 })
-        return
-      }
-
-      const totSeconds = Math.floor(diff / 1000)
-      const totMinutes = Math.floor(totSeconds / 60)
-      const totHours = Math.floor(totMinutes / 60)
-      const totDays = Math.floor(totHours / 24)
-      
-      const months = Math.floor(totDays / 30)
-      const days = totDays % 30
-      const hours = totHours % 24
-      const minutes = totMinutes % 60
-      setTimeLeft({ months, days, hours, minutes })
+      const nextManualDate = loadManualEnemDate()
+      setEnemDate((current) => (current === nextManualDate ? current : nextManualDate))
+      setEnemState(getEnemCalendarState({ referenceDate: new Date(), manualDate: nextManualDate }))
     }
 
     update()
     const timerId = setInterval(update, 1000)
     return () => clearInterval(timerId)
-  }, [enemDate])
+  }, [])
+
+  useEffect(() => {
+    const refreshManualDate = () => {
+      const nextManualDate = loadManualEnemDate()
+      setEnemDate(nextManualDate)
+      if (!isEditingEnem) {
+        setTempDate(nextManualDate)
+      }
+    }
+
+    window.addEventListener('apice:enem-date-updated', refreshManualDate)
+    return () => window.removeEventListener('apice:enem-date-updated', refreshManualDate)
+  }, [isEditingEnem])
 
   const handleConfirmDate = () => {
     if (!tempDate) return
     setEnemDate(tempDate)
-    localStorage.setItem('apice:enem-date', tempDate)
+    saveManualEnemDate(tempDate)
     setIsEditingEnem(false)
   }
 
@@ -177,19 +166,19 @@ export function HomePage() {
         <div className="enem-card-kicker">Calendário do {enemLabel}</div>
         <h2 className="enem-card-title">Contagem para a prova</h2>
         <p className="enem-card-copy">
-          {enemDate
-            ? `Data manual salva: ${formatEnemDateLabel(enemDate)}.`
-            : 'Defina a data oficial manualmente para manter a contagem atualizada.'}
+          {enemState.copy}
         </p>
       </div>
 
       <div className="enem-card-meta">
-        <span className={`enem-card-badge${enemDate ? ' active' : ''}`}>
-          {enemDate ? 'Data salva' : 'Data pendente'}
+        <span className={`enem-card-badge${enemState.hasSavedDate ? ' active' : ''}`}>
+          {enemState.badge}
         </span>
-        <button type="button" className="enem-card-link" onClick={handleOpenEnemEditor}>
-          {enemDate ? 'Alterar data' : 'Definir data'}
-        </button>
+        {enemState.canEditManual && !isEditingEnem && (
+          <button type="button" className="enem-card-link" onClick={handleOpenEnemEditor}>
+            {enemDate ? 'Alterar data' : 'Definir data'}
+          </button>
+        )}
       </div>
 
       {isEditingEnem ? (
@@ -228,22 +217,38 @@ export function HomePage() {
         </div>
       ) : (
         <>
-          {enemDate ? (
+          {enemState.status === 'today' ? (
+            <div className="enem-today-state">
+              <div className="enem-today-title">Hoje é o dia da prova!</div>
+              <p>{enemState.dateRangeLabel}</p>
+            </div>
+          ) : enemState.status === 'past' ? (
+            <div className="enem-ended-state">
+              <div className="enem-empty-title">
+                {enemState.isCalendarMode ? 'Calendário concluído' : 'Data já passou'}
+              </div>
+              <p>
+                {enemState.isCalendarMode
+                  ? `O calendário oficial do ${enemLabel} já passou.`
+                  : 'A data salva já passou.'}
+              </p>
+            </div>
+          ) : enemState.status === 'countdown' ? (
             <div className="enem-countdown-row">
               <div className="enem-countdown-chip">
-                <strong>{timeLeft.months}</strong>
+                <strong>{enemState.countdown.months}</strong>
                 <span>Meses</span>
               </div>
               <div className="enem-countdown-chip">
-                <strong>{timeLeft.days}</strong>
+                <strong>{enemState.countdown.days}</strong>
                 <span>Dias</span>
               </div>
               <div className="enem-countdown-chip">
-                <strong>{timeLeft.hours}</strong>
+                <strong>{enemState.countdown.hours}</strong>
                 <span>Horas</span>
               </div>
               <div className="enem-countdown-chip enem-countdown-chip--accent">
-                <strong>{timeLeft.minutes}</strong>
+                <strong>{enemState.countdown.minutes}</strong>
                 <span>Minutos</span>
               </div>
             </div>
@@ -711,6 +716,19 @@ const homeCss = `
     padding: 0.95rem 1rem;
   }
 
+  .enem-today-state,
+  .enem-ended-state {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 0.95rem 1rem;
+  }
+
+  .enem-today-state {
+    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.08), transparent 70%), var(--bg2);
+    border-color: var(--accent-dim2);
+  }
+
   .enem-empty-title {
     font-size: 0.95rem;
     font-weight: 700;
@@ -718,7 +736,16 @@ const homeCss = `
     margin-bottom: 6px;
   }
 
-  .enem-empty-state p {
+  .enem-today-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+
+  .enem-empty-state p,
+  .enem-today-state p,
+  .enem-ended-state p {
     margin: 0;
     color: var(--text2);
     line-height: 1.55;
