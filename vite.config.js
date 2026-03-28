@@ -10,6 +10,9 @@ export default defineConfig({
   server: {
     host: '::',
     strictPort: true,
+    hmr: {
+      clientPort: 5173,
+    },
   },
   plugins: [react()],
   define: {
