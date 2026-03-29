@@ -267,7 +267,6 @@ body,
   z-index: 1000;
   display: flex;
   align-items: center;
-  overflow: hidden;
   isolation: isolate;
 }
 
@@ -1190,6 +1189,15 @@ html[data-card-hover="off"] .conq-card--unlocked:hover {
 
   .nav-more-wrap {
     display: block;
+  }
+
+  .nav-more-menu {
+    position: fixed;
+    top: calc(var(--nav-h) + 0.5rem);
+    right: 0.75rem;
+    left: auto;
+    width: min(250px, calc(100vw - 1.5rem));
+    z-index: 1200;
   }
 
   .tab-item--secondary {
