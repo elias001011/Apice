@@ -62,6 +62,11 @@ function parsePayloadMessage(payload) {
   )
 }
 
+function hasAdminRole(user) {
+  const roles = Array.isArray(user?.app_metadata?.roles) ? user.app_metadata.roles : []
+  return roles.some((role) => normalizeText(role).toLowerCase() === 'admin')
+}
+
 export function getVerificationPassword() {
   if (!canUseSessionStorage()) return ''
   return sessionStorage.getItem(VERIFICATION_PASSWORD_KEY) || ''
@@ -138,8 +143,13 @@ export async function requestAccountDeletion(authClient) {
   }
 
   const currentUserId = String(currentUser?.id ?? currentUser?.sub ?? '').trim()
+  const canTryDirectDeletion = hasAdminRole(currentUser)
 
   const deleteDirectlyWithCurrentUser = async () => {
+    if (!canTryDirectDeletion) {
+      throw new Error('Não foi possível excluir sua conta agora.')
+    }
+
     if (!currentUserId) {
       throw new Error('Não foi possível identificar sua conta para exclusão.')
     }
@@ -183,7 +193,7 @@ export async function requestAccountDeletion(authClient) {
 
     if (!response.ok) {
       const message = parsePayloadMessage(payload)
-      if (response.status >= 500) {
+      if (response.status >= 500 && canTryDirectDeletion) {
         try {
           return await deleteDirectlyWithCurrentUser()
         } catch (fallbackError) {
@@ -201,12 +211,17 @@ export async function requestAccountDeletion(authClient) {
       throw error
     }
 
-    try {
-      return await deleteDirectlyWithCurrentUser()
-    } catch (fallbackError) {
-      const message = normalizeIdentityError(error)
-      const fallbackMessage = normalizeIdentityError(fallbackError)
-      throw new Error(message || fallbackMessage || 'Não foi possível excluir sua conta agora.')
+    if (canTryDirectDeletion) {
+      try {
+        return await deleteDirectlyWithCurrentUser()
+      } catch (fallbackError) {
+        const message = normalizeIdentityError(error)
+        const fallbackMessage = normalizeIdentityError(fallbackError)
+        throw new Error(message || fallbackMessage || 'Não foi possível excluir sua conta agora.')
+      }
     }
+
+    const message = normalizeIdentityError(error)
+    throw new Error(message || 'Não foi possível excluir sua conta agora.')
   }
 }
