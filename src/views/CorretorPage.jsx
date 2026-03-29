@@ -142,8 +142,17 @@ export function CorretorPage() {
     try {
       const resultado = await corrigirRedacao({ redacao, tema, material, isRigido })
       if (correctionRequestSeq.current !== requestId) return
-      salvarNoHistorico(resultado, tema, redacao)
-      navigate('/resultado-redacao', { state: { resultado } })
+      const savedHistoryEntry = salvarNoHistorico(resultado, tema, redacao)
+      const historyId = savedHistoryEntry?.id ? String(savedHistoryEntry.id) : ''
+      navigate(
+        historyId ? `/resultado-redacao?id=${encodeURIComponent(historyId)}` : '/resultado-redacao',
+        {
+          state: {
+            resultado,
+            historyId,
+          },
+        },
+      )
     } catch (err) {
       if (correctionRequestSeq.current !== requestId) return
       setErrorMsg(err.message || 'Erro ao processar a redação. Tente mais tarde.')

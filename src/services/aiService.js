@@ -140,8 +140,11 @@ export function salvarNoHistorico(resultadoJSON, temaStr, redacao = '') {
 
     // Verificar conquistas após salvar
     checkConquistasRedacao({ totalEssays, nota: normalizedResult?.notaTotal || 0 })
+
+    return novoItem
   } catch (err) {
     console.error('Erro ao salvar histórico', err)
+    return null
   }
 }
 

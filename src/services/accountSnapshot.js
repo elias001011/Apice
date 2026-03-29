@@ -10,8 +10,10 @@ import {
   saveAvatarSettings,
 } from './avatarSettings.js'
 import {
+  loadEssayHistory,
   compactEssayHistoryEntry,
   buildCloudEssayHistorySnapshot,
+  mergeEssayHistorySnapshots,
   saveEssayHistorySnapshot,
   loadEssayHistoryCount,
 } from './essayInsights.js'
@@ -308,8 +310,11 @@ export function applyAccountSnapshot(snapshot) {
 
   if (Object.prototype.hasOwnProperty.call(snapshot, 'history')) {
     const history = Array.isArray(snapshot.history) ? snapshot.history : []
-    const historyCount = Number.isFinite(Number(snapshot.historyCount)) ? Number(snapshot.historyCount) : history.length
-    saveEssayHistorySnapshot(history, historyCount)
+    const localHistory = loadEssayHistory()
+    const mergedHistory = mergeEssayHistorySnapshots(localHistory, history)
+    const incomingHistoryCount = Number.isFinite(Number(snapshot.historyCount)) ? Number(snapshot.historyCount) : 0
+    const historyCount = Math.max(loadEssayHistoryCount(), mergedHistory.length, incomingHistoryCount)
+    saveEssayHistorySnapshot(mergedHistory, historyCount)
   }
 
   if (snapshot.preferences && typeof snapshot.preferences === 'object') {

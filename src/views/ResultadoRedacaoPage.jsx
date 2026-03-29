@@ -1,12 +1,19 @@
 import { useState } from 'react'
 import { Link, useLocation, Navigate, useNavigate } from 'react-router-dom'
 import { clearCorretorDraft } from '../services/corretorDraft.js'
+import { loadEssayHistory } from '../services/essayInsights.js'
 import { ConfirmDialog } from '../ui/ConfirmDialog.jsx'
 
 export function ResultadoRedacaoPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const res = location.state?.resultado;
+  const searchParams = new URLSearchParams(location.search)
+  const historyId = location.state?.historyId || searchParams.get('id') || ''
+  const stateResult = location.state?.resultado || null
+  const historyResult = historyId
+    ? loadEssayHistory().find((item) => String(item.id) === String(historyId))?.feedback || null
+    : null
+  const res = stateResult || historyResult;
   const [restartConfirmOpen, setRestartConfirmOpen] = useState(false);
 
   if (!res) {

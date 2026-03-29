@@ -53,7 +53,13 @@ export function HistoricoRedacoesPage() {
       ) : (
         <div className="historico-grid">
           {filtradas.map((red, idx) => (
-            <Link to="/resultado-redacao" state={{ resultado: red.feedback }} className="redacao-item anim" style={{ animationDelay: `${0.1 + (idx * 0.05)}s` }} key={red.id}>
+            <Link
+              to={`/resultado-redacao?id=${encodeURIComponent(red.id)}`}
+              state={{ resultado: red.feedback, historyId: red.id }}
+              className="redacao-item anim"
+              style={{ animationDelay: `${0.1 + (idx * 0.05)}s` }}
+              key={red.id}
+            >
               <div className="redacao-top">
                 <div className="redacao-tema">{red.tema}</div>
                 <div className="redacao-nota">{red.nota}</div>
@@ -67,6 +73,25 @@ export function HistoricoRedacoesPage() {
                     <div key={i} className="redacao-bar" style={{ height: `${Math.max(20, (c.nota/200)*100)}%`, background: c.nota < 120 ? 'var(--amber)' : 'var(--accent)', opacity: 0.8 }}></div>
                  ))}
               </div>
+              {Array.isArray(red.feedback?.errosPt) && red.feedback.errosPt.length > 0 && (
+                <div className="redacao-erros-pt">
+                  <div className="redacao-erros-pt-label">Erros de português</div>
+                  <div className="redacao-erros-pt-list">
+                    {red.feedback.errosPt.slice(0, 2).map((erro, erroIndex) => (
+                      <div key={`${red.id}-${erroIndex}`} className="redacao-erros-pt-item">
+                        <span className="word-wrong">{erro.errado || 'Erro'}</span>
+                        <span className="word-arrow">→</span>
+                        <span className="word-right">{erro.corrigido || 'correção'}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {red.feedback.errosPt.length > 2 && (
+                    <div className="redacao-erros-pt-more">
+                      +{red.feedback.errosPt.length - 2} outros
+                    </div>
+                  )}
+                </div>
+              )}
             </Link>
           ))}
         </div>
@@ -179,5 +204,37 @@ const historicoCss = `
   .redacao-bar {
     flex: 1;
     border-radius: 3px;
+  }
+  .redacao-erros-pt {
+    margin-top: 0.9rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--border);
+  }
+  .redacao-erros-pt-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 0.45rem;
+    font-weight: 700;
+  }
+  .redacao-erros-pt-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .redacao-erros-pt-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: var(--text2);
+    line-height: 1.3;
+    flex-wrap: wrap;
+  }
+  .redacao-erros-pt-more {
+    margin-top: 0.35rem;
+    font-size: 0.72rem;
+    color: var(--text3);
   }
 `

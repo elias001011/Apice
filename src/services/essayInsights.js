@@ -156,6 +156,108 @@ export function compactEssayHistoryEntry(item) {
   }
 }
 
+function pickPreferredText(localValue, incomingValue) {
+  const local = String(localValue ?? '').trim()
+  const incoming = String(incomingValue ?? '').trim()
+
+  if (local && incoming) {
+    return local.length >= incoming.length ? local : incoming
+  }
+
+  return local || incoming
+}
+
+function pickPreferredArray(localValue, incomingValue) {
+  if (Array.isArray(localValue) && localValue.length > 0) {
+    return localValue
+  }
+
+  if (Array.isArray(incomingValue) && incomingValue.length > 0) {
+    return incomingValue
+  }
+
+  return []
+}
+
+function mergeEssayFeedback(localFeedback, incomingFeedback) {
+  const local = localFeedback && typeof localFeedback === 'object' ? localFeedback : {}
+  const incoming = incomingFeedback && typeof incomingFeedback === 'object' ? incomingFeedback : {}
+
+  return {
+    ...incoming,
+    ...local,
+    competencias: pickPreferredArray(local.competencias, incoming.competencias),
+    pontoForte: pickPreferredText(local.pontoForte, incoming.pontoForte),
+    atencao: pickPreferredText(local.atencao, incoming.atencao),
+    principalMelhorar: pickPreferredText(local.principalMelhorar, incoming.principalMelhorar),
+    errosPt: pickPreferredArray(local.errosPt, incoming.errosPt),
+  }
+}
+
+function getEssayHistoryTimestamp(item) {
+  const date = new Date(item?.data)
+  return Number.isFinite(date.getTime()) ? date.getTime() : 0
+}
+
+export function mergeEssayHistoryEntries(localItem, incomingItem) {
+  const local = compactEssayHistoryEntry(localItem)
+  const incoming = compactEssayHistoryEntry(incomingItem)
+
+  if (!local) return incoming
+  if (!incoming) return local
+
+  return compactEssayHistoryEntry({
+    ...incoming,
+    ...local,
+    id: local.id ?? incoming.id,
+    data: pickPreferredText(local.data, incoming.data),
+    tema: pickPreferredText(local.tema, incoming.tema),
+    preview: pickPreferredText(local.preview, incoming.preview),
+    redacao: pickPreferredText(local.redacao, incoming.redacao),
+    feedback: mergeEssayFeedback(local.feedback, incoming.feedback),
+  })
+}
+
+export function mergeEssayHistorySnapshots(localHistory = [], incomingHistory = []) {
+  const mergedById = new Map()
+
+  const addItem = (item) => {
+    const normalized = compactEssayHistoryEntry(item)
+    if (!normalized) return
+
+    const key = String(normalized.id)
+    if (mergedById.has(key)) {
+      mergedById.set(key, mergeEssayHistoryEntries(mergedById.get(key), normalized))
+      return
+    }
+
+    mergedById.set(key, normalized)
+  }
+
+  if (Array.isArray(localHistory)) {
+    localHistory.forEach(addItem)
+  }
+
+  if (Array.isArray(incomingHistory)) {
+    incomingHistory.forEach(addItem)
+  }
+
+  return Array.from(mergedById.values())
+    .sort((a, b) => {
+      const dateDelta = getEssayHistoryTimestamp(b) - getEssayHistoryTimestamp(a)
+      if (dateDelta !== 0) return dateDelta
+
+      const bId = Number(b.id)
+      const aId = Number(a.id)
+      if (Number.isFinite(bId) && Number.isFinite(aId)) {
+        return bId - aId
+      }
+
+      return 0
+    })
+    .slice(0, MAX_LOCAL_ESSAY_HISTORY_ENTRIES)
+}
+
 function buildMinimalEssayFeedback(feedback, fallbackNota = 0) {
   if (!feedback || typeof feedback !== 'object') {
     return {
