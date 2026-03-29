@@ -164,6 +164,7 @@ function buildMinimalEssayFeedback(feedback, fallbackNota = 0) {
       pontoForte: '',
       atencao: '',
       principalMelhorar: '',
+      errosPt: [],
     }
   }
 
@@ -183,6 +184,13 @@ function buildMinimalEssayFeedback(feedback, fallbackNota = 0) {
     pontoForte: String(feedback.pontoForte ?? '').trim(),
     atencao: String(feedback.atencao ?? '').trim(),
     principalMelhorar: String(feedback.principalMelhorar ?? '').trim(),
+    errosPt: Array.isArray(feedback.errosPt)
+      ? feedback.errosPt.slice(0, 5).map((erro) => ({
+          errado: String(erro?.errado ?? '').trim(),
+          corrigido: String(erro?.corrigido ?? '').trim(),
+          motivo: String(erro?.motivo ?? '').trim(),
+        }))
+      : [],
   }
 }
 

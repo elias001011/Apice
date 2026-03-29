@@ -200,7 +200,7 @@ function compactRadarSnapshotForCloud(snapshot) {
 
 export function buildAccountSnapshot(user) {
   return {
-    version: 13,
+    version: 14,
     profile: readProfileSnapshot(user),
     preferences: readThemeSnapshot(),
     history: buildCloudEssayHistorySnapshot(),
