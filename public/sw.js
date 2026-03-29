@@ -2,8 +2,6 @@ const CACHE_NAME = 'apice-pwa-v1.4'
 const PRECACHE_URLS = [
   '/',
   '/index.html',
-  '/manifest.webmanifest?v=1.4',
-  '/manifest.webmanifest',
   '/favicon-arrow.svg',
   '/favicon.svg',
   '/Icon-192.png',
@@ -37,6 +35,20 @@ self.addEventListener('fetch', (event) => {
   const pathname = requestUrl.pathname
   if (BYPASS_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return
   if (pathname.endsWith('.map')) return
+
+  if (pathname === '/manifest.webmanifest') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.ok) {
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()))
+          }
+          return response
+        })
+        .catch(() => caches.match(event.request, { ignoreSearch: true })),
+    )
+    return
+  }
 
   if (event.request.mode === 'navigate') {
     event.respondWith(
