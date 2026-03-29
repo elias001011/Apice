@@ -33,10 +33,33 @@ export function ResultadoRedacaoPage() {
         </Link>
 
         <div className="result-top-row">
-          <div className="score-hero">
-            <div className="score-label">Desempenho Geral</div>
-            <div className="score-number">{res.notaTotal || 0}</div>
-            <div className="score-max">de 1000 pontos possíveis</div>
+          <div className="result-col-left">
+            <div className="score-hero">
+              <div className="score-label">Desempenho Geral</div>
+              <div className="score-number">{res.notaTotal || 0}</div>
+              <div className="score-max">de 1000 pontos possíveis</div>
+            </div>
+
+            <div className="card comps-card">
+              <div className="card-title">Desempenho por Competência</div>
+              <div className="comp-list">
+                {comps.map((c, idx) => (
+                  <div className="comp-row" key={idx}>
+                    <div className="comp-header">
+                      <span className="comp-name">{c.nome}</span>
+                      <span className="comp-score-val">{c.nota}</span>
+                    </div>
+                    <div className="progress-bg">
+                      <div
+                        className={`progress-fill ${c.nota < 120 ? 'mid' : ''}`}
+                        style={{ width: `${(c.nota / 200) * 100}%`, background: c.nota < 120 ? 'var(--amber)' : 'var(--accent)' }}
+                      ></div>
+                    </div>
+                    {c.descricao && <div className="comp-desc">{c.descricao}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="result-col-feedback">
@@ -78,27 +101,6 @@ export function ResultadoRedacaoPage() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-
-        <div className="card comps-card">
-          <div className="card-title">Desempenho por Competência</div>
-          <div className="comp-list">
-            {comps.map((c, idx) => (
-              <div className="comp-row" key={idx}>
-                <div className="comp-header">
-                  <span className="comp-name">{c.nome}</span>
-                  <span className="comp-score-val">{c.nota}</span>
-                </div>
-                <div className="progress-bg">
-                  <div 
-                    className={`progress-fill ${c.nota < 120 ? 'mid' : ''}`} 
-                    style={{ width: `${(c.nota / 200) * 100}%`, background: c.nota < 120 ? 'var(--amber)' : 'var(--accent)' }}
-                  ></div>
-                </div>
-                {c.descricao && <div className="comp-desc">{c.descricao}</div>}
-              </div>
-            ))}
           </div>
         </div>
 
@@ -144,13 +146,21 @@ const resultadoCss = `
     margin-top: 1.5rem;
     margin-bottom: 2rem;
   }
+  .result-col-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
   @media (min-width: 900px) {
     .result-top-row {
       flex-direction: row;
       align-items: flex-start;
     }
-    .score-hero {
+    .result-col-left {
       flex: 0 0 320px;
+    }
+    .score-hero {
+      flex: 0 0 auto;
     }
     .result-col-feedback {
       flex: 1;
@@ -196,24 +206,6 @@ const resultadoCss = `
     display: grid; 
     grid-template-columns: 1fr; 
     gap: 1.5rem; 
-  }
-  @media (min-width: 768px) {
-    .comp-list {
-      grid-template-columns: 1fr 1fr;
-      column-gap: 2.5rem;
-      row-gap: 2rem;
-    }
-    .comp-row:last-child {
-      grid-column: span 2;
-    }
-  }
-  @media (min-width: 1060px) {
-    .comp-list {
-      grid-template-columns: 1fr 1fr 1fr;
-    }
-    .comp-row:last-child {
-      grid-column: span 1;
-    }
   }
   .comp-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
   .comp-name { font-size: 0.95rem; font-weight: 600; color: var(--text); }
