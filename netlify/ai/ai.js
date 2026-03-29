@@ -347,6 +347,24 @@ function tokenize(text) {
     .filter(token => token.length >= 3 && !STOPWORDS_PT.has(token))
 }
 
+function scoreThemeFitTokens(tokens, themeTokens) {
+  const tokenSet = new Set(ensureArray(tokens))
+  const sharedTokenCount = themeTokens.filter(token => tokenSet.has(token)).length
+  const tokenOverlap = sharedTokenCount / Math.max(themeTokens.length, 1)
+  const essayCoverage = sharedTokenCount / Math.max(tokenSet.size, 1)
+
+  return {
+    sharedTokenCount,
+    tokenOverlap,
+    essayCoverage,
+    fitScore: clampNumber(
+      (tokenOverlap * 0.72) + (essayCoverage * 0.28),
+      0,
+      1,
+    ),
+  }
+}
+
 function buildCopyRiskHint(redacao, material) {
   // Heurística local barata para detectar "cola" do material de apoio.
   // Não substitui a IA, mas ajuda a endurecer a correção antes do modelo avaliar.
@@ -399,11 +417,10 @@ function buildCopyRiskHint(redacao, material) {
   }
 }
 
-function buildEssayThemeFitHint(redacao, tema, material) {
+function buildEssayThemeFitHint(redacao, tema) {
   const essayText = normalizeText(redacao)
   const essayTokens = tokenize(redacao)
-  const essayTokenSet = new Set(essayTokens)
-  const themeText = [String(tema ?? '').trim(), flattenMaterialForPrompt(material)].filter(Boolean).join(' ')
+  const themeText = String(tema ?? '').trim()
   const rawThemeTokens = tokenize(themeText)
   const filteredThemeTokens = rawThemeTokens.filter(token => !THEME_NOISE_TOKENS.has(token))
   const themeTokens = filteredThemeTokens.length > 0 ? filteredThemeTokens : rawThemeTokens
@@ -422,10 +439,12 @@ function buildEssayThemeFitHint(redacao, tema, material) {
     }
   }
 
-  const sharedTokens = themeTokens.filter(token => essayTokenSet.has(token))
-  const sharedTokenCount = new Set(sharedTokens).size
-  const tokenOverlap = sharedTokenCount / Math.max(themeTokens.length, 1)
-  const essayCoverage = sharedTokenCount / Math.max(essayTokenSet.size, 1)
+  const fullFit = scoreThemeFitTokens(essayTokens, themeTokens)
+  const introWindow = Math.max(30, Math.ceil(essayTokens.length * 0.28))
+  const tailWindow = Math.max(30, Math.ceil(essayTokens.length * 0.35))
+  const introFit = scoreThemeFitTokens(essayTokens.slice(0, introWindow), themeTokens)
+  const remainderFit = scoreThemeFitTokens(essayTokens.slice(introWindow), themeTokens)
+  const endingFit = scoreThemeFitTokens(essayTokens.slice(Math.max(0, essayTokens.length - tailWindow)), themeTokens)
 
   const themeWords = normalizeText(themeText)
     .split(/[^a-z0-9]+/g)
@@ -440,13 +459,32 @@ function buildEssayThemeFitHint(redacao, tema, material) {
   }
 
   const fitScore = clampNumber(
-    (tokenOverlap * 0.7) + (essayCoverage * 0.2) + (phraseMatches.length > 0 ? 0.25 : 0),
+    fullFit.fitScore + (phraseMatches.length > 0 ? 0.22 : 0),
     0,
     1,
   )
 
   const wordCount = essayTokens.length
-  const isOffTopic = wordCount >= 120 && themeTokens.length >= 3 && sharedTokenCount === 0 && phraseMatches.length === 0
+  const driftSuspicion = wordCount >= 90 && (
+    (introFit.fitScore >= 0.16 && remainderFit.fitScore <= 0.08 && (introFit.fitScore - remainderFit.fitScore) >= 0.10)
+    || (introFit.fitScore >= 0.18 && endingFit.fitScore <= 0.06 && (introFit.fitScore - endingFit.fitScore) >= 0.12)
+  )
+  const isOffTopic = (
+    wordCount >= 60
+    && themeTokens.length >= 2
+    && fullFit.sharedTokenCount === 0
+    && phraseMatches.length === 0
+  ) || (
+    wordCount >= 70
+    && themeTokens.length >= 3
+    && fullFit.sharedTokenCount <= 1
+    && phraseMatches.length === 0
+    && fitScore < 0.18
+  ) || (
+    wordCount >= 90
+    && themeTokens.length >= 2
+    && driftSuspicion
+  )
 
   let fitLevel = 'baixo'
   if (fitScore >= 0.45) fitLevel = 'alto'
@@ -455,21 +493,24 @@ function buildEssayThemeFitHint(redacao, tema, material) {
 
   if (isOffTopic) fitLevel = 'fora-do-tema'
 
-  const summary = isOffTopic
-    ? 'A redação aparenta estar fora do tema definido.'
+  const summary = driftSuspicion
+    ? 'A redação começa no tema, mas abandona o recorte central no desenvolvimento.'
+    : isOffTopic
+      ? 'A redação aparenta estar fora do tema definido.'
     : fitLevel === 'alto'
-      ? `Boa aderência ao tema. ${sharedTokenCount} termo(s)-chave do recorte apareceram no texto.`
+      ? `Boa aderência ao tema. ${fullFit.sharedTokenCount} termo(s)-chave do recorte apareceram no texto.`
       : fitLevel === 'medio'
-        ? `Aderência parcial ao tema. ${sharedTokenCount} termo(s)-chave do recorte apareceram no texto.`
-        : `Aderência fraca ao tema. ${sharedTokenCount} termo(s)-chave do recorte apareceram no texto.`
+        ? `Aderência parcial ao tema. ${fullFit.sharedTokenCount} termo(s)-chave do recorte apareceram no texto.`
+        : `Aderência fraca ao tema. ${fullFit.sharedTokenCount} termo(s)-chave do recorte apareceram no texto.`
 
   return {
     enabled: true,
     fitScore: Number(fitScore.toFixed(2)),
     fitLevel,
-    sharedTokens: sharedTokenCount,
+    sharedTokens: fullFit.sharedTokenCount,
     themeTokenCount: themeTokens.length,
     wordCount,
+    driftSuspicion,
     phraseMatches,
     isOffTopic,
     summary,
@@ -658,6 +699,7 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, theme
     '- O material de apoio abaixo é apenas contexto de prova. Ele não conta como repertório autoral se o aluno apenas copiar, parafrasear ou repetir seus dados.',
     '- Se houver cópia literal ou quase literal do material, puna fortemente C2, C3 e, se necessário, C5.',
     '- Se a redação fugir totalmente do tema, a nota de todas as competências deve ser 0.',
+    '- Se a redação só tocar o tema no início e depois mudar de assunto, trate isso como fuga parcial e seja severo.',
     '- Se a aderência ao tema for fraca, C2, C3 e C5 devem cair bastante mesmo que o texto pareça bem escrito.',
     '- Se a redação usar o material de apoio sem elaboração própria, não premie como se fosse repertório externo.',
     '- Use a escala ENEM real: cada competência vai de 0 a 200 e a notaTotal vai de 0 a 1000. Nunca responda em escala 0 a 10.',
@@ -736,7 +778,7 @@ function calibrateEssayFeedbackScore(result, context = {}) {
     return result
   }
 
-  const themeHint = context.themeHint || buildEssayThemeFitHint(context.redacao, context.tema, context.material)
+  const themeHint = context.themeHint || buildEssayThemeFitHint(context.redacao, context.tema)
   const qualityHint = context.qualityHint || buildEssayWritingQualityHint(context.redacao)
 
   if (themeHint?.isOffTopic) {
@@ -760,13 +802,21 @@ function calibrateEssayFeedbackScore(result, context = {}) {
     }
   }
 
+  const topicPenalty = themeHint.fitScore < 0.15
+    ? 0.42
+    : themeHint.fitScore < 0.25
+      ? 0.65
+      : themeHint.fitScore < 0.35
+        ? 0.85
+        : 1
+
   const overallMultiplier = clampNumber(
-    0.65 + (themeHint.fitScore * 0.2) + (qualityHint.richnessScore * 0.15),
+    (0.65 + (themeHint.fitScore * 0.2) + (qualityHint.richnessScore * 0.15)) * topicPenalty,
     0.5,
     1,
   )
-  const topicMultiplier = clampNumber(0.7 + (themeHint.fitScore * 0.3), 0.5, 1)
-  const supportMultiplier = clampNumber(0.85 + (themeHint.fitScore * 0.15), 0.75, 1)
+  const topicMultiplier = clampNumber((0.7 + (themeHint.fitScore * 0.3)) * topicPenalty, 0.45, 1)
+  const supportMultiplier = clampNumber((0.85 + (themeHint.fitScore * 0.15)) * topicPenalty, 0.55, 1)
   const coesaoMultiplier = clampNumber(0.9 + (qualityHint.richnessScore * 0.1), 0.85, 1)
 
   const adjustedCompetencias = ensureArray(normalized.competencias).map((competencia) => {
@@ -1981,7 +2031,7 @@ export async function correctEssay({ redacao, tema, material, isRigido, response
   // Correção não faz search externo.
   // A ideia aqui é só avaliar a redação com o tema/material já obtidos no fluxo de escrita.
   const copyHint = buildCopyRiskHint(redacao, material)
-  const themeHint = buildEssayThemeFitHint(redacao, tema, material)
+  const themeHint = buildEssayThemeFitHint(redacao, tema)
   const qualityHint = buildEssayWritingQualityHint(redacao)
   const systemPrompt = buildCorrectionSystemPrompt({
     tema,
