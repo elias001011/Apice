@@ -368,9 +368,31 @@ function maskEmail(email) {
   return `${maskPiece(localPart)}@${maskedDomain}${tld}`
 }
 
+const DELETION_CONTACT_EMAIL = 'elias.juratti@outlook.com'
+
+function buildDeletionRequestMailto({ name, email }) {
+  const subject = encodeURIComponent('Solicitação de exclusão de conta')
+  const body = encodeURIComponent(
+    [
+      'Olá, equipe do Ápice.',
+      '',
+      'Quero solicitar a exclusão permanente da minha conta.',
+      '',
+      `Nome: ${String(name ?? 'Usuário').trim() || 'Usuário'}`,
+      `E-mail da conta: ${String(email ?? '').trim() || 'Não informado'}`,
+      '',
+      'Por favor, confirmem o procedimento e me avisem quando a exclusão for concluída.',
+      '',
+      'Obrigado(a).',
+    ].join('\n'),
+  )
+
+  return `mailto:${DELETION_CONTACT_EMAIL}?subject=${subject}&body=${body}`
+}
+
 export function PerfilPage() {
   const navigate = useNavigate()
-  const { user, logout, deleteAccount } = useAuth()
+  const { user, logout } = useAuth()
   const { canInstall: pwaCanInstall, isInstalled: pwaInstalled, installPwa } = usePwaInstall()
   const { theme, accent } = useTheme()
   const isMountedRef = useRef(true)
@@ -391,8 +413,6 @@ export function PerfilPage() {
   const [logoutError, setLogoutError] = useState('')
   const [avatarResetDialogOpen, setAvatarResetDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false)
-  const [deleteAccountError, setDeleteAccountError] = useState('')
 
   const name = user?.user_metadata?.full_name || 'Usuário'
   const email = user?.email || 'Sem e-mail'
@@ -490,26 +510,11 @@ export function PerfilPage() {
     setAvatarResetDialogOpen(false)
   }
 
-  const handleDeleteAccount = async () => {
-    setDeleteAccountError('')
-    setDeleteAccountLoading(true)
+  const handleRequestAccountDeletionEmail = () => {
+    if (typeof window === 'undefined') return
 
-    try {
-      await deleteAccount()
-      if (isMountedRef.current) {
-        setDeleteDialogOpen(false)
-        navigate('/login', { replace: true })
-      }
-    } catch (err) {
-      console.error('Delete account error:', err)
-      if (isMountedRef.current) {
-        setDeleteAccountError(err?.message || 'Não foi possível excluir sua conta agora.')
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setDeleteAccountLoading(false)
-      }
-    }
+    setDeleteDialogOpen(false)
+    window.location.href = buildDeletionRequestMailto({ name, email })
   }
 
   useEffect(() => {
@@ -942,19 +947,12 @@ export function PerfilPage() {
             className="logout-btn danger anim anim-d4"
             type="button"
             onClick={() => {
-              setDeleteAccountError('')
               setDeleteDialogOpen(true)
             }}
             style={{ marginTop: 12 }}
           >
-            Excluir minha conta
+            Solicitar exclusão da conta
           </button>
-
-          {deleteAccountError && (
-            <div className="account-danger-msg" role="alert" aria-live="assertive">
-              {deleteAccountError}
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -988,21 +986,16 @@ export function PerfilPage() {
       />
       <ConfirmDialog
         open={deleteDialogOpen}
-        title="Excluir conta permanentemente?"
+        title="Solicitar exclusão da conta?"
         message={
-          deleteAccountError
-            || 'Essa ação remove sua conta, histórico sincronizado, preferências e dados locais deste navegador. Não será possível recuperar depois.'
+          'No momento não é possível excluir a conta diretamente pelo app. Para solicitar a exclusão permanente, envie um e-mail para a equipe de desenvolvimento com o texto já pronto.'
         }
-        confirmLabel={deleteAccountLoading ? 'Excluindo...' : 'Excluir conta'}
-        cancelLabel="Cancelar"
-        danger
-        confirmDisabled={deleteAccountLoading}
-        onConfirm={handleDeleteAccount}
+        confirmLabel="Abrir e-mail"
+        cancelLabel="Fechar"
+        danger={false}
+        onConfirm={handleRequestAccountDeletionEmail}
         onCancel={() => {
-          if (!deleteAccountLoading) {
-            setDeleteDialogOpen(false)
-            setDeleteAccountError('')
-          }
+          setDeleteDialogOpen(false)
         }}
       />
     </>
