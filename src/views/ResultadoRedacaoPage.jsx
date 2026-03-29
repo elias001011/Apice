@@ -34,7 +34,7 @@ export function ResultadoRedacaoPage() {
 
         <div className="result-top-row">
           <div className="result-col-left">
-            <div className="score-hero">
+            <div className="card score-hero">
               <div className="score-label">Desempenho Geral</div>
               <div className="score-number">{res.notaTotal || 0}</div>
               <div className="score-max">de 1000 pontos possíveis</div>
@@ -64,28 +64,28 @@ export function ResultadoRedacaoPage() {
 
           <div className="result-col-feedback">
             {res.pontoForte && (
-              <div className="feedback-block">
+              <div className="card feedback-block">
                 <div className="feedback-tag positive">✓ Ponto forte / Análise Geral</div>
                 <div className="feedback-text">{res.pontoForte}</div>
               </div>
             )}
 
             {res.atencao && (
-              <div className="feedback-block">
+              <div className="card feedback-block">
                 <div className="feedback-tag warning">⚠ Atenção</div>
                 <div className="feedback-text">{res.atencao}</div>
               </div>
             )}
 
             {res.principalMelhorar && (
-              <div className="feedback-block">
+              <div className="card feedback-block">
                 <div className="feedback-tag critical">✕ Principal a melhorar</div>
                 <div className="feedback-text">{res.principalMelhorar}</div>
               </div>
             )}
 
             {res.errosPt && Array.isArray(res.errosPt) && res.errosPt.length > 0 && (
-              <div className="feedback-block">
+              <div className="card feedback-block">
                 <div className="feedback-tag info">Erros de Português (C1)</div>
                 <div className="errors-list">
                   {res.errosPt.map((erro, i) => (
@@ -140,46 +140,50 @@ const resultadoCss = `
     margin: 2rem auto;
   }
   .result-top-row {
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
     margin-top: 1.5rem;
     margin-bottom: 2rem;
   }
   .result-col-left {
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: 1.25rem;
   }
+  .result-col-feedback {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+  }
+
   @media (min-width: 900px) {
     .result-top-row {
-      flex-direction: row;
-      align-items: flex-start;
+      grid-template-columns: clamp(300px, 31vw, 360px) minmax(0, 1fr);
+      align-items: start;
     }
     .result-col-left {
-      flex: 0 0 320px;
-    }
-    .score-hero {
-      flex: 0 0 auto;
-    }
-    .result-col-feedback {
-      flex: 1;
       min-width: 0;
     }
   }
 
+  .score-hero,
+  .comps-card,
+  .feedback-block {
+    margin-bottom: 0;
+  }
+
   .score-hero {
-    background: var(--bg2);
-    border: 1px solid var(--border2);
-    border-radius: 32px;
-    padding: 3rem 2rem;
+    min-height: 240px;
+    padding: 1.75rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
     text-align: center;
     position: relative;
     overflow: hidden;
-    margin-bottom: 0;
-  }
-  @media (max-width: 899px) {
-    .score-hero { margin-bottom: 0; }
   }
   .score-label {
     font-size: 0.75rem;
@@ -191,7 +195,7 @@ const resultadoCss = `
   }
   .score-number {
     font-family: 'DM Serif Display', serif;
-    font-size: 5.5rem;
+    font-size: clamp(4rem, 6vw, 5.5rem);
     color: var(--accent);
     line-height: 1;
     margin: 10px 0;
@@ -201,11 +205,11 @@ const resultadoCss = `
     color: var(--text3);
   }
 
-  .comps-card { padding: 1.5rem; }
+  .comps-card { padding: 1.25rem; }
   .comp-list { 
     display: grid; 
     grid-template-columns: 1fr; 
-    gap: 1.5rem; 
+    gap: 1rem; 
   }
   .comp-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
   .comp-name { font-size: 0.95rem; font-weight: 600; color: var(--text); }
@@ -213,11 +217,8 @@ const resultadoCss = `
   .comp-desc { font-size: 0.82rem; color: var(--text2); line-height: 1.5; margin-top: 10px; padding-left: 6px; border-left: 2px solid var(--border); }
 
   .feedback-block {
-    background: var(--bg2);
-    border: 1px solid var(--border2);
-    border-radius: 20px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
+    padding: 1.25rem;
+    border-radius: var(--radius);
   }
   .feedback-tag {
     display: inline-block;

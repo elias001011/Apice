@@ -137,6 +137,22 @@ export async function requestAccountDeletion(authClient) {
     throw new Error('Usuário não autenticado. Faça login novamente para excluir a conta.')
   }
 
+  const currentUserId = String(currentUser?.id ?? currentUser?.sub ?? '').trim()
+
+  const deleteDirectlyWithCurrentUser = async () => {
+    if (!currentUserId) {
+      throw new Error('Não foi possível identificar sua conta para exclusão.')
+    }
+
+    const admin = currentUser?.admin
+    if (!admin || typeof admin.deleteUser !== 'function') {
+      throw new Error('Não foi possível excluir sua conta agora.')
+    }
+
+    await admin.deleteUser({ id: currentUserId })
+    return { ok: true, source: 'direct' }
+  }
+
   let jwt = ''
   try {
     jwt = await currentUser.jwt()
@@ -144,30 +160,53 @@ export async function requestAccountDeletion(authClient) {
     throw new Error('Não foi possível validar sua sessão. Faça login novamente para excluir a conta.')
   }
 
-  const response = await fetch(DELETE_ACCOUNT_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${jwt}`,
-    },
-    credentials: 'same-origin',
-  })
-
-  const contentType = response.headers.get('Content-Type') || ''
-  let payload = null
-
   try {
-    payload = contentType.includes('json')
-      ? await response.json()
-      : await response.text()
-  } catch {
-    payload = null
-  }
+    const response = await fetch(DELETE_ACCOUNT_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${jwt}`,
+      },
+      credentials: 'same-origin',
+    })
 
-  if (!response.ok) {
-    const message = parsePayloadMessage(payload)
-    throw new Error(message || 'Não foi possível excluir sua conta agora.')
-  }
+    const contentType = response.headers.get('Content-Type') || ''
+    let payload = null
 
-  return payload
+    try {
+      payload = contentType.includes('json')
+        ? await response.json()
+        : await response.text()
+    } catch {
+      payload = null
+    }
+
+    if (!response.ok) {
+      const message = parsePayloadMessage(payload)
+      if (response.status >= 500) {
+        try {
+          return await deleteDirectlyWithCurrentUser()
+        } catch (fallbackError) {
+          const fallbackMessage = normalizeIdentityError(fallbackError)
+          throw new Error(message || fallbackMessage || 'Não foi possível excluir sua conta agora.')
+        }
+      }
+
+      throw new Error(message || 'Não foi possível excluir sua conta agora.')
+    }
+
+    return payload
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw error
+    }
+
+    try {
+      return await deleteDirectlyWithCurrentUser()
+    } catch (fallbackError) {
+      const message = normalizeIdentityError(error)
+      const fallbackMessage = normalizeIdentityError(fallbackError)
+      throw new Error(message || fallbackMessage || 'Não foi possível excluir sua conta agora.')
+    }
+  }
 }

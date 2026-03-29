@@ -9,6 +9,36 @@ function errorResponse(message, status = 400) {
   return new Response(JSON.stringify({ error: message }), { status, headers })
 }
 
+function decodeNetlifyClientContext(context = {}) {
+  const directContext = context.clientContext
+  if (directContext?.identity && directContext?.user) {
+    return directContext
+  }
+
+  const rawNetlifyContext = context.clientContext?.custom?.netlify
+  if (!rawNetlifyContext) return null
+
+  try {
+    if (typeof globalThis.Buffer === 'undefined') {
+      return null
+    }
+
+    const decoded = globalThis.Buffer.from(String(rawNetlifyContext), 'base64').toString('utf-8')
+    const parsed = JSON.parse(decoded)
+    if (parsed && typeof parsed === 'object') {
+      return parsed
+    }
+  } catch (error) {
+    console.error('[excluir-conta] falha ao decodificar clientContext:', error)
+  }
+
+  return null
+}
+
+function getUserId(user) {
+  return String(user?.id ?? user?.sub ?? '').trim()
+}
+
 export default async function handler(req, context = {}) {
   if (req.method === 'OPTIONS') {
     return new Response('', { status: 200, headers })
@@ -18,15 +48,17 @@ export default async function handler(req, context = {}) {
     return errorResponse('Method not allowed', 405)
   }
 
-  const identity = context.clientContext?.identity
-  const user = context.clientContext?.user
+  const clientContext = decodeNetlifyClientContext(context)
+  const identity = clientContext?.identity
+  const user = clientContext?.user
+  const userID = getUserId(user)
 
-  if (!identity?.url || !identity?.token || !user?.sub) {
+  if (!identity?.url || !identity?.token || !userID) {
     return errorResponse('Usuário não autenticado.', 401)
   }
 
   try {
-    const response = await fetch(`${identity.url}/admin/users/${user.sub}`, {
+    const response = await fetch(`${identity.url}/admin/users/${encodeURIComponent(userID)}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${identity.token}`,
