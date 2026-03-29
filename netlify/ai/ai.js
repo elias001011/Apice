@@ -314,6 +314,32 @@ const STOPWORDS_PT = new Set([
   'entre', 'contra', 'até', 'ate', 'já', 'ja', 'nao', 'não', 'sim', 'na', 'no', 'nosso', 'nossa',
 ])
 
+const THEME_NOISE_TOKENS = new Set([
+  'tema', 'redacao', 'redacoes', 'enem', 'proposta', 'questao', 'questoes', 'problema', 'problemas',
+  'desafio', 'desafios', 'impacto', 'impactos', 'contexto', 'atual', 'atuais', 'debate', 'discussao',
+  'discussoes', 'sociedade', 'social', 'sociais', 'brasil', 'brasileiro', 'brasileira', 'nacional',
+  'nacionais', 'contemporaneo', 'contemporanea', 'contemporaneos', 'contemporaneas', 'presente', 'futuro',
+  'historico', 'historica', 'historicos', 'historicas',
+])
+
+const ESSAY_TRANSITION_MARKERS = [
+  'além disso',
+  'alem disso',
+  'nesse contexto',
+  'sob esse viés',
+  'sob este viés',
+  'dessa forma',
+  'desse modo',
+  'por conseguinte',
+  'portanto',
+  'assim',
+  'logo',
+  'em suma',
+  'por fim',
+  'em primeiro lugar',
+  'em segundo lugar',
+]
+
 function tokenize(text) {
   return normalizeText(text)
     .split(/[^a-z0-9]+/g)
@@ -370,6 +396,126 @@ function buildCopyRiskHint(redacao, material) {
     overlapScore: Number(overlapScore.toFixed(2)),
     copiedPhrases: supportPhrases,
     summary: `Risco de cópia estimado como ${riskLevel}.`,
+  }
+}
+
+function buildEssayThemeFitHint(redacao, tema, material) {
+  const essayText = normalizeText(redacao)
+  const essayTokens = tokenize(redacao)
+  const essayTokenSet = new Set(essayTokens)
+  const themeText = [String(tema ?? '').trim(), flattenMaterialForPrompt(material)].filter(Boolean).join(' ')
+  const rawThemeTokens = tokenize(themeText)
+  const filteredThemeTokens = rawThemeTokens.filter(token => !THEME_NOISE_TOKENS.has(token))
+  const themeTokens = filteredThemeTokens.length > 0 ? filteredThemeTokens : rawThemeTokens
+
+  if (themeTokens.length === 0) {
+    return {
+      enabled: false,
+      fitScore: 1,
+      fitLevel: 'sem-tema',
+      sharedTokens: 0,
+      themeTokenCount: 0,
+      wordCount: essayTokens.length,
+      phraseMatches: [],
+      isOffTopic: false,
+      summary: 'Sem tema suficiente para avaliar aderência.',
+    }
+  }
+
+  const sharedTokens = themeTokens.filter(token => essayTokenSet.has(token))
+  const sharedTokenCount = new Set(sharedTokens).size
+  const tokenOverlap = sharedTokenCount / Math.max(themeTokens.length, 1)
+  const essayCoverage = sharedTokenCount / Math.max(essayTokenSet.size, 1)
+
+  const themeWords = normalizeText(themeText)
+    .split(/[^a-z0-9]+/g)
+    .map(token => token.trim())
+    .filter(token => token.length >= 3 && !STOPWORDS_PT.has(token))
+
+  const phraseMatches = []
+  for (let i = 0; i < themeWords.length - 2 && phraseMatches.length < 5; i += 1) {
+    const phrase = themeWords.slice(i, i + 3).join(' ')
+    if (phrase.length < 12) continue
+    if (essayText.includes(phrase)) phraseMatches.push(phrase)
+  }
+
+  const fitScore = clampNumber(
+    (tokenOverlap * 0.7) + (essayCoverage * 0.2) + (phraseMatches.length > 0 ? 0.25 : 0),
+    0,
+    1,
+  )
+
+  const wordCount = essayTokens.length
+  const isOffTopic = wordCount >= 120 && themeTokens.length >= 3 && sharedTokenCount === 0 && phraseMatches.length === 0
+
+  let fitLevel = 'baixo'
+  if (fitScore >= 0.45) fitLevel = 'alto'
+  else if (fitScore >= 0.25) fitLevel = 'medio'
+  else if (fitScore >= 0.12) fitLevel = 'baixo'
+
+  if (isOffTopic) fitLevel = 'fora-do-tema'
+
+  const summary = isOffTopic
+    ? 'A redação aparenta estar fora do tema definido.'
+    : fitLevel === 'alto'
+      ? `Boa aderência ao tema. ${sharedTokenCount} termo(s)-chave do recorte apareceram no texto.`
+      : fitLevel === 'medio'
+        ? `Aderência parcial ao tema. ${sharedTokenCount} termo(s)-chave do recorte apareceram no texto.`
+        : `Aderência fraca ao tema. ${sharedTokenCount} termo(s)-chave do recorte apareceram no texto.`
+
+  return {
+    enabled: true,
+    fitScore: Number(fitScore.toFixed(2)),
+    fitLevel,
+    sharedTokens: sharedTokenCount,
+    themeTokenCount: themeTokens.length,
+    wordCount,
+    phraseMatches,
+    isOffTopic,
+    summary,
+  }
+}
+
+function buildEssayWritingQualityHint(redacao) {
+  const text = String(redacao ?? '').trim()
+  const essayTokens = tokenize(text)
+  const wordCount = essayTokens.length
+  const paragraphCount = text
+    ? text.split(/\n+/).map(line => line.trim()).filter(Boolean).length || 1
+    : 0
+  const sentenceCount = text
+    ? text.split(/[.!?]+/).map(sentence => sentence.trim()).filter(Boolean).length || 1
+    : 0
+  const uniqueRatio = wordCount > 0 ? new Set(essayTokens).size / wordCount : 0
+  const normalizedText = normalizeText(text)
+  const transitionHits = ESSAY_TRANSITION_MARKERS.filter(marker => normalizedText.includes(marker)).length
+
+  const lengthScore = clampNumber(wordCount / 220, 0, 1)
+  const diversityScore = clampNumber(uniqueRatio, 0, 1)
+  const structureScore = clampNumber(
+    ((paragraphCount / 4) * 0.45)
+    + ((sentenceCount / 12) * 0.35)
+    + ((transitionHits / ESSAY_TRANSITION_MARKERS.length) * 0.2),
+    0,
+    1,
+  )
+
+  const richnessScore = clampNumber(
+    (lengthScore * 0.4)
+    + (diversityScore * 0.35)
+    + (structureScore * 0.25),
+    0,
+    1,
+  )
+
+  return {
+    wordCount,
+    paragraphCount,
+    sentenceCount,
+    uniqueRatio: Number(uniqueRatio.toFixed(2)),
+    transitionHits,
+    richnessScore: Number(richnessScore.toFixed(2)),
+    summary: `Texto com ${wordCount} palavra(s), ${paragraphCount} parágrafo(s) e ${Math.round(uniqueRatio * 100)}% de variedade lexical.`,
   }
 }
 
@@ -495,7 +641,7 @@ function buildFallbackThemeSystemPrompt(responsePreference) {
   return lines.join('\n')
 }
 
-function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, responsePreference }) {
+function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, themeHint, qualityHint, responsePreference }) {
   // Prompt da correção.
   // O material de apoio aqui é contexto da prova, não repertório autoral do aluno.
   const modo = isRigido ? 'Rígido (muito criterioso)' : 'Padrão (conservador)'
@@ -512,6 +658,7 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, respo
     '- O material de apoio abaixo é apenas contexto de prova. Ele não conta como repertório autoral se o aluno apenas copiar, parafrasear ou repetir seus dados.',
     '- Se houver cópia literal ou quase literal do material, puna fortemente C2, C3 e, se necessário, C5.',
     '- Se a redação fugir totalmente do tema, a nota de todas as competências deve ser 0.',
+    '- Se a aderência ao tema for fraca, C2, C3 e C5 devem cair bastante mesmo que o texto pareça bem escrito.',
     '- Se a redação usar o material de apoio sem elaboração própria, não premie como se fosse repertório externo.',
     '- Use a escala ENEM real: cada competência vai de 0 a 200 e a notaTotal vai de 0 a 1000. Nunca responda em escala 0 a 10.',
     '- Seja conservador: 200 em qualquer competência deve ser raro, 180+ só quando o critério estiver praticamente impecável.',
@@ -549,6 +696,10 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, respo
     copyHint.copiedPhrases.length > 0
       ? `- Trechos repetidos detectados: ${copyHint.copiedPhrases.join(' | ')}`
       : '- Trechos repetidos detectados: nenhum trecho longo detectado.',
+    '',
+    'Heurística local de aderência ao tema:',
+    `- ${themeHint?.summary || 'Sem avaliação local de tema.'}`,
+    `- ${qualityHint?.summary || 'Sem avaliação local de escrita.'}`,
   ]
 
   appendResponsePreference(lines, responsePreference)
@@ -579,15 +730,65 @@ function dampenEssayTotalScore(score) {
   return value
 }
 
-function calibrateEssayFeedbackScore(result) {
+function calibrateEssayFeedbackScore(result, context = {}) {
   const normalized = normalizeEssayFeedbackScore(result)
   if (!normalized || typeof normalized !== 'object') {
     return result
   }
 
+  const themeHint = context.themeHint || buildEssayThemeFitHint(context.redacao, context.tema, context.material)
+  const qualityHint = context.qualityHint || buildEssayWritingQualityHint(context.redacao)
+
+  if (themeHint?.isOffTopic) {
+    const zeroedCompetencias = ensureArray(normalized.competencias).map((competencia) => ({
+      ...competencia,
+      nota: 0,
+    }))
+
+    return {
+      ...normalized,
+      competencias: zeroedCompetencias,
+      notaTotal: 0,
+      temaAderencia: {
+        fitScore: themeHint.fitScore,
+        fitLevel: themeHint.fitLevel,
+        sharedTokens: themeHint.sharedTokens,
+        themeTokenCount: themeHint.themeTokenCount,
+        wordCount: themeHint.wordCount,
+        richnessScore: qualityHint.richnessScore,
+      },
+    }
+  }
+
+  const overallMultiplier = clampNumber(
+    0.65 + (themeHint.fitScore * 0.2) + (qualityHint.richnessScore * 0.15),
+    0.5,
+    1,
+  )
+  const topicMultiplier = clampNumber(0.7 + (themeHint.fitScore * 0.3), 0.5, 1)
+  const supportMultiplier = clampNumber(0.85 + (themeHint.fitScore * 0.15), 0.75, 1)
+  const coesaoMultiplier = clampNumber(0.9 + (qualityHint.richnessScore * 0.1), 0.85, 1)
+
   const adjustedCompetencias = ensureArray(normalized.competencias).map((competencia) => {
-    const adjusted = clampNumber(
+    const baseScore = clampNumber(
       roundScore(dampenEssayCompetenceScore(competencia?.nota)),
+      0,
+      200,
+    )
+
+    const competenceName = normalizeText(competencia?.nome)
+    let multiplier = overallMultiplier
+
+    if (competenceName.includes('c2')) {
+      multiplier = clampNumber(overallMultiplier * topicMultiplier, 0, 1)
+    } else if (competenceName.includes('c3') || competenceName.includes('c5')) {
+      multiplier = clampNumber(overallMultiplier * supportMultiplier, 0, 1)
+    } else if (competenceName.includes('c4')) {
+      multiplier = clampNumber(overallMultiplier * coesaoMultiplier, 0, 1)
+    }
+
+    const adjusted = clampNumber(
+      roundScore(baseScore * multiplier),
       0,
       200,
     )
@@ -600,12 +801,20 @@ function calibrateEssayFeedbackScore(result) {
 
   const notaTotal = adjustedCompetencias.length > 0
     ? adjustedCompetencias.reduce((sum, competencia) => sum + (Number(competencia?.nota) || 0), 0)
-    : clampNumber(roundScore(dampenEssayTotalScore(normalized.notaTotal)), 0, 1000)
+    : clampNumber(roundScore(dampenEssayTotalScore(normalized.notaTotal) * overallMultiplier), 0, 1000)
 
   return {
     ...normalized,
     competencias: adjustedCompetencias,
     notaTotal,
+    temaAderencia: {
+      fitScore: themeHint.fitScore,
+      fitLevel: themeHint.fitLevel,
+      sharedTokens: themeHint.sharedTokens,
+      themeTokenCount: themeHint.themeTokenCount,
+      wordCount: themeHint.wordCount,
+      richnessScore: qualityHint.richnessScore,
+    },
   }
 }
 
@@ -1772,11 +1981,15 @@ export async function correctEssay({ redacao, tema, material, isRigido, response
   // Correção não faz search externo.
   // A ideia aqui é só avaliar a redação com o tema/material já obtidos no fluxo de escrita.
   const copyHint = buildCopyRiskHint(redacao, material)
+  const themeHint = buildEssayThemeFitHint(redacao, tema, material)
+  const qualityHint = buildEssayWritingQualityHint(redacao)
   const systemPrompt = buildCorrectionSystemPrompt({
     tema,
     material,
     isRigido,
     copyHint,
+    themeHint,
+    qualityHint,
     responsePreference,
   })
 
@@ -1792,7 +2005,14 @@ export async function correctEssay({ redacao, tema, material, isRigido, response
     userMessages,
   }, { copyHint, tema, material })
 
-  return calibrateEssayFeedbackScore(result)
+  return calibrateEssayFeedbackScore(result, {
+    redacao,
+    tema,
+    material,
+    copyHint,
+    themeHint,
+    qualityHint,
+  })
 }
 
 export function summarizeMaterial(material) {
