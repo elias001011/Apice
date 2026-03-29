@@ -35,11 +35,12 @@ const PROVIDER_SETTINGS = {
 
 // Modelos default por provider.
 // Você pode sobrescrever tudo por env var sem tocar no código.
-// A ideia é ter um "primary" e, se quiser, um "secondary" para testes ou mudança futura.
+// A ideia é ter um "primary", um "secondary" e, quando fizer sentido, um "tertiary" para tarefas pesadas.
 const PROVIDER_MODELS = {
   groq: {
     primary: process.env.AI_GROQ_MODEL_PRIMARY || 'llama-3.3-70b-versatile',
     secondary: process.env.AI_GROQ_MODEL_SECONDARY || 'llama-3.1-8b-instant',
+    tertiary: process.env.AI_GROQ_MODEL_TERTIARY || 'openai/gpt-oss-120b',
   },
   gemini: {
     primary: process.env.AI_GEMINI_MODEL_PRIMARY || 'gemini-3.1-flash-lite-preview',
@@ -696,9 +697,10 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, theme
     '- Corrija conforme a matriz do ENEM.',
     '- Na propriedade "descricao" de cada competência, exiba o MÉRITO DIRETAMENTE e seja MEGA CONCISO (ex: "Apresenta boa coesão, mas falha no uso de crase."). Nunca escreva introduções como "A redação demonstra...". O espaço lá é apertado, use 1 ou 2 frases curtas.',
     '- Compense essa ausência de detalhes escrevendo análises SUPER DENSAS, extensas e ricas nas chaves "pontoForte", "atencao" e "principalMelhorar". Abuse do espaço ali para aprofundar a correção.',
+    '- Nessas análises, seja direto e honesto com o estudante. Se houver fuga de tema, repertório fraco ou argumento vazio, diga isso sem suavizar.',
     '- O material de apoio abaixo é apenas contexto de prova. Ele não conta como repertório autoral se o aluno apenas copiar, parafrasear ou repetir seus dados.',
     '- Se houver cópia literal ou quase literal do material, puna fortemente C2, C3 e, se necessário, C5.',
-    '- Se a redação fugir totalmente do tema, a nota de todas as competências deve ser 0.',
+    '- Se a redação fugir totalmente do tema, a nota de todas as competências deve ser 0 e a análise precisa deixar isso explícito.',
     '- Se a redação só tocar o tema no início e depois mudar de assunto, trate isso como fuga parcial e seja severo.',
     '- Se a aderência ao tema for fraca, C2, C3 e C5 devem cair bastante mesmo que o texto pareça bem escrito.',
     '- Se a redação usar o material de apoio sem elaboração própria, não premie como se fosse repertório externo.',
@@ -1186,19 +1188,60 @@ async function runOpenRouterSearch({ query }) {
   })
 }
 
-async function runGroqText({ systemPrompt, userMessages, modelVariant = 'primary', modelOverride = '' }) {
+async function runGroqText({
+  systemPrompt,
+  userMessages,
+  modelVariant = 'primary',
+  modelOverride = '',
+  temperature = null,
+  maxTokens = 4096,
+  maxCompletionTokens = null,
+  topP = null,
+  reasoningEffort = null,
+  includeReasoning = null,
+  stream = false,
+}) {
   const apiKey = process.env.GROQ_API_KEY || process.env.GROQ
   if (!apiKey || apiKey === 'undefined') {
     throw new Error('GROQ key missing')
   }
 
+  const normalizedVariant = String(modelVariant ?? '').trim().toLowerCase()
+  const isTertiaryModel = normalizedVariant === 'tertiary'
+  const resolvedTemperature = typeof temperature === 'number' ? temperature : (isTertiaryModel ? 0.1 : 0.2)
+  const resolvedTopP = typeof topP === 'number' ? topP : (isTertiaryModel ? 1 : null)
+  const resolvedReasoningEffort = String(reasoningEffort ?? '').trim() || (isTertiaryModel ? 'medium' : '')
+  const resolvedMaxCompletionTokens = Number.isFinite(maxCompletionTokens)
+    ? maxCompletionTokens
+    : (isTertiaryModel ? 8192 : null)
+  const resolvedIncludeReasoning = typeof includeReasoning === 'boolean'
+    ? includeReasoning
+    : (isTertiaryModel ? false : null)
+
   const payload = {
     model: resolveProviderModel('groq', modelVariant, modelOverride),
     messages: buildOpenAICompatibleMessages(systemPrompt, userMessages),
-    temperature: 0.2,
-    max_tokens: 4096,
+    temperature: resolvedTemperature,
     response_format: { type: 'json_object' },
-    stream: false,
+    stream,
+  }
+
+  if (Number.isFinite(resolvedMaxCompletionTokens)) {
+    payload.max_completion_tokens = resolvedMaxCompletionTokens
+  } else if (Number.isFinite(maxTokens)) {
+    payload.max_tokens = maxTokens
+  }
+
+  if (Number.isFinite(resolvedTopP)) {
+    payload.top_p = resolvedTopP
+  }
+
+  if (resolvedReasoningEffort) {
+    payload.reasoning_effort = resolvedReasoningEffort
+  }
+
+  if (typeof resolvedIncludeReasoning === 'boolean') {
+    payload.include_reasoning = resolvedIncludeReasoning
   }
 
   const data = await postJson(
@@ -2049,6 +2092,25 @@ export async function correctEssay({ redacao, tema, material, isRigido, response
       content: String(redacao ?? ''),
     },
   ]
+
+  try {
+    const groqTertiaryResult = await runGroqText({
+      systemPrompt,
+      userMessages,
+      modelVariant: 'tertiary',
+    })
+
+    return calibrateEssayFeedbackScore(groqTertiaryResult, {
+      redacao,
+      tema,
+      material,
+      copyHint,
+      themeHint,
+      qualityHint,
+    })
+  } catch (groqError) {
+    console.error('[AI][essay] Groq tertiary failed, falling back to pipeline:', groqError?.message || groqError)
+  }
 
   const result = await runPipeline('text', {
     systemPrompt,
