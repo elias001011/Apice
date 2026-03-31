@@ -7,6 +7,7 @@ import { ThemeProvider } from './theme/ThemeProvider.jsx'
 import { AuthProvider } from './auth/AuthProvider.jsx'
 import { AppBusyProvider } from './ui/AppBusyContext.jsx'
 import { PwaInstallProvider } from './pwa/PwaInstallProvider.jsx'
+import { ScrollToTop } from './ui/ScrollToTop.jsx'
 
 const isLocalDevHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
 const shouldRegisterServiceWorker = import.meta.env.PROD
@@ -40,6 +41,7 @@ if ('serviceWorker' in navigator && shouldRegisterServiceWorker) {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
+      <ScrollToTop />
       <ThemeProvider>
         <PwaInstallProvider>
           <AuthProvider>
