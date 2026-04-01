@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { savePolicyConsent } from '../services/policyConsent.js'
 
 const ONBOARDING_KEY = 'apice:onboarding-shown'
@@ -11,19 +12,20 @@ function readShouldShowOnboarding() {
 export function OnboardingModal({ onComplete }) {
   const [step, setStep] = useState(1)
   const [isVisible, setIsVisible] = useState(readShouldShowOnboarding)
+  const navigate = useNavigate()
 
   if (!isVisible) return null
 
   const handleNext = () => {
-    if (step < 3) setStep(step + 1)
+    if (step < 4) setStep(step + 1)
   }
 
-  const handleFinish = () => {
-    // Marca onboarding como visto
+  const finishOnboarding = (destination) => {
     savePolicyConsent(true)
     localStorage.setItem(ONBOARDING_KEY, 'true')
     setIsVisible(false)
     if (onComplete) onComplete()
+    navigate(destination, { replace: true })
   }
 
   return (
@@ -35,6 +37,7 @@ export function OnboardingModal({ onComplete }) {
           <div className={`progress-dot ${step >= 1 ? 'active' : ''}`} />
           <div className={`progress-dot ${step >= 2 ? 'active' : ''}`} />
           <div className={`progress-dot ${step >= 3 ? 'active' : ''}`} />
+          <div className={`progress-dot ${step >= 4 ? 'active' : ''}`} />
         </div>
 
         <div className="onboarding-content">
@@ -43,7 +46,7 @@ export function OnboardingModal({ onComplete }) {
               <div className="step-icon">👋</div>
               <h2>Bem-vindo ao Ápice!</h2>
               <p className="mission-text">
-                Nossa missão é democratizar o acesso a ferramentas de elite, dando a cada estudante 
+                Nossa missão é democratizar o acesso a ferramentas de elite, dando a cada estudante
                 a chance de alcançar a <strong>nota 1000 no ENEM</strong> através da inteligência artificial.
               </p>
               <div className="step-footer">
@@ -78,21 +81,65 @@ export function OnboardingModal({ onComplete }) {
               <div className="step-icon">🎯</div>
               <h2>Nossa Missão</h2>
               <p>
-                O Ápice nasceu com o objetivo de democratizar o acesso à preparação de alta performance. 
-                Queremos que cada estudante, independentemente de onde venha, tenha uma IA de nível mundial 
+                O Ápice nasceu com o objetivo de democratizar o acesso à preparação de alta performance.
+                Queremos que cada estudante, independentemente de onde venha, tenha uma IA de nível mundial
                 como seu tutor particular para alcançar o 1000 no ENEM.
               </p>
-              
+
               <div className="mission-highlight">
                 Nosso propósito é transformar seu esforço em resultado real e sua redação em uma porta de entrada para a universidade.
               </div>
 
               <div className="step-footer">
-                <button 
-                  className="btn-primary" 
-                  onClick={handleFinish}
-                >
+                <button className="btn-primary" onClick={handleNext}>
                   Vamos começar!
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="onboarding-step-view anim-fade-in">
+              <div className="step-icon">🎨</div>
+              <h2>Personalize sua experiência</h2>
+              <p>
+                Quer deixar o Ápice com a sua cara? Você pode ajustar as cores, fontes,
+                tema e muito mais na seção de <strong>Aparência</strong>.
+              </p>
+
+              <div className="personalize-options-grid">
+                <div className="personalize-option-card">
+                  <span className="po-icon">🌙</span>
+                  <span className="po-label">Tema</span>
+                </div>
+                <div className="personalize-option-card">
+                  <span className="po-icon">🎨</span>
+                  <span className="po-label">Cores</span>
+                </div>
+                <div className="personalize-option-card">
+                  <span className="po-icon">✍️</span>
+                  <span className="po-label">Fontes</span>
+                </div>
+                <div className="personalize-option-card">
+                  <span className="po-icon">✨</span>
+                  <span className="po-label">Efeitos</span>
+                </div>
+              </div>
+
+              <div className="step-footer personalize-footer">
+                <button
+                  id="onboarding-personalize-yes"
+                  className="btn-primary"
+                  onClick={() => finishOnboarding('/aparencia')}
+                >
+                  Sim, personalizar agora
+                </button>
+                <button
+                  id="onboarding-personalize-no"
+                  className="btn-secondary"
+                  onClick={() => finishOnboarding('/home')}
+                >
+                  Não, ir para o início
                 </button>
               </div>
             </div>
@@ -233,6 +280,42 @@ const onboardingCss = `
     line-height: 1.4;
   }
 
+  /* ── PERSONALIZAÇÃO ── */
+  .personalize-options-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 1.25rem 0 1.5rem;
+  }
+
+  .personalize-option-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 8px;
+    border-radius: 14px;
+    border: 1.5px solid var(--border2);
+    background: var(--bg3);
+  }
+
+  .po-icon {
+    font-size: 1.5rem;
+  }
+
+  .po-label {
+    font-size: 0.72rem;
+    color: var(--text2);
+    font-weight: 500;
+  }
+
+  .personalize-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* ── BOTÕES ── */
   .checkbox-container {
     display: flex;
     align-items: center;
@@ -318,6 +401,25 @@ const onboardingCss = `
   .btn-primary:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    color: var(--text2);
+    border: 1.5px solid var(--border2);
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
   }
 
   .anim-fade-in {
