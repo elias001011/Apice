@@ -12,6 +12,7 @@ import {
 } from '../services/avatarSettings.js'
 import { Footer } from './Footer.jsx'
 import { ConquistaToast } from './ConquistaToast.jsx'
+import { UpgradeModalProvider } from './UpgradeModal.jsx'
 
 export function AppShell() {
   const { user } = useAuth()
@@ -62,7 +63,7 @@ export function AppShell() {
   })
 
   return (
-    <>
+    <UpgradeModalProvider>
       <nav className="nav">
         <div className="nav-inner">
           <NavLink to="/home" className="nav-logo">
@@ -162,7 +163,7 @@ export function AppShell() {
         <TabLink to="/conquistas" label="Conquistas" icon="trophy" className="tab-item--secondary" />
         <TabLink to="/perfil" label="Perfil" icon="user" />
       </nav>
-    </>
+    </UpgradeModalProvider>
   )
 }
 

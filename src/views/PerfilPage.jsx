@@ -244,6 +244,99 @@ const perfilCss = `
   .quota-plan-badge { font-size: 0.65rem; font-weight: 700; padding: 4px 10px; border-radius: 8px; text-transform: uppercase; background: var(--bg3); color: var(--text3); }
   .quota-plan-badge.pro { background: var(--accent); color: #000; }
 
+  /* Meu Plano Card */
+  .meu-plano-card {
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .meu-plano-left {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .meu-plano-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text3);
+    letter-spacing: 0.07em;
+  }
+
+  .meu-plano-tier {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .meu-plano-tier-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    background: var(--bg3);
+    color: var(--text3);
+  }
+
+  .meu-plano-tier-badge.pro {
+    background: var(--accent);
+    color: #0f0f0f;
+  }
+
+  .meu-plano-quota {
+    font-size: 0.78rem;
+    color: var(--text2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .meu-plano-bar {
+    height: 5px;
+    width: 80px;
+    background: var(--bg3);
+    border-radius: 999px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .meu-plano-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 999px;
+    transition: width 0.4s ease;
+  }
+
+  .meu-plano-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 18px;
+    background: var(--accent);
+    color: #0f0f0f;
+    border-radius: 12px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .meu-plano-btn:hover {
+    background: var(--accent2);
+    transform: translateY(-1px);
+  }
+
   .quota-main { margin-bottom: 0.5rem; }
   .quota-main-count { font-family: 'DM Serif Display', serif; font-size: 2.5rem; color: var(--text); }
   .quota-main-count span { font-family: 'DM Sans', sans-serif; font-size: 1rem; opacity: 0.5; }
@@ -676,6 +769,43 @@ export function PerfilPage() {
           <div className="stat-small-lbl">Média geral</div>
         </div>
       </div>
+
+      {/* ── MEU PLANO ── */}
+      <div className="section-label anim anim-d2" style={{ marginTop: '1rem' }}>Meu Plano</div>
+      <div className="card meu-plano-card anim anim-d2">
+        <div className="meu-plano-left">
+          <div className="meu-plano-label">Plano Atual</div>
+          <div className="meu-plano-tier">
+            {planTier === 'free' ? 'Gratuito' : 'Premium'}
+            <span className={`meu-plano-tier-badge ${planTier === 'free' ? '' : 'pro'}`}>
+              {planTier === 'free' ? 'Free' : 'Pro ✦'}
+            </span>
+          </div>
+          {planTier === 'free' && (
+            <div className="meu-plano-quota">
+              <div className="meu-plano-bar">
+                <div
+                  className="meu-plano-bar-fill"
+                  style={{ width: `${quotaRow.percent}%`, background: quotaRow.blocked ? 'var(--red)' : 'var(--accent)' }}
+                />
+              </div>
+              <span style={{ color: quotaRow.blocked ? 'var(--red)' : undefined }}>
+                {quotaRow.used}/{quotaRow.limit} usos de IA hoje
+              </span>
+            </div>
+          )}
+        </div>
+        {planTier === 'free' ? (
+          <Link to="/planos" className="meu-plano-btn">
+            Fazer upgrade ✦
+          </Link>
+        ) : (
+          <Link to="/planos" className="meu-plano-btn" style={{ background: 'var(--bg3)', color: 'var(--accent)', border: '1.5px solid var(--accent)' }}>
+            Ver seu plano
+          </Link>
+        )}
+      </div>
+
       <div className="perfil-grid">
         <div className="perfil-col">
           <div className="section-label anim anim-d2" style={{ marginTop: '0.5rem' }}>

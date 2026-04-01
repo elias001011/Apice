@@ -4,10 +4,17 @@ import { corrigirRedacao, salvarNoHistorico, gerarTemaDinamico } from '../servic
 import { clearCorretorDraft, loadCorretorDraft, saveCorretorDraft } from '../services/corretorDraft.js'
 import { useAppBusy } from '../ui/AppBusyContext.jsx'
 import { ConfirmDialog } from '../ui/ConfirmDialog.jsx'
+import { useUpgradeModal } from '../ui/UpgradeModal.jsx'
+import {
+  isQuotaBlocked,
+  shouldShowSoftUpgradeTrigger,
+  UPGRADE_REASONS,
+} from '../services/upgradeTrigger.js'
 
 export function CorretorPage() {
   const navigate = useNavigate()
   const { beginBusy, endBusy } = useAppBusy()
+  const { openUpgradeModal } = useUpgradeModal()
   const draftBootstrap = loadCorretorDraft()
   // O draft é restaurado no primeiro render para evitar flicker entre reloads.
   // Se você mudar de aba ou voltar depois, a página sobe já no ponto exato onde parou.
@@ -101,6 +108,12 @@ export function CorretorPage() {
   }
 
   const handleGerarTema = async () => {
+    // Verifica cota antes de processar (Gatilho 1)
+    if (isQuotaBlocked()) {
+      openUpgradeModal({ reason: UPGRADE_REASONS.QUOTA_BLOCKED })
+      return
+    }
+
     // Aqui é o único caminho da UI que dispara search + geração de tema.
     // A IA busca contexto factual antes de montar o material de apoio.
     const requestId = ++themeRequestSeq.current
@@ -127,6 +140,12 @@ export function CorretorPage() {
   }
 
   const handleCorrigir = async () => {
+    // Gatilho 1: cota esgotada → modal de upgrade (bloqueante)
+    if (isQuotaBlocked()) {
+      openUpgradeModal({ reason: UPGRADE_REASONS.QUOTA_BLOCKED })
+      return
+    }
+
     // Correção pura: não busca nada novo.
     // Usa o tema e o material que já estão na tela para avaliar a redação.
     if (wordCount < 15) {
@@ -144,6 +163,12 @@ export function CorretorPage() {
       if (correctionRequestSeq.current !== requestId) return
       const savedHistoryEntry = salvarNoHistorico(resultado, tema, redacao)
       const historyId = savedHistoryEntry?.id ? String(savedHistoryEntry.id) : ''
+
+      // Gatilho 2: convite suave após X correções no dia (não bloqueante)
+      if (shouldShowSoftUpgradeTrigger('essayCorrection')) {
+        openUpgradeModal({ reason: UPGRADE_REASONS.SOFT_INVITE })
+      }
+
       navigate(
         historyId ? `/resultado-redacao?id=${encodeURIComponent(historyId)}` : '/resultado-redacao',
         {

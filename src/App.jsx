@@ -13,6 +13,7 @@ import { HistoricoRedacoesPage } from './views/HistoricoRedacoesPage.jsx'
 import { ResultadoRedacaoPage } from './views/ResultadoRedacaoPage.jsx'
 import { NotificacoesPage } from './views/NotificacoesPage.jsx'
 import { AparenciaPage } from './views/AparenciaPage.jsx'
+import { PlanosPage } from './views/PlanosPage.jsx'
 import { EditarPerfilPage } from './views/EditarPerfilPage.jsx'
 import { SobrePage } from './views/SobrePage.jsx'
 import { TemaDetalhePage } from './views/TemaDetalhePage.jsx'
@@ -74,6 +75,7 @@ export default function App() {
         <Route path="/resultado-redacao" element={<ResultadoRedacaoPage />} />
         <Route path="/tema-detalhe" element={<TemaDetalhePage />} />
         <Route path="/aparencia" element={<AparenciaPage />} />
+        <Route path="/planos" element={<PlanosPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
