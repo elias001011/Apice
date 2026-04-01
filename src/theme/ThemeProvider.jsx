@@ -203,7 +203,7 @@ function syncThemeFromStorage(
 const ThemeContext = createContext(null)
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => getSystemTheme())
+  const [theme, setTheme] = useState(() => readSaved(STORAGE_KEY_THEME, getSystemTheme()))
   const [accent, setAccent] = useState(() => readSaved(STORAGE_KEY_ACCENT, 'lime'))
   const [fontSize, setFontSize] = useState(() => readSaved(STORAGE_KEY_FONT, 'md'))
   const [fontFamily, setFontFamily] = useState(() => readSaved(STORAGE_KEY_FONT_FAMILY, 'dm-sans'))
