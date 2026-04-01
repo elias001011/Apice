@@ -40,9 +40,8 @@ function iconSvg(kind) {
       )
     case 'send':
       return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13" />
-          <polygon points="22 2 15 22 11 13 2 9 22 2" />
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 18 15 12 9 6" />
         </svg>
       )
     default:
@@ -53,7 +52,6 @@ function iconSvg(kind) {
 export function ProfessorPage() {
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0])
   
-  // Guardar o histórico de mensagens por categoria { "duvidas": [...], "resumos": [...] }
   const [conversations, setConversations] = useState(() => {
     const initial = {}
     CATEGORIES.forEach(cat => {
@@ -82,7 +80,6 @@ export function ProfessorPage() {
     const userMessage = inputText.trim()
     setInputText('')
     
-    // Adicionar mensagem do usuário
     setConversations(prev => ({
       ...prev,
       [activeCategory.id]: [
@@ -93,7 +90,6 @@ export function ProfessorPage() {
 
     setIsTyping(true)
 
-    // Simular tempo de resposta (1s - 2s)
     setTimeout(() => {
       const botResponse = getRandomMockResponse(activeCategory.id)
       setConversations(prev => ({
@@ -115,96 +111,106 @@ export function ProfessorPage() {
   }
 
   return (
-    <div className="view-container--wide anim anim-d1">
-      <div className="professor-layout">
-        
-        {/* Sidebar de Categorias */}
-        <aside className="professor-sidebar">
-          <div className="professor-sidebar-header">
-            <div className="professor-avatar">
-              <span className="professor-emoji">👨‍🏫</span>
-            </div>
-            <h2>Meu Professor</h2>
-            <p>Seu assistente pessoal para acelerar os estudos.</p>
+    <>
+      <div className="view-container--wide">
+        <div className="professor-intro anim anim-d1" style={{ margin: '3rem auto 2rem', padding: '0 1rem' }}>
+          
+          <div className="corretor-header" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '8px', marginBottom: '2rem' }}>
+            <h2 className="corretor-title" style={{ fontSize: '2.2rem' }}>Meu Professor</h2>
+            <p className="corretor-subtitle" style={{ fontSize: '1rem' }}>Tire dúvidas em tempo real com a inteligência artificial do Ápice.</p>
           </div>
-          <div className="professor-categories">
-            {CATEGORIES.map(cat => (
-              <button 
-                key={cat.id}
-                className={`category-btn ${activeCategory.id === cat.id ? 'active' : ''}`}
-                onClick={() => setActiveCategory(cat)}
-              >
-                <span className="category-icon">{iconSvg(cat.icon)}</span>
-                <div className="category-info">
-                  <strong>{cat.label}</strong>
-                  <span>{cat.description}</span>
+
+          <div className="corretor-grid">
+            {/* COLUNA PRINCIPAL: CHAT */}
+            <div className="corretor-column-main">
+              <div className="card anim anim-d2 chat-card-container">
+                <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '0' }}>
+                  <span style={{ width: '18px', height: '18px', color: 'var(--accent)' }}>{iconSvg(activeCategory.icon)}</span>
+                  Sessão Ativa: {activeCategory.label}
+                  <span style={{ marginLeft: 'auto', textTransform: 'none', fontWeight: 'normal', color: 'var(--text3)' }}>
+                    IA Experimental
+                  </span>
                 </div>
-              </button>
-            ))}
-          </div>
-        </aside>
 
-        {/* Área de Chat */}
-        <main className="professor-chat-area">
-          <header className="chat-header">
-            <span className="chat-header-icon">{iconSvg(activeCategory.icon)}</span>
-            <div className="chat-header-titles">
-              <h3>{activeCategory.label}</h3>
-              <span>{activeCategory.description}</span>
+                <div className="chat-messages-scroll" style={{ padding: '1rem 0' }}>
+                  {activeMessages.map(msg => (
+                    <div key={msg.id} className={`chat-message ${msg.sender === 'user' ? 'user-message' : 'ai-message'}`}>
+                      {msg.sender === 'ai' && (
+                        <div className="message-avatar">👨‍🏫</div>
+                      )}
+                      <div className="message-content">
+                        {msg.text.split('\n').map((line, i) => (
+                          <span key={i}>{line}<br /></span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {isTyping && (
+                    <div className="chat-message ai-message">
+                      <div className="message-avatar">👨‍🏫</div>
+                      <div className="message-content typing-indicator">
+                        <span></span><span></span><span></span>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                <div className="chat-input-native">
+                  <textarea 
+                    className="textarea-field" 
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={`Escreva algo em '${activeCategory.label}'...`}
+                    rows={1}
+                    style={{ minHeight: '50px', maxHeight: '150px', flex: 1, padding: '14px', borderRadius: '16px' }}
+                  />
+                  <button 
+                    className="btn-primary" 
+                    onClick={handleSendMessage}
+                    disabled={!inputText.trim() || isTyping}
+                    style={{ padding: '0 18px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '16px', boxShadow: 'none' }}
+                    aria-label="Enviar"
+                  >
+                    {iconSvg('send')}
+                  </button>
+                </div>
+              </div>
             </div>
-          </header>
 
-          <div className="chat-messages">
-            {activeMessages.map(msg => (
-              <div key={msg.id} className={`chat-message ${msg.sender === 'user' ? 'user-message' : 'ai-message'}`}>
-                {msg.sender === 'ai' && (
-                  <div className="message-avatar">👨‍🏫</div>
-                )}
-                <div className="message-content">
-                  {msg.text.split('\n').map((line, i) => (
-                    <span key={i}>
-                      {line}
-                      <br />
-                    </span>
+            {/* COLUNA LATERAL: CATEGORIAS */}
+            <div className="corretor-column-side">
+              <div className="card anim anim-d3 sticky-side">
+                <div className="card-title">Modos de Estudo</div>
+                <div className="status-mode" style={{ marginBottom: '1.2rem' }}>O que você precisa?</div>
+                
+                <div className="prof-categories-list">
+                  {CATEGORIES.map(cat => (
+                    <button 
+                      key={cat.id}
+                      className={`prof-cat-item ${activeCategory.id === cat.id ? 'active' : ''}`}
+                      onClick={() => setActiveCategory(cat)}
+                    >
+                      <div className="prof-cat-icon">{iconSvg(cat.icon)}</div>
+                      <div className="prof-cat-text">
+                        <strong>{cat.label}</strong>
+                        <span>{cat.description}</span>
+                      </div>
+                    </button>
                   ))}
                 </div>
+                
+                <div className="side-separator"></div>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text3)', textAlign: 'center', margin: 0 }}>
+                  Respostas geradas por IA podem ser imprecisas e devem ser verificadas.
+                </p>
               </div>
-            ))}
-            
-            {isTyping && (
-              <div className="chat-message ai-message">
-                <div className="message-avatar">👨‍🏫</div>
-                <div className="message-content typing-indicator">
-                  <span></span><span></span><span></span>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          <footer className="chat-input-area">
-            <div className="chat-input-wrapper">
-              <textarea 
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={`Mensagem em '${activeCategory.label}'...`}
-                rows={1}
-                aria-label="Digite sua mensagem"
-              />
-              <button 
-                className="btn btn-primary send-btn" 
-                onClick={handleSendMessage}
-                disabled={!inputText.trim() || isTyping}
-                aria-label="Enviar mensagem"
-              >
-                {iconSvg('send')}
-              </button>
             </div>
-            <p className="chat-disclaimer">A inteligência artificial pode cometer erros. Considere verificar informações vitais.</p>
-          </footer>
-        </main>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
