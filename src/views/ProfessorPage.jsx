@@ -115,7 +115,7 @@ export function ProfessorPage() {
   }
 
   return (
-    <div className="view-page professor-page">
+    <div className="view-container--wide anim anim-d1">
       <div className="professor-layout">
         
         {/* Sidebar de Categorias */}
