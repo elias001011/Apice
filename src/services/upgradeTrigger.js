@@ -197,7 +197,7 @@ export const PRICING_PLANS = [
     totalPrice: 19.90,
     billingLabel: 'cobrado mensalmente',
     discount: null,
-    checkoutUrl: '#', // placeholder — substituir pela URL real do gateway
+    checkoutUrl: 'https://app.abacatepay.com/pay/bill_JUQP4nTnLj240zdDpMHh2hxW', // AbacatePay link
   },
   {
     key: 'semiannual',
@@ -206,7 +206,7 @@ export const PRICING_PLANS = [
     totalPrice: 89.40,
     billingLabel: 'cobrado semestralmente (R$ 89,40)',
     discount: '25% off',
-    checkoutUrl: '#', // placeholder
+    checkoutUrl: 'https://app.abacatepay.com/pay/bill_MGmjgGeLYQ00Km5hTEeXP3SB', // AbacatePay link
     recommended: false,
   },
   {
@@ -216,7 +216,7 @@ export const PRICING_PLANS = [
     totalPrice: 142.80,
     billingLabel: 'cobrado anualmente (R$ 142,80)',
     discount: '40% off',
-    checkoutUrl: '#', // placeholder
+    checkoutUrl: 'https://app.abacatepay.com/pay/bill_Et2su1W0zFhZbm2KURD01zMY', // AbacatePay link
     recommended: true,
   },
 ]
