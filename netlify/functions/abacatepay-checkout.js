@@ -1,9 +1,18 @@
 import process from 'node:process'
 import { getPricingPlanByKey } from '../../src/services/upgradeTrigger.js'
 
-const ABACATE_API_BASE = 'https://api.abacatepay.com/v2'
-const CHECKOUT_CREATE_PATH = '/subscriptions/create'
-const CHECKOUT_LIST_PATH = '/subscriptions/list'
+const ABACATE_API_BASE = 'https://api.abacatepay.com'
+const API_VERSIONS = ['v1', 'v2']
+const API_ENDPOINTS = {
+  v1: {
+    create: '/v1/billing/create',
+    list: '/v1/billing/list',
+  },
+  v2: {
+    create: '/v2/subscriptions/create',
+    list: '/v2/subscriptions/list',
+  },
+}
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -35,7 +44,102 @@ function buildExternalId({ userId, planKey, timestamp }) {
   return ['apice', safeUserId || 'account', safePlanKey || 'plan', safeTimestamp || Date.now()].join(':')
 }
 
-async function abacateFetch(path, { method = 'GET', body } = {}) {
+function getCheckoutUrl(checkout) {
+  return safeText(checkout?.url || checkout?.checkoutUrl || '')
+}
+
+function getCheckoutProductId(checkout) {
+  return safeText(
+    checkout?.items?.[0]?.id
+    || checkout?.products?.[0]?.id
+    || checkout?.products?.[0]?.externalId
+    || '',
+  )
+}
+
+function getCheckoutPlanKey(checkout) {
+  return safeText(checkout?.metadata?.planKey || '')
+}
+
+function getCheckoutStatus(checkout) {
+  return String(checkout?.status ?? '').toUpperCase()
+}
+
+function buildV2CheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, userEmail, customerName, timestamp }) {
+  return {
+    items: [
+      {
+        id: plan.productId,
+        quantity: 1,
+      },
+    ],
+    externalId,
+    returnUrl: returnUrl.toString(),
+    completionUrl: completionUrl.toString(),
+    methods: ['CARD'],
+    metadata: {
+      app: 'apice',
+      apiVersion: 'v2',
+      planKey: plan.key,
+      planLabel: plan.label,
+      trialDays: plan.trialDays,
+      userId,
+      userEmail,
+      customerName,
+      createdAt: timestamp,
+    },
+  }
+}
+
+function buildV1CheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, userEmail, customerName, timestamp }) {
+  const price = Math.max(0, Math.round(Number(plan.totalPrice) * 100))
+  const payload = {
+    frequency: 'ONE_TIME',
+    methods: ['PIX', 'CARD'],
+    products: [
+      {
+        externalId: plan.productId,
+        name: plan.label,
+        description: plan.billingLabel,
+        quantity: 1,
+        price,
+      },
+    ],
+    returnUrl: returnUrl.toString(),
+    completionUrl: completionUrl.toString(),
+    externalId,
+    metadata: {
+      app: 'apice',
+      apiVersion: 'v1',
+      planKey: plan.key,
+      planLabel: plan.label,
+      trialDays: plan.trialDays,
+      userId,
+      userEmail,
+      customerName,
+      createdAt: timestamp,
+    },
+  }
+
+  if (userEmail || customerName) {
+    payload.customer = {
+      name: customerName || userEmail,
+      email: userEmail || undefined,
+    }
+  }
+
+  return payload
+}
+
+function buildCheckoutPayload(apiVersion, context) {
+  if (apiVersion === 'v1') {
+    return buildV1CheckoutPayload(context)
+  }
+
+  return buildV2CheckoutPayload(context)
+}
+
+async function abacateFetch(apiVersion, path, { method = 'GET', body } = {}) {
   const apiKey = getApiKey()
   if (!apiKey) {
     throw new Error('ABACATE_PAY não foi configurada no ambiente.')
@@ -58,10 +162,13 @@ async function abacateFetch(path, { method = 'GET', body } = {}) {
   if (!response.ok) {
     const message = typeof payload === 'string'
       ? payload
-      : payload?.error || payload?.message || 'Falha na integração com a AbacatePay.'
+      : payload?.error || payload?.message || (response.status === 401
+        ? `Chave de API incompatível com a versão ${apiVersion.toUpperCase()} da AbacatePay.`
+        : 'Falha na integração com a AbacatePay.')
     const error = new Error(message)
     error.status = response.status
     error.details = payload
+    error.apiVersion = apiVersion
     throw error
   }
 
@@ -93,50 +200,56 @@ async function createCheckout(req) {
   completionUrl.searchParams.set('plan', plan.key)
   completionUrl.searchParams.set('externalId', externalId)
 
-  const payload = {
-    items: [
-      {
-        id: plan.productId,
-        quantity: 1,
-      },
-    ],
+  const checkoutContext = {
+    plan,
     externalId,
-    returnUrl: returnUrl.toString(),
-    completionUrl: completionUrl.toString(),
-    methods: ['CARD'],
-    metadata: {
-      app: 'apice',
-      planKey: plan.key,
-      planLabel: plan.label,
-      trialDays: plan.trialDays,
-      userId,
-      userEmail,
-      customerName,
-      createdAt: timestamp,
-    },
+    returnUrl,
+    completionUrl,
+    userId,
+    userEmail,
+    customerName,
+    timestamp,
   }
 
-  const result = await abacateFetch(CHECKOUT_CREATE_PATH, {
-    method: 'POST',
-    body: payload,
-  })
+  let lastError = null
 
-  const checkout = result?.data || {}
-  return new Response(JSON.stringify({
-    success: true,
-    checkoutId: checkout.id || '',
-    checkoutUrl: checkout.url || '',
-    externalId,
-    planKey: plan.key,
-    productId: plan.productId,
-    totalPrice: plan.totalPrice,
-    billingLabel: plan.billingLabel,
-    trialDays: plan.trialDays,
-    checkout,
-  }), {
-    status: 200,
-    headers,
-  })
+  for (const apiVersion of API_VERSIONS) {
+    try {
+      const result = await abacateFetch(
+        apiVersion,
+        API_ENDPOINTS[apiVersion].create,
+        {
+          method: 'POST',
+          body: buildCheckoutPayload(apiVersion, checkoutContext),
+        },
+      )
+
+      const checkout = result?.data || {}
+      return new Response(JSON.stringify({
+        success: true,
+        checkoutId: checkout.id || '',
+        checkoutUrl: getCheckoutUrl(checkout),
+        externalId,
+        planKey: plan.key,
+        productId: plan.productId,
+        totalPrice: plan.totalPrice,
+        billingLabel: plan.billingLabel,
+        trialDays: plan.trialDays,
+        apiVersion,
+        checkout,
+      }), {
+        status: 200,
+        headers,
+      })
+    } catch (error) {
+      lastError = error
+      if (error?.status !== 401) {
+        break
+      }
+    }
+  }
+
+  throw lastError || new Error('Falha ao criar checkout')
 }
 
 async function verifyCheckout(req) {
@@ -152,27 +265,46 @@ async function verifyCheckout(req) {
   if (checkoutId) query.set('id', checkoutId)
   if (!checkoutId && externalId) query.set('externalId', externalId)
 
-  const result = await abacateFetch(`${CHECKOUT_LIST_PATH}?${query.toString()}`, { method: 'GET' })
-  const checkouts = Array.isArray(result?.data) ? result.data : []
-  const checkout = checkoutId
-    ? checkouts.find((item) => String(item?.id ?? '') === checkoutId) || checkouts[0] || null
-    : externalId
-      ? checkouts.find((item) => String(item?.externalId ?? '') === externalId) || checkouts[0] || null
-      : checkouts[0] || null
+  let lastError = null
 
-  if (!checkout) {
-    return new Response(JSON.stringify({ error: 'Checkout não encontrado' }), { status: 404, headers })
+  for (const apiVersion of API_VERSIONS) {
+    try {
+      const result = await abacateFetch(apiVersion, `${API_ENDPOINTS[apiVersion].list}?${query.toString()}`, { method: 'GET' })
+      const checkouts = Array.isArray(result?.data) ? result.data : []
+      const checkout = checkoutId
+        ? checkouts.find((item) => String(item?.id ?? '') === checkoutId) || checkouts[0] || null
+        : externalId
+          ? checkouts.find((item) => String(item?.externalId ?? '') === externalId) || checkouts[0] || null
+          : checkouts[0] || null
+
+      if (!checkout) {
+        lastError = new Error('Checkout não encontrado')
+        lastError.status = 404
+        continue
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        checkout,
+        paid: ['PAID', 'ACTIVE'].includes(getCheckoutStatus(checkout)),
+        planKey: getCheckoutPlanKey(checkout) || checkout?.externalId || externalId || '',
+        productId: getCheckoutProductId(checkout),
+        externalId: checkout.externalId || externalId || '',
+        apiVersion,
+      }), {
+        status: 200,
+        headers,
+      })
+    } catch (error) {
+      lastError = error
+    }
   }
 
   return new Response(JSON.stringify({
-    success: true,
-    checkout,
-    paid: ['PAID', 'ACTIVE'].includes(String(checkout.status ?? '').toUpperCase()),
-    planKey: checkout?.metadata?.planKey || '',
-    productId: checkout?.items?.[0]?.id || '',
-    externalId: checkout.externalId || externalId || '',
+    error: lastError?.message || 'Checkout não encontrado',
+    details: lastError?.details || null,
   }), {
-    status: 200,
+    status: Number.isInteger(lastError?.status) ? lastError.status : 404,
     headers,
   })
 }
@@ -190,6 +322,7 @@ export default async function handler(req) {
       return new Response(JSON.stringify({
         error: error?.message || 'Falha ao criar checkout',
         details: error?.details || null,
+        apiVersion: error?.apiVersion || null,
       }), { status: Number.isInteger(error?.status) ? error.status : 502, headers })
     }
   }
@@ -202,6 +335,7 @@ export default async function handler(req) {
       return new Response(JSON.stringify({
         error: error?.message || 'Falha ao verificar checkout',
         details: error?.details || null,
+        apiVersion: error?.apiVersion || null,
       }), { status: Number.isInteger(error?.status) ? error.status : 502, headers })
     }
   }
