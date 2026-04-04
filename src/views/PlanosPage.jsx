@@ -1,31 +1,294 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/useAuth.js'
 import {
-  FREE_PLAN_FEATURES,
-  PREMIUM_BENEFITS,
-  PREMIUM_PLAN_FEATURES,
+  getBillingState,
+  getBillingStatusDescription,
+  getBillingStatusLabel,
+  hasUsedTrial,
+  markPlanPaid,
+  isTrialActive,
+  saveBillingState,
+  startTrial,
+  subscribeBillingState,
+  TRIAL_DAYS,
+} from '../services/billingState.js'
+import {
+  getFreePlanUsageRows,
+  subscribeFreePlanUsage,
+} from '../services/freePlanUsage.js'
+import {
   PRICING_PLANS,
+  getPricingPlanByKey,
   getQuotaInfo,
 } from '../services/upgradeTrigger.js'
-import { AI_DAILY_LIMIT, getCurrentPlanTier } from '../services/freePlanUsage.js'
 
 export function PlanosPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState('annual')
-  const planTier = getCurrentPlanTier()
-  const isPro = planTier !== 'free'
-  const quotaInfo = getQuotaInfo ? getQuotaInfo() : null
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const verificationKeyRef = useRef('')
 
-  const activePlan = PRICING_PLANS.find((p) => p.key === selectedPeriod) || PRICING_PLANS[0]
+  const [billingState, setBillingState] = useState(() => getBillingState())
+  const [quotaInfo, setQuotaInfo] = useState(() => getQuotaInfo())
+  const [flash, setFlash] = useState(null)
+  const [busyPlanKey, setBusyPlanKey] = useState('')
+  const [verifying, setVerifying] = useState(false)
 
-  const formatPrice = (value) =>
-    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  useEffect(() => {
+    const refresh = () => {
+      setBillingState(getBillingState())
+      setQuotaInfo(getQuotaInfo())
+    }
+
+    refresh()
+    const unlistenUsage = subscribeFreePlanUsage(refresh)
+    const unlistenBilling = subscribeBillingState(refresh)
+
+    return () => {
+      unlistenUsage()
+      unlistenBilling()
+    }
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const billingAction = params.get('billing')
+    if (!['return', 'complete'].includes(billingAction)) {
+      return
+    }
+
+    const checkoutId = params.get('checkoutId') || billingState.checkoutId || ''
+    const externalId = params.get('externalId') || billingState.externalId || ''
+    const verificationKey = `${billingAction}:${checkoutId || externalId}:${location.search}`
+    if (verificationKeyRef.current === verificationKey) return
+    verificationKeyRef.current = verificationKey
+
+    let cancelled = false
+
+    const verify = async () => {
+      if (!checkoutId && !externalId) {
+        setFlash({
+          tone: 'warning',
+          text: 'Não encontramos um checkout pendente para verificar. Se você acabou de pagar, volte para a tela de planos e tente abrir o fluxo novamente.',
+        })
+        return
+      }
+
+      setVerifying(true)
+      try {
+        const url = new URL('/.netlify/functions/abacatepay-checkout', window.location.origin)
+        if (checkoutId) {
+          url.searchParams.set('checkoutId', checkoutId)
+        } else {
+          url.searchParams.set('externalId', externalId)
+        }
+
+        const response = await fetch(url)
+        const data = await response.json().catch(() => ({}))
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Não foi possível verificar o checkout.')
+        }
+
+        if (cancelled) return
+
+        if (data.paid) {
+          const planKey = data.planKey || params.get('plan') || billingState.planKey || 'monthly'
+          markPlanPaid({
+            planKey,
+            checkoutId: data.checkout?.id || checkoutId,
+            externalId: data.externalId || externalId,
+            subscriptionId: data.checkout?.id || '',
+            paidAt: new Date().toISOString(),
+          })
+          setFlash({
+            tone: 'success',
+            text: `Pagamento confirmado. O plano ${getPricingPlanByKey(planKey).label.toLowerCase()} está ativo agora.`,
+          })
+        } else {
+          setFlash({
+            tone: 'info',
+            text: 'O pagamento ainda está pendente. Seu teste grátis continua valendo até a confirmação da assinatura.',
+          })
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setFlash({
+            tone: 'error',
+            text: error?.message || 'Falha ao verificar o checkout.',
+          })
+        }
+      } finally {
+        if (!cancelled) {
+          setVerifying(false)
+          navigate('/planos', { replace: true })
+        }
+      }
+    }
+
+    void verify()
+
+    return () => {
+      cancelled = true
+    }
+  }, [billingState.checkoutId, billingState.externalId, billingState.planKey, location.search, navigate])
+
+  const activePlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
+  const trialAlreadyUsed = hasUsedTrial()
+  const trialCurrentlyActive = isTrialActive()
+  const statusLabel = getBillingStatusLabel(billingState.status)
+  const statusDescription = getBillingStatusDescription(billingState.status)
+  const quotaRow = quotaInfo || getQuotaInfo()
+  const activeLimit = quotaRow.limit || getFreePlanUsageRows()[0]?.limit || 5
+
+  const currentStateText = (() => {
+    if (billingState.status === 'trial') {
+      return activePlan
+        ? `Teste grátis ativo no plano ${activePlan.label}.`
+        : `Teste grátis ativo por ${TRIAL_DAYS} dias.`
+    }
+
+    if (billingState.status === 'paid') {
+      return activePlan
+        ? `Plano pago ativo no período ${activePlan.label}.`
+        : 'Plano pago ativo.'
+    }
+
+    if (trialAlreadyUsed) {
+      return 'O teste grátis já foi usado nesta conta. A próxima contratação começa paga após o checkout.'
+    }
+
+    return `Conta gratuita com ${activeLimit} usos de IA por dia.`
+  })()
+
+  const handleCheckout = async (plan) => {
+    if (!user) {
+      navigate('/login')
+      return
+    }
+
+    setBusyPlanKey(plan.key)
+    setFlash(null)
+
+    try {
+      const response = await fetch('/.netlify/functions/abacatepay-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          planKey: plan.key,
+          userId: user.id || user.sub || '',
+          userEmail: user.email || '',
+          customerName: user?.user_metadata?.full_name || '',
+        }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Não foi possível criar o checkout.')
+      }
+
+      const checkoutUrl = data.checkoutUrl || data.checkout?.url || data.url || ''
+      const checkoutId = data.checkoutId || data.checkout?.id || data.id || ''
+      if (!checkoutUrl) {
+        throw new Error('A AbacatePay não retornou a URL de checkout.')
+      }
+
+      if (billingState.status === 'free' && !trialAlreadyUsed) {
+        startTrial({
+          planKey: plan.key,
+          checkoutId,
+          externalId: data.externalId,
+        })
+      } else if (billingState.status === 'trial') {
+        startTrial({
+          planKey: plan.key,
+          checkoutId,
+          externalId: data.externalId,
+        })
+      } else {
+        saveBillingState({
+          checkoutId,
+          externalId: data.externalId,
+        })
+      }
+
+      setFlash({
+        tone: 'info',
+        text: `Checkout do plano ${plan.label} aberto. Seu teste grátis, quando disponível, já fica registrado na conta.`,
+      })
+
+      await new Promise((resolve) => window.setTimeout(resolve, 120))
+      window.location.assign(checkoutUrl)
+    } catch (error) {
+      setFlash({
+        tone: 'error',
+        text: error?.message || 'Não foi possível abrir o checkout agora.',
+      })
+    } finally {
+      setBusyPlanKey('')
+    }
+  }
+
+  const getPlanActionLabel = (plan) => {
+    const isCurrentPlan = billingState.planKey === plan.key
+
+    if (billingState.status === 'paid' && isCurrentPlan) {
+      return 'Plano ativo'
+    }
+
+    if (billingState.status === 'trial' && isCurrentPlan) {
+      return 'Teste grátis ativo'
+    }
+
+    if (billingState.status === 'trial') {
+      return 'Continuar assinatura'
+    }
+
+    if (billingState.status === 'paid') {
+      return 'Trocar de plano'
+    }
+
+    if (!trialAlreadyUsed) {
+      return 'Começar teste grátis'
+    }
+
+    return 'Assinar agora'
+  }
+
+  const getPlanHint = (plan) => {
+    if (billingState.status === 'paid' && billingState.planKey === plan.key) {
+      return 'Sua assinatura já está ativa neste plano.'
+    }
+
+    if (billingState.status === 'trial' && billingState.planKey === plan.key) {
+      if (billingState.trialEndsAt) {
+        const trialEnd = new Date(billingState.trialEndsAt)
+        if (Number.isFinite(trialEnd.getTime())) {
+          return `Seu teste grátis termina em ${trialEnd.toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+          })}.`
+        }
+      }
+      return 'Seu teste grátis está ativo nesta conta.'
+    }
+
+    if (trialAlreadyUsed) {
+      return 'O teste grátis já foi usado nesta conta. Os próximos checkouts começam pagos.'
+    }
+
+    return 'A primeira contratação desta conta libera 7 dias de teste grátis.'
+  }
 
   return (
     <>
       <style>{planosCss}</style>
-      <div className="view-container">
-
-        {/* Back link */}
+      <div className="view-container planos-page">
         <Link to="/perfil" className="back-link">
           <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
             <polyline points="15 18 9 12 15 6" />
@@ -33,621 +296,650 @@ export function PlanosPage() {
           Voltar ao perfil
         </Link>
 
-        {/* Header */}
-        <div className="planos-header anim anim-d1">
-          <div className="planos-badge">Planos</div>
-          <h1 className="planos-title">
-            {isPro ? 'Você é Premium! 🎉' : 'Evolua para o Premium'}
-          </h1>
+        <section className="planos-hero anim anim-d1">
+          <div className="planos-kicker">Planos e cobrança</div>
+          <h1 className="planos-title">Mais folga para a IA, com um teste grátis de verdade</h1>
           <p className="planos-subtitle">
-            {isPro
-              ? 'Obrigado por apoiar o Ápice. Você tem acesso a todos os recursos sem limites.'
-              : 'Remova os limites diários e acesse ferramentas exclusivas para chegar ao 1000.'}
+            A conta gratuita continua com 5 usos de IA por dia. Ao pagar, a cota sobe para 10 usos diários.
+            O teste grátis dura 7 dias e só pode ser ativado uma vez por conta.
           </p>
 
-          {/* Current plan badge */}
-          <div className={`planos-current-badge ${isPro ? 'pro' : 'free'}`}>
-            <span className="planos-current-dot" />
-            Plano Atual: <strong>{isPro ? 'Premium' : 'Gratuito'}</strong>
-            {!isPro && quotaInfo && (
-              <span className="planos-quota-inline">
-                · {quotaInfo.used}/{quotaInfo.limit} usos hoje
-              </span>
-            )}
-          </div>
-        </div>
-
-        {!isPro && (
-          <>
-            {/* Period Selector */}
-            <div className="planos-period-selector anim anim-d2">
-              <div className="period-selector-inner">
-                {PRICING_PLANS.map((plan) => (
-                  <button
-                    key={plan.key}
-                    id={`period-${plan.key}`}
-                    className={`period-btn ${selectedPeriod === plan.key ? 'active' : ''}`}
-                    onClick={() => setSelectedPeriod(plan.key)}
-                  >
-                    <span className="period-btn-label">{plan.label}</span>
-                    {plan.discount && (
-                      <span className="period-btn-discount">{plan.discount}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-              {activePlan.recommended && (
-                <div className="period-recommended-hint">
-                  ✨ Melhor custo-benefício
-                </div>
-              )}
+          <div className="planos-status-strip">
+            <div className="planos-status-chip">
+              <div className="planos-status-label">Status da conta</div>
+              <div className="planos-status-value">{statusLabel}</div>
+              <div className="planos-status-copy">{statusDescription}</div>
             </div>
-
-            {/* Pricing Cards */}
-            <div className="planos-cards-grid anim anim-d2">
-              {/* Free Card */}
-              <div className="plan-card plan-card--free">
-                <div className="plan-card-header">
-                  <div className="plan-card-tier">Gratuito</div>
-                  <div className="plan-card-price">
-                    <span className="plan-price-value">R$ 0</span>
-                    <span className="plan-price-period">/mês</span>
-                  </div>
-                  <p className="plan-card-desc">Bom para começar e explorar a plataforma.</p>
-                </div>
-
-                <div className="plan-card-features">
-                  {FREE_PLAN_FEATURES.map((f) => (
-                    <div key={f.label} className={`plan-feature-row ${f.included ? 'included' : 'excluded'}`}>
-                      <span className="plan-feature-icon">
-                        {f.included ? (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-                        ) : (
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                        )}
-                      </span>
-                      <span className="plan-feature-label">{f.label}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="plan-card-cta">
-                  <div className="plan-cta-current">Plano atual</div>
-                </div>
-              </div>
-
-              {/* Premium Card */}
-              <div className="plan-card plan-card--premium">
-                {activePlan.recommended && (
-                  <div className="plan-recommended-tag">Mais popular</div>
-                )}
-                <div className="plan-card-header">
-                  <div className="plan-card-tier premium">Premium ✦</div>
-                  <div className="plan-card-price">
-                    <span className="plan-price-value premium">{formatPrice(activePlan.pricePerMonth)}</span>
-                    <span className="plan-price-period premium">/mês</span>
-                  </div>
-                  <p className="plan-card-desc">{activePlan.billingLabel}</p>
-                  {activePlan.discount && (
-                    <div className="plan-discount-badge">{activePlan.discount}</div>
-                  )}
-                </div>
-
-                <div className="plan-card-features">
-                  {PREMIUM_PLAN_FEATURES.map((f) => (
-                    <div key={f.label} className="plan-feature-row included premium-item">
-                      <span className="plan-feature-icon premium">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-                      </span>
-                      <span className="plan-feature-label">{f.label}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="plan-card-cta">
-                  <a
-                    id={`checkout-${activePlan.key}`}
-                    href={activePlan.checkoutUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="plan-cta-btn"
-                  >
-                    Assinar Premium
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <path d="M5 12h14M12 5l7 7-7 7" />
-                    </svg>
-                  </a>
-                  <p className="plan-cta-hint">
-                    Cancele quando quiser. Sem taxas escondidas.
-                  </p>
-                </div>
+            <div className="planos-status-chip">
+              <div className="planos-status-label">IA hoje</div>
+              <div className="planos-status-value">{quotaRow.used}/{quotaRow.limit}</div>
+              <div className="planos-status-copy">
+                {quotaRow.blocked ? 'Limite de hoje atingido.' : `${quotaRow.remaining} usos restantes hoje.`}
               </div>
             </div>
-
-            {/* Benefits section */}
-            <div className="planos-benefits-section anim anim-d3">
-              <div className="section-label">Por que fazer upgrade?</div>
-              <div className="benefits-grid">
-                {PREMIUM_BENEFITS.map((b) => (
-                  <div key={b.label} className="benefit-item">
-                    <span className="benefit-item-icon">{b.icon}</span>
-                    <span className="benefit-item-label">{b.label}</span>
-                  </div>
-                ))}
+            <div className="planos-status-chip">
+              <div className="planos-status-label">Teste grátis</div>
+              <div className="planos-status-value">
+                {trialCurrentlyActive ? 'Ativo' : trialAlreadyUsed ? 'Já usado' : 'Disponível'}
               </div>
-            </div>
-          </>
-        )}
-
-        {/* Pro user — benefits recap */}
-        {isPro && (
-          <div className="planos-pro-recap anim anim-d2">
-            <div className="section-label">Seus benefícios ativos</div>
-            <div className="benefits-grid">
-              {PREMIUM_BENEFITS.map((b) => (
-                <div key={b.label} className="benefit-item active">
-                  <span className="benefit-item-icon">{b.icon}</span>
-                  <span className="benefit-item-label">{b.label}</span>
-                </div>
-              ))}
+              <div className="planos-status-copy">
+                {currentStateText}
+              </div>
             </div>
           </div>
-        )}
 
-        {/* FAQ / Info */}
-        <div className="planos-faq anim anim-d4">
-          <div className="section-label">Perguntas frequentes</div>
+          {flash && (
+            <div className={`planos-flash ${flash.tone}`}>
+              {flash.text}
+            </div>
+          )}
+
+          {verifying && (
+            <div className="planos-flash info">
+              Verificando o status do checkout da AbacatePay...
+            </div>
+          )}
+        </section>
+
+        <section className="planos-section anim anim-d2">
+          <div className="planos-section-head">
+            <div>
+              <div className="section-label">O que muda ao pagar</div>
+              <p className="planos-section-copy">
+                Não é uma lista de recursos secretos. O pagamento muda a cota diária e o status da conta,
+                mantendo o mesmo histórico, a mesma aparência e os mesmos fluxos de IA.
+              </p>
+            </div>
+          </div>
+
+          <div className="planos-change-grid">
+            <div className="planos-change-card">
+              <div className="planos-change-number">5 → 10</div>
+              <div className="planos-change-text">Usos de IA por dia. Cada ação nova continua contando como 1 uso.</div>
+            </div>
+            <div className="planos-change-card">
+              <div className="planos-change-number">{TRIAL_DAYS} dias</div>
+              <div className="planos-change-text">Teste grátis único por conta na primeira contratação.</div>
+            </div>
+            <div className="planos-change-card">
+              <div className="planos-change-number">1 uso</div>
+              <div className="planos-change-text">Tema, corretor, Radar, detalhes e resumo automático contam igual.</div>
+            </div>
+            <div className="planos-change-card">
+              <div className="planos-change-number">{activePlan?.label || 'Conta'}</div>
+              <div className="planos-change-text">Seu histórico e preferências continuam sincronizados por conta.</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="planos-pricing anim anim-d3">
+          <div className="planos-section-head">
+            <div>
+              <div className="section-label">Escolha o período</div>
+              <p className="planos-section-copy">
+                Todos os períodos liberam o mesmo uso: 10 solicitações de IA por dia após o teste grátis.
+                A diferença está só no período de cobrança e no valor total.
+              </p>
+            </div>
+          </div>
+
+          <div className="planos-pricing-grid">
+            {PRICING_PLANS.map((plan) => {
+              const isCurrentPlan = billingState.planKey === plan.key && billingState.status !== 'free'
+              const buttonLabel = getPlanActionLabel(plan)
+              const buttonHint = getPlanHint(plan)
+
+              return (
+                <article key={plan.key} className={`pricing-card${plan.recommended ? ' recommended' : ''}${isCurrentPlan ? ' active' : ''}`}>
+                  {plan.recommended && <div className="pricing-badge">Mais vantajoso</div>}
+
+                  <div className="plan-tier">{plan.label}</div>
+                  <div className="plan-price">
+                    <span className="plan-price-value">{plan.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                    <span className="plan-price-period">/{plan.billingPeriodLabel}</span>
+                  </div>
+                  <div className="plan-price-note">
+                    {plan.pricePerMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} por mês em média
+                  </div>
+
+                  <div className="plan-card-note">
+                    {plan.billingLabel}. O checkout usa o produto da AbacatePay já cadastrado.
+                  </div>
+
+                  <div className="plan-card-list">
+                    <div className="plan-card-item">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      <span>10 usos de IA por dia após o teste grátis</span>
+                    </div>
+                    <div className="plan-card-item">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      <span>7 dias de teste grátis na primeira contratação</span>
+                    </div>
+                    <div className="plan-card-item">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      <span>Mesmas ferramentas do app, com mais folga de uso</span>
+                    </div>
+                  </div>
+
+                  <div className="plan-cta">
+                    <button
+                      type="button"
+                      className="plan-cta-btn"
+                      onClick={() => handleCheckout(plan)}
+                      disabled={busyPlanKey === plan.key || (billingState.status === 'paid' && billingState.planKey === plan.key)}
+                    >
+                      {busyPlanKey === plan.key ? 'Abrindo checkout...' : buttonLabel}
+                    </button>
+                    <div className="plan-cta-hint">
+                      {buttonHint}
+                    </div>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        </section>
+
+        <section className="planos-faq anim anim-d4">
+          <div className="planos-section-head">
+            <div>
+              <div className="section-label">Perguntas frequentes</div>
+              <p className="planos-section-copy">
+                Tudo que dispara IA conta como chamada. O restante das telas permanece igual.
+              </p>
+            </div>
+          </div>
+
           <div className="faq-list">
-            {[
-              {
-                q: 'Posso cancelar a qualquer momento?',
-                a: 'Sim. Não há fidelidade ou multa de cancelamento. Você continua com o Premium até o fim do período pago.',
-              },
-              {
-                q: 'O que acontece se eu atingir o limite no plano gratuito?',
-                a: `Após ${AI_DAILY_LIMIT} solicitações de IA por dia, você é pausado até a virada do dia no seu navegador. O Premium remove esse limite completamente.`,
-              },
-              {
-                q: 'Meus dados e redações são mantidos se eu mudar de plano?',
-                a: 'Sim. Todo o seu histórico de redações e progresso ficam salvos independente do plano.',
-              },
-            ].map((item) => (
-              <div key={item.q} className="faq-item">
-                <div className="faq-q">{item.q}</div>
-                <div className="faq-a">{item.a}</div>
+            <div className="faq-item">
+              <div className="faq-q">O que conta como uso de IA?</div>
+              <div className="faq-a">
+                Cada resultado novo conta como 1 uso: tema dinâmico, correção de redação, chamada direta de IA,
+                busca do Radar, ver detalhes do Radar e resumo automático.
               </div>
-            ))}
+            </div>
+            <div className="faq-item">
+              <div className="faq-q">Posso repetir o teste grátis em outro plano?</div>
+              <div className="faq-a">
+                Não. O teste grátis de 7 dias é único por conta. Depois de usado, novos checkouts começam já pagos.
+              </div>
+            </div>
+            <div className="faq-item">
+              <div className="faq-q">O que acontece quando eu troco de conta?</div>
+              <div className="faq-a">
+                O consumo, o teste grátis e o status do plano acompanham a conta. Se mudar de login, o outro usuário volta
+                para o histórico e para o consumo dele.
+              </div>
+            </div>
+            <div className="faq-item">
+              <div className="faq-q">O que muda entre os períodos mensal, semestral e anual?</div>
+              <div className="faq-a">
+                Muda apenas a forma de cobrança e o valor total. A cota diária continua em 10 usos de IA por dia após o teste grátis.
+              </div>
+            </div>
           </div>
-        </div>
-
+        </section>
       </div>
     </>
   )
 }
 
 const planosCss = `
-  /* ── HEADER ── */
-  .planos-header {
-    text-align: center;
-    padding: 2rem 0 1.5rem;
+  .planos-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
   }
 
-  .planos-badge {
-    display: inline-block;
-    padding: 4px 14px;
-    background: var(--accent-dim2);
-    color: var(--accent);
-    border-radius: 999px;
+  .planos-hero,
+  .pricing-card,
+  .planos-change-card,
+  .planos-status-chip,
+  .faq-item {
+    background: var(--bg2);
+    border: 1.5px solid var(--border);
+    transition: background 0.35s ease, border-color 0.2s ease, transform 0.25s ease, box-shadow 0.25s ease;
+  }
+
+  .planos-hero {
+    border-radius: 30px;
+    padding: 1.6rem 1.6rem 1.35rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  html[data-fx="gradients"] .planos-hero {
+    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.05), transparent 58%), var(--bg2);
+  }
+
+  html[data-fx="blur"] .planos-hero {
+    background: var(--bg2-glass);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+  }
+
+  .planos-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 0.72rem;
     font-weight: 700;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 0.4rem 0.8rem;
+    border-radius: 999px;
     margin-bottom: 1rem;
   }
 
   .planos-title {
+    margin: 0;
     font-family: 'DM Serif Display', serif;
-    font-size: 2.2rem;
+    font-size: clamp(2rem, 4vw, 2.8rem);
+    line-height: 1.05;
     color: var(--text);
-    margin-bottom: 0.75rem;
-    line-height: 1.15;
+    max-width: 16ch;
+  }
+
+  .planos-subtitle,
+  .planos-section-copy,
+  .planos-status-copy,
+  .plan-card-note,
+  .plan-price-note,
+  .plan-cta-hint,
+  .faq-a {
+    color: var(--text2);
+    line-height: 1.65;
   }
 
   .planos-subtitle {
+    margin: 0.8rem 0 0;
     font-size: 1rem;
-    color: var(--text2);
-    line-height: 1.65;
-    max-width: 460px;
-    margin: 0 auto 1.25rem;
+    max-width: 66ch;
   }
 
-  .planos-current-badge {
+  .planos-status-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin-top: 1.35rem;
+  }
+
+  .planos-status-chip {
+    border-radius: 22px;
+    padding: 1rem;
+    min-width: 0;
+  }
+
+  .planos-status-label,
+  .section-label {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 7px 16px;
-    border-radius: 999px;
-    font-size: 0.82rem;
-    font-weight: 500;
-    border: 1.5px solid var(--border2);
-    background: var(--bg2);
-    color: var(--text2);
-  }
-
-  .planos-current-badge.pro {
-    border-color: var(--accent);
-    background: var(--accent-dim);
-    color: var(--accent);
-  }
-
-  .planos-current-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--text3);
-    flex-shrink: 0;
-  }
-
-  .planos-current-badge.pro .planos-current-dot {
-    background: var(--accent);
-    box-shadow: 0 0 6px var(--accent);
-  }
-
-  .planos-quota-inline {
-    opacity: 0.7;
-    font-size: 0.78rem;
-  }
-
-  /* ── PERIOD SELECTOR ── */
-  .planos-period-selector {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    margin: 1.5rem 0;
-  }
-
-  .period-selector-inner {
-    display: flex;
     gap: 6px;
-    background: var(--bg2);
-    border: 1.5px solid var(--border);
-    padding: 5px;
-    border-radius: 16px;
-  }
-
-  .period-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    padding: 9px 20px;
-    border-radius: 11px;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    transition: all 0.2s;
-    min-width: 90px;
-  }
-
-  .period-btn.active {
-    background: var(--accent);
-    box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.3);
-  }
-
-  .period-btn-label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text2);
-    transition: color 0.2s;
-  }
-
-  .period-btn.active .period-btn-label {
-    color: #0f0f0f;
-  }
-
-  .period-btn-discount {
-    font-size: 0.65rem;
+    font-size: 0.72rem;
     font-weight: 700;
-    color: var(--accent);
-    background: var(--accent-dim);
-    padding: 2px 7px;
-    border-radius: 999px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.08em;
+    color: var(--text3);
   }
 
-  .period-btn.active .period-btn-discount {
-    background: rgba(0,0,0,0.15);
-    color: #0f0f0f;
+  .planos-status-value {
+    margin-top: 0.4rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
   }
 
-  .period-recommended-hint {
-    font-size: 0.78rem;
+  .planos-status-copy {
+    margin-top: 0.3rem;
+    font-size: 0.84rem;
+  }
+
+  .planos-flash {
+    margin-top: 1rem;
+    padding: 0.9rem 1rem;
+    border-radius: 18px;
+    font-size: 0.9rem;
+    border: 1px solid transparent;
+  }
+
+  .planos-flash.success {
+    background: rgba(var(--accent-rgb), 0.12);
+    border-color: var(--accent-dim2);
     color: var(--accent);
-    font-weight: 600;
   }
 
-  /* ── CARDS GRID ── */
-  .planos-cards-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.25rem;
-    margin-bottom: 2.5rem;
+  .planos-flash.info {
+    background: var(--bg3);
+    border-color: var(--border);
+    color: var(--text2);
   }
 
-  @media (max-width: 680px) {
-    .planos-cards-grid { grid-template-columns: 1fr; }
+  .planos-flash.warning {
+    background: rgba(255, 176, 32, 0.1);
+    border-color: rgba(255, 176, 32, 0.28);
+    color: var(--amber);
   }
 
-  .plan-card {
-    background: var(--bg2);
-    border: 1.5px solid var(--border);
-    border-radius: 24px;
-    padding: 1.75rem;
+  .planos-flash.error {
+    background: rgba(225, 68, 68, 0.09);
+    border-color: rgba(225, 68, 68, 0.22);
+    color: var(--red);
+  }
+
+  .planos-section,
+  .planos-pricing,
+  .planos-faq {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 0.9rem;
+  }
+
+  .planos-section-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .planos-section-copy {
+    margin: 0.45rem 0 0;
+    max-width: 72ch;
+    font-size: 0.95rem;
+  }
+
+  .planos-change-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.85rem;
+  }
+
+  .planos-change-card {
+    border-radius: 22px;
+    padding: 1rem;
+  }
+
+  html[data-fx="gradients"] .planos-change-card {
+    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.03), transparent 58%), var(--bg2);
+  }
+
+  .planos-change-number {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.65rem;
+    line-height: 1;
+    color: var(--accent);
+    margin-bottom: 0.4rem;
+  }
+
+  .planos-change-text {
+    font-size: 0.88rem;
+    color: var(--text2);
+    line-height: 1.5;
+  }
+
+  .planos-pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .pricing-card {
+    border-radius: 28px;
+    padding: 1.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.95rem;
     position: relative;
-    transition: border-color 0.2s;
+    overflow: hidden;
   }
 
-  .plan-card--premium {
+  .pricing-card.recommended {
     border-color: var(--accent);
-    background: linear-gradient(160deg, rgba(var(--accent-rgb), 0.06), var(--bg2) 55%);
-    box-shadow: 0 8px 32px rgba(var(--accent-rgb), 0.12);
+    box-shadow: 0 14px 32px rgba(var(--accent-rgb), 0.12);
   }
 
-  .plan-recommended-tag {
+  .pricing-card.active {
+    border-color: var(--accent2);
+  }
+
+  html[data-fx="gradients"] .pricing-card {
+    background: linear-gradient(160deg, rgba(var(--accent-rgb), 0.02), transparent 60%), var(--bg2);
+  }
+
+  .pricing-badge {
     position: absolute;
-    top: -13px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 14px;
+    right: 14px;
     background: var(--accent);
     color: #0f0f0f;
     font-size: 0.68rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.7px;
-    padding: 4px 14px;
+    letter-spacing: 0.06em;
+    padding: 0.35rem 0.7rem;
     border-radius: 999px;
-    white-space: nowrap;
   }
 
-  .plan-card-tier {
+  .plan-tier {
     font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
+    letter-spacing: 0.08em;
     color: var(--text3);
-    margin-bottom: 0.5rem;
   }
 
-  .plan-card-tier.premium {
-    color: var(--accent);
-  }
-
-  .plan-card-price {
+  .plan-price {
     display: flex;
     align-items: baseline;
-    gap: 4px;
-    margin-bottom: 0.25rem;
+    gap: 0.35rem;
+    flex-wrap: wrap;
   }
 
   .plan-price-value {
     font-family: 'DM Serif Display', serif;
-    font-size: 2.2rem;
-    color: var(--text);
+    font-size: 2.4rem;
     line-height: 1;
+    color: var(--text);
   }
 
-  .plan-price-value.premium {
+  .pricing-card.recommended .plan-price-value {
     color: var(--accent);
   }
 
   .plan-price-period {
-    font-size: 0.9rem;
+    font-size: 0.92rem;
     color: var(--text3);
-    font-weight: 500;
+    font-weight: 600;
   }
 
-  .plan-price-period.premium {
-    color: var(--accent);
-    opacity: 0.7;
-  }
-
-  .plan-card-desc {
+  .plan-price-note {
     font-size: 0.8rem;
-    color: var(--text3);
+  }
+
+  .plan-card-note {
+    font-size: 0.86rem;
+  }
+
+  .plan-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    margin-top: 0.2rem;
+  }
+
+  .plan-card-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    font-size: 0.84rem;
+    color: var(--text);
     line-height: 1.5;
   }
 
-  .plan-discount-badge {
-    display: inline-flex;
-    padding: 3px 10px;
-    background: var(--accent);
-    color: #0f0f0f;
-    border-radius: 999px;
-    font-size: 0.68rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-top: 4px;
-    width: fit-content;
+  .plan-card-item svg {
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 0.1rem;
   }
 
-  .plan-card-features {
+  .plan-cta {
+    margin-top: auto;
     display: flex;
     flex-direction: column;
-    gap: 9px;
-    flex: 1;
-  }
-
-  .plan-feature-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .plan-feature-icon {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    background: rgba(var(--accent-rgb), 0.12);
-    color: var(--accent);
-  }
-
-  .plan-feature-row.excluded .plan-feature-icon {
-    background: var(--bg3);
-    color: var(--text3);
-    opacity: 0.5;
-  }
-
-  .plan-feature-label {
-    font-size: 0.82rem;
-    color: var(--text);
-    font-weight: 500;
-  }
-
-  .plan-feature-row.excluded .plan-feature-label {
-    color: var(--text3);
-    opacity: 0.6;
-    text-decoration: line-through;
-    text-decoration-color: var(--text3);
-  }
-
-  .plan-feature-icon.premium {
-    background: var(--accent);
-    color: #0f0f0f;
-  }
-
-  .plan-cta-current {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    padding: 13px;
-    background: var(--bg3);
-    border: 1.5px solid var(--border2);
-    border-radius: 14px;
-    font-size: 0.88rem;
-    font-weight: 600;
-    color: var(--text3);
+    gap: 0.55rem;
   }
 
   .plan-cta-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
     width: 100%;
-    padding: 14px;
+    border: none;
+    border-radius: 16px;
     background: var(--accent);
     color: #0f0f0f;
-    border-radius: 14px;
+    padding: 0.95rem 1rem;
+    font: inherit;
+    font-size: 0.95rem;
     font-weight: 700;
-    font-size: 1rem;
-    text-decoration: none;
-    transition: all 0.2s;
-    box-shadow: 0 6px 20px rgba(var(--accent-rgb), 0.3);
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(var(--accent-rgb), 0.24);
+    transition: transform 0.18s ease, background 0.2s ease, box-shadow 0.2s ease;
   }
 
-  .plan-cta-btn:hover {
+  .plan-cta-btn:hover:not(:disabled) {
     background: var(--accent2);
-    transform: translateY(-2px);
-    box-shadow: 0 10px 28px rgba(var(--accent-rgb), 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 26px rgba(var(--accent-rgb), 0.32);
+  }
+
+  .plan-cta-btn:disabled {
+    cursor: default;
+    opacity: 0.75;
+    box-shadow: none;
+    transform: none;
   }
 
   .plan-cta-hint {
-    font-size: 0.72rem;
-    color: var(--text3);
+    font-size: 0.78rem;
     text-align: center;
-    margin-top: 8px;
-    line-height: 1.4;
-  }
-
-  /* ── BENEFITS GRID ── */
-  .planos-benefits-section,
-  .planos-pro-recap {
-    margin-bottom: 2rem;
-  }
-
-  .benefits-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-top: 0.75rem;
-  }
-
-  @media (max-width: 600px) {
-    .benefits-grid { grid-template-columns: 1fr; }
-  }
-
-  .benefit-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 14px;
-    background: var(--bg2);
-    border: 1.5px solid var(--border);
-    border-radius: 14px;
-    transition: border-color 0.2s;
-  }
-
-  .benefit-item.active {
-    border-color: var(--accent);
-    background: var(--accent-dim);
-  }
-
-  .benefit-item-icon {
-    font-size: 1.2rem;
-    flex-shrink: 0;
-  }
-
-  .benefit-item-label {
-    font-size: 0.82rem;
-    color: var(--text);
-    font-weight: 500;
-    line-height: 1.35;
-  }
-
-  /* ── FAQ ── */
-  .planos-faq {
-    margin-bottom: 2rem;
   }
 
   .faq-list {
     display: flex;
     flex-direction: column;
-    gap: 0;
-    margin-top: 0.75rem;
-    background: var(--bg2);
-    border: 1.5px solid var(--border);
-    border-radius: 18px;
-    overflow: hidden;
+    gap: 0.8rem;
   }
 
   .faq-item {
-    padding: 1.1rem 1.25rem;
-    border-bottom: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 1rem 1.1rem;
   }
 
-  .faq-item:last-child { border-bottom: none; }
+  html[data-fx="gradients"] .faq-item {
+    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.015), transparent 60%), var(--bg2);
+  }
 
   .faq-q {
-    font-size: 0.88rem;
+    font-size: 0.92rem;
     font-weight: 700;
     color: var(--text);
-    margin-bottom: 6px;
+    margin-bottom: 0.35rem;
   }
 
   .faq-a {
-    font-size: 0.82rem;
-    color: var(--text2);
-    line-height: 1.6;
+    font-size: 0.86rem;
+  }
+
+  .planos-hero,
+  .pricing-card,
+  .planos-change-card,
+  .planos-status-chip,
+  .faq-item {
+    box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+  }
+
+  .planos-hero:hover,
+  .pricing-card:hover,
+  .planos-change-card:hover,
+  .planos-status-chip:hover,
+  .faq-item:hover {
+    transform: translateY(-2px);
+    border-color: var(--border2);
+  }
+
+  html.layout-compact .planos-hero,
+  html.layout-compact .pricing-card,
+  html.layout-compact .planos-change-card,
+  html.layout-compact .planos-status-chip,
+  html.layout-compact .faq-item {
+    border-radius: 20px;
+  }
+
+  html.layout-compact .planos-hero {
+    padding: 1.2rem;
+  }
+
+  html.layout-compact .pricing-card {
+    padding: 1.15rem;
+  }
+
+  html.layout-compact .planos-change-card,
+  html.layout-compact .planos-status-chip,
+  html.layout-compact .faq-item {
+    padding: 0.9rem 1rem;
+  }
+
+  @media (max-width: 980px) {
+    .planos-status-strip,
+    .planos-change-grid,
+    .planos-pricing-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .planos-title {
+      max-width: none;
+    }
+
+    .planos-subtitle {
+      font-size: 0.95rem;
+    }
+
+    .planos-section-head {
+      align-items: start;
+      flex-direction: column;
+    }
+
+    .planos-hero {
+      padding: 1.2rem;
+    }
+
+    .planos-change-number {
+      font-size: 1.45rem;
+    }
+
+    .plan-price-value {
+      font-size: 2rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .planos-status-strip {
+      gap: 0.7rem;
+    }
+
+    .pricing-card {
+      padding: 1rem;
+    }
+
+    .plan-cta-btn {
+      font-size: 0.9rem;
+    }
   }
 `

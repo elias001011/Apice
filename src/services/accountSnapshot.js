@@ -31,6 +31,12 @@ import {
   setPlanTier,
 } from './freePlanUsage.js'
 import {
+  getBillingState,
+  getCurrentBillingStatus,
+  normalizeBillingState,
+  saveBillingState,
+} from './billingState.js'
+import {
   loadRadarFavorites,
   setRadarFavoritesSnapshot,
   normalizeRadarFavorites,
@@ -160,6 +166,46 @@ function normalizeUsage(usage) {
   }
 }
 
+function hasBillingFields(rawSnapshot) {
+  if (!rawSnapshot || typeof rawSnapshot !== 'object') return false
+
+  return [
+    'billing',
+    'planStatus',
+    'planTier',
+    'trialUsedAt',
+    'trialStartedAt',
+    'trialEndsAt',
+    'paidAt',
+    'checkoutId',
+    'externalId',
+    'subscriptionId',
+  ].some((key) => Object.prototype.hasOwnProperty.call(rawSnapshot, key))
+}
+
+function normalizeBillingSnapshot(rawSnapshot) {
+  if (!hasBillingFields(rawSnapshot)) {
+    return undefined
+  }
+
+  const rawBilling = rawSnapshot.billing && typeof rawSnapshot.billing === 'object'
+    ? rawSnapshot.billing
+    : {
+        status: rawSnapshot.planStatus ?? rawSnapshot.planTier ?? 'free',
+        planKey: rawSnapshot.planKey ?? rawSnapshot.selectedPlan ?? '',
+        trialUsedAt: rawSnapshot.trialUsedAt ?? '',
+        trialStartedAt: rawSnapshot.trialStartedAt ?? '',
+        trialEndsAt: rawSnapshot.trialEndsAt ?? '',
+        paidAt: rawSnapshot.paidAt ?? '',
+        checkoutId: rawSnapshot.checkoutId ?? '',
+        externalId: rawSnapshot.externalId ?? '',
+        subscriptionId: rawSnapshot.subscriptionId ?? '',
+        updatedAt: rawSnapshot.billing?.updatedAt ?? rawSnapshot.updatedAt ?? new Date().toISOString(),
+      }
+
+  return normalizeBillingState(rawBilling)
+}
+
 function compactRadarFavoriteSnapshot(favorite) {
   if (!favorite || typeof favorite !== 'object') return null
 
@@ -203,12 +249,14 @@ function compactRadarSnapshotForCloud(snapshot) {
 
 export function buildAccountSnapshot(user) {
   return {
-    version: 15,
+    version: 16,
     profile: readProfileSnapshot(user),
     preferences: readThemeSnapshot(),
     history: buildCloudEssayHistorySnapshot(),
     historyCount: loadEssayHistoryCount(),
     usage: normalizeUsage(getFreePlanUsageSnapshot()),
+    billing: getBillingState(),
+    planStatus: getCurrentBillingStatus(),
     planTier: getCurrentPlanTier(),
     enemDate: loadManualEnemDate(),
     radarSnapshot: compactRadarSnapshotForCloud(loadRadarSnapshot()),
@@ -250,8 +298,9 @@ export function normalizeAccountSnapshot(rawSnapshot) {
       : [],
   )
   const hasAiResponsePreference = Object.prototype.hasOwnProperty.call(rawSnapshot, 'aiResponsePreference')
+  const billing = normalizeBillingSnapshot(rawSnapshot)
   const snapshot = {
-    version: Number(rawSnapshot.version ?? 10) || 10,
+    version: Number(rawSnapshot.version ?? 16) || 16,
     profile: readProfileSnapshot({
       user_metadata: rawSnapshot.profile || {},
       email: rawSnapshot.profile?.email || '',
@@ -273,7 +322,13 @@ export function normalizeAccountSnapshot(rawSnapshot) {
     history,
     historyCount: Number.isFinite(Number(rawSnapshot.historyCount)) ? Number(rawSnapshot.historyCount) : history.length,
     usage: normalizeUsage(rawSnapshot.usage),
-    planTier: String(rawSnapshot.planTier ?? 'free').trim() || 'free',
+    ...(billing ? { billing } : {}),
+    planStatus: String(rawSnapshot.planStatus ?? billing?.status ?? rawSnapshot.planTier ?? 'free').trim() || 'free',
+    planTier: String(
+      rawSnapshot.planTier
+      ?? (String(rawSnapshot.planStatus ?? billing?.status ?? rawSnapshot.planTier ?? 'free').trim().toLowerCase() === 'free' ? 'free' : 'paid')
+      ?? 'free',
+    ).trim() || 'free',
     enemDate: String(rawSnapshot.enemDate ?? rawSnapshot.examDate ?? '').trim(),
     radarFavorites,
     radarSnapshot: normalizeRadarSnapshot(
@@ -355,7 +410,13 @@ export function applyAccountSnapshot(snapshot) {
     }
   }
 
-  if (Object.prototype.hasOwnProperty.call(snapshot, 'planTier')) {
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'billing')) {
+    if (snapshot.billing) {
+      saveBillingState(snapshot.billing)
+    }
+  } else if (Object.prototype.hasOwnProperty.call(snapshot, 'planStatus')) {
+    setPlanTier(String(snapshot.planStatus ?? 'free').trim() || 'free')
+  } else if (Object.prototype.hasOwnProperty.call(snapshot, 'planTier')) {
     setPlanTier(String(snapshot.planTier ?? 'free').trim() || 'free')
   }
 

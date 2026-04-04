@@ -72,7 +72,7 @@ function UpgradeModal({ reason, featureLabel, onClose }) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <style>{upgradeModalCss}</style>
-      <div className="upgrade-card anim-scale-up" role="dialog" aria-modal="true" aria-label="Fazer upgrade para Premium">
+      <div className="upgrade-card anim-scale-up" role="dialog" aria-modal="true" aria-label="Conhecer os planos pagos">
 
         {/* Header */}
         <div className="upgrade-header">

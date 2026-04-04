@@ -1,9 +1,15 @@
-const PLAN_TIER_KEY = 'apice:plan:tier'
+import {
+  getBillingState,
+  getCurrentPlanTier as getAccessPlanTier,
+  setBillingStatus,
+} from './billingState.js'
+
 const USAGE_KEY = 'apice:free-plan-usage:v1'
 const USAGE_UPDATE_EVENT = 'apice:free-plan-usage-updated'
 
 export const AI_DAILY_LIMIT = 5
-export const MANUAL_AI_DAILY_LIMIT = AI_DAILY_LIMIT
+export const PAID_AI_DAILY_LIMIT = 10
+export const MANUAL_AI_DAILY_LIMIT = PAID_AI_DAILY_LIMIT
 
 export const FREE_PLAN_LIMITS = {
   themeDynamic: {
@@ -98,11 +104,6 @@ function writeState(state) {
   window.dispatchEvent(new CustomEvent(USAGE_UPDATE_EVENT))
 }
 
-function getPlanTier() {
-  if (!canUseStorage()) return 'free'
-  return localStorage.getItem(PLAN_TIER_KEY) || 'free'
-}
-
 function resolveUsageKey(featureKey) {
   const normalizedKey = String(featureKey ?? '').trim()
   if (normalizedKey && Object.prototype.hasOwnProperty.call(FREE_PLAN_LIMITS, normalizedKey)) {
@@ -130,14 +131,30 @@ function buildAiUsageBreakdown(snapshot = readState()) {
 }
 
 export function setPlanTier(tier) {
-  if (!canUseStorage()) return
   const normalizedTier = String(tier ?? 'free').trim().toLowerCase() || 'free'
-  localStorage.setItem(PLAN_TIER_KEY, normalizedTier)
-  window.dispatchEvent(new CustomEvent(USAGE_UPDATE_EVENT))
+  if (normalizedTier === 'free') {
+    setBillingStatus('free')
+    return
+  }
+
+  if (normalizedTier === 'trial') {
+    setBillingStatus('trial')
+    return
+  }
+
+  setBillingStatus('paid')
 }
 
 export function getCurrentPlanTier() {
-  return getPlanTier()
+  return getAccessPlanTier()
+}
+
+export function getCurrentBillingStatus() {
+  return getBillingState().status
+}
+
+export function getCurrentAiDailyLimit() {
+  return getCurrentBillingStatus() === 'free' ? AI_DAILY_LIMIT : PAID_AI_DAILY_LIMIT
 }
 
 export function getFreePlanUsageSnapshot() {
@@ -147,7 +164,8 @@ export function getFreePlanUsageSnapshot() {
 export function getFreePlanUsageRows() {
   const snapshot = readState()
   const used = getAiUsageCount(snapshot)
-  const limit = AI_DAILY_LIMIT
+  const status = getCurrentBillingStatus()
+  const limit = getCurrentAiDailyLimit()
   const percent = limit > 0 ? Math.min((used / limit) * 100, 100) : 0
 
   return [{
@@ -158,27 +176,22 @@ export function getFreePlanUsageRows() {
     remaining: Math.max(limit - used, 0),
     percent,
     blocked: used >= limit,
+    status,
+    accessTier: getCurrentPlanTier(),
     breakdown: buildAiUsageBreakdown(snapshot),
   }]
 }
 
 export function canConsumeFreePlan(_featureKey, amount = 1) {
-  const tier = getPlanTier()
-  if (tier !== 'free') return true
-
   const snapshot = readState()
   const used = getAiUsageCount(snapshot)
-  return used + amount <= AI_DAILY_LIMIT
+  return used + amount <= getCurrentAiDailyLimit()
 }
 
 export function consumeFreePlan(featureKey, amount = 1) {
   if (!canUseStorage()) return
 
   const resolvedKey = resolveUsageKey(featureKey)
-
-  const tier = getPlanTier()
-  if (tier !== 'free') return
-
   if (!canConsumeFreePlan(resolvedKey, amount)) return
 
   const snapshot = readState()
