@@ -30,7 +30,7 @@ function getQuotaBlockedCopy() {
     return {
       icon: '🚀',
       title: 'Sua cota gratuita acabou',
-      subtitle: `Você usou os ${AI_DAILY_LIMIT} usos gratuitos de IA de hoje. No plano pago, a cota sobe para ${PAID_AI_DAILY_LIMIT} usos por dia, com teste grátis de 7 dias na primeira contratação.`,
+      subtitle: `Você usou os ${AI_DAILY_LIMIT} usos gratuitos de IA de hoje. No plano pago, a cota sobe para ${PAID_AI_DAILY_LIMIT} usos por dia, com teste grátis de 7 dias na primeira ativação.`,
     }
   }
 
@@ -124,7 +124,7 @@ export function getUpgradeModalContent(reason, featureLabel = '') {
       return {
         icon: '⭐',
         title: 'Você está evoluindo rápido',
-        subtitle: `O plano pago sobe sua cota para ${PAID_AI_DAILY_LIMIT} usos de IA por dia e ainda começa com 7 dias de teste grátis na primeira contratação.`,
+        subtitle: `O plano pago sobe sua cota para ${PAID_AI_DAILY_LIMIT} usos de IA por dia e ainda começa com 7 dias de teste grátis na primeira ativação.`,
       }
     case UPGRADE_REASONS.PREMIUM_FEATURE:
       return {
@@ -136,7 +136,7 @@ export function getUpgradeModalContent(reason, featureLabel = '') {
       return {
         icon: '✨',
         title: 'Conheça os planos do Ápice',
-        subtitle: `A conta gratuita oferece ${AI_DAILY_LIMIT} usos de IA por dia. No plano pago, a cota sobe para ${PAID_AI_DAILY_LIMIT} e você ainda ganha 7 dias de teste grátis na primeira contratação.`,
+        subtitle: `A conta gratuita oferece ${AI_DAILY_LIMIT} usos de IA por dia. No plano pago, a cota sobe para ${PAID_AI_DAILY_LIMIT} e você ainda ganha 7 dias de teste grátis na primeira ativação.`,
       }
   }
 }
@@ -147,7 +147,7 @@ export function getUpgradeModalContent(reason, featureLabel = '') {
 
 export const PAID_PLAN_BENEFITS = [
   { icon: '🔟', label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia` },
-  { icon: '🎁', label: '7 dias de teste grátis na primeira contratação' },
+  { icon: '🎁', label: '7 dias de teste grátis na primeira ativação' },
   { icon: '🧠', label: 'As mesmas ferramentas do app com mais folga' },
   { icon: '☁️', label: 'Histórico e preferências sincronizados por conta' },
   { icon: '📅', label: 'Cobrança mensal, semestral ou anual' },
@@ -169,7 +169,7 @@ export const FREE_PLAN_FEATURES = [
 
 export const PAID_PLAN_FEATURES = [
   { label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia`, included: true },
-  { label: 'Teste grátis de 7 dias na primeira compra', included: true },
+  { label: 'Teste grátis de 7 dias na primeira ativação', included: true },
   { label: 'Mesmas funções do app com mais folga', included: true },
   { label: 'Histórico, aparência e preferências por conta', included: true },
   { label: 'Cobrança recorrente conforme o período escolhido', included: true },

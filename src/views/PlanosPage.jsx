@@ -173,7 +173,7 @@ export function PlanosPage() {
     }
 
     if (trialAlreadyUsed) {
-      return 'O teste grátis já foi usado nesta conta. A próxima contratação começa paga após o checkout.'
+      return 'O teste grátis já foi usado nesta conta. A próxima ativação paga começa após o checkout.'
     }
 
     return `Conta gratuita com ${activeLimit} usos de IA por dia.`
@@ -189,6 +189,24 @@ export function PlanosPage() {
     setFlash(null)
 
     try {
+      const trialAvailable = billingState.status === 'free' && !trialAlreadyUsed
+      const trialActive = billingState.status === 'trial' && isTrialActive()
+
+      if (trialAvailable || trialActive) {
+        startTrial({
+          planKey: plan.key,
+        })
+
+        setFlash({
+          tone: 'success',
+          text: trialAvailable
+            ? `Teste grátis iniciado para o plano ${plan.label}. A cobrança só vai aparecer depois dos ${TRIAL_DAYS} dias.`
+            : `Seu teste grátis continua ativo no plano ${plan.label}. A cobrança só entra depois do período gratuito.`,
+        })
+
+        return
+      }
+
       const response = await fetch('/.netlify/functions/abacatepay-checkout', {
         method: 'POST',
         headers: {
@@ -216,28 +234,14 @@ export function PlanosPage() {
         throw new Error(getAbacatePayErrorMessage(data, 'A AbacatePay não retornou a URL de checkout.'))
       }
 
-      if (billingState.status === 'free' && !trialAlreadyUsed) {
-        startTrial({
-          planKey: plan.key,
-          checkoutId,
-          externalId: data.externalId,
-        })
-      } else if (billingState.status === 'trial') {
-        startTrial({
-          planKey: plan.key,
-          checkoutId,
-          externalId: data.externalId,
-        })
-      } else {
-        saveBillingState({
-          checkoutId,
-          externalId: data.externalId,
-        })
-      }
+      saveBillingState({
+        checkoutId,
+        externalId: data.externalId,
+      })
 
       setFlash({
         tone: 'info',
-        text: `Checkout do plano ${plan.label} aberto. Seu teste grátis, quando disponível, já fica registrado na conta.`,
+        text: `Checkout do plano ${plan.label} aberto. A cobrança da AbacatePay continua sendo a etapa do período pago.`,
       })
 
       await new Promise((resolve) => window.setTimeout(resolve, 120))
@@ -264,7 +268,7 @@ export function PlanosPage() {
     }
 
     if (billingState.status === 'trial') {
-      return 'Continuar assinatura'
+      return 'Trocar de plano'
     }
 
     if (billingState.status === 'paid') {
@@ -301,7 +305,7 @@ export function PlanosPage() {
       return 'O teste grátis já foi usado nesta conta. Os próximos checkouts começam pagos.'
     }
 
-    return 'A primeira contratação desta conta libera 7 dias de teste grátis.'
+    return 'A primeira ativação desta conta libera 7 dias de teste grátis.'
   }
 
   return (
@@ -378,7 +382,7 @@ export function PlanosPage() {
             </div>
             <div className="planos-change-card">
               <div className="planos-change-number">{TRIAL_DAYS} dias</div>
-              <div className="planos-change-text">Teste grátis único por conta na primeira contratação.</div>
+              <div className="planos-change-text">Teste grátis único por conta na primeira ativação.</div>
             </div>
             <div className="planos-change-card">
               <div className="planos-change-number">1 uso</div>
@@ -422,7 +426,7 @@ export function PlanosPage() {
                   </div>
 
                   <div className="plan-card-note">
-                    {plan.billingLabel}. O checkout usa o produto da AbacatePay já cadastrado.
+                    {plan.billingLabel}. Depois do teste grátis, o checkout usa o produto da AbacatePay já cadastrado.
                   </div>
 
                   <div className="plan-card-list">
@@ -436,7 +440,7 @@ export function PlanosPage() {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      <span>7 dias de teste grátis na primeira contratação</span>
+                      <span>7 dias de teste grátis na primeira ativação</span>
                     </div>
                     <div className="plan-card-item">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -451,7 +455,11 @@ export function PlanosPage() {
                       type="button"
                       className="plan-cta-btn"
                       onClick={() => handleCheckout(plan)}
-                      disabled={busyPlanKey === plan.key || (billingState.status === 'paid' && billingState.planKey === plan.key)}
+                      disabled={
+                        busyPlanKey === plan.key
+                        || (billingState.status === 'paid' && billingState.planKey === plan.key)
+                        || (billingState.status === 'trial' && billingState.planKey === plan.key)
+                      }
                     >
                       {busyPlanKey === plan.key ? 'Abrindo checkout...' : buttonLabel}
                     </button>
