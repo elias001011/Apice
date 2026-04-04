@@ -2,50 +2,59 @@ const PLAN_TIER_KEY = 'apice:plan:tier'
 const USAGE_KEY = 'apice:free-plan-usage:v1'
 const USAGE_UPDATE_EVENT = 'apice:free-plan-usage-updated'
 
-export const MANUAL_AI_DAILY_LIMIT = 10
+export const AI_DAILY_LIMIT = 5
+export const MANUAL_AI_DAILY_LIMIT = AI_DAILY_LIMIT
 
 export const FREE_PLAN_LIMITS = {
   themeDynamic: {
     label: 'Tema dinâmico',
-    group: 'manual',
   },
   essayCorrection: {
     label: 'Correção de redação',
-    group: 'manual',
   },
   directModelCall: {
     label: 'IA direta',
-    group: 'manual',
   },
   radarSearch: {
     label: 'Radar: busca',
-    group: 'manual',
   },
-  // radarDetail não consome mais cota manual — é gratuito no Groq secondary
+  radarDetail: {
+    label: 'Radar: ver detalhes',
+  },
   userSummary: {
     label: 'Resumo automático',
-    group: 'automatic',
-    automatic: true,
+  },
+  otherAiRequest: {
+    label: 'Outras chamadas de IA',
   },
 }
 
-const MANUAL_USAGE_KEYS = Object.entries(FREE_PLAN_LIMITS)
-  .filter(([, config]) => config.group === 'manual')
-  .map(([key]) => key)
+const COUNTED_USAGE_KEYS = Object.keys(FREE_PLAN_LIMITS)
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
 }
 
+export function getAiUsageDayKey(referenceDate = new Date()) {
+  const date = referenceDate instanceof Date ? referenceDate : new Date(referenceDate)
+  if (!Number.isFinite(date.getTime())) {
+    return getAiUsageDayKey(new Date())
+  }
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function todayKey() {
-  return new Date().toISOString().slice(0, 10)
+  return getAiUsageDayKey()
 }
 
 function defaultState() {
   return {
     dayKey: todayKey(),
     counts: Object.fromEntries(
-      Object.keys(FREE_PLAN_LIMITS).map((key) => [key, 0]),
+      COUNTED_USAGE_KEYS.map((key) => [key, 0]),
     ),
   }
 }
@@ -94,12 +103,21 @@ function getPlanTier() {
   return localStorage.getItem(PLAN_TIER_KEY) || 'free'
 }
 
-function getManualUsageCount(snapshot = readState()) {
-  return MANUAL_USAGE_KEYS.reduce((total, key) => total + (Number(snapshot.counts[key] || 0) || 0), 0)
+function resolveUsageKey(featureKey) {
+  const normalizedKey = String(featureKey ?? '').trim()
+  if (normalizedKey && Object.prototype.hasOwnProperty.call(FREE_PLAN_LIMITS, normalizedKey)) {
+    return normalizedKey
+  }
+
+  return 'otherAiRequest'
 }
 
-function buildManualUsageBreakdown(snapshot = readState()) {
-  return MANUAL_USAGE_KEYS.map((key) => {
+function getAiUsageCount(snapshot = readState()) {
+  return COUNTED_USAGE_KEYS.reduce((total, key) => total + (Number(snapshot.counts[key] || 0) || 0), 0)
+}
+
+function buildAiUsageBreakdown(snapshot = readState()) {
+  return COUNTED_USAGE_KEYS.map((key) => {
     const config = FREE_PLAN_LIMITS[key]
     const used = Number(snapshot.counts[key] || 0)
 
@@ -108,7 +126,7 @@ function buildManualUsageBreakdown(snapshot = readState()) {
       label: config.label,
       used,
     }
-  })
+  }).filter((row) => row.key !== 'otherAiRequest' || row.used > 0)
 }
 
 export function setPlanTier(tier) {
@@ -128,50 +146,46 @@ export function getFreePlanUsageSnapshot() {
 
 export function getFreePlanUsageRows() {
   const snapshot = readState()
-  const used = getManualUsageCount(snapshot)
-  const limit = MANUAL_AI_DAILY_LIMIT
+  const used = getAiUsageCount(snapshot)
+  const limit = AI_DAILY_LIMIT
   const percent = limit > 0 ? Math.min((used / limit) * 100, 100) : 0
 
   return [{
-    key: 'manualAI',
-    label: 'IA manual hoje',
+    key: 'aiRequests',
+    label: 'IA hoje',
     used,
     limit,
     remaining: Math.max(limit - used, 0),
     percent,
     blocked: used >= limit,
-    breakdown: buildManualUsageBreakdown(snapshot),
+    breakdown: buildAiUsageBreakdown(snapshot),
   }]
 }
 
-export function canConsumeFreePlan(featureKey, amount = 1) {
-  const entry = FREE_PLAN_LIMITS[featureKey]
-  if (!entry || entry.automatic) return true
-
+export function canConsumeFreePlan(_featureKey, amount = 1) {
   const tier = getPlanTier()
   if (tier !== 'free') return true
 
   const snapshot = readState()
-  const used = getManualUsageCount(snapshot)
-  return used + amount <= MANUAL_AI_DAILY_LIMIT
+  const used = getAiUsageCount(snapshot)
+  return used + amount <= AI_DAILY_LIMIT
 }
 
 export function consumeFreePlan(featureKey, amount = 1) {
   if (!canUseStorage()) return
 
-  const entry = FREE_PLAN_LIMITS[featureKey]
-  if (!entry || entry.automatic) return
+  const resolvedKey = resolveUsageKey(featureKey)
 
   const tier = getPlanTier()
   if (tier !== 'free') return
 
-  if (!canConsumeFreePlan(featureKey, amount)) return
+  if (!canConsumeFreePlan(resolvedKey, amount)) return
 
   const snapshot = readState()
   const next = normalizeState(snapshot)
 
   next.dayKey = todayKey()
-  next.counts[featureKey] = Number(next.counts[featureKey] || 0) + amount
+  next.counts[resolvedKey] = Number(next.counts[resolvedKey] || 0) + amount
 
   writeState(next)
 }

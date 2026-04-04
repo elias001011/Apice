@@ -22,6 +22,8 @@ import {
   saveManualEnemDate,
 } from './enemCalendar.js'
 import {
+  FREE_PLAN_LIMITS,
+  getAiUsageDayKey,
   getFreePlanUsageSnapshot,
   setFreePlanUsageSnapshot,
   resetFreePlanUsage,
@@ -145,17 +147,16 @@ function normalizeUsage(usage) {
   if (!usage || typeof usage !== 'object') return getFreePlanUsageSnapshot()
 
   const counts = usage.counts && typeof usage.counts === 'object' ? usage.counts : {}
+  const countKeys = Object.keys(FREE_PLAN_LIMITS)
 
   return {
-    dayKey: String(usage.dayKey ?? new Date().toISOString().slice(0, 10)),
-    counts: {
-      themeDynamic: Number.isFinite(Number(counts.themeDynamic)) ? Number(counts.themeDynamic) : 0,
-      essayCorrection: Number.isFinite(Number(counts.essayCorrection)) ? Number(counts.essayCorrection) : 0,
-      directModelCall: Number.isFinite(Number(counts.directModelCall)) ? Number(counts.directModelCall) : 0,
-      radarSearch: Number.isFinite(Number(counts.radarSearch)) ? Number(counts.radarSearch) : 0,
-      radarDetail: Number.isFinite(Number(counts.radarDetail)) ? Number(counts.radarDetail) : 0,
-      userSummary: Number.isFinite(Number(counts.userSummary)) ? Number(counts.userSummary) : 0,
-    },
+    dayKey: String(usage.dayKey ?? getAiUsageDayKey()),
+    counts: Object.fromEntries(
+      countKeys.map((key) => [
+        key,
+        Number.isFinite(Number(counts[key])) ? Number(counts[key]) : 0,
+      ]),
+    ),
   }
 }
 
@@ -202,7 +203,7 @@ function compactRadarSnapshotForCloud(snapshot) {
 
 export function buildAccountSnapshot(user) {
   return {
-    version: 14,
+    version: 15,
     profile: readProfileSnapshot(user),
     preferences: readThemeSnapshot(),
     history: buildCloudEssayHistorySnapshot(),

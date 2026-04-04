@@ -16,6 +16,12 @@ import { loadAiResponsePreferenceText } from './aiResponsePreferences.js'
 const RADAR_SEARCH_ENDPOINT = '/.netlify/functions/gerar-radar'
 const RADAR_DETAIL_ENDPOINT = '/.netlify/functions/gerar-radar-detalhe'
 
+function createQuotaError(message) {
+  const error = new Error(message)
+  error.code = 'quota_blocked'
+  return error
+}
+
 export const DEFAULT_RADAR_THEMES = [
   {
     titulo: 'Impacto da inteligência artificial no mercado de trabalho brasileiro',
@@ -101,7 +107,7 @@ export async function buscarRadarTemas() {
   }
 
   if (!canConsumeFreePlan('radarSearch')) {
-    throw new Error('Limite do plano free atingido para radar de temas. Tente mais tarde ou troque de plano.')
+    throw createQuotaError('Limite do plano free atingido para radar de temas. Tente mais tarde ou troque de plano.')
   }
 
   const responsePreference = loadAiResponsePreferenceText()
@@ -156,6 +162,9 @@ export async function buscarRadarTemaDetalhe(tema) {
     return cachedDetail
   }
 
+  if (!canConsumeFreePlan('radarDetail')) {
+    throw createQuotaError('Limite do plano free atingido para detalhes do radar. Tente mais tarde ou troque de plano.')
+  }
 
   const responsePreference = loadAiResponsePreferenceText()
   const response = await fetch(RADAR_DETAIL_ENDPOINT, {
@@ -174,6 +183,7 @@ export async function buscarRadarTemaDetalhe(tema) {
 
   const data = await response.json()
   const detailPayload = normalizeRadarDetailPayload(data, normalizedTheme)
+  consumeFreePlan('radarDetail')
   saveRadarThemeDetail(detailPayload)
 
   return loadRadarThemeDetail(normalizedTheme.id) || detailPayload

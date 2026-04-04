@@ -4,6 +4,10 @@ import {
   loadEssayHistoryCount,
 } from './essayInsights.js'
 import { loadAiResponsePreferenceText } from './aiResponsePreferences.js'
+import {
+  canConsumeFreePlan,
+  consumeFreePlan,
+} from './freePlanUsage.js'
 
 const SUMMARY_KEY = 'apice:user-summary:v1'
 const SUMMARY_UPDATED_EVENT = 'apice:user-summary-updated'
@@ -191,6 +195,10 @@ export async function refreshUserSummaryFromHistory({ force = false } = {}) {
     return currentSummary
   }
 
+  if (!canConsumeFreePlan('userSummary')) {
+    return currentSummary || saveUserSummary(buildFallbackUserSummary(historyIndex, totalRedacoes))
+  }
+
   try {
     const responsePreference = loadAiResponsePreferenceText()
     const response = await fetch(SUMMARY_ENDPOINT, {
@@ -209,6 +217,7 @@ export async function refreshUserSummaryFromHistory({ force = false } = {}) {
     }
 
     const summary = await response.json()
+    consumeFreePlan('userSummary')
     const saved = saveUserSummary({
       resumo: summary?.resumo || 'Análise automática baseada nas últimas redações.',
       forcas: summary?.forcas || [],

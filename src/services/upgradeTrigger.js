@@ -2,7 +2,7 @@ import {
   getCurrentPlanTier,
   getFreePlanUsageRows,
   getFreePlanUsageSnapshot,
-  MANUAL_AI_DAILY_LIMIT,
+  AI_DAILY_LIMIT,
 } from './freePlanUsage.js'
 
 // ── Configuração de Features Premium ──────────────────────────────────────────
@@ -28,7 +28,7 @@ export const SOFT_TRIGGER_THRESHOLDS = {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Retorna true se a cota diária manual do usuário free está esgotada.
+ * Retorna true se a cota diária de IA do usuário free está esgotada.
  * Usuários pro nunca têm cota bloqueada.
  */
 export function isQuotaBlocked() {
@@ -50,7 +50,7 @@ export function getQuotaPercent() {
  */
 export function getQuotaInfo() {
   const rows = getFreePlanUsageRows()
-  const row = rows[0] || { used: 0, limit: MANUAL_AI_DAILY_LIMIT, remaining: MANUAL_AI_DAILY_LIMIT, percent: 0, blocked: false }
+  const row = rows[0] || { used: 0, limit: AI_DAILY_LIMIT, remaining: AI_DAILY_LIMIT, percent: 0, blocked: false }
   return {
     used: row.used,
     limit: row.limit,
@@ -162,9 +162,10 @@ export const PREMIUM_BENEFITS = [
  * O que o plano Free inclui (para a tabela comparativa).
  */
 export const FREE_PLAN_FEATURES = [
-  { label: `${MANUAL_AI_DAILY_LIMIT} solicitações de IA por dia`, included: true },
+  { label: `${AI_DAILY_LIMIT} solicitações de IA por dia`, included: true },
   { label: 'Corretor com critérios INEP', included: true },
-  { label: 'Radar 1000 com busca limitada', included: true },
+  { label: 'Radar 1000 com busca limitada e detalhes salvos', included: true },
+  { label: 'Resumo automático de desempenho', included: true },
   { label: 'Histórico de redações', included: true },
   { label: 'Personalização de aparência', included: true },
   { label: 'Correções ilimitadas', included: false },

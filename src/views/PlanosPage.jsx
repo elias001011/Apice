@@ -7,7 +7,7 @@ import {
   PRICING_PLANS,
   getQuotaInfo,
 } from '../services/upgradeTrigger.js'
-import { getCurrentPlanTier } from '../services/freePlanUsage.js'
+import { AI_DAILY_LIMIT, getCurrentPlanTier } from '../services/freePlanUsage.js'
 
 export function PlanosPage() {
   const [selectedPeriod, setSelectedPeriod] = useState('annual')
@@ -205,7 +205,7 @@ export function PlanosPage() {
               },
               {
                 q: 'O que acontece se eu atingir o limite no plano gratuito?',
-                a: `Após ${10} solicitações de IA por dia, você é pausado até a meia-noite. O Premium remove esse limite completamente.`,
+                a: `Após ${AI_DAILY_LIMIT} solicitações de IA por dia, você é pausado até a virada do dia no seu navegador. O Premium remove esse limite completamente.`,
               },
               {
                 q: 'Meus dados e redações são mantidos se eu mudar de plano?',

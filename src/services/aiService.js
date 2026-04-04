@@ -14,11 +14,17 @@ import {
 import { refreshUserSummaryFromHistory } from './userSummary.js'
 import { checkConquistasRedacao } from './conquistas.js'
 
+function createQuotaError(message) {
+  const error = new Error(message)
+  error.code = 'quota_blocked'
+  return error
+}
+
 export async function gerarTemaDinamico({ retryCount = 1 } = {}) {
   // O frontend chama só o endpoint Netlify.
   // Toda decisão de search/fallback/provider fica no backend.
   if (!canConsumeFreePlan('themeDynamic')) {
-    throw new Error('Limite do plano free atingido para tema dinâmico. Tente mais tarde ou troque de plano.')
+    throw createQuotaError('Limite do plano free atingido para tema dinâmico. Tente mais tarde ou troque de plano.')
   }
 
   let lastError = null
@@ -58,7 +64,7 @@ export async function corrigirRedacao({ redacao, tema, material, isRigido }) {
   // O backend agora monta o prompt de correção e aplica a heurística de cópia.
   // Aqui a tela só envia dados brutos; não existe lógica de IA no cliente.
   if (!canConsumeFreePlan('essayCorrection')) {
-    throw new Error('Limite do plano free atingido para correção de redação. Tente mais tarde ou troque de plano.')
+    throw createQuotaError('Limite do plano free atingido para correção de redação. Tente mais tarde ou troque de plano.')
   }
 
   const responsePreference = loadAiResponsePreferenceText()
@@ -89,7 +95,7 @@ export async function chamarIAEspecifica({ provider, systemPrompt, userMessages 
   // Helper pronto para a próxima etapa: chamar um provider/modelo específico sem search.
   // Hoje ele não é usado pela tela principal, mas já fica disponível para um painel avançado.
   if (!canConsumeFreePlan('directModelCall')) {
-    throw new Error('Limite do plano free atingido para chamada direta de IA.')
+    throw createQuotaError('Limite do plano free atingido para chamada direta de IA.')
   }
 
   const responsePreference = loadAiResponsePreferenceText()

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { buscarRadarTemaDetalhe } from '../services/radarService.js'
 import { getEnemYearLabel } from '../services/examYear.js'
+import { isQuotaBlocked, UPGRADE_REASONS } from '../services/upgradeTrigger.js'
 import {
   getRadarThemeId,
   loadRadarSnapshot,
@@ -12,6 +13,7 @@ import {
 } from '../services/radarState.js'
 import { saveCorretorDraft } from '../services/corretorDraft.js'
 import { useAppBusy } from '../ui/AppBusyContext.jsx'
+import { useUpgradeModal } from '../ui/UpgradeModal.jsx'
 
 function formatDateLabel(value) {
   if (!value) return ''
@@ -107,6 +109,7 @@ export function TemaDetalhePage() {
   const [searchParams] = useSearchParams()
   const enemLabel = getEnemYearLabel()
   const { beginBusy, endBusy } = useAppBusy()
+  const { openUpgradeModal } = useUpgradeModal()
 
   const routeTheme = location.state?.tema || null
   const routeDetail = location.state?.detail || null
@@ -198,6 +201,15 @@ export function TemaDetalhePage() {
         return
       }
 
+      if (isQuotaBlocked()) {
+        if (active) {
+          setErrorMsg('Sua cota de IA de hoje acabou. Os detalhes salvos continuam visíveis, mas um novo detalhe precisa de quota disponível.')
+          setLoading(false)
+          openUpgradeModal({ reason: UPGRADE_REASONS.QUOTA_BLOCKED })
+        }
+        return
+      }
+
       // Sem cache — vai chamar a IA; ativa overlay global
       if (active) {
         setLoading(true)
@@ -223,6 +235,12 @@ export function TemaDetalhePage() {
         setErrorMsg('')
       } catch (error) {
         if (!active) return
+        if (error?.code === 'quota_blocked') {
+          setErrorMsg(error?.message || 'Sua cota de IA de hoje acabou.')
+          openUpgradeModal({ reason: UPGRADE_REASONS.QUOTA_BLOCKED })
+          setDetail((currentDetail) => currentDetail || buildDetailFallback(baseTheme, enemLabel))
+          return
+        }
         setErrorMsg(error?.message || 'Não foi possível carregar os detalhes deste tema agora.')
         setDetail((currentDetail) => currentDetail || buildDetailFallback(baseTheme, enemLabel))
       } finally {
@@ -243,7 +261,7 @@ export function TemaDetalhePage() {
         endBusy()
       }
     }
-  }, [currentThemeId, baseTheme, enemLabel, beginBusy, endBusy])
+  }, [currentThemeId, baseTheme, enemLabel, beginBusy, endBusy, openUpgradeModal])
 
   const currentDetail = detail || buildDetailFallback(tema, enemLabel)
   const title = currentDetail.titulo || tema.titulo

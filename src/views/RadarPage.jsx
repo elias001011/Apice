@@ -23,6 +23,8 @@ import {
 } from '../services/radarFavorites.js'
 import { useAppBusy } from '../ui/AppBusyContext.jsx'
 import { ConfirmDialog } from '../ui/ConfirmDialog.jsx'
+import { useUpgradeModal } from '../ui/UpgradeModal.jsx'
+import { UPGRADE_REASONS } from '../services/upgradeTrigger.js'
 
 function PinIcon({ filled = false }) {
   return (
@@ -47,6 +49,7 @@ function TrashIcon() {
 
 export function RadarPage() {
   const { beginBusy, endBusy } = useAppBusy()
+  const { openUpgradeModal } = useUpgradeModal()
   const initialRadarSnapshot = loadRadarSnapshot()
   const hasInitialRadarThemes = Boolean(initialRadarSnapshot?.temas?.length)
   const enemLabel = getEnemYearLabel()
@@ -111,6 +114,9 @@ export function RadarPage() {
       setStatus('results')
     } catch (error) {
       console.error('Radar fetch error:', error)
+      if (error?.code === 'quota_blocked') {
+        openUpgradeModal({ reason: UPGRADE_REASONS.QUOTA_BLOCKED })
+      }
       setErrorMsg(error?.message || 'Não foi possível atualizar o radar agora.')
       const currentSnapshot = loadRadarSnapshot()
       const hasCurrentThemes = Boolean(currentSnapshot?.temas?.length)

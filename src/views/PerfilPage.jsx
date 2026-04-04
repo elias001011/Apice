@@ -20,7 +20,7 @@ import { buildEssayInsights, loadEssayHistory, subscribeEssayHistory } from '../
 import {
   getCurrentPlanTier,
   getFreePlanUsageRows,
-  MANUAL_AI_DAILY_LIMIT,
+  AI_DAILY_LIMIT,
   subscribeFreePlanUsage,
 } from '../services/freePlanUsage.js'
 import { usePwaInstall } from '../pwa/usePwaInstall.js'
@@ -241,8 +241,32 @@ const perfilCss = `
   .quota-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 1.25rem; }
   .quota-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text3); }
   .quota-subtitle { font-size: 0.8rem; color: var(--text2); margin-top: 4px; line-height: 1.4; max-width: 240px; }
+  .quota-head-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    margin-left: 12px;
+  }
   .quota-plan-badge { font-size: 0.65rem; font-weight: 700; padding: 4px 10px; border-radius: 8px; text-transform: uppercase; background: var(--bg3); color: var(--text3); }
   .quota-plan-badge.pro { background: var(--accent); color: #000; }
+  .quota-help-btn {
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text2);
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 7px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .quota-help-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--bg2);
+  }
 
   /* Meu Plano Card */
   .meu-plano-card {
@@ -434,6 +458,9 @@ const perfilCss = `
     .perfil-grid { grid-template-columns: 1fr; }
     .profile-hero { flex-direction: column; text-align: center; padding: 2rem; }
     .profile-email-row, .profile-badges-row { justify-content: center; }
+    .quota-head { flex-direction: column; gap: 12px; }
+    .quota-head-right { align-items: flex-start; margin-left: 0; }
+    .quota-subtitle { max-width: none; }
   }
 `
 
@@ -506,6 +533,7 @@ export function PerfilPage() {
   const [logoutError, setLogoutError] = useState('')
   const [avatarResetDialogOpen, setAvatarResetDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [quotaHelpDialogOpen, setQuotaHelpDialogOpen] = useState(false)
 
   const name = user?.user_metadata?.full_name || 'Usuário'
   const email = user?.email || 'Sem e-mail'
@@ -528,12 +556,29 @@ export function PerfilPage() {
   })
   const quotaRow = usageRows[0] || {
     used: 0,
-    limit: MANUAL_AI_DAILY_LIMIT,
-    remaining: MANUAL_AI_DAILY_LIMIT,
+    limit: AI_DAILY_LIMIT,
+    remaining: AI_DAILY_LIMIT,
     percent: 0,
     blocked: false,
     breakdown: [],
   }
+
+  const quotaHelpMessage = [
+    'Cada vez que o app precisa gerar um resultado novo com IA, 1 uso é consumido.',
+    '',
+    'Conta 1 uso quando você:',
+    '- gera um tema dinâmico',
+    '- corrige uma redação',
+    '- faz uma chamada direta de IA',
+    '- procura novos temas no Radar 1000',
+    '- abre "Ver detalhes" em um tema que ainda não está salvo na sua conta',
+    '- deixa o app atualizar o resumo automático do seu desempenho',
+    '',
+    'Não conta quando o conteúdo já existe salvo localmente ou na sua conta e o app só reapresenta esse dado.',
+    'A contagem zera automaticamente na virada do dia no seu navegador.',
+    '',
+    'Se você mudar de conta, o cache daquela conta muda junto. Se o detalhe do radar ou outro resultado não estiver salvo nessa conta, o app precisa gerar de novo e isso volta a consumir cota.',
+  ].join('\n')
 
   const handleInstallPwa = async () => {
     if (pwaInstalled) return
@@ -1023,13 +1068,22 @@ export function PerfilPage() {
           <div className="card anim anim-d4 quota-card" style={{ marginBottom: '1.25rem' }}>
             <div className="quota-head">
               <div>
-                <div className="quota-title">Cota diária manual</div>
+                <div className="quota-title">Cota diária de IA</div>
                 <div className="quota-subtitle">
-                  {MANUAL_AI_DAILY_LIMIT} solicitações por dia. Ver detalhes do radar é gratuito.
+                  {AI_DAILY_LIMIT} solicitações por dia. Conte 1 uso sempre que a IA gerar um resultado novo.
                 </div>
               </div>
-              <div className={`quota-plan-badge ${planTier === 'pro' ? 'pro' : 'free'}`}>
-                {planTier === 'free' ? 'Plano free' : 'Plano pro'}
+              <div className="quota-head-right">
+                <div className={`quota-plan-badge ${planTier === 'pro' ? 'pro' : 'free'}`}>
+                  {planTier === 'free' ? 'Plano free' : 'Plano pro'}
+                </div>
+                <button
+                  type="button"
+                  className="quota-help-btn"
+                  onClick={() => setQuotaHelpDialogOpen(true)}
+                >
+                  Como sua cota é consumida?
+                </button>
               </div>
             </div>
 
@@ -1086,6 +1140,15 @@ export function PerfilPage() {
         </div>
       </div>
     </div>
+      <ConfirmDialog
+        open={quotaHelpDialogOpen}
+        title="Como sua cota é consumida?"
+        message={quotaHelpMessage}
+        confirmLabel="Entendi"
+        cancelLabel="Fechar"
+        onConfirm={() => setQuotaHelpDialogOpen(false)}
+        onCancel={() => setQuotaHelpDialogOpen(false)}
+      />
       <ConfirmDialog
         open={logoutDialogOpen}
         title="Sair da conta?"
