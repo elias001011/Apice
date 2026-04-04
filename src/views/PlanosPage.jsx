@@ -200,6 +200,7 @@ export function PlanosPage() {
           userEmail: user.email || '',
           customerName: user?.user_metadata?.full_name || '',
           customerCellphone: user?.phone || user?.user_metadata?.phone || user?.user_metadata?.cellphone || '',
+          customerTaxId: user?.user_metadata?.taxId || user?.user_metadata?.cpf || user?.user_metadata?.cnpj || '',
         }),
       })
 
