@@ -1,15 +1,16 @@
 import { generateTextDirect } from '../ai/ai.js'
-
-const headers = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json',
-}
+import { requireAuth } from './utils/auth.js'
+import { buildCorsHeaders } from './utils/cors.js'
+import {
+  INPUT_LIMITS,
+  validateStringLength,
+  validateArrayLength,
+  validationErrorResponse,
+} from './utils/validate.js'
 
 export default async function handler(req) {
-  // Endpoint genérico para chamar um provider/modelo específico sem search.
-  // Ele já fica pronto para quando você quiser forçar "Groq modelo X", "Grok modelo Y", etc.
+  const headers = buildCorsHeaders(req)
+
   if (req.method === 'OPTIONS') {
     return new Response('', { status: 200, headers })
   }
@@ -17,6 +18,10 @@ export default async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers })
   }
+
+  // ── Authentication ──────────────────────────────────────────────────────
+  const auth = requireAuth(req, headers)
+  if (auth instanceof Response) return auth
 
   try {
     const body = await req.json().catch(() => ({}))
@@ -35,6 +40,21 @@ export default async function handler(req) {
       return new Response(JSON.stringify({ error: 'systemPrompt é obrigatório' }), { status: 400, headers })
     }
 
+    // ── Input Validation ────────────────────────────────────────────────
+    const checks = [
+      validateStringLength('systemPrompt', systemPrompt, INPUT_LIMITS.systemPrompt),
+      validateArrayLength('userMessages', userMessages, INPUT_LIMITS.maxUserMessages),
+      ...(responsePreference ? [validateStringLength('responsePreference', responsePreference, INPUT_LIMITS.responsePreference)] : []),
+    ]
+
+    for (const msg of userMessages) {
+      checks.push(validateStringLength('userMessage', msg?.content, INPUT_LIMITS.userMessage))
+    }
+
+    for (const check of checks) {
+      if (!check.valid) return validationErrorResponse(check.error, headers)
+    }
+
     const result = await generateTextDirect({
       provider,
       systemPrompt,
@@ -50,7 +70,6 @@ export default async function handler(req) {
     return new Response(
       JSON.stringify({
         error: 'Falha ao chamar IA direta',
-        details: error?.message || 'Erro desconhecido',
       }),
       { status: 502, headers },
     )

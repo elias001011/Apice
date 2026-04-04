@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import { authFetch } from '../services/authFetch.js'
 import {
   getBillingState,
   getBillingStatusDescription,
@@ -235,14 +236,11 @@ export function PlanosPage() {
         return
       }
 
-      const response = await fetch('/.netlify/functions/abacatepay-checkout', {
+      const response = await authFetch('/.netlify/functions/abacatepay-checkout', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           planKey: plan.key,
-          userId: user.id || user.sub || '',
+          // userId is derived from JWT on the backend (C-02 security fix)
           userEmail: user.email || '',
           customerName: user?.user_metadata?.full_name || '',
           customerCellphone: user?.phone || user?.user_metadata?.phone || user?.user_metadata?.cellphone || '',
