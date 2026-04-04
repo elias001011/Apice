@@ -1,4 +1,8 @@
 import process from 'node:process'
+import { buildAiResponsePreferencePrompt } from '../../src/services/aiResponsePreferences.js'
+import { clampNumber, normalizeEssayFeedbackScore, roundScore } from '../../src/services/essayInsights.js'
+import { getEnemYearLabel } from '../../src/services/examYear.js'
+import { normalizeRadarTheme } from '../../src/services/radarState.js'
 
 // Este arquivo é o "cérebro" da IA.
 // A regra prática aqui é:
@@ -31,11 +35,12 @@ const PROVIDER_SETTINGS = {
 
 // Modelos default por provider.
 // Você pode sobrescrever tudo por env var sem tocar no código.
-// A ideia é ter um "primary" e, se quiser, um "secondary" para testes ou mudança futura.
+// A ideia é ter um "primary", um "secondary" e, quando fizer sentido, um "tertiary" para tarefas pesadas.
 const PROVIDER_MODELS = {
   groq: {
     primary: process.env.AI_GROQ_MODEL_PRIMARY || 'llama-3.3-70b-versatile',
     secondary: process.env.AI_GROQ_MODEL_SECONDARY || 'llama-3.1-8b-instant',
+    tertiary: process.env.AI_GROQ_MODEL_TERTIARY || 'openai/gpt-oss-120b',
   },
   gemini: {
     primary: process.env.AI_GEMINI_MODEL_PRIMARY || 'gemini-3.1-flash-lite-preview',
@@ -310,11 +315,55 @@ const STOPWORDS_PT = new Set([
   'entre', 'contra', 'até', 'ate', 'já', 'ja', 'nao', 'não', 'sim', 'na', 'no', 'nosso', 'nossa',
 ])
 
+const THEME_NOISE_TOKENS = new Set([
+  'tema', 'redacao', 'redacoes', 'enem', 'proposta', 'questao', 'questoes', 'problema', 'problemas',
+  'desafio', 'desafios', 'impacto', 'impactos', 'contexto', 'atual', 'atuais', 'debate', 'discussao',
+  'discussoes', 'sociedade', 'social', 'sociais', 'brasil', 'brasileiro', 'brasileira', 'nacional',
+  'nacionais', 'contemporaneo', 'contemporanea', 'contemporaneos', 'contemporaneas', 'presente', 'futuro',
+  'historico', 'historica', 'historicos', 'historicas',
+])
+
+const ESSAY_TRANSITION_MARKERS = [
+  'além disso',
+  'alem disso',
+  'nesse contexto',
+  'sob esse viés',
+  'sob este viés',
+  'dessa forma',
+  'desse modo',
+  'por conseguinte',
+  'portanto',
+  'assim',
+  'logo',
+  'em suma',
+  'por fim',
+  'em primeiro lugar',
+  'em segundo lugar',
+]
+
 function tokenize(text) {
   return normalizeText(text)
     .split(/[^a-z0-9]+/g)
     .map(token => token.trim())
     .filter(token => token.length >= 3 && !STOPWORDS_PT.has(token))
+}
+
+function scoreThemeFitTokens(tokens, themeTokens) {
+  const tokenSet = new Set(ensureArray(tokens))
+  const sharedTokenCount = themeTokens.filter(token => tokenSet.has(token)).length
+  const tokenOverlap = sharedTokenCount / Math.max(themeTokens.length, 1)
+  const essayCoverage = sharedTokenCount / Math.max(tokenSet.size, 1)
+
+  return {
+    sharedTokenCount,
+    tokenOverlap,
+    essayCoverage,
+    fitScore: clampNumber(
+      (tokenOverlap * 0.72) + (essayCoverage * 0.28),
+      0,
+      1,
+    ),
+  }
 }
 
 function buildCopyRiskHint(redacao, material) {
@@ -369,6 +418,149 @@ function buildCopyRiskHint(redacao, material) {
   }
 }
 
+function buildEssayThemeFitHint(redacao, tema) {
+  const essayText = normalizeText(redacao)
+  const essayTokens = tokenize(redacao)
+  const themeText = String(tema ?? '').trim()
+  const rawThemeTokens = tokenize(themeText)
+  const filteredThemeTokens = rawThemeTokens.filter(token => !THEME_NOISE_TOKENS.has(token))
+  const themeTokens = filteredThemeTokens.length > 0 ? filteredThemeTokens : rawThemeTokens
+
+  if (themeTokens.length === 0) {
+    return {
+      enabled: false,
+      fitScore: 1,
+      fitLevel: 'sem-tema',
+      sharedTokens: 0,
+      themeTokenCount: 0,
+      wordCount: essayTokens.length,
+      phraseMatches: [],
+      isOffTopic: false,
+      summary: 'Sem tema suficiente para avaliar aderência.',
+    }
+  }
+
+  const fullFit = scoreThemeFitTokens(essayTokens, themeTokens)
+  const introWindow = Math.max(30, Math.ceil(essayTokens.length * 0.28))
+  const tailWindow = Math.max(30, Math.ceil(essayTokens.length * 0.35))
+  const introFit = scoreThemeFitTokens(essayTokens.slice(0, introWindow), themeTokens)
+  const remainderFit = scoreThemeFitTokens(essayTokens.slice(introWindow), themeTokens)
+  const endingFit = scoreThemeFitTokens(essayTokens.slice(Math.max(0, essayTokens.length - tailWindow)), themeTokens)
+
+  const themeWords = normalizeText(themeText)
+    .split(/[^a-z0-9]+/g)
+    .map(token => token.trim())
+    .filter(token => token.length >= 3 && !STOPWORDS_PT.has(token))
+
+  const phraseMatches = []
+  for (let i = 0; i < themeWords.length - 2 && phraseMatches.length < 5; i += 1) {
+    const phrase = themeWords.slice(i, i + 3).join(' ')
+    if (phrase.length < 12) continue
+    if (essayText.includes(phrase)) phraseMatches.push(phrase)
+  }
+
+  const fitScore = clampNumber(
+    fullFit.fitScore + (phraseMatches.length > 0 ? 0.22 : 0),
+    0,
+    1,
+  )
+
+  const wordCount = essayTokens.length
+  const driftSuspicion = wordCount >= 90 && (
+    (introFit.fitScore >= 0.16 && remainderFit.fitScore <= 0.08 && (introFit.fitScore - remainderFit.fitScore) >= 0.10)
+    || (introFit.fitScore >= 0.18 && endingFit.fitScore <= 0.06 && (introFit.fitScore - endingFit.fitScore) >= 0.12)
+  )
+  const isOffTopic = (
+    wordCount >= 60
+    && themeTokens.length >= 2
+    && fullFit.sharedTokenCount === 0
+    && phraseMatches.length === 0
+  ) || (
+    wordCount >= 70
+    && themeTokens.length >= 3
+    && fullFit.sharedTokenCount <= 1
+    && phraseMatches.length === 0
+    && fitScore < 0.18
+  ) || (
+    wordCount >= 90
+    && themeTokens.length >= 2
+    && driftSuspicion
+  )
+
+  let fitLevel = 'baixo'
+  if (fitScore >= 0.45) fitLevel = 'alto'
+  else if (fitScore >= 0.25) fitLevel = 'medio'
+  else if (fitScore >= 0.12) fitLevel = 'baixo'
+
+  if (isOffTopic) fitLevel = 'fora-do-tema'
+
+  const summary = driftSuspicion
+    ? 'A redação começa no tema, mas abandona o recorte central no desenvolvimento.'
+    : isOffTopic
+      ? 'A redação aparenta estar fora do tema definido.'
+    : fitLevel === 'alto'
+      ? `Boa aderência ao tema. ${fullFit.sharedTokenCount} termo(s)-chave do recorte apareceram no texto.`
+      : fitLevel === 'medio'
+        ? `Aderência parcial ao tema. ${fullFit.sharedTokenCount} termo(s)-chave do recorte apareceram no texto.`
+        : `Aderência fraca ao tema. ${fullFit.sharedTokenCount} termo(s)-chave do recorte apareceram no texto.`
+
+  return {
+    enabled: true,
+    fitScore: Number(fitScore.toFixed(2)),
+    fitLevel,
+    sharedTokens: fullFit.sharedTokenCount,
+    themeTokenCount: themeTokens.length,
+    wordCount,
+    driftSuspicion,
+    phraseMatches,
+    isOffTopic,
+    summary,
+  }
+}
+
+function buildEssayWritingQualityHint(redacao) {
+  const text = String(redacao ?? '').trim()
+  const essayTokens = tokenize(text)
+  const wordCount = essayTokens.length
+  const paragraphCount = text
+    ? text.split(/\n+/).map(line => line.trim()).filter(Boolean).length || 1
+    : 0
+  const sentenceCount = text
+    ? text.split(/[.!?]+/).map(sentence => sentence.trim()).filter(Boolean).length || 1
+    : 0
+  const uniqueRatio = wordCount > 0 ? new Set(essayTokens).size / wordCount : 0
+  const normalizedText = normalizeText(text)
+  const transitionHits = ESSAY_TRANSITION_MARKERS.filter(marker => normalizedText.includes(marker)).length
+
+  const lengthScore = clampNumber(wordCount / 220, 0, 1)
+  const diversityScore = clampNumber(uniqueRatio, 0, 1)
+  const structureScore = clampNumber(
+    ((paragraphCount / 4) * 0.45)
+    + ((sentenceCount / 12) * 0.35)
+    + ((transitionHits / ESSAY_TRANSITION_MARKERS.length) * 0.2),
+    0,
+    1,
+  )
+
+  const richnessScore = clampNumber(
+    (lengthScore * 0.4)
+    + (diversityScore * 0.35)
+    + (structureScore * 0.25),
+    0,
+    1,
+  )
+
+  return {
+    wordCount,
+    paragraphCount,
+    sentenceCount,
+    uniqueRatio: Number(uniqueRatio.toFixed(2)),
+    transitionHits,
+    richnessScore: Number(richnessScore.toFixed(2)),
+    summary: `Texto com ${wordCount} palavra(s), ${paragraphCount} parágrafo(s) e ${Math.round(uniqueRatio * 100)}% de variedade lexical.`,
+  }
+}
+
 function buildSearchSystemPrompt(query) {
   // Prompt de busca: pede fatos verificáveis e já exige uma saída estruturada.
   // Aqui o objetivo não é escrever bonito; é coletar apoio factual para o tema.
@@ -403,10 +595,17 @@ function buildSearchSystemPrompt(query) {
   ].join('\n')
 }
 
-function buildThemeSystemPrompt(searchBundle) {
+function appendResponsePreference(lines, responsePreference) {
+  const preferencePrompt = buildAiResponsePreferencePrompt(responsePreference)
+  if (preferencePrompt) {
+    lines.push(preferencePrompt)
+  }
+}
+
+function buildThemeSystemPrompt(searchBundle, responsePreference) {
   // Prompt principal do tema dinâmico.
   // Ele recebe o resultado da busca e transforma isso em tema + material estilo ENEM.
-  return [
+  const lines = [
     'Você é um gerador de temas de redação estilo ENEM.',
     'Crie um tema atual, socialmente relevante e com boa chance de virar proposta de redação.',
     'O material de apoio deve parecer ENEM: curto, factual, organizado em cards e com fontes visíveis.',
@@ -439,13 +638,16 @@ function buildThemeSystemPrompt(searchBundle) {
     '',
     'Contexto factual pesquisado:',
     flattenSearchContext(searchBundle),
-  ].join('\n')
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
 }
 
-function buildFallbackThemeSystemPrompt() {
+function buildFallbackThemeSystemPrompt(responsePreference) {
   // Fallback quando o search falha.
   // Esse caminho evita quebrar o corretor mesmo se todas as buscas estiverem indisponíveis.
-  return [
+  const lines = [
     'Você é um gerador de temas de redação estilo ENEM.',
     'Crie um tema atual, socialmente relevante e com material de apoio organizado.',
     'O material deve ser curto, factual e em formato de cards.',
@@ -475,25 +677,40 @@ function buildFallbackThemeSystemPrompt() {
     '}',
     '',
     `Data de execução: ${nowIsoDate()}`,
-  ].join('\n')
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
 }
 
-function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint }) {
+function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, themeHint, qualityHint, responsePreference }) {
   // Prompt da correção.
   // O material de apoio aqui é contexto da prova, não repertório autoral do aluno.
-  const modo = isRigido ? 'Rígido (muito criterioso)' : 'Padrão (fiel ao ENEM)'
+  const modo = isRigido ? 'Rígido (muito criterioso)' : 'Padrão (conservador)'
   const materialTexto = flattenMaterialForPrompt(material)
 
-  return [
+  const lines = [
     `Modo de correção: ${modo}.`,
     `Tema da redação: ${tema || 'Não informado.'}`,
     '',
     'Regras de correção:',
     '- Corrija conforme a matriz do ENEM.',
+    '- Na propriedade "descricao" de cada competência, exiba o MÉRITO DIRETAMENTE e seja MEGA CONCISO (ex: "Apresenta boa coesão, mas falha no uso de crase."). Nunca escreva introduções como "A redação demonstra...". O espaço lá é apertado, use 1 ou 2 frases curtas.',
+    '- Compense essa ausência de detalhes escrevendo análises SUPER DENSAS, extensas e ricas nas chaves "pontoForte", "atencao" e "principalMelhorar". Abuse do espaço ali para aprofundar a correção.',
+    '- Nessas análises, seja direto e honesto com o estudante. Se houver fuga de tema, repertório fraco ou argumento vazio, diga isso sem suavizar.',
     '- O material de apoio abaixo é apenas contexto de prova. Ele não conta como repertório autoral se o aluno apenas copiar, parafrasear ou repetir seus dados.',
     '- Se houver cópia literal ou quase literal do material, puna fortemente C2, C3 e, se necessário, C5.',
-    '- Se a redação fugir totalmente do tema, a nota de todas as competências deve ser 0.',
+    '- Se a redação fugir totalmente do tema, a nota de todas as competências deve ser 0 e a análise precisa deixar isso explícito.',
+    '- Se a redação só tocar o tema no início e depois mudar de assunto, trate isso como fuga parcial e seja severo.',
+    '- Se a aderência ao tema for fraca, C2, C3 e C5 devem cair bastante mesmo que o texto pareça bem escrito.',
     '- Se a redação usar o material de apoio sem elaboração própria, não premie como se fosse repertório externo.',
+    '- Use a escala ENEM real: cada competência vai de 0 a 200 e a notaTotal vai de 0 a 1000. Nunca responda em escala 0 a 10.',
+    '- Seja conservador: 200 em qualquer competência deve ser raro, 180+ só quando o critério estiver praticamente impecável.',
+    '- Se houver dúvida entre duas faixas, escolha a mais baixa.',
+    '- Não infle nota por texto longo, bonito ou genérico; qualidade real vale mais do que volume.',
+    '- Em redações boas, mas comuns, a faixa média é mais realista do que notas muito altas.',
+    '- C5 só merece nota alta quando a proposta tiver agente, ação, meio, finalidade e detalhamento claros.',
+    '- C2 e C3 devem ser duras com repertório fraco, tese vaga ou argumento genérico.',
     '- Responda somente com JSON válido no formato abaixo.',
     '',
     'Formato de resposta:',
@@ -523,7 +740,134 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint }) {
     copyHint.copiedPhrases.length > 0
       ? `- Trechos repetidos detectados: ${copyHint.copiedPhrases.join(' | ')}`
       : '- Trechos repetidos detectados: nenhum trecho longo detectado.',
-  ].join('\n')
+    '',
+    'Heurística local de aderência ao tema:',
+    `- ${themeHint?.summary || 'Sem avaliação local de tema.'}`,
+    `- ${qualityHint?.summary || 'Sem avaliação local de escrita.'}`,
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
+}
+
+function dampenEssayCompetenceScore(score) {
+  const value = Number(score) || 0
+
+  if (value >= 190) return value - 14
+  if (value >= 175) return value - 12
+  if (value >= 160) return value - 10
+  if (value >= 145) return value - 8
+  if (value >= 120) return value - 5
+  if (value >= 90) return value - 3
+  return value
+}
+
+function dampenEssayTotalScore(score) {
+  const value = Number(score) || 0
+
+  if (value >= 900) return value - 55
+  if (value >= 800) return value - 45
+  if (value >= 700) return value - 35
+  if (value >= 600) return value - 25
+  if (value >= 450) return value - 15
+  if (value >= 300) return value - 8
+  return value
+}
+
+function calibrateEssayFeedbackScore(result, context = {}) {
+  const normalized = normalizeEssayFeedbackScore(result)
+  if (!normalized || typeof normalized !== 'object') {
+    return result
+  }
+
+  const themeHint = context.themeHint || buildEssayThemeFitHint(context.redacao, context.tema)
+  const qualityHint = context.qualityHint || buildEssayWritingQualityHint(context.redacao)
+
+  if (themeHint?.isOffTopic) {
+    const zeroedCompetencias = ensureArray(normalized.competencias).map((competencia) => ({
+      ...competencia,
+      nota: 0,
+    }))
+
+    return {
+      ...normalized,
+      competencias: zeroedCompetencias,
+      notaTotal: 0,
+      temaAderencia: {
+        fitScore: themeHint.fitScore,
+        fitLevel: themeHint.fitLevel,
+        sharedTokens: themeHint.sharedTokens,
+        themeTokenCount: themeHint.themeTokenCount,
+        wordCount: themeHint.wordCount,
+        richnessScore: qualityHint.richnessScore,
+      },
+    }
+  }
+
+  const topicPenalty = themeHint.fitScore < 0.15
+    ? 0.42
+    : themeHint.fitScore < 0.25
+      ? 0.65
+      : themeHint.fitScore < 0.35
+        ? 0.85
+        : 1
+
+  const overallMultiplier = clampNumber(
+    (0.65 + (themeHint.fitScore * 0.2) + (qualityHint.richnessScore * 0.15)) * topicPenalty,
+    0.5,
+    1,
+  )
+  const topicMultiplier = clampNumber((0.7 + (themeHint.fitScore * 0.3)) * topicPenalty, 0.45, 1)
+  const supportMultiplier = clampNumber((0.85 + (themeHint.fitScore * 0.15)) * topicPenalty, 0.55, 1)
+  const coesaoMultiplier = clampNumber(0.9 + (qualityHint.richnessScore * 0.1), 0.85, 1)
+
+  const adjustedCompetencias = ensureArray(normalized.competencias).map((competencia) => {
+    const baseScore = clampNumber(
+      roundScore(dampenEssayCompetenceScore(competencia?.nota)),
+      0,
+      200,
+    )
+
+    const competenceName = normalizeText(competencia?.nome)
+    let multiplier = overallMultiplier
+
+    if (competenceName.includes('c2')) {
+      multiplier = clampNumber(overallMultiplier * topicMultiplier, 0, 1)
+    } else if (competenceName.includes('c3') || competenceName.includes('c5')) {
+      multiplier = clampNumber(overallMultiplier * supportMultiplier, 0, 1)
+    } else if (competenceName.includes('c4')) {
+      multiplier = clampNumber(overallMultiplier * coesaoMultiplier, 0, 1)
+    }
+
+    const adjusted = clampNumber(
+      roundScore(baseScore * multiplier),
+      0,
+      200,
+    )
+
+    return {
+      ...competencia,
+      nota: adjusted,
+    }
+  })
+
+  const notaTotal = adjustedCompetencias.length > 0
+    ? adjustedCompetencias.reduce((sum, competencia) => sum + (Number(competencia?.nota) || 0), 0)
+    : clampNumber(roundScore(dampenEssayTotalScore(normalized.notaTotal) * overallMultiplier), 0, 1000)
+
+  return {
+    ...normalized,
+    competencias: adjustedCompetencias,
+    notaTotal,
+    temaAderencia: {
+      fitScore: themeHint.fitScore,
+      fitLevel: themeHint.fitLevel,
+      sharedTokens: themeHint.sharedTokens,
+      themeTokenCount: themeHint.themeTokenCount,
+      wordCount: themeHint.wordCount,
+      richnessScore: qualityHint.richnessScore,
+    },
+  }
 }
 
 function getEnabledProviders(kind) {
@@ -844,19 +1188,60 @@ async function runOpenRouterSearch({ query }) {
   })
 }
 
-async function runGroqText({ systemPrompt, userMessages, modelVariant = 'primary', modelOverride = '' }) {
+async function runGroqText({
+  systemPrompt,
+  userMessages,
+  modelVariant = 'primary',
+  modelOverride = '',
+  temperature = null,
+  maxTokens = 4096,
+  maxCompletionTokens = null,
+  topP = null,
+  reasoningEffort = null,
+  includeReasoning = null,
+  stream = false,
+}) {
   const apiKey = process.env.GROQ_API_KEY || process.env.GROQ
   if (!apiKey || apiKey === 'undefined') {
     throw new Error('GROQ key missing')
   }
 
+  const normalizedVariant = String(modelVariant ?? '').trim().toLowerCase()
+  const isTertiaryModel = normalizedVariant === 'tertiary'
+  const resolvedTemperature = typeof temperature === 'number' ? temperature : (isTertiaryModel ? 0.1 : 0.2)
+  const resolvedTopP = typeof topP === 'number' ? topP : (isTertiaryModel ? 1 : null)
+  const resolvedReasoningEffort = String(reasoningEffort ?? '').trim() || (isTertiaryModel ? 'medium' : '')
+  const resolvedMaxCompletionTokens = Number.isFinite(maxCompletionTokens)
+    ? maxCompletionTokens
+    : (isTertiaryModel ? 8192 : null)
+  const resolvedIncludeReasoning = typeof includeReasoning === 'boolean'
+    ? includeReasoning
+    : (isTertiaryModel ? false : null)
+
   const payload = {
     model: resolveProviderModel('groq', modelVariant, modelOverride),
     messages: buildOpenAICompatibleMessages(systemPrompt, userMessages),
-    temperature: 0.2,
-    max_tokens: 4096,
+    temperature: resolvedTemperature,
     response_format: { type: 'json_object' },
-    stream: false,
+    stream,
+  }
+
+  if (Number.isFinite(resolvedMaxCompletionTokens)) {
+    payload.max_completion_tokens = resolvedMaxCompletionTokens
+  } else if (Number.isFinite(maxTokens)) {
+    payload.max_tokens = maxTokens
+  }
+
+  if (Number.isFinite(resolvedTopP)) {
+    payload.top_p = resolvedTopP
+  }
+
+  if (resolvedReasoningEffort) {
+    payload.reasoning_effort = resolvedReasoningEffort
+  }
+
+  if (typeof resolvedIncludeReasoning === 'boolean') {
+    payload.include_reasoning = resolvedIncludeReasoning
   }
 
   const data = await postJson(
@@ -1058,6 +1443,7 @@ export async function generateTextDirect({
   userMessages,
   modelVariant = 'primary',
   modelOverride = '',
+  responsePreference,
 }) {
   // Este export existe para rotas futuras que queiram chamar um modelo específico sem search.
   // Ele não substitui o fallback atual; é um atalho quando você quer forçar um provider/modelo.
@@ -1065,16 +1451,21 @@ export async function generateTextDirect({
     throw new Error('provider é obrigatório para chamada direta')
   }
 
+  const decoratedSystemPrompt = [
+    buildAiResponsePreferencePrompt(responsePreference),
+    String(systemPrompt ?? '').trim(),
+  ].filter(Boolean).join('\n\n')
+
   return await runDirectTextProvider({
     provider,
-    systemPrompt,
+    systemPrompt: decoratedSystemPrompt,
     userMessages,
     modelVariant,
     modelOverride,
   })
 }
 
-export async function generateDynamicTheme() {
+export async function generateDynamicTheme({ responsePreference } = {}) {
   // Primeiro tenta buscar contexto factual atual.
   // Se a busca falhar por qualquer motivo, ainda tenta gerar um tema sem search,
   // para não deixar o fluxo de escrita inutilizável.
@@ -1088,8 +1479,8 @@ export async function generateDynamicTheme() {
   }
 
   const systemPrompt = searchBundle
-    ? buildThemeSystemPrompt(searchBundle)
-    : buildFallbackThemeSystemPrompt()
+    ? buildThemeSystemPrompt(searchBundle, responsePreference)
+    : buildFallbackThemeSystemPrompt(responsePreference)
 
   const userMessages = [
     {
@@ -1098,10 +1489,30 @@ export async function generateDynamicTheme() {
     },
   ]
 
-  const result = await runPipeline('text', {
-    systemPrompt,
-    userMessages,
-  }, { searchBundle })
+  let result = null
+
+  try {
+    // Groq secondary (llama-3.1-8b-instant) — mais rápido e barato, tentativa principal
+    result = await runDirectTextProvider({
+      provider: 'groq',
+      systemPrompt,
+      userMessages,
+      modelVariant: 'secondary',
+    })
+  } catch (secondaryError) {
+    console.error('[AI][theme] Groq secondary failed, trying primary:', secondaryError?.message || secondaryError)
+    try {
+      result = await runDirectTextProvider({
+        provider: 'groq',
+        systemPrompt,
+        userMessages,
+        modelVariant: 'primary',
+      })
+    } catch (primaryError) {
+      console.error('[AI][theme] Groq primary failed, falling back to pipeline:', primaryError?.message || primaryError)
+      result = await runPipeline('text', { systemPrompt, userMessages }, { searchBundle })
+    }
+  }
 
   const tema = String(result?.tema ?? '').trim()
   const material = isPlainObject(result?.material) ? result.material : {
@@ -1112,7 +1523,7 @@ export async function generateDynamicTheme() {
   }
   const normalizedMaterial = normalizeSearchBundle({
     query: searchQuery,
-    provider: result?.provider || 'text',
+    provider: result?.provider || 'groq',
     resumo: material.resumo || '',
     cards: material.cards,
     fontes: material.fontes,
@@ -1127,15 +1538,552 @@ export async function generateDynamicTheme() {
   }
 }
 
-export async function correctEssay({ redacao, tema, material, isRigido }) {
+function buildUserSummarySystemPrompt(historyIndex, responsePreference) {
+  const lines = [
+    'Você é um analista curto e direto do desempenho de escrita de um estudante do ENEM.',
+    'Use apenas o JSON recebido e não invente dados que não estejam evidentes no histórico.',
+    'Seu trabalho é gerar uma análise breve, prática e útil para monitorar evolução.',
+    'Foque em padrões de escrita, erros recorrentes, pontos fortes e o principal foco de treino.',
+    'Responda somente com JSON válido e siga exatamente este formato:',
+    '{',
+    '  "resumo": "uma análise curta em até duas frases",',
+    '  "forcas": ["até 3 pontos fortes"],',
+    '  "errosRecorrentes": ["até 3 erros recorrentes"],',
+    '  "foco": "um foco objetivo para as próximas redações",',
+    '  "geradoEm": "ISO-8601",',
+    '  "totalRedacoes": 0,',
+    '  "origem": "ai"',
+    '}',
+    '',
+    'Regras:',
+    '- Seja direto.',
+    '- Não copie redações inteiras.',
+    '- Se houver poucos dados, faça uma análise cautelosa e explícita.',
+    '- Priorize clareza, repertório, argumentação, coesão e gramática.',
+    '',
+    'Índice resumido das últimas redações:',
+    JSON.stringify(historyIndex, null, 2),
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
+}
+
+function normalizeUserSummaryPayload(result, historyCount) {
+  const forcas = ensureArray(result?.forcas)
+    .map((item) => String(item ?? '').trim())
+    .filter(Boolean)
+    .slice(0, 3)
+
+  const errosRecorrentes = ensureArray(result?.errosRecorrentes)
+    .map((item) => String(item ?? '').trim())
+    .filter(Boolean)
+    .slice(0, 3)
+
+  return {
+    resumo: String(result?.resumo ?? '').trim() || 'Análise automática baseada nas últimas redações.',
+    forcas,
+    errosRecorrentes,
+    foco: String(result?.foco ?? '').trim() || 'Continuar reforçando clareza, repertório e correção gramatical.',
+    geradoEm: String(result?.geradoEm ?? new Date().toISOString()).trim() || new Date().toISOString(),
+    totalRedacoes: Number.isFinite(Number(result?.totalRedacoes)) ? Number(result.totalRedacoes) : historyCount,
+    origem: String(result?.origem ?? 'ai').trim() || 'ai',
+  }
+}
+
+function uniqueStrings(items = []) {
+  const seen = new Set()
+  const out = []
+
+  for (const item of items) {
+    const value = String(item ?? '').trim()
+    if (!value) continue
+    const normalized = value.toLowerCase()
+    if (seen.has(normalized)) continue
+    seen.add(normalized)
+    out.push(value)
+  }
+
+  return out
+}
+
+function buildFallbackUserSummaryPayload(historyIndex = [], totalRedacoes = historyIndex.length) {
+  const entries = Array.isArray(historyIndex) ? historyIndex : []
+  const notes = entries
+    .map((item) => Number(item?.nota))
+    .filter((nota) => Number.isFinite(nota))
+
+  const average = notes.length > 0
+    ? Math.round(notes.reduce((sum, value) => sum + value, 0) / notes.length)
+    : 0
+
+  const best = notes.length > 0 ? Math.max(...notes) : 0
+
+  const strengths = uniqueStrings([
+    ...entries.map((item) => item?.pontoForte),
+    ...entries
+      .flatMap((item) => ensureArray(item?.competencias))
+      .filter((competencia) => Number.isFinite(Number(competencia?.nota)) && Number(competencia.nota) >= 800)
+      .map((competencia) => competencia?.nome),
+  ]).slice(0, 3)
+
+  const recurringIssues = uniqueStrings([
+    ...entries.map((item) => item?.principalMelhorar),
+    ...entries.map((item) => item?.atencao),
+    ...entries
+      .flatMap((item) => ensureArray(item?.competencias))
+      .filter((competencia) => Number.isFinite(Number(competencia?.nota)) && Number(competencia.nota) <= 650)
+      .map((competencia) => competencia?.nome),
+  ]).slice(0, 3)
+
+  const mainFocus = recurringIssues[0] || 'coesão, repertório e gramática'
+
+  const resumo = totalRedacoes <= 1
+    ? `Resumo local inicial: nota ${best || 0}/1000.`
+    : `Resumo local das últimas ${totalRedacoes} redações: média ${average || 0}/1000 e melhor nota ${best || 0}/1000.`
+
+  const resumoFinal = strengths.length > 0
+    ? `${resumo} Pontos fortes mais visíveis: ${strengths.join(', ')}. Foco principal agora: ${mainFocus}.`
+    : `${resumo} Foco principal agora: ${mainFocus}.`
+
+  return {
+    resumo: resumoFinal.trim(),
+    forcas: strengths,
+    errosRecorrentes: recurringIssues,
+    foco: `Reforçar ${mainFocus}.`,
+    geradoEm: new Date().toISOString(),
+    totalRedacoes,
+    origem: 'fallback',
+  }
+}
+
+export async function generateUserSummary({
+  historyIndex = [],
+  historyCount = historyIndex.length,
+  responsePreference,
+} = {}) {
+  const safeHistoryIndex = Array.isArray(historyIndex) ? historyIndex.slice(0, 5) : []
+  const totalRedacoes = Number.isFinite(Number(historyCount)) ? Number(historyCount) : safeHistoryIndex.length
+  const systemPrompt = buildUserSummarySystemPrompt(safeHistoryIndex, responsePreference)
+  const userMessages = [
+    {
+      role: 'user',
+      content: JSON.stringify({
+        totalRedacoes,
+        historico: safeHistoryIndex,
+      }, null, 2),
+    },
+  ]
+
+  try {
+    const result = await runDirectTextProvider({
+      provider: 'groq',
+      systemPrompt,
+      userMessages,
+      modelVariant: 'secondary',
+    })
+
+    return normalizeUserSummaryPayload(result, totalRedacoes)
+  } catch (secondaryError) {
+    console.error('[AI][summary] Groq secondary failed:', secondaryError?.message || secondaryError)
+
+    try {
+      const result = await runDirectTextProvider({
+        provider: 'groq',
+        systemPrompt,
+        userMessages,
+        modelVariant: 'primary',
+      })
+
+      return normalizeUserSummaryPayload(result, totalRedacoes)
+    } catch (primaryError) {
+      console.error('[AI][summary] Groq primary failed, falling back to pipeline:', primaryError?.message || primaryError)
+
+      try {
+        const result = await runPipeline('text', {
+          systemPrompt,
+          userMessages,
+        }, {
+          historyIndex: safeHistoryIndex,
+          totalRedacoes,
+        })
+
+        return normalizeUserSummaryPayload(result, totalRedacoes)
+      } catch (pipelineError) {
+        console.error('[AI][summary] Pipeline fallback failed, using local summary:', pipelineError?.message || pipelineError)
+        return buildFallbackUserSummaryPayload(safeHistoryIndex, totalRedacoes)
+      }
+    }
+  }
+}
+
+function buildRadarSystemPrompt(searchBundle, responsePreference, enemLabel) {
+  const lines = [
+    `Você é um analista de tendências para temas de redação estilo ${enemLabel}.`,
+    'Use o contexto factual pesquisado para sugerir apenas os temas mais prováveis.',
+    'Retorne somente a lista principal de temas, sem detalhes explicativos.',
+    'Responda somente com JSON válido e siga exatamente este formato:',
+    '{',
+    '  "temas": [',
+    '    {',
+    '      "titulo": "tema curto e claro",',
+    '      "probabilidade": 0,',
+    '      "hot": false',
+    '    }',
+    '  ],',
+    '  "atualizadoEm": "ISO-8601"',
+    '}',
+    '',
+    'Regras:',
+    '- Gere exatamente 5 temas.',
+    '- Ordene do mais provável para o menos provável.',
+    '- Use probabilidades entre 45 e 95.',
+    '- Destaque os 2 primeiros como hot.',
+    '- Misture áreas sociais, culturais e científicas.',
+    '- Evite repetir o mesmo assunto com palavras diferentes.',
+    '',
+    'Contexto factual pesquisado:',
+    flattenSearchContext(searchBundle),
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
+}
+
+function buildRadarDetailSystemPrompt(searchBundle, responsePreference, enemLabel, themeTitle) {
+  const lines = [
+    `Você é um analista de apoio para um tema potencial de redação estilo ${enemLabel}.`,
+    'Use o contexto factual pesquisado para detalhar o tema sem inventar dados.',
+    'O foco é oferecer apoio pratico, fontes e motivos claros para o aluno escrever.',
+    'Responda somente com JSON válido e siga exatamente este formato:',
+    '{',
+    '  "tema": "tema analisado",',
+    '  "probabilidade": 0,',
+    '  "resumo": "analise curta em ate duas frases",',
+    '  "porQueProvavel": ["motivo curto", "motivo curto"],',
+    '  "recorteSugerido": "recorte seguro para a redacao",',
+    '  "palavrasChave": ["palavra", "palavra"],',
+    '  "dicasDeEscrita": ["dica curta", "dica curta"],',
+    '  "material": {',
+    '    "titulo": "Material de apoio",',
+    '    "resumo": "sintese curta",',
+    '    "cards": [',
+    '      { "titulo": "card", "texto": "dado objetivo", "fonte": "nome", "url": "link", "trecho": "trecho curto opcional" }',
+    '    ],',
+    '    "fontes": [',
+    '      { "nome": "nome", "url": "link", "trecho": "trecho curto opcional" }',
+    '    ]',
+    '  },',
+    '  "searchResumo": "sintese breve do que a busca encontrou",',
+    '  "geradoEm": "ISO-8601",',
+    '  "origem": "ai"',
+    '}',
+    '',
+    'Regras:',
+    '- Gere no maximo 4 motivos, 4 dicas, 5 cards e 6 fontes.',
+    '- Nao repita frases genericas em todos os temas.',
+    '- Use apenas informacoes suportadas pelo contexto da busca.',
+    '- Se faltar dado, seja cauteloso e explicito.',
+    '',
+    `Tema a detalhar: ${themeTitle}`,
+    `Data de execucao: ${nowIsoDate()}`,
+    'Contexto factual pesquisado:',
+    flattenSearchContext(searchBundle),
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
+}
+
+function normalizeRadarThemesPayload(result) {
+  const temas = ensureArray(result?.temas)
+    .map((tema) => {
+      return normalizeRadarTheme({
+        id: tema?.id,
+        titulo: tema?.titulo,
+        probabilidade: tema?.probabilidade,
+        hot: tema?.hot,
+      })
+    })
+    .filter((tema) => tema.titulo)
+    .slice(0, 5)
+
+  return {
+    temas,
+    atualizadoEm: String(result?.atualizadoEm ?? new Date().toISOString()).trim() || new Date().toISOString(),
+    origem: String(result?.origem ?? 'ai').trim() || 'ai',
+  }
+}
+
+function buildFallbackRadarDetailPayload(theme, searchBundle, enemLabel) {
+  const normalizedTheme = normalizeRadarTheme(theme) || {
+    id: normalizeText(String(theme?.titulo ?? theme?.title ?? 'tema')),
+    titulo: String(theme?.titulo ?? theme?.title ?? `Tema para ${enemLabel}`).trim(),
+    probabilidade: Number.isFinite(Number(theme?.probabilidade)) ? Number(theme.probabilidade) : 70,
+    hot: Boolean(theme?.hot),
+  }
+
+  const cards = ensureArray(searchBundle?.cards)
+    .slice(0, 4)
+    .map((card, index) => ({
+      titulo: String(card?.titulo ?? `Card ${index + 1}`).trim(),
+      texto: String(card?.texto ?? card?.trecho ?? '').trim(),
+      fonte: String(card?.fonte ?? '').trim(),
+      url: String(card?.url ?? '').trim(),
+      trecho: String(card?.trecho ?? '').trim(),
+    }))
+
+  const fontes = ensureArray(searchBundle?.fontes)
+    .slice(0, 6)
+    .map((source) => ({
+      nome: String(source?.nome ?? source?.fonte ?? '').trim(),
+      url: String(source?.url ?? '').trim(),
+      trecho: String(source?.trecho ?? '').trim(),
+    }))
+
+  const keywords = uniqueStrings([
+    ...tokenize(normalizedTheme.titulo),
+    ...tokenize(String(searchBundle?.resumo ?? '')),
+  ]).slice(0, 8)
+
+  return {
+    tema: normalizedTheme.titulo,
+    probabilidade: normalizedTheme.probabilidade || 70,
+    resumo: searchBundle?.resumo
+      ? `A busca factual aponta contexto recente ligado a ${normalizedTheme.titulo}.`
+      : `Tema atual e recorrente ligado a ${normalizedTheme.titulo}.`,
+    porQueProvavel: uniqueStrings([
+      searchBundle?.resumo ? `Resumo factual pesquisado: ${searchBundle.resumo}` : '',
+      ...cards.slice(0, 3).map((card) => card.texto),
+    ]).slice(0, 4),
+    recorteSugerido: 'Foque em impacto social, políticas públicas, desigualdade de acesso e direitos coletivos.',
+    palavrasChave: keywords,
+    dicasDeEscrita: uniqueStrings([
+      'Conecte o recorte ao cotidiano e a políticas públicas.',
+      'Use repertório objetivo em vez de frases genéricas.',
+      'Mostre causa, efeito e proposta de intervenção.',
+    ]).slice(0, 4),
+    material: {
+      titulo: `Material de apoio - ${normalizedTheme.titulo}`,
+      resumo: searchBundle?.resumo || `Leitura objetiva do tema ${normalizedTheme.titulo}.`,
+      cards,
+      fontes,
+    },
+    searchResumo: searchBundle?.resumo || '',
+    geradoEm: new Date().toISOString(),
+    origem: 'fallback',
+  }
+}
+
+export async function generateRadarSuggestions({ responsePreference } = {}) {
+  const enemLabel = getEnemYearLabel()
+  const searchQuery = [
+    `Radar de temas para redação estilo ${enemLabel}.`,
+    `Preciso de sinais recentes do debate público brasileiro e de áreas recorrentes na prova do ${enemLabel}.`,
+  ].join(' ')
+
+  let searchBundle = null
+
+  try {
+    searchBundle = await searchContext(searchQuery)
+  } catch (error) {
+    console.error('[AI][radar] Search failed, falling back to no-search radar:', error?.message || error)
+  }
+
+  const systemPrompt = buildRadarSystemPrompt(searchBundle, responsePreference, enemLabel)
+  const userMessages = [
+    {
+      role: 'user',
+      content: `Gere o radar com 5 temas ordenados por chance de aparecer na redação do ${enemLabel}.`,
+    },
+  ]
+
+  try {
+    const result = await runPipeline('text', {
+      systemPrompt,
+      userMessages,
+    }, {
+      searchBundle,
+    })
+
+    const normalized = normalizeRadarThemesPayload({
+      ...result,
+      origem: result?.provider || 'ai',
+    })
+
+    return {
+      ...normalized,
+      resumoPesquisa: String(searchBundle?.resumo ?? '').trim(),
+    }
+  } catch (error) {
+    console.error('[AI][radar] Falling back to static radar data:', error?.message || error)
+
+    return {
+      temas: normalizeRadarThemesPayload({
+        temas: [
+          {
+            titulo: 'Impacto da inteligência artificial no mercado de trabalho brasileiro',
+            probabilidade: 87,
+            hot: true,
+          },
+          {
+            titulo: 'Saúde mental dos jovens na era das redes sociais',
+            probabilidade: 79,
+            hot: true,
+          },
+          {
+            titulo: 'Desafios para a preservação das línguas indígenas no Brasil',
+            probabilidade: 64,
+            hot: false,
+          },
+          {
+            titulo: 'O papel do Estado no combate à desinformação e fake news',
+            probabilidade: 58,
+            hot: false,
+          },
+          {
+            titulo: 'Crise hídrica e acesso à água potável no semiárido brasileiro',
+            probabilidade: 51,
+            hot: false,
+          },
+        ],
+      }).temas,
+      atualizadoEm: new Date().toISOString(),
+      origem: 'fallback',
+      resumoPesquisa: String(searchBundle?.resumo ?? '').trim(),
+    }
+  }
+}
+
+export async function generateRadarThemeDetails({ tema, responsePreference } = {}) {
+  const normalizedTheme = normalizeRadarTheme(tema)
+  if (!normalizedTheme) {
+    throw new Error('Tema inválido para gerar detalhes.')
+  }
+
+  const enemLabel = getEnemYearLabel()
+  const searchQuery = [
+    `Pesquise sobre esse tema potencial para redação do ${enemLabel}: ${normalizedTheme.titulo}.`,
+    'Use fontes recentes, confiáveis e úteis para apoiar a escrita.',
+    'Retorne dados bem restritos, com foco em justificativa, recorte e fontes.',
+  ].join(' ')
+
+  let searchBundle = null
+  try {
+    searchBundle = await searchContext(searchQuery)
+  } catch (error) {
+    console.error('[AI][radar-detail] Search failed, falling back to no-search details:', error?.message || error)
+  }
+
+  const systemPrompt = buildRadarDetailSystemPrompt(searchBundle, responsePreference, enemLabel, normalizedTheme.titulo)
+  const userMessages = [
+    {
+      role: 'user',
+      content: `Detalhe o tema abaixo para ajudar o aluno a escrever no ${enemLabel}.\n\nTema: ${normalizedTheme.titulo}\nProbabilidade: ${normalizedTheme.probabilidade}%`,
+    },
+  ]
+
+  try {
+    const result = await runDirectTextProvider({
+      provider: 'groq',
+      systemPrompt,
+      userMessages,
+      modelVariant: 'secondary',
+    })
+
+    return {
+      ...result,
+      tema: result?.tema || normalizedTheme.titulo,
+      probabilidade: Number.isFinite(Number(result?.probabilidade))
+        ? Number(result.probabilidade)
+        : normalizedTheme.probabilidade,
+      searchResumo: String(result?.searchResumo ?? searchBundle?.resumo ?? '').trim(),
+      origem: String(result?.origem ?? 'groq').trim() || 'groq',
+      material: result?.material || {
+        titulo: `Material de apoio - ${normalizedTheme.titulo}`,
+        resumo: String(searchBundle?.resumo ?? result?.resumo ?? '').trim(),
+        cards: ensureArray(searchBundle?.cards),
+        fontes: ensureArray(searchBundle?.fontes),
+      },
+      geradoEm: String(result?.geradoEm ?? new Date().toISOString()).trim() || new Date().toISOString(),
+    }
+  } catch (secondaryError) {
+    console.error('[AI][radar-detail] Groq secondary failed:', secondaryError?.message || secondaryError)
+
+    try {
+      const result = await runDirectTextProvider({
+        provider: 'groq',
+        systemPrompt,
+        userMessages,
+        modelVariant: 'primary',
+      })
+
+      return {
+        ...result,
+        tema: result?.tema || normalizedTheme.titulo,
+        probabilidade: Number.isFinite(Number(result?.probabilidade))
+          ? Number(result.probabilidade)
+          : normalizedTheme.probabilidade,
+        searchResumo: String(result?.searchResumo ?? searchBundle?.resumo ?? '').trim(),
+        origem: String(result?.origem ?? 'groq').trim() || 'groq',
+        material: result?.material || {
+          titulo: `Material de apoio - ${normalizedTheme.titulo}`,
+          resumo: String(searchBundle?.resumo ?? result?.resumo ?? '').trim(),
+          cards: ensureArray(searchBundle?.cards),
+          fontes: ensureArray(searchBundle?.fontes),
+        },
+        geradoEm: String(result?.geradoEm ?? new Date().toISOString()).trim() || new Date().toISOString(),
+      }
+    } catch (primaryError) {
+      console.error('[AI][radar-detail] Groq primary failed, falling back to pipeline:', primaryError?.message || primaryError)
+
+      try {
+        const result = await runPipeline('text', {
+          systemPrompt,
+          userMessages,
+        }, {
+          searchBundle,
+          theme: normalizedTheme,
+        })
+
+        return {
+          ...result,
+          tema: result?.tema || normalizedTheme.titulo,
+          probabilidade: Number.isFinite(Number(result?.probabilidade))
+            ? Number(result.probabilidade)
+            : normalizedTheme.probabilidade,
+          searchResumo: String(result?.searchResumo ?? searchBundle?.resumo ?? '').trim(),
+          origem: String(result?.origem ?? result?.provider ?? 'ai').trim() || 'ai',
+          material: result?.material || {
+            titulo: `Material de apoio - ${normalizedTheme.titulo}`,
+            resumo: String(searchBundle?.resumo ?? result?.resumo ?? '').trim(),
+            cards: ensureArray(searchBundle?.cards),
+            fontes: ensureArray(searchBundle?.fontes),
+          },
+          geradoEm: String(result?.geradoEm ?? new Date().toISOString()).trim() || new Date().toISOString(),
+        }
+      } catch (pipelineError) {
+        console.error('[AI][radar-detail] Pipeline fallback failed, using local detail:', pipelineError?.message || pipelineError)
+        return buildFallbackRadarDetailPayload(normalizedTheme, searchBundle, enemLabel)
+      }
+    }
+  }
+}
+
+export async function correctEssay({ redacao, tema, material, isRigido, responsePreference }) {
   // Correção não faz search externo.
   // A ideia aqui é só avaliar a redação com o tema/material já obtidos no fluxo de escrita.
   const copyHint = buildCopyRiskHint(redacao, material)
+  const themeHint = buildEssayThemeFitHint(redacao, tema)
+  const qualityHint = buildEssayWritingQualityHint(redacao)
   const systemPrompt = buildCorrectionSystemPrompt({
     tema,
     material,
     isRigido,
     copyHint,
+    themeHint,
+    qualityHint,
+    responsePreference,
   })
 
   const userMessages = [
@@ -1145,12 +2093,38 @@ export async function correctEssay({ redacao, tema, material, isRigido }) {
     },
   ]
 
+  try {
+    const groqTertiaryResult = await runGroqText({
+      systemPrompt,
+      userMessages,
+      modelVariant: 'tertiary',
+    })
+
+    return calibrateEssayFeedbackScore(groqTertiaryResult, {
+      redacao,
+      tema,
+      material,
+      copyHint,
+      themeHint,
+      qualityHint,
+    })
+  } catch (groqError) {
+    console.error('[AI][essay] Groq tertiary failed, falling back to pipeline:', groqError?.message || groqError)
+  }
+
   const result = await runPipeline('text', {
     systemPrompt,
     userMessages,
   }, { copyHint, tema, material })
 
-  return result
+  return calibrateEssayFeedbackScore(result, {
+    redacao,
+    tema,
+    material,
+    copyHint,
+    themeHint,
+    qualityHint,
+  })
 }
 
 export function summarizeMaterial(material) {

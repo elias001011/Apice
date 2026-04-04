@@ -12,7 +12,29 @@ const ACCENT_OPTIONS = [
 ]
 
 export function AparenciaPage() {
-  const { theme, toggleTheme, accent, setAccent, fontSize, setFontSize, fontFamily, setFontFamily } = useTheme()
+  const {
+    theme,
+    toggleTheme,
+    accent,
+    setAccent,
+    fontSize,
+    setFontSize,
+    fontFamily,
+    setFontFamily,
+    layoutMode,
+    setLayoutMode,
+    containerSize,
+    setContainerSize,
+    animationsEnabled,
+    setAnimationsEnabled,
+    cardHoverEffects,
+    setCardHoverEffects,
+    visualEffects,
+    setVisualEffects,
+    cardGradientsEnabled,
+    setCardGradientsEnabled,
+    isMobileLayout,
+  } = useTheme()
   const isDark = theme === 'dark'
 
   const currentAccentColor = ACCENT_OPTIONS.find(o => o.key === accent)
@@ -21,11 +43,11 @@ export function AparenciaPage() {
   return (
     <>
       <style>{aparenciaCss}</style>
-
-      <Link to="/perfil" className="back-link">
-        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-        Voltar ao perfil
-      </Link>
+      <div className="view-container">
+        <Link to="/perfil" className="back-link">
+          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+          Voltar ao perfil
+        </Link>
 
       <div className="page-header anim anim-d1">
         <div className="page-title">Aparência</div>
@@ -87,6 +109,53 @@ export function AparenciaPage() {
               ))}
             </div>
           </div>
+
+          {/* ── EFEITOS VISUAIS ── */}
+          <div className="card anim anim-d4">
+            <div className="card-title">Efeitos Visuais</div>
+            <div className="ap-fx-options">
+              {[
+                { key: 'none', label: 'Desligado', sub: 'Interface limpa, sem gradientes decorativos nos cards ou no fundo.' },
+                { key: 'gradients', label: 'Gradiente', sub: 'Gradientes sutis no fundo, header e alguns elementos destacados.' },
+                { key: 'blur', label: 'Vidro leve', sub: 'Vidro discreto em navegação, modais e cards pontuais sobrepostos.' },
+              ].map(f => (
+                <button
+                  key={f.key}
+                  className={`ap-fx-btn ${visualEffects === f.key ? 'active' : ''}`}
+                  onClick={() => setVisualEffects(f.key)}
+                >
+                  <div className="ap-fx-content">
+                    <div className="ap-fx-label">{f.label}</div>
+                    <div className="ap-fx-sub">{f.sub}</div>
+                  </div>
+                  {visualEffects === f.key && (
+                    <span className="ap-color-check">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+            {visualEffects === 'gradients' && (
+              <div className="ap-fx-extra">
+                <div className="toggle-row ap-fx-toggle-row">
+                  <div className="toggle-info">
+                    <div className="toggle-label">Gradiente em todos os cards</div>
+                    <div className="toggle-sub">
+                      Desative para manter os cards comuns limpos e deixar o gradiente só nos pontos de destaque.
+                    </div>
+                  </div>
+                  <button
+                    className={`toggle ${cardGradientsEnabled ? 'on' : ''}`}
+                    onClick={() => setCardGradientsEnabled((current) => !current)}
+                    aria-label="Alternar gradiente em todos os cards"
+                  >
+                    <span className="toggle-knob" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Coluna direita */}
@@ -130,6 +199,105 @@ export function AparenciaPage() {
               ))}
             </div>
           </div>
+          
+          {/* ── MODO DE LAYOUT ── */}
+          <div className="card anim anim-d3">
+            <div className="card-title">Modo de Layout</div>
+            <div className="ap-layout-grid">
+              <button
+                className={`ap-layout-btn ${layoutMode === 'comfortable' ? 'active' : ''}`}
+                onClick={() => setLayoutMode('comfortable')}
+              >
+                <div className="ap-layout-preview comfortable">
+                  <div className="prev-card" />
+                  <div className="prev-card" />
+                </div>
+                <div className="ap-layout-label">Confortável</div>
+                <div className="ap-layout-sub">Padrão com mais respiro</div>
+                {layoutMode === 'comfortable' && <span className="ap-layout-dot" />}
+              </button>
+              <button
+                className={`ap-layout-btn ${layoutMode === 'compact' ? 'active' : ''}`}
+                onClick={() => setLayoutMode('compact')}
+              >
+                <div className="ap-layout-preview compact">
+                  <div className="prev-card" />
+                  <div className="prev-card" />
+                  <div className="prev-card" />
+                </div>
+                <div className="ap-layout-label">Compacto</div>
+                <div className="ap-layout-sub">Foco em densidade rústica</div>
+                {layoutMode === 'compact' && <span className="ap-layout-dot" />}
+              </button>
+            </div>
+          </div>
+
+          {/* ── EXPERIÊNCIA ── */}
+          <div className="card anim anim-d3">
+            <div className="card-title">Experiência</div>
+
+            <div className="toggle-row ap-experience-row">
+              <div className="toggle-info">
+                <div className="toggle-label">Animações da interface</div>
+                <div className="toggle-sub">
+                  {animationsEnabled ? 'Transições, entradas e loaders estão ativas.' : 'Entradas, loaders e transições ficam reduzidas.'}
+                </div>
+              </div>
+              <button
+                className={`toggle ${animationsEnabled ? 'on' : ''}`}
+                onClick={() => setAnimationsEnabled((current) => !current)}
+                aria-label="Alternar animações da interface"
+              >
+                <span className="toggle-knob" />
+              </button>
+            </div>
+
+            <div className="toggle-row ap-experience-row">
+              <div className="toggle-info">
+                <div className="toggle-label">Responsividade de cards</div>
+                <div className="toggle-sub">
+                  {cardHoverEffects ? 'Cards elevam e destacam bordas ao passar o mouse.' : 'Cards permanecem estáticos, útil para toque e mobile.'}
+                </div>
+              </div>
+              <button
+                className={`toggle ${cardHoverEffects ? 'on' : ''}`}
+                onClick={() => setCardHoverEffects((current) => !current)}
+                aria-label="Alternar responsividade dos cards"
+              >
+                <span className="toggle-knob" />
+              </button>
+            </div>
+
+            <div className="card-footer-tip" style={{ marginTop: '12px', fontSize: '0.72rem', opacity: 0.5, textAlign: 'center' }}>
+              Essas preferências acompanham sua conta e são reaplicadas na nuvem.
+            </div>
+          </div>
+
+          {/* ── TAMANHO DO CONTEÚDO (DESKTOP) ── */}
+          {!isMobileLayout && (
+            <div className="card anim anim-d3 desktop-only-feature">
+              <div className="card-title">Tamanho do Conteúdo (Desktop)</div>
+              <div className="ap-size-row">
+                {[
+                  { key: 'sm', label: 'Pequeno', desc: '880px' },
+                  { key: 'md', label: 'Médio', desc: '920px' },
+                  { key: 'lg', label: 'Grande', desc: '1060px' },
+                ].map((s) => (
+                  <button
+                    key={s.key}
+                    className={`ap-size-btn ${containerSize === s.key ? 'active' : ''}`}
+                    onClick={() => setContainerSize(s.key)}
+                  >
+                    <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{s.desc}</span>
+                    <span>{s.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="card-footer-tip" style={{ marginTop: '12px', fontSize: '0.72rem', opacity: 0.5, textAlign: 'center' }}>
+                Dica: O Corretor mantém sua largura ideal independente desta escolha.
+              </div>
+            </div>
+          )}
 
           {/* ── PREVIEW AO VIVO ── */}
           <div className="card ap-preview anim anim-d4">
@@ -147,6 +315,7 @@ export function AparenciaPage() {
           </div>
         </div>
       </div>
+    </div>
     </>
   )
 }
@@ -283,6 +452,69 @@ const aparenciaCss = `
     flex-shrink: 0;
   }
 
+  /* ── EFEITOS VISUAIS ── */
+  .ap-fx-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ap-fx-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1.5px solid var(--border2);
+    background: var(--bg3);
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    width: 100%;
+    position: relative;
+    text-align: left;
+  }
+  .ap-fx-btn:hover { border-color: var(--accent); }
+  .ap-fx-btn.active {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .ap-fx-content {
+    flex: 1;
+  }
+  .ap-fx-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .ap-fx-sub {
+    font-size: 0.72rem;
+    color: var(--text3);
+    line-height: 1.25;
+  }
+
+  .ap-fx-extra {
+    margin-top: 12px;
+    padding: 0.95rem 1rem;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.03), transparent 58%), var(--bg3);
+  }
+  .ap-fx-toggle-row {
+    margin: 0;
+    align-items: center;
+    gap: 14px;
+  }
+  .ap-fx-toggle-row .toggle-info {
+    min-width: 0;
+  }
+  .ap-fx-toggle-row .toggle-label {
+    font-size: 0.82rem;
+  }
+  .ap-fx-toggle-row .toggle-sub {
+    font-size: 0.7rem;
+    line-height: 1.35;
+  }
+
   /* ── TAMANHO ── */
   .ap-size-row {
     display: flex;
@@ -313,6 +545,77 @@ const aparenciaCss = `
     color: var(--accent);
   }
   .ap-size-btn.active span:first-child { color: var(--accent); }
+
+  /* ── LAYOUT ── */
+  .ap-layout-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .ap-layout-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 10px;
+    border-radius: 16px;
+    border: 1.5px solid var(--border2);
+    background: var(--bg3);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    text-align: center;
+    width: 100%;
+  }
+  .ap-layout-btn:hover { border-color: var(--accent); }
+  .ap-layout-btn.active {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .ap-layout-preview {
+    width: 60px;
+    height: 44px;
+    background: var(--bg2);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--border);
+  }
+  .ap-layout-preview.comfortable { gap: 6px; padding: 8px; }
+  .prev-card {
+    height: 8px;
+    background: var(--border2);
+    border-radius: 2px;
+  }
+  .comfortable .prev-card { height: 10px; }
+  .ap-layout-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .ap-layout-sub {
+    font-size: 0.72rem;
+    color: var(--text3);
+    line-height: 1.2;
+  }
+  .ap-layout-dot {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+
+  .ap-experience-row + .ap-experience-row {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
 
   /* ── PREVIEW ── */
   .ap-preview-box {
@@ -361,4 +664,8 @@ const aparenciaCss = `
     transition: opacity 0.2s;
   }
   .ap-preview-btn:hover { opacity: 0.85; }
+
+  @media (max-width: 900px) {
+    .desktop-only-feature { display: none; }
+  }
 `

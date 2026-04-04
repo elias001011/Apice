@@ -1,4 +1,4 @@
-const DRAFT_KEY = 'apice:corretor:draft:v2'
+const DRAFT_KEY = 'apice:corretor:draft:v3'
 
 function canUseStorage() {
   // Evita quebrar SSR, testes ou ambientes sem window/localStorage.
@@ -15,6 +15,7 @@ function normalizeDraft(rawDraft) {
     material: rawDraft.material ?? null,
     redacao: typeof rawDraft.redacao === 'string' ? rawDraft.redacao : '',
     isRigido: Boolean(rawDraft.isRigido),
+    themeMode: typeof rawDraft.themeMode === 'string' ? rawDraft.themeMode : 'intro',
     updatedAt: typeof rawDraft.updatedAt === 'string' ? rawDraft.updatedAt : null,
   }
 }
@@ -41,6 +42,7 @@ export function saveCorretorDraft(draft) {
     material: draft?.material ?? null,
     redacao: typeof draft?.redacao === 'string' ? draft.redacao : '',
     isRigido: Boolean(draft?.isRigido),
+    themeMode: typeof draft?.themeMode === 'string' ? draft.themeMode : 'intro',
     updatedAt: new Date().toISOString(),
   }
 

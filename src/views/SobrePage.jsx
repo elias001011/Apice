@@ -1,23 +1,23 @@
 import { Link } from 'react-router-dom'
+import { APP_VERSION } from '../appVersion.js'
+import { POLICY_URL } from '../services/policyConsent.js'
 
 export function SobrePage() {
   return (
     <>
       <style>{sobreCss}</style>
-      <Link to="/perfil" className="back-link">
-        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-        Voltar ao perfil
-      </Link>
+      <div className="view-container">
+        <Link to="/perfil" className="back-link">
+          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+          Voltar ao perfil
+        </Link>
 
       <div className="sobre-logo anim anim-d1">
         <div className="sobre-mark">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="3 17 9 11 13 15 21 7" />
-            <polyline points="14 7 21 7 21 14" />
-          </svg>
+            <div className="logo-icon" />
         </div>
         <div className="sobre-nome">Ápice</div>
-        <div className="sobre-versao">Versão 0.1 — MVP</div>
+        <div className="sobre-versao">Versão {APP_VERSION}</div>
       </div>
 
       <div className="sobre-missao anim anim-d2">
@@ -25,7 +25,7 @@ export function SobrePage() {
       </div>
 
       <div className="card anim anim-d3">
-        <Link to="#" className="settings-item" style={{ textDecoration: 'none' }}>
+        <a href={POLICY_URL} target="_blank" rel="noreferrer" className="settings-item" style={{ textDecoration: 'none' }}>
           <div className="settings-left">
             <div className="settings-icon">
               <svg viewBox="0 0 24 24">
@@ -36,8 +36,8 @@ export function SobrePage() {
             <div className="settings-name">Termos de uso</div>
           </div>
           <div className="settings-chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg></div>
-        </Link>
-        <Link to="#" className="settings-item" style={{ textDecoration: 'none' }}>
+        </a>
+        <a href={POLICY_URL} target="_blank" rel="noreferrer" className="settings-item" style={{ textDecoration: 'none' }}>
           <div className="settings-left">
             <div className="settings-icon">
               <svg viewBox="0 0 24 24">
@@ -48,8 +48,9 @@ export function SobrePage() {
             <div className="settings-name">Política de privacidade</div>
           </div>
           <div className="settings-chevron"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg></div>
-        </Link>
+        </a>
       </div>
+    </div>
     </>
   )
 }
@@ -71,6 +72,7 @@ const sobreCss = `
     justify-content: center;
     margin-bottom: 14px;
     position: relative;
+    color: #0f0f0f;
   }
   .sobre-mark::after {
     content: '';
@@ -83,9 +85,18 @@ const sobreCss = `
     clip-path: polygon(50% 0%, 61% 35%, 100% 50%, 61% 65%, 50% 100%, 39% 65%, 0% 50%, 39% 35%);
     opacity: 0.5;
   }
-  .sobre-mark svg {
+  .sobre-mark .logo-icon {
     width: 26px;
     height: 26px;
+    background-color: currentColor;
+    mask-image: url('/favicon.svg');
+    -webkit-mask-image: url('/favicon.svg');
+    mask-size: contain;
+    -webkit-mask-size: contain;
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-position: center;
   }
   .sobre-nome {
     font-family: 'DM Serif Display', serif;

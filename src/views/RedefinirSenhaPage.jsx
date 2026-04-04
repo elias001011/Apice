@@ -10,7 +10,7 @@ export function RedefinirSenhaPage() {
   const [error, setError] = useState('')
   const [token, setToken] = useState('')
   
-  const { confirmRecovery, updateMetadata } = useAuth()
+  const { confirmRecovery } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {

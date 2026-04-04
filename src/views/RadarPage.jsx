@@ -1,82 +1,279 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import {
+  DEFAULT_RADAR_THEMES,
+  buscarRadarTemas,
+  getRadarSearchCooldownLabel,
+} from '../services/radarService.js'
+import { getEnemYearLabel } from '../services/examYear.js'
+import {
+  getRadarThemeId,
+  loadRadarSnapshot,
+  loadRadarThemeDetail,
+  saveRadarSnapshot,
+  subscribeRadarSnapshot,
+  getRadarSearchCooldown,
+} from '../services/radarState.js'
+import {
+  getRadarFavoriteId,
+  loadRadarFavorites,
+  removeRadarFavorite,
+  saveRadarFavorite,
+  subscribeRadarFavorites,
+} from '../services/radarFavorites.js'
+import { useAppBusy } from '../ui/AppBusyContext.jsx'
+import { ConfirmDialog } from '../ui/ConfirmDialog.jsx'
+import { useUpgradeModal } from '../ui/UpgradeModal.jsx'
+import { UPGRADE_REASONS } from '../services/upgradeTrigger.js'
 
-const TEMAS = [
-  {
-    titulo: 'Impacto da inteligência artificial no mercado de trabalho brasileiro',
-    probabilidade: 87,
-    hot: true,
-    tags: [
-      { label: 'Tecnologia', tipo: 'area-ciencia' },
-      { label: 'Trabalho', tipo: 'area-social' },
-      { label: 'Desigualdade', tipo: 'area-social' }
-    ],
-    justificativa: 'Tema dominante no debate público desde 2023. O ENEM historicamente acompanha pautas nacionais com 1–2 anos de defasagem. Alta chance de abordagem com enfoque em impacto social.'
-  },
-  {
-    titulo: 'Saúde mental dos jovens na era das redes sociais',
-    probabilidade: 79,
-    hot: true,
-    tags: [
-      { label: 'Saúde', tipo: 'area-social' },
-      { label: 'Cultura digital', tipo: 'area-cultura' },
-      { label: 'Juventude', tipo: 'area-social' }
-    ],
-    justificativa: 'Pauta crescente no Congresso e na mídia. O ENEM abordou saúde mental em 2023. Probabilidade alta de retorno com foco no jovem.'
-  },
-  {
-    titulo: 'Desafios para a preservação das línguas indígenas no Brasil',
-    probabilidade: 64,
-    hot: false,
-    tags: [
-      { label: 'Cultura', tipo: 'area-cultura' },
-      { label: 'Diversidade', tipo: 'area-social' },
-      { label: 'Direitos', tipo: 'area-social' }
-    ],
-    justificativa: 'O ENEM mantém padrão de abordar diversidade cultural a cada 2–3 edições. Marco Temporal e debate indígena marcaram 2023–2024.'
-  },
-  {
-    titulo: 'O papel do Estado no combate à desinformação e fake news',
-    probabilidade: 58,
-    hot: false,
-    tags: [
-      { label: 'Tecnologia', tipo: 'area-ciencia' },
-      { label: 'Democracia', tipo: 'area-social' },
-      { label: 'Comunicação', tipo: 'area-cultura' }
-    ],
-    justificativa: 'PL das Fake News e eleições de 2022 e 2024 mantiveram o tema em evidência. Abordagem pode exigir repertório sobre liberdade de expressão vs. regulação estatal.'
-  },
-  {
-    titulo: 'Crise hídrica e acesso à água potável no semiárido brasileiro',
-    probabilidade: 51,
-    hot: false,
-    tags: [
-      { label: 'Meio ambiente', tipo: 'area-ciencia' },
-      { label: 'Desigualdade', tipo: 'area-social' },
-      { label: 'Semiárido', tipo: 'area-social' }
-    ],
-    justificativa: 'Meio ambiente é recorrente no ENEM. A crise climática de 2024 no Rio Grande do Sul pode direcionar o foco para recursos hídricos e vulnerabilidade regional.'
-  }
-]
+function PinIcon({ filled = false }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 21s6-5.33 6-10a6 6 0 10-12 0c0 4.67 6 10 6 10z" fill={filled ? 'currentColor' : 'none'} />
+      <circle cx="12" cy="11" r={filled ? 2.6 : 2} fill={filled ? 'currentColor' : 'none'} />
+    </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M6 6l1 14h10l1-14" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  )
+}
 
 export function RadarPage() {
-  const [status, setStatus] = useState('intro') // 'intro', 'loading', 'results'
+  const { beginBusy, endBusy } = useAppBusy()
+  const { openUpgradeModal } = useUpgradeModal()
+  const initialRadarSnapshot = loadRadarSnapshot()
+  const hasInitialRadarThemes = Boolean(initialRadarSnapshot?.temas?.length)
+  const enemLabel = getEnemYearLabel()
+  const [status, setStatus] = useState(() => (hasInitialRadarThemes ? 'results' : 'intro')) // 'intro', 'loading', 'results'
+  const [temas, setTemas] = useState(() => hasInitialRadarThemes ? initialRadarSnapshot.temas : [])
+  const [savedTemas, setSavedTemas] = useState(() => loadRadarFavorites())
+  const [searchResumo, setSearchResumo] = useState(() => initialRadarSnapshot?.resumoPesquisa || '')
+  const [atualizadoEm, setAtualizadoEm] = useState(() => initialRadarSnapshot?.atualizadoEm || '')
+  const [searchCooldown, setSearchCooldown] = useState(() => getRadarSearchCooldown(initialRadarSnapshot))
+  const [errorMsg, setErrorMsg] = useState('')
+  const [loadingLabel, setLoadingLabel] = useState('Procurando novos temas…')
+  const [searchConfirmOpen, setSearchConfirmOpen] = useState(false)
+  const [pendingRemoval, setPendingRemoval] = useState(null)
 
-  const handleBuscar = () => {
+  useEffect(() => {
+    const refreshRadar = () => {
+      const snapshot = loadRadarSnapshot()
+
+      if (snapshot?.temas?.length) {
+        setTemas(snapshot.temas)
+        setSearchResumo(snapshot.resumoPesquisa || '')
+        setAtualizadoEm(snapshot.atualizadoEm || '')
+        setSearchCooldown(getRadarSearchCooldown(snapshot))
+        setStatus('results')
+      } else {
+        setTemas([])
+        setSearchResumo(snapshot?.resumoPesquisa || '')
+        setAtualizadoEm(snapshot?.atualizadoEm || '')
+        setSearchCooldown(getRadarSearchCooldown(snapshot))
+        setStatus((currentStatus) => (currentStatus === 'loading' ? currentStatus : 'intro'))
+      }
+    }
+
+    const refreshSaved = () => setSavedTemas(loadRadarFavorites())
+    refreshSaved()
+    refreshRadar()
+
+    const unlistenRadar = subscribeRadarSnapshot(refreshRadar)
+    const unlistenSaved = subscribeRadarFavorites(refreshSaved)
+    return () => {
+      unlistenRadar()
+      unlistenSaved()
+    }
+  }, [])
+
+  const handleBuscar = async () => {
+    if (status === 'loading') return
+
     setStatus('loading')
-    setTimeout(() => {
-      setStatus('intro')
-      alert('🚧 Em breve! O algoritmo inteligente de tendências está sendo calibrado com os microdados do INEP de 2024. Volte nas próximas atualizações.')
-    }, 1200)
+    setErrorMsg('')
+    setLoadingLabel('Procurando novos temas…')
+    beginBusy()
+
+    try {
+      const result = await buscarRadarTemas()
+      const nextThemes = result.temas.length > 0 ? result.temas : DEFAULT_RADAR_THEMES
+
+      setTemas(nextThemes)
+      setSearchResumo(result.resumoPesquisa || '')
+      setAtualizadoEm(result.atualizadoEm || new Date().toISOString())
+      setSearchCooldown(getRadarSearchCooldown(result))
+      setStatus('results')
+    } catch (error) {
+      console.error('Radar fetch error:', error)
+      if (error?.code === 'quota_blocked') {
+        openUpgradeModal({ reason: UPGRADE_REASONS.QUOTA_BLOCKED })
+      }
+      setErrorMsg(error?.message || 'Não foi possível atualizar o radar agora.')
+      const currentSnapshot = loadRadarSnapshot()
+      const hasCurrentThemes = Boolean(currentSnapshot?.temas?.length)
+
+      if (!currentSnapshot) {
+        const fallbackSnapshot = {
+          temas: DEFAULT_RADAR_THEMES,
+          resumoPesquisa: '',
+          atualizadoEm: new Date().toISOString(),
+          origem: 'static',
+          lastSearchAt: '',
+          nextSearchAt: '',
+          detalhesPorId: {},
+        }
+        setTemas(fallbackSnapshot.temas)
+        setSearchResumo('')
+        setAtualizadoEm(fallbackSnapshot.atualizadoEm)
+        saveRadarSnapshot(fallbackSnapshot)
+        setSearchCooldown(getRadarSearchCooldown(fallbackSnapshot))
+        setStatus('results')
+      } else {
+        setStatus(hasCurrentThemes ? 'results' : 'intro')
+      }
+    } finally {
+      endBusy()
+    }
+  }
+
+  const handleSalvarTema = (tema) => {
+    saveRadarFavorite(tema)
+  }
+
+  const handleRemoverTema = (tema) => {
+    removeRadarFavorite(tema)
+  }
+
+  const requestBuscar = () => {
+    if (!searchCooldown.canSearch) {
+      setErrorMsg(getRadarSearchCooldownLabel(loadRadarSnapshot() || {
+        nextSearchAt: searchCooldown.nextSearchAt,
+        lastSearchAt: searchCooldown.lastSearchAt,
+      }))
+      return
+    }
+
+    if (status === 'results' && temas.length > 0) {
+      setSearchConfirmOpen(true)
+      return
+    }
+
+    void handleBuscar()
+  }
+
+  const isSavedTheme = (tema) => {
+    const temaId = getRadarFavoriteId(tema)
+    return savedTemas.some((item) => item.id === temaId)
+  }
+
+  const updatedLabel = atualizadoEm
+    ? new Date(atualizadoEm).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      })
+    : ''
+
+  const renderTemaCard = (tema, {
+    allowRemove = false,
+    pinned = false,
+    animationDelay = '0s',
+  } = {}) => {
+    const temaId = getRadarThemeId(tema) || getRadarFavoriteId(tema) || tema.titulo
+    const alreadySaved = isSavedTheme(tema)
+
+    const handleAction = () => {
+      if (allowRemove) {
+        setPendingRemoval(tema)
+        return
+      }
+
+      if (!alreadySaved) {
+        handleSalvarTema(tema)
+      }
+    }
+
+    return (
+      <article
+        className={`tema-card ${tema.hot ? 'hot' : ''}${(pinned || alreadySaved) ? ' saved' : ''}`}
+        key={temaId}
+        style={{ animationDelay }}
+      >
+        <div className="tema-top">
+          <div className="tema-titulo">{tema.titulo}</div>
+          <div className="tema-meta">
+            <button
+              type="button"
+              className={`tema-save-btn${allowRemove ? ' danger' : ''}${alreadySaved ? ' saved' : ''}`}
+              onClick={handleAction}
+              title={allowRemove ? 'Remover card salvo' : alreadySaved ? 'Card fixado' : 'Fixar card'}
+              aria-label={allowRemove ? `Remover card salvo ${tema.titulo}` : alreadySaved ? `Card fixado ${tema.titulo}` : `Fixar card ${tema.titulo}`}
+              aria-pressed={!allowRemove && alreadySaved}
+            >
+              <span className="sr-only">
+                {allowRemove ? 'Remover card salvo' : alreadySaved ? 'Card fixado' : 'Fixar card'}
+              </span>
+              {allowRemove ? <TrashIcon /> : <PinIcon filled={alreadySaved} />}
+            </button>
+            <div className="probabilidade">
+              <div className="prob-num">{tema.probabilidade}%</div>
+              <div className="prob-label">provável</div>
+            </div>
+          </div>
+        </div>
+        <div className="tema-justificativa">
+          {pinned || alreadySaved
+            ? 'Tema fixado na sua conta. Os detalhes ficam salvos na nuvem quando abertos.'
+            : 'Detalhes completos ficam na tela do tema, sem poluir o card principal.'}
+        </div>
+        {pinned && (
+          <div className="tema-fixed-note">
+            Fixado no topo até remoção manual.
+          </div>
+        )}
+        <div className="tema-card-footer">
+          <Link
+            to={`/tema-detalhe?tema=${encodeURIComponent(temaId)}`}
+            state={{ tema, detail: loadRadarThemeDetail(temaId) }}
+            className="tema-detail-link"
+          >
+            Ver detalhes
+          </Link>
+        </div>
+      </article>
+    )
   }
 
   return (
     <>
       <style>{radarCss}</style>
-      <div className="page-header anim anim-d1">
+      <div className="view-container">
+        <div className="page-header anim anim-d1">
         <div className="page-title">Radar <span>1000</span></div>
-        <div className="page-sub">Análise dos temas mais prováveis para a redação do ENEM 2025, baseada em padrões históricos e contexto sociopolítico atual.</div>
+        <div className="page-sub">Análise dos temas mais prováveis para a redação do {enemLabel}, baseada em padrões históricos e contexto sociopolítico atual.</div>
       </div>
+
+      {savedTemas.length > 0 && (
+        <>
+          <div className="section-label anim anim-d2">Temas salvos</div>
+          <div className="saved-radar-stack anim anim-d2">
+            {savedTemas.map((tema, idx) => renderTemaCard(tema, {
+              allowRemove: true,
+              pinned: true,
+              animationDelay: `${0.08 + (idx * 0.05)}s`,
+            }))}
+          </div>
+        </>
+      )}
 
       {status === 'intro' && (
         <div className="radar-intro anim anim-d2" id="radar-intro">
@@ -87,22 +284,27 @@ export function RadarPage() {
             </svg>
           </div>
           <div className="radar-intro-text">
-            O Radar 1000 analisa padrões históricos das provas do ENEM, o contexto sociopolítico atual e tendências do debate público brasileiro para estimar os temas com maior probabilidade de aparecer na redação deste ano.
+            O Radar 1000 analisa padrões históricos das provas do {enemLabel}, o contexto sociopolítico atual e tendências do debate público brasileiro para estimar os temas com maior probabilidade de aparecer na redação desta edição.
+            {searchCooldown.canSearch ? '' : ` Nova busca liberada em ${new Date(searchCooldown.nextSearchAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}.`}
           </div>
-          <button className="btn-primary" onClick={handleBuscar} type="button">
+          <button className="btn-primary" onClick={requestBuscar} type="button" disabled={status === 'loading' || !searchCooldown.canSearch}>
             <svg viewBox="0 0 24 24">
               <circle cx="11" cy="11" r="8" />
               <path d="M21 21l-4.35-4.35" />
             </svg>
-            Buscar Temas
+            Procurar novos temas
           </button>
+          {!searchCooldown.canSearch && (
+            <div className="radar-cooldown">{getRadarSearchCooldownLabel(loadRadarSnapshot())}</div>
+          )}
+          {errorMsg && <div className="radar-error">{errorMsg}</div>}
         </div>
       )}
 
       {status === 'loading' && (
         <div className="radar-loading show" id="radar-loading">
           <div className="radar-spinner"></div>
-          <div className="radar-loading-text">Analisando padrões e tendências…</div>
+          <div className="radar-loading-text">{loadingLabel}</div>
         </div>
       )}
 
@@ -116,36 +318,83 @@ export function RadarPage() {
               </svg>
             </div>
             <div className="radar-hero-text">
-              <div className="radar-hero-title">Atualizado para o ENEM 2025</div>
-              <div className="radar-hero-sub">Nossa IA analisa 10 anos de provas e o contexto atual para estimar os temas mais prováveis desta edição.</div>
+              <div className="radar-hero-title">Atualizado para o {enemLabel}</div>
+              <div className="radar-hero-sub">
+                Nossa IA cruza busca factual e padrões recorrentes para estimar os temas mais prováveis desta edição.
+              </div>
+              <div className="radar-hero-note">
+                Este radar fica salvo até você procurar novos temas de novo. {searchCooldown.canSearch ? '' : `Nova busca liberada em ${new Date(searchCooldown.nextSearchAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}.`}
+              </div>
             </div>
           </div>
+          {searchResumo && (
+            <div className="radar-summary anim anim-d1">
+              <div className="radar-summary-label">Resumo da busca</div>
+              <div className="radar-summary-text">{searchResumo}</div>
+            </div>
+          )}
+
+          {errorMsg && (
+            <div className="radar-error inline anim anim-d1">
+              {errorMsg}
+            </div>
+          )}
 
           <div className="section-label">Temas em alta — maior probabilidade</div>
 
-          {TEMAS.map((tema, idx) => (
-            <Link to="/tema-detalhe" className={`tema-card ${tema.hot ? 'hot' : ''}`} key={idx} style={{ animationDelay: `${0.15 + (idx * 0.07)}s` }}>
-              <div className="tema-top">
-                <div className="tema-titulo">{tema.titulo}</div>
-                <div className="probabilidade">
-                  <div className="prob-num">{tema.probabilidade}%</div>
-                  <div className="prob-label">provável</div>
-                </div>
-              </div>
-              <div className="tema-tags">
-                {tema.tags.map((tag, i) => (
-                  <span key={i} className={`tema-tag ${tag.tipo}`}>{tag.label}</span>
-                ))}
-              </div>
-              <div className="tema-justificativa">{tema.justificativa}</div>
-            </Link>
-          ))}
+          <div className="saved-radar-stack">
+            {temas.map((tema, idx) => renderTemaCard(tema, {
+              animationDelay: `${0.15 + (idx * 0.07)}s`,
+            }))}
+          </div>
 
           <div className="atualizado" style={{ animationDelay: '0.5s' }}>
-            Radar atualizado em março de 2025 · Próxima atualização em abril
+            {updatedLabel ? `Radar atualizado em ${updatedLabel}` : 'Radar atualizado recentemente'}
+          </div>
+
+          <div style={{ marginTop: '0.75rem' }}>
+            <button className="btn-primary" type="button" onClick={requestBuscar} disabled={status === 'loading' || !searchCooldown.canSearch}>
+              {status === 'loading' ? 'Procurando...' : 'Procurar novos temas'}
+            </button>
+            {!searchCooldown.canSearch && (
+              <div className="radar-cooldown" style={{ marginTop: '0.65rem' }}>
+                {getRadarSearchCooldownLabel(loadRadarSnapshot())}
+              </div>
+            )}
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={searchConfirmOpen}
+        title="Substituir radar atual?"
+        message="Isso vai gerar um novo conjunto de temas e trocar o radar que está salvo agora. Os cards fixados continuam salvos, mas os detalhes antigos deste radar serão substituídos."
+        confirmLabel="Sim, procurar"
+        cancelLabel="Cancelar"
+        danger
+        onCancel={() => setSearchConfirmOpen(false)}
+        onConfirm={() => {
+          setSearchConfirmOpen(false)
+          void handleBuscar()
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingRemoval)}
+        title="Remover card salvo?"
+        message={pendingRemoval ? `O tema “${pendingRemoval.titulo}” será removido dos cards salvos. Você poderá salvá-lo de novo depois.` : ''}
+        confirmLabel="Sim, remover"
+        cancelLabel="Cancelar"
+        danger
+        onCancel={() => setPendingRemoval(null)}
+        onConfirm={() => {
+          if (pendingRemoval) {
+            handleRemoverTema(pendingRemoval)
+          }
+          setPendingRemoval(null)
+        }}
+      />
+    </div>
     </>
   )
 }
@@ -222,15 +471,35 @@ const radarCss = `
     line-height: 1.45;
   }
 
+  .radar-hero-note {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text3);
+    line-height: 1.45;
+  }
+
+  .saved-radar-stack {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 1.25rem;
+  }
+
+  @media (min-width: 768px) {
+    .saved-radar-stack {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
   .tema-card {
     background: var(--bg2);
     border: 1.5px solid var(--border);
     border-radius: var(--radius);
     padding: 1.1rem 1.25rem;
-    margin-bottom: 10px;
+    margin-bottom: 0;
     text-decoration: none;
     display: block;
-    transition: border-color 0.2s, transform 0.25s;
+    position: relative;
+    transition: border-color 0.2s, transform 0.25s, background-color 0.2s;
   }
 
   .tema-card:hover {
@@ -243,10 +512,16 @@ const radarCss = `
     background: var(--accent-dim);
   }
 
+  .tema-card.saved {
+    border-color: rgba(var(--accent-rgb), 0.32);
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.1), rgba(var(--accent-rgb), 0.04));
+  }
+
   .tema-top {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 12px;
     margin-bottom: 8px;
   }
 
@@ -256,7 +531,15 @@ const radarCss = `
     color: var(--text);
     line-height: 1.4;
     flex: 1;
-    padding-right: 10px;
+    padding-right: 0;
+  }
+
+  .tema-meta {
+    display: flex;
+    align-items: flex-start;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
   }
 
   .probabilidade {
@@ -319,6 +602,103 @@ const radarCss = `
     font-size: 0.8rem;
     color: var(--text2);
     line-height: 1.55;
+  }
+
+  .radar-cooldown {
+    margin-top: 0.45rem;
+    font-size: 0.75rem;
+    color: var(--text3);
+    line-height: 1.45;
+  }
+
+  .tema-card-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.9rem;
+    padding-top: 0.85rem;
+    border-top: 0.5px solid var(--border);
+  }
+
+  .tema-detail-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.76rem;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .tema-detail-link:hover {
+    text-decoration: underline;
+  }
+
+  .tema-save-btn {
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--border2);
+    background: var(--bg3);
+    color: var(--text2);
+    border-radius: 999px;
+    padding: 0;
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.1s, opacity 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .tema-save-btn:hover {
+    border-color: var(--accent);
+    color: var(--text);
+    background: var(--accent-dim);
+  }
+
+  .tema-save-btn:active {
+    transform: scale(0.97);
+  }
+
+  .tema-save-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
+  }
+
+  .tema-save-btn.saved {
+    border-color: rgba(var(--accent-rgb), 0.3);
+    color: var(--accent);
+    background: var(--accent-dim);
+    cursor: default;
+  }
+
+  .tema-save-btn.danger {
+    border-color: rgba(255, 107, 107, 0.25);
+    color: var(--red);
+    background: rgba(255, 107, 107, 0.05);
+  }
+
+  .tema-save-btn.saved:hover {
+    color: var(--accent);
+  }
+
+  .tema-save-btn.danger:hover {
+    background: rgba(255, 107, 107, 0.12);
+    border-color: var(--red);
+    color: var(--red);
+  }
+
+  .tema-fixed-note {
+    margin-top: 10px;
+    font-size: 0.72rem;
+    color: var(--text3);
+    padding-top: 8px;
+    border-top: 0.5px solid var(--border);
   }
 
   .atualizado {
@@ -428,6 +808,44 @@ const radarCss = `
     color: var(--text2);
   }
 
+  .radar-error {
+    margin-top: 12px;
+    padding: 0.9rem 1rem;
+    border-radius: 16px;
+    border: 1px solid rgba(234, 67, 53, 0.18);
+    background: rgba(234, 67, 53, 0.08);
+    color: var(--red);
+    font-size: 0.84rem;
+    line-height: 1.55;
+  }
+
+  .radar-error.inline {
+    margin: 0 0 1rem;
+  }
+
+  .radar-summary {
+    background: var(--bg2);
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    padding: 1rem 1.1rem;
+    margin-bottom: 12px;
+  }
+
+  .radar-summary-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.75px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 0.45rem;
+  }
+
+  .radar-summary-text {
+    font-size: 0.86rem;
+    line-height: 1.6;
+    color: var(--text2);
+  }
+
   /* ── RESULTS ── */
   #radar-results .tema-card,
   #radar-results .radar-hero,
@@ -444,5 +862,25 @@ const radarCss = `
 
   #radar-results .section-label {
     animation-delay: 0.1s;
+  }
+
+  @media (max-width: 560px) {
+    .tema-top {
+      flex-direction: column;
+    }
+
+    .tema-meta {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .tema-save-btn {
+      padding: 6px 9px;
+    }
+
+    .radar-intro .btn-primary,
+    .btn-ghost {
+      width: 100%;
+    }
   }
 `

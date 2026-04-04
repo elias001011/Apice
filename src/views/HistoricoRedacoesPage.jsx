@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { loadEssayHistory, subscribeEssayHistory } from '../services/essayInsights.js'
 
 export function HistoricoRedacoesPage() {
   const [filtro, setFiltro] = useState('Todas')
-  const [historico, setHistorico] = useState([])
+  const [historico, setHistorico] = useState(() => loadEssayHistory())
 
   useEffect(() => {
-    try {
-      const h = JSON.parse(localStorage.getItem('apice:historico') || '[]')
-      setHistorico(h)
-    } catch { }
+    const refresh = () => setHistorico(loadEssayHistory())
+    return subscribeEssayHistory(refresh)
   }, [])
 
   const filtradas = historico.filter(h => {
@@ -21,17 +20,18 @@ export function HistoricoRedacoesPage() {
 
   // Format date helper
   const fmtDate = (iso) => {
-    if (!iso) return 'Recente';
+    if (!iso) return 'Recente'
     return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace(' de ', ' ')
   }
 
   return (
     <>
       <style>{historicoCss}</style>
-      <Link to="/corretor" className="back-link">
-        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-        Voltar ao corretor
-      </Link>
+      <div className="view-container">
+        <Link to="/corretor" className="back-link">
+          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+          Voltar ao corretor
+        </Link>
 
       <div className="page-header anim anim-d1">
         <div className="page-title">Histórico</div>
@@ -50,23 +50,53 @@ export function HistoricoRedacoesPage() {
         <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text2)', fontSize: 13 }}>
           Nenhuma redação encontrada.
         </div>
-      ) : filtradas.map((red, idx) => (
-        <Link to="/resultado-redacao" state={{ resultado: red.feedback }} className="redacao-item anim" style={{ animationDelay: `${0.1 + (idx * 0.05)}s` }} key={red.id}>
-          <div className="redacao-top">
-            <div className="redacao-tema">{red.tema}</div>
-            <div className="redacao-nota">{red.nota}</div>
-          </div>
-          <div className="redacao-meta">
-            <span className="redacao-date">{fmtDate(red.data)}</span>
-            <span className="redacao-mode">Registrado</span>
-          </div>
-          <div className="redacao-bars">
-             {red.feedback?.competencias?.map((c, i) => (
-                <div key={i} className="redacao-bar" style={{ height: `${Math.max(20, (c.nota/200)*100)}%`, background: c.nota < 120 ? 'var(--amber)' : 'var(--accent)', opacity: 0.8 }}></div>
-             ))}
-          </div>
-        </Link>
-      ))}
+      ) : (
+        <div className="historico-grid">
+          {filtradas.map((red, idx) => (
+            <Link
+              to={`/resultado-redacao?id=${encodeURIComponent(red.id)}`}
+              state={{ resultado: red.feedback, historyId: red.id }}
+              className="redacao-item anim"
+              style={{ animationDelay: `${0.1 + (idx * 0.05)}s` }}
+              key={red.id}
+            >
+              <div className="redacao-top">
+                <div className="redacao-tema">{red.tema}</div>
+                <div className="redacao-nota">{red.nota}</div>
+              </div>
+              <div className="redacao-meta">
+                <span className="redacao-date">{fmtDate(red.data)}</span>
+                <span className="redacao-mode">Registrado</span>
+              </div>
+              <div className="redacao-bars">
+                 {red.feedback?.competencias?.map((c, i) => (
+                    <div key={i} className="redacao-bar" style={{ height: `${Math.max(20, (c.nota/200)*100)}%`, background: c.nota < 120 ? 'var(--amber)' : 'var(--accent)', opacity: 0.8 }}></div>
+                 ))}
+              </div>
+              {Array.isArray(red.feedback?.errosPt) && red.feedback.errosPt.length > 0 && (
+                <div className="redacao-erros-pt">
+                  <div className="redacao-erros-pt-label">Erros de português</div>
+                  <div className="redacao-erros-pt-list">
+                    {red.feedback.errosPt.slice(0, 2).map((erro, erroIndex) => (
+                      <div key={`${red.id}-${erroIndex}`} className="redacao-erros-pt-item">
+                        <span className="word-wrong">{erro.errado || 'Erro'}</span>
+                        <span className="word-arrow">→</span>
+                        <span className="word-right">{erro.corrigido || 'correção'}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {red.feedback.errosPt.length > 2 && (
+                    <div className="redacao-erros-pt-more">
+                      +{red.feedback.errosPt.length - 2} outros
+                    </div>
+                  )}
+                </div>
+              )}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
     </>
   )
 }
@@ -108,6 +138,18 @@ const historicoCss = `
     text-decoration: none;
     display: block;
     transition: border-color 0.2s, transform 0.25s;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: fadeSlideUp 0.4s ease forwards;
+  }
+
+  @media (min-width: 768px) {
+    .historico-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .redacao-item { margin-bottom: 0; }
   }
   .redacao-item:hover {
     border-color: var(--border2);
@@ -162,5 +204,37 @@ const historicoCss = `
   .redacao-bar {
     flex: 1;
     border-radius: 3px;
+  }
+  .redacao-erros-pt {
+    margin-top: 0.9rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--border);
+  }
+  .redacao-erros-pt-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 0.45rem;
+    font-weight: 700;
+  }
+  .redacao-erros-pt-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .redacao-erros-pt-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: var(--text2);
+    line-height: 1.3;
+    flex-wrap: wrap;
+  }
+  .redacao-erros-pt-more {
+    margin-top: 0.35rem;
+    font-size: 0.72rem;
+    color: var(--text3);
   }
 `

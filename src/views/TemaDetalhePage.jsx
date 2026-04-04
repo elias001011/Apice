@@ -1,82 +1,445 @@
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { buscarRadarTemaDetalhe } from '../services/radarService.js'
+import { getEnemYearLabel } from '../services/examYear.js'
+import { isQuotaBlocked, UPGRADE_REASONS } from '../services/upgradeTrigger.js'
+import {
+  getRadarThemeId,
+  loadRadarSnapshot,
+  loadRadarThemeDetail,
+  normalizeRadarDetail,
+  normalizeRadarTheme,
+  subscribeRadarSnapshot,
+} from '../services/radarState.js'
+import { saveCorretorDraft } from '../services/corretorDraft.js'
+import { useAppBusy } from '../ui/AppBusyContext.jsx'
+import { useUpgradeModal } from '../ui/UpgradeModal.jsx'
+
+function formatDateLabel(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return ''
+  return date.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+function buildThemeFallback(themeTitle, probability = 70) {
+  return normalizeRadarTheme({
+    titulo: themeTitle || 'Tema do radar',
+    probabilidade: probability,
+    hot: probability >= 80,
+  }) || {
+    id: themeTitle || 'tema-do-radar',
+    titulo: themeTitle || 'Tema do radar',
+    probabilidade: probability,
+    hot: probability >= 80,
+  }
+}
+
+function humanizeThemeLabel(value) {
+  return String(value ?? '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+const SOURCE_KEY_SEP = '\u001f'
+
+/** Stable id from entry fields (no list index). Collisions resolved in materialSourceKeysForList. */
+function materialSourceKeyBase(f) {
+  const url = String(f?.url ?? '').trim()
+  if (url) return `u:${url}`
+  const nome = String(f?.nome ?? '').trim()
+  const trecho = String(f?.trecho ?? '').trim()
+  const dominio = String(f?.dominio ?? '').trim()
+  if (nome || trecho || dominio) {
+    return `s:${nome}${SOURCE_KEY_SEP}${trecho}${SOURCE_KEY_SEP}${dominio}`
+  }
+  return 'z:empty'
+}
+
+function materialSourceKeysForList(fontes) {
+  const counts = new Map()
+  return fontes.map((f) => {
+    const base = materialSourceKeyBase(f)
+    const n = counts.get(base) ?? 0
+    counts.set(base, n + 1)
+    return n === 0 ? base : `${base}~${n}`
+  })
+}
+
+function buildDetailFallback(theme, enemLabel) {
+  const title = theme?.titulo || humanizeThemeLabel(theme?.id) || `Tema do ${enemLabel}`
+  return {
+    id: getRadarThemeId(theme) || title,
+    temaId: getRadarThemeId(theme) || title,
+    titulo: title,
+    probabilidade: Number.isFinite(Number(theme?.probabilidade)) ? Number(theme.probabilidade) : 70,
+    resumo: `Detalhes do tema ${title} para apoiar a escrita no ${enemLabel}.`,
+    porQueProvavel: [
+      'O tema conversa com debate público atual e com recortes sociais comuns ao ENEM.',
+      'O radar trata este assunto como uma pista forte para a redação desta edição.',
+    ],
+    recorteSugerido: 'Foque em impacto social, desigualdade de acesso, políticas públicas e efeito coletivo.',
+    palavrasChave: [title, 'repertório', 'políticas públicas', 'cidadania'],
+    dicasDeEscrita: [
+      'Abra com uma tese clara sobre a dimensão social do problema.',
+      'Use um dado ou fonte logo no primeiro desenvolvimento.',
+      'Feche com intervenção objetiva e viável.',
+    ],
+    material: {
+      titulo: `Material de apoio - ${title}`,
+      resumo: `Resumo de apoio para o tema ${title}.`,
+      cards: [],
+      fontes: [],
+    },
+    searchResumo: '',
+    geradoEm: new Date().toISOString(),
+    origem: 'fallback',
+    savedAt: new Date().toISOString(),
+  }
+}
 
 export function TemaDetalhePage() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const enemLabel = getEnemYearLabel()
+  const { beginBusy, endBusy } = useAppBusy()
+  const { openUpgradeModal } = useUpgradeModal()
+
+  const routeTheme = location.state?.tema || null
+  const routeDetail = location.state?.detail || null
+  const queryThemeId = searchParams.get('tema') || ''
+  const snapshot = useMemo(() => loadRadarSnapshot(), [])
+
+  const snapshotTheme = useMemo(() => {
+    const currentSnapshot = snapshot || loadRadarSnapshot()
+    if (!currentSnapshot?.temas?.length) return null
+    if (queryThemeId) {
+      return currentSnapshot.temas.find((tema) => getRadarThemeId(tema) === queryThemeId) || null
+    }
+    return currentSnapshot.temas[0] || null
+  }, [snapshot, queryThemeId])
+
+  const baseTheme = useMemo(() => {
+    const candidate = routeTheme || routeDetail || snapshotTheme || { titulo: queryThemeId ? humanizeThemeLabel(decodeURIComponent(queryThemeId)) : `Radar ${enemLabel}` }
+    return buildThemeFallback(
+      candidate?.titulo || `Radar ${enemLabel}`,
+      Number.isFinite(Number(candidate?.probabilidade)) ? Number(candidate.probabilidade) : 70,
+    )
+  }, [routeTheme, routeDetail, snapshotTheme, queryThemeId, enemLabel])
+
+  const currentThemeId = useMemo(() => queryThemeId || getRadarThemeId(baseTheme), [queryThemeId, baseTheme])
+
+  const initialDetail = useMemo(() => {
+    if (routeDetail) {
+      return normalizeRadarDetail(routeDetail) || buildDetailFallback(baseTheme, enemLabel)
+    }
+
+    if (!currentThemeId) return null
+
+    const cached = loadRadarThemeDetail(currentThemeId)
+    return cached || null
+  }, [routeDetail, currentThemeId, baseTheme, enemLabel])
+
+  const [tema, setTema] = useState(baseTheme)
+  const [detail, setDetail] = useState(initialDetail)
+  const [loading, setLoading] = useState(!initialDetail)
+  const [errorMsg, setErrorMsg] = useState('')
+
+  useEffect(() => {
+    setTema(baseTheme)
+  }, [baseTheme])
+
+  const syncDetailFromStorage = useCallback(() => {
+    if (!currentThemeId) return null
+
+    const cached = loadRadarThemeDetail(currentThemeId)
+    if (!cached) return null
+
+    setDetail(cached)
+    setTema(buildThemeFallback(cached.titulo, cached.probabilidade))
+    setErrorMsg('')
+    setLoading(false)
+    return cached
+  }, [currentThemeId])
+
+  useEffect(() => {
+    if (!currentThemeId) return undefined
+
+    const refreshFromStorage = () => {
+      syncDetailFromStorage()
+    }
+
+    refreshFromStorage()
+    const unsubscribe = subscribeRadarSnapshot(refreshFromStorage)
+    return unsubscribe
+  }, [currentThemeId, syncDetailFromStorage])
+
+  useEffect(() => {
+    let active = true
+    let busyStarted = false
+
+    const syncDetail = async () => {
+      if (!currentThemeId) {
+        setLoading(false)
+        return
+      }
+
+      const cached = loadRadarThemeDetail(currentThemeId)
+      if (cached) {
+        if (active) {
+          setDetail(cached)
+          setTema(buildThemeFallback(cached.titulo, cached.probabilidade))
+          setErrorMsg('')
+          setLoading(false)
+        }
+        return
+      }
+
+      if (isQuotaBlocked()) {
+        if (active) {
+          setErrorMsg('Sua cota de IA de hoje acabou. Os detalhes salvos continuam visíveis, mas um novo detalhe precisa de quota disponível.')
+          setLoading(false)
+          openUpgradeModal({ reason: UPGRADE_REASONS.QUOTA_BLOCKED })
+        }
+        return
+      }
+
+      // Sem cache — vai chamar a IA; ativa overlay global
+      if (active) {
+        setLoading(true)
+        setErrorMsg('')
+        beginBusy()
+        busyStarted = true
+      }
+
+      try {
+        const fetched = await buscarRadarTemaDetalhe({
+          id: currentThemeId,
+          titulo: baseTheme.titulo,
+          probabilidade: baseTheme.probabilidade,
+          hot: baseTheme.hot,
+        })
+
+        if (!active) return
+
+        const storedDetail = loadRadarThemeDetail(currentThemeId)
+        const normalizedDetail = storedDetail || normalizeRadarDetail(fetched) || buildDetailFallback(baseTheme, enemLabel)
+        setDetail(normalizedDetail)
+        setTema(buildThemeFallback(normalizedDetail.titulo, normalizedDetail.probabilidade))
+        setErrorMsg('')
+      } catch (error) {
+        if (!active) return
+        if (error?.code === 'quota_blocked') {
+          setErrorMsg(error?.message || 'Sua cota de IA de hoje acabou.')
+          openUpgradeModal({ reason: UPGRADE_REASONS.QUOTA_BLOCKED })
+          setDetail((currentDetail) => currentDetail || buildDetailFallback(baseTheme, enemLabel))
+          return
+        }
+        setErrorMsg(error?.message || 'Não foi possível carregar os detalhes deste tema agora.')
+        setDetail((currentDetail) => currentDetail || buildDetailFallback(baseTheme, enemLabel))
+      } finally {
+        if (active) {
+          setLoading(false)
+          if (busyStarted) {
+            endBusy()
+            busyStarted = false
+          }
+        }
+      }
+    }
+
+    void syncDetail()
+    return () => {
+      active = false
+      if (busyStarted) {
+        endBusy()
+      }
+    }
+  }, [currentThemeId, baseTheme, enemLabel, beginBusy, endBusy, openUpgradeModal])
+
+  const currentDetail = detail || buildDetailFallback(tema, enemLabel)
+  const title = currentDetail.titulo || tema.titulo
+  const probability = Number.isFinite(Number(currentDetail.probabilidade))
+    ? Number(currentDetail.probabilidade)
+    : Number.isFinite(Number(tema.probabilidade))
+      ? Number(tema.probabilidade)
+      : 70
+  const keywords = Array.isArray(currentDetail.palavrasChave) ? currentDetail.palavrasChave : []
+  const reasons = Array.isArray(currentDetail.porQueProvavel) ? currentDetail.porQueProvavel : []
+  const tips = Array.isArray(currentDetail.dicasDeEscrita) ? currentDetail.dicasDeEscrita : []
+  const material = currentDetail.material && typeof currentDetail.material === 'object'
+    ? currentDetail.material
+    : { titulo: `Material de apoio - ${title}`, resumo: '', cards: [], fontes: [] }
+  const cards = Array.isArray(material.cards) ? material.cards : []
+  const fontes = Array.isArray(material.fontes) ? material.fontes : []
+  const fonteRowKeys = materialSourceKeysForList(fontes)
+
+  const handleWriteTheme = () => {
+    saveCorretorDraft({
+      hasStarted: true,
+      tema: title,
+      material,
+      redacao: '',
+      isRigido: false,
+      themeMode: 'manual',
+    })
+    navigate('/corretor')
+  }
+
+  // Se não tem detalhes E está carregando, mostra tela cheia de loading (como no Radar)
+  if (!detail && loading) {
+    return (
+      <>
+        <style>{temaDetalheCss}</style>
+        <div className="radar-loading show" style={{ height: '70vh', justifyContent: 'center' }}>
+          <div className="radar-spinner" />
+          <div className="radar-loading-text">Analisando o tema com IA...</div>
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <style>{temaDetalheCss}</style>
-      <Link to="/radar" className="back-link">
-        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-        Voltar ao Radar 1000
-      </Link>
+      <div className="view-container">
+        <Link to="/radar" className="back-link">
+          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+          Voltar ao Radar 1000
+        </Link>
 
       <div className="prob-hero anim anim-d1">
         <div className="prob-hero-left">
           <div className="prob-hero-label">Tema em análise</div>
-          <div className="prob-hero-tema">Inteligência artificial e o mercado de trabalho</div>
+          <div className="prob-hero-tema">{title}</div>
+          <div className="prob-hero-note">
+            {loading ? 'Carregando detalhes do radar...' : `Atualizado para o ${enemLabel}.`}
+            {currentDetail.savedAt ? ` Salvo em ${formatDateLabel(currentDetail.savedAt)}.` : ''}
+          </div>
         </div>
         <div className="prob-circle">
-          <div className="prob-circle-num">87</div>
+          <div className="prob-circle-num">{probability}</div>
           <div className="prob-circle-pct">%</div>
         </div>
       </div>
 
-      <div className="tags-row anim anim-d1">
-        <span className="tag">Tecnologia</span>
-        <span className="tag">Trabalho</span>
-        <span className="tag">Desigualdade</span>
-        <span className="tag">ENEM 2025</span>
-      </div>
+      {errorMsg && (
+        <div className="card anim anim-d1 detail-error">
+          {errorMsg}
+        </div>
+      )}
+
+      {keywords.length > 0 && (
+        <div className="tags-row anim anim-d1">
+          {keywords.slice(0, 6).map((tag, index) => (
+            <span key={`${tag}-${index}`} className="tag">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="card anim anim-d2">
-        <div className="card-title">Por que este tema é provável</div>
-        <div className="motivo-item">
-          <div className="motivo-dot"></div>
-          <div className="motivo-text">O ENEM acompanha o debate público com 1–2 anos de defasagem. A IA dominou noticiários em 2023 e 2024, tornando 2025 o momento natural para a abordagem.</div>
-        </div>
-        <div className="motivo-item">
-          <div className="motivo-dot"></div>
-          <div className="motivo-text">Temas de tecnologia e impacto social aparecem a cada 2 edições. A última abordagem direta foi em 2022 (manipulação comportamental).</div>
-        </div>
-        <div className="motivo-item">
-          <div className="motivo-dot"></div>
-          <div className="motivo-text">O enfoque esperado é social, não técnico: desemprego estrutural, desigualdade de acesso, requalificação profissional — todos alinhados com o perfil do ENEM.</div>
-        </div>
+        <div className="card-title">Por que este tema entra no radar</div>
+        {reasons.length > 0 ? reasons.map((reason, index) => (
+          <div className="motivo-item" key={`${reason}-${index}`}>
+            <div className="motivo-dot"></div>
+            <div className="motivo-text">{reason}</div>
+          </div>
+        )) : (
+          <div className="motivo-item">
+            <div className="motivo-dot"></div>
+            <div className="motivo-text">
+              O radar manteve este tema por relevancia publica, recorrencia historica e aderencia ao tipo de abordagem que o ENEM costuma priorizar.
+            </div>
+          </div>
+        )}
+        {currentDetail.searchResumo && (
+          <div className="detail-search-resumo">
+            <strong>Leitura da busca:</strong> {currentDetail.searchResumo}
+          </div>
+        )}
       </div>
 
       <div className="card anim anim-d3">
-        <div className="card-title">Repertórios recomendados</div>
-        <div className="repertorio-item">
-          <div className="rep-nome">Zygmunt Bauman — Modernidade Líquida</div>
-          <div className="rep-uso">A fluidez das relações de trabalho e a precarização do emprego na era digital.</div>
-          <div className="rep-como">Use com produtividade: conecte diretamente ao tema da instabilidade gerada pela automação, não apenas cite o nome.</div>
-        </div>
-        <div className="repertorio-item">
-          <div className="rep-nome">Relatório da OIT (2023)</div>
-          <div className="rep-uso">Estima que 25% dos empregos no Brasil têm alta probabilidade de automação até 2030.</div>
-          <div className="rep-como">Dado forte para C2 — atribua corretamente à Organização Internacional do Trabalho.</div>
-        </div>
-        <div className="repertorio-item">
-          <div className="rep-nome">Constituição Federal — Art. 7º</div>
-          <div className="rep-uso">Direito ao trabalho digno como direito social fundamental.</div>
-          <div className="rep-como">Ótimo para C5 — ao propor intervenção do Estado, referencie o dever constitucional.</div>
-        </div>
+        <div className="card-title">Material de apoio</div>
+        {material.resumo && <div className="detail-material-summary">{material.resumo}</div>}
+        {cards.length > 0 && (
+          <div className="material-cards-grid">
+            {cards.map((card, index) => (
+              <article className="material-card" key={`${card.titulo || 'card'}-${index}`}>
+                <div className="material-card-title">{card.titulo || `Card ${index + 1}`}</div>
+                <div className="material-card-text">{card.texto || card.trecho || 'Sem texto adicional.'}</div>
+                <div className="material-card-meta">
+                  <span>{card.fonte || 'Fonte não informada'}</span>
+                  {card.url && (
+                    <a href={card.url} target="_blank" rel="noreferrer">
+                      Abrir fonte
+                    </a>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+        {fontes.length > 0 && (
+          <div className="material-source-list">
+            <div className="material-source-label">Fontes complementares</div>
+            {fontes.map((f, i) => (
+              f.url ? (
+                <a
+                  key={fonteRowKeys[i]}
+                  className="material-source-item"
+                  href={f.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>{f.nome || f.dominio || 'Fonte'}</span>
+                  <small>{f.url}</small>
+                </a>
+              ) : (
+                <div key={fonteRowKeys[i]} className="material-source-item">
+                  <span>{f.nome || 'Fonte'}</span>
+                </div>
+              )
+            ))}
+          </div>
+        )}
+
       </div>
 
       <div className="card anim anim-d4">
-        <div className="card-title">Estrutura sugerida para C5</div>
-        <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.65 }}>
-          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Agente:</strong> O Ministério do Trabalho e Emprego<br />
-          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Ação:</strong> deve implementar programas de requalificação profissional<br />
-          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Meio:</strong> por meio de parcerias com universidades e plataformas de ensino digital<br />
-          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Finalidade:</strong> para garantir a inserção dos trabalhadores deslocados pela automação<br />
-          <strong style={{ color: 'var(--accent)', fontWeight: 500 }}>Detalhe:</strong> respeitando o Art. 7º da Constituição Federal
-        </div>
+        <div className="card-title">Como levar isso para a redação</div>
+        {currentDetail.recorteSugerido && (
+          <div className="detail-recorte">
+            <strong>Recorte sugerido:</strong> {currentDetail.recorteSugerido}
+          </div>
+        )}
+        {tips.length > 0 ? tips.map((tip, index) => (
+          <div className="repertorio-item" key={`${tip}-${index}`}>
+            <div className="rep-nome">Dica {index + 1}</div>
+            <div className="rep-uso">{tip}</div>
+          </div>
+        )) : (
+          <div className="repertorio-item">
+            <div className="rep-uso">Use o tema com foco social, tese clara e intervenção viável. O material acima já foi preparado para servir de apoio direto.</div>
+          </div>
+        )}
       </div>
 
       <div className="cta-row anim anim-d4">
-        <Link to="/corretor" className="btn-primary">Escrever sobre este tema</Link>
+        <button type="button" className="btn-primary" onClick={handleWriteTheme}>
+          Escrever sobre este tema
+        </button>
         <Link to="/radar" className="btn-ghost">Ver outros temas</Link>
       </div>
+    </div>
     </>
   )
 }
@@ -93,6 +456,7 @@ const temaDetalheCss = `
     justify-content: space-between;
     position: relative;
     overflow: hidden;
+    gap: 1rem;
   }
   .prob-hero::after {
     content: '';
@@ -118,7 +482,13 @@ const temaDetalheCss = `
     color: var(--text);
     letter-spacing: -0.3px;
     line-height: 1.3;
-    max-width: 220px;
+    max-width: 420px;
+  }
+  .prob-hero-note {
+    margin-top: 0.45rem;
+    font-size: 0.78rem;
+    color: var(--text2);
+    line-height: 1.5;
   }
   .prob-circle {
     width: 68px;
@@ -147,7 +517,7 @@ const temaDetalheCss = `
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-bottom: 1.25rem;
+    margin-bottom: 1.1rem;
   }
   .tag {
     background: var(--bg2);
@@ -178,6 +548,107 @@ const temaDetalheCss = `
     color: var(--text);
     line-height: 1.55;
   }
+  .detail-search-resumo,
+  .detail-recorte,
+  .detail-material-summary {
+    margin-top: 0.85rem;
+    padding: 0.9rem 1rem;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    font-size: 0.82rem;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+  .detail-search-resumo strong,
+  .detail-recorte strong {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .detail-material-summary {
+    margin-top: 0;
+    margin-bottom: 0.95rem;
+    color: var(--text);
+  }
+  .material-cards-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  @media (min-width: 760px) {
+    .material-cards-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .material-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 0.95rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .material-card-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .material-card-text {
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--text2);
+  }
+  .material-card-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.72rem;
+    color: var(--text3);
+    flex-wrap: wrap;
+  }
+  .material-card-meta a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .material-source-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding-top: 0.75rem;
+  }
+  .material-source-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text3);
+    letter-spacing: 0.5px;
+  }
+  .material-source-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    text-decoration: none;
+    color: inherit;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 0.8rem 0.9rem;
+  }
+  .material-source-item span {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .material-source-item small {
+    font-size: 0.7rem;
+    color: var(--text3);
+    word-break: break-all;
+  }
   .repertorio-item {
     padding: 12px 0;
   }
@@ -195,11 +666,13 @@ const temaDetalheCss = `
     color: var(--text2);
     line-height: 1.5;
   }
-  .rep-como {
-    font-size: 0.75rem;
-    color: var(--accent);
-    margin-top: 4px;
-    font-weight: 500;
+  .detail-error {
+    margin-bottom: 12px;
+    border: 1px solid rgba(255, 107, 107, 0.2);
+    background: rgba(255, 107, 107, 0.05);
+    color: var(--red);
+    font-size: 0.82rem;
+    line-height: 1.55;
   }
   .cta-row {
     display: grid;

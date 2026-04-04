@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 
 export function EsqueciSenhaPage() {
@@ -20,7 +20,12 @@ export function EsqueciSenhaPage() {
       setSent(true)
     } catch (err) {
       console.error('Recovery error:', err)
-      setError('Ocorreu um erro ao solicitar a recuperação. Verifique o e-mail.')
+      const rawMsg = String(err?.message || err?.error_description || '')
+      if (/not found|no user|not registered|unknown email|não encontrado/i.test(rawMsg)) {
+        setError('Não encontramos uma conta com esse e-mail.')
+      } else {
+        setError('Não foi possível enviar o link de recuperação. Verifique o e-mail e tente novamente.')
+      }
     } finally {
       setLoading(false)
     }
@@ -42,7 +47,7 @@ export function EsqueciSenhaPage() {
             <div className="es-title">Recuperar senha</div>
             <div className="es-sub">
               {sent 
-                ? 'Link enviado! Verifique sua caixa de entrada para redefinir sua senha.' 
+                ? 'Se existir uma conta com esse e-mail, um link de redefinição será enviado.' 
                 : 'Informe seu e-mail e enviaremos um link para redefinir sua senha.'}
             </div>
           </div>
@@ -110,7 +115,7 @@ const esqueciSenhaCss = `
     transform: translateX(-50%);
     width: 600px;
     height: 600px;
-    background: radial-gradient(circle, rgba(200, 240, 96, 0.06) 0%, transparent 65%);
+    background: radial-gradient(circle, rgba(var(--accent-rgb), 0.06) 0%, transparent 65%);
     pointer-events: none;
     z-index: 0;
   }

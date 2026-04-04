@@ -1,12 +1,36 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import { saveVerificationPassword } from '../services/identityAuth.js'
+import { POLICY_URL, loadPolicyConsent, savePolicyConsent } from '../services/policyConsent.js'
+import { EmailSuggestions } from '../ui/EmailSuggestions.jsx'
+
+function EyeOpen() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+function EyeOff() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
+      <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  )
+}
 
 export function CadastroPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPass, setShowPass] = useState(false)
   const [nome, setNome] = useState('')
   const [sobrenome, setSobrenome] = useState('')
+  const [acceptedPolicies, setAcceptedPolicies] = useState(() => loadPolicyConsent())
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   
@@ -16,6 +40,12 @@ export function CadastroPage() {
   const handleSignup = async (e) => {
     e.preventDefault()
     setError('')
+
+    if (!acceptedPolicies) {
+      setError('Você precisa aceitar os Termos de uso e a Política de privacidade para criar sua conta.')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -23,11 +53,19 @@ export function CadastroPage() {
         full_name: `${nome} ${sobrenome}`.trim(),
         first_name: nome
       })
-      alert('Conta criada com sucesso! Verifique seu e-mail para confirmar o cadastro.')
-      navigate('/login')
+      // Salva a senha temporariamente para possível reenvio de confirmação
+      saveVerificationPassword(password)
+      navigate('/verificar-email', { state: { email } })
     } catch (err) {
       console.error('Signup error:', err)
-      setError('Erro ao criar conta. Verifique os dados ou tente outro e-mail.')
+      const msg = err?.json?.msg || err?.message || ''
+      if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exists')) {
+        setError('Este e-mail já está cadastrado. Tente fazer login.')
+      } else if (msg) {
+        setError(`Erro: ${msg}`)
+      } else {
+        setError('Erro ao criar conta. Verifique os dados ou tente outro e-mail.')
+      }
     } finally {
       setLoading(false)
     }
@@ -41,17 +79,18 @@ export function CadastroPage() {
         <div className="cad-wrap">
           <div className="cad-top anim anim-d1">
             <Link to="/login" className="cad-logo" style={{ textDecoration: 'none' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 17 9 11 13 15 21 7" />
-                <polyline points="14 7 21 7 21 14" />
-              </svg>
+              <div className="logo-icon" />
             </Link>
             <div className="cad-title">Criar conta gratuita</div>
             <div className="cad-sub">Comece a estudar para o ENEM hoje</div>
           </div>
 
           <form onSubmit={handleSignup} className="cad-card anim anim-d2">
-            {error && <div className="error-msg">{error}</div>}
+            {error && (
+              <div className="error-msg" role="alert" aria-live="assertive">
+                {error}
+              </div>
+            )}
             
             <div className="cad-input-row">
               <div>
@@ -87,28 +126,55 @@ export function CadastroPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                list="cad-email-list"
               />
+              <EmailSuggestions id="cad-email-list" value={email} />
             </div>
 
             <div className="cad-input-group">
               <label className="input-label">Senha</label>
-              <input 
-                type="password" 
-                className="input-field" 
-                placeholder="Mínimo 8 caracteres" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={8}
-              />
+              <div className="pass-wrap">
+                <input 
+                  type={showPass ? 'text' : 'password'}
+                  className="input-field" 
+                  placeholder="Mínimo 8 caracteres" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                />
+                <button
+                  type="button"
+                  className="pass-toggle"
+                  onClick={() => setShowPass((v) => !v)}
+                  aria-label={showPass ? 'Ocultar senha' : 'Mostrar senha'}
+                >
+                  {showPass ? <EyeOff /> : <EyeOpen />}
+                </button>
+              </div>
             </div>
 
             <div className="cad-terms">
-              <input type="checkbox" id="termos" required />
+              <input
+                type="checkbox"
+                id="termos"
+                checked={acceptedPolicies}
+                onChange={(e) => {
+                  const next = e.target.checked
+                  setAcceptedPolicies(next)
+                  savePolicyConsent(next)
+                }}
+              />
               <label htmlFor="termos">
-                Concordo com os <Link to="/termos">Termos de uso</Link> e a <Link to="/privacidade">Política de privacidade</Link>
+                Concordo com os <a href={POLICY_URL} target="_blank" rel="noreferrer">Termos de uso</a> e a <a href={POLICY_URL} target="_blank" rel="noreferrer">Política de privacidade</a>
               </label>
             </div>
+
+            {!acceptedPolicies && (
+              <p className="cad-terms-note" aria-live="polite">
+                Aceite os termos para criar sua conta.
+              </p>
+            )}
 
             <button className="btn-primary" type="submit" disabled={loading}>
               {loading ? 'Criando conta...' : 'Criar minha conta'}
@@ -152,7 +218,7 @@ const cadastroCss = `
     transform: translateX(-50%);
     width: 600px;
     height: 600px;
-    background: radial-gradient(circle, rgba(200, 240, 96, 0.06) 0%, transparent 65%);
+    background: radial-gradient(circle, rgba(var(--accent-rgb), 0.06) 0%, transparent 65%);
     pointer-events: none;
     z-index: 0;
   }
@@ -183,6 +249,21 @@ const cadastroCss = `
     position: relative;
     cursor: pointer;
     flex-shrink: 0;
+    color: #0f0f0f;
+  }
+
+  .cad-logo .logo-icon {
+    width: 26px;
+    height: 26px;
+    background-color: currentColor;
+    mask-image: url('/favicon.svg');
+    -webkit-mask-image: url('/favicon.svg');
+    mask-size: contain;
+    -webkit-mask-size: contain;
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-position: center;
   }
 
   .cad-title {
@@ -245,6 +326,43 @@ const cadastroCss = `
     text-decoration: none;
     font-weight: 500;
   }
+
+  .cad-terms label a:hover {
+    text-decoration: underline;
+  }
+
+  .cad-terms-note {
+    margin: -0.35rem 0 1rem 26px;
+    font-size: 0.75rem;
+    color: var(--amber);
+    line-height: 1.45;
+  }
+
+  .pass-wrap {
+    position: relative;
+  }
+
+  .pass-wrap .input-field {
+    padding-right: 42px;
+    width: 100%;
+  }
+
+  .pass-toggle {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text3);
+    display: flex;
+    align-items: center;
+    padding: 0;
+    transition: color 0.2s;
+  }
+
+  .pass-toggle:hover { color: var(--text); }
 
   .cad-footer {
     text-align: center;

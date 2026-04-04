@@ -1,10 +1,11 @@
 {
   "name": "apice-react",
   "private": true,
-  "version": "0.0.04",
+  "version": "1.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/sync-version.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"

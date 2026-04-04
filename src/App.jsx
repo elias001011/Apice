@@ -6,17 +6,21 @@ import { PerfilPage } from './views/PerfilPage.jsx'
 import { SimplePage } from './views/SimplePage.jsx'
 import { CorretorPage } from './views/CorretorPage.jsx'
 import { RadarPage } from './views/RadarPage.jsx'
+import { ConquistasPage } from './views/ConquistasPage.jsx'
 import { CadastroPage } from './views/CadastroPage.jsx'
 import { EsqueciSenhaPage } from './views/EsqueciSenhaPage.jsx'
 import { HistoricoRedacoesPage } from './views/HistoricoRedacoesPage.jsx'
 import { ResultadoRedacaoPage } from './views/ResultadoRedacaoPage.jsx'
 import { NotificacoesPage } from './views/NotificacoesPage.jsx'
 import { AparenciaPage } from './views/AparenciaPage.jsx'
+import { PlanosPage } from './views/PlanosPage.jsx'
+import { ProfessorPage } from './views/ProfessorPage.jsx'
 import { EditarPerfilPage } from './views/EditarPerfilPage.jsx'
 import { SobrePage } from './views/SobrePage.jsx'
 import { TemaDetalhePage } from './views/TemaDetalhePage.jsx'
 import { RedefinirSenhaPage } from './views/RedefinirSenhaPage.jsx'
 import { ConfirmarEmailPage } from './views/ConfirmarEmailPage.jsx'
+import { VerificarEmailPage } from './views/VerificarEmailPage.jsx'
 import { useAuth } from './auth/useAuth.js'
 
 /**
@@ -53,6 +57,7 @@ export default function App() {
       <Route path="/esqueci-senha" element={<EsqueciSenhaPage />} />
       <Route path="/redefinir-senha" element={<RedefinirSenhaPage />} />
       <Route path="/confirmar-email" element={<ConfirmarEmailPage />} />
+      <Route path="/verificar-email" element={<VerificarEmailPage />} />
       
       <Route element={
         <AuthWrapper>
@@ -61,7 +66,9 @@ export default function App() {
       }>
         <Route path="/home" element={<HomePage />} />
         <Route path="/corretor" element={<CorretorPage />} />
+        <Route path="/professor" element={<ProfessorPage />} />
         <Route path="/radar" element={<RadarPage />} />
+        <Route path="/conquistas" element={<ConquistasPage />} />
         <Route path="/perfil" element={<PerfilPage />} />
         <Route path="/editar-perfil" element={<EditarPerfilPage />} />
         <Route path="/notificacoes" element={<NotificacoesPage />} />
@@ -70,6 +77,7 @@ export default function App() {
         <Route path="/resultado-redacao" element={<ResultadoRedacaoPage />} />
         <Route path="/tema-detalhe" element={<TemaDetalhePage />} />
         <Route path="/aparencia" element={<AparenciaPage />} />
+        <Route path="/planos" element={<PlanosPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

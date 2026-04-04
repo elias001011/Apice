@@ -1,24 +1,36 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import {
+  loadNotificationPreferences,
+  saveNotificationPreferences,
+  subscribeNotificationPreferences,
+} from '../services/notificationPreferences.js'
 
 export function NotificacoesPage() {
-  const [toggles, setToggles] = useState({
-    radar: true,
-    lembrete: true,
-    dicas: false,
-    app: true
-  })
+  const [toggles, setToggles] = useState(() => loadNotificationPreferences())
+
+  useEffect(() => {
+    const refresh = () => setToggles(loadNotificationPreferences())
+    refresh()
+    const unsubscribe = subscribeNotificationPreferences(refresh)
+    return unsubscribe
+  }, [])
 
   const handleToggle = (key) => {
-    setToggles(prev => ({ ...prev, [key]: !prev[key] }))
+    setToggles((prev) => {
+      const next = { ...prev, [key]: !prev[key] }
+      saveNotificationPreferences(next)
+      return next
+    })
   }
 
   return (
     <>
-      <Link to="/perfil" className="back-link">
-        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-        Voltar ao perfil
-      </Link>
+      <div className="view-container">
+        <Link to="/perfil" className="back-link">
+          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+          Voltar ao perfil
+        </Link>
       <div className="page-header anim anim-d1">
         <div className="page-title">Notificações</div>
         <div className="page-sub">Escolha quais avisos deseja receber do Ápice.</div>
@@ -26,6 +38,9 @@ export function NotificacoesPage() {
 
       <div className="card anim anim-d2">
         <div className="card-title">E-mail</div>
+        <div style={{ fontSize: '0.8rem', color: 'var(--text3)', marginBottom: '1rem', lineHeight: 1.5 }}>
+          Essas preferências ficam salvas na conta e sincronizam entre dispositivos.
+        </div>
         <div className="toggle-row">
           <div className="toggle-info">
             <div className="toggle-label">Novos temas no Radar 1000</div>
@@ -67,6 +82,7 @@ export function NotificacoesPage() {
           </div>
         </div>
       </div>
+    </div>
     </>
   )
 }

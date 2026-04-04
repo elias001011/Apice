@@ -1,9 +1,20 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
 const STORAGE_KEY_THEME = 'apice:theme'
 const STORAGE_KEY_ACCENT = 'apice:accent'
 const STORAGE_KEY_FONT = 'apice:font'
 const STORAGE_KEY_FONT_FAMILY = 'apice:fontFamily'
+const STORAGE_KEY_LAYOUT = 'apice:layoutMode'
+const STORAGE_KEY_CONTAINER_SIZE = 'apice:containerSize'
+const STORAGE_KEY_ANIMATIONS = 'apice:animationsEnabled'
+const STORAGE_KEY_CARD_HOVER = 'apice:cardHoverEffects'
+const STORAGE_KEY_VISUAL_EFFECTS = 'apice:visualEffects'
+const STORAGE_KEY_CARD_GRADIENTS = 'apice:cardGradients'
+const MOBILE_LAYOUT_QUERY = '(max-width: 767px)'
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
+
+const VALID_CONTAINER_SIZES = new Set(['sm', 'md', 'lg'])
 
 function readSaved(key, defaultVal) {
   try {
@@ -13,6 +24,51 @@ function readSaved(key, defaultVal) {
     // ignore
   }
   return defaultVal
+}
+
+function readSavedBoolean(key, defaultVal) {
+  try {
+    const v = localStorage.getItem(key)
+    if (v === null) return defaultVal
+    return v === 'true'
+  } catch {
+    return defaultVal
+  }
+}
+
+function getSystemTheme() {
+  if (typeof window === 'undefined') return 'light'
+  return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light'
+}
+
+function getSystemAnimationsEnabled() {
+  if (typeof window === 'undefined') return true
+  return !(window.matchMedia?.(REDUCED_MOTION_QUERY)?.matches ?? false)
+}
+
+function getIsMobileLayout() {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia?.(MOBILE_LAYOUT_QUERY)?.matches ?? false
+}
+
+function normalizeContainerSize(size) {
+  return VALID_CONTAINER_SIZES.has(size) ? size : 'sm'
+}
+
+function attachMediaQueryListener(mediaQuery, handler) {
+  if (!mediaQuery) return () => {}
+
+  if (typeof mediaQuery.addEventListener === 'function') {
+    mediaQuery.addEventListener('change', handler)
+    return () => mediaQuery.removeEventListener('change', handler)
+  }
+
+  if (typeof mediaQuery.addListener === 'function') {
+    mediaQuery.addListener(handler)
+    return () => mediaQuery.removeListener(handler)
+  }
+
+  return () => {}
 }
 
 const ACCENT_COLORS = {
@@ -69,12 +125,43 @@ function applyFontFamily(fontFamily) {
   }
 }
 
-function applyThemeToDom(theme, accent, fontSize, fontFamily) {
+function updateBrandAssets() {
+  if (typeof document === 'undefined') return
+
+  let themeMeta = document.querySelector('meta[name="theme-color"]')
+  if (!themeMeta) {
+    themeMeta = document.createElement('meta')
+    themeMeta.name = 'theme-color'
+    document.head.appendChild(themeMeta)
+  }
+  themeMeta.setAttribute('content', '#000000')
+}
+
+function applyLayoutToDom(layoutMode) {
+  const html = document.documentElement
+  if (layoutMode === 'compact') {
+    html.classList.add('layout-compact')
+  } else {
+    html.classList.remove('layout-compact')
+  }
+}
+
+function applyUiPreferencesToDom(animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled) {
+  const html = document.documentElement
+  html.setAttribute('data-animations', animationsEnabled ? 'on' : 'off')
+  html.setAttribute('data-card-hover', cardHoverEffects ? 'on' : 'off')
+  html.setAttribute('data-fx', visualEffects || 'gradients')
+  html.setAttribute('data-card-gradients', cardGradientsEnabled ? 'on' : 'off')
+}
+
+function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
   const html = document.documentElement
   if (theme === 'dark') html.setAttribute('data-theme', 'dark')
   else html.removeAttribute('data-theme')
+  html.style.colorScheme = theme === 'dark' ? 'dark' : 'light'
   
   html.setAttribute('data-font', fontSize || 'md')
+  html.setAttribute('data-layout-size', normalizeContainerSize(containerSize))
 
   const safeAccent = ACCENT_COLORS[accent] ? accent : 'lime'
   const colors = ACCENT_COLORS[safeAccent][theme === 'dark' ? 'dark' : 'light']
@@ -86,27 +173,119 @@ function applyThemeToDom(theme, accent, fontSize, fontFamily) {
   html.style.setProperty('--accent-dim2', colors.dim2)
 
   applyFontFamily(fontFamily || 'dm-sans')
+  updateBrandAssets()
+}
+
+function syncThemeFromStorage(
+  setTheme,
+  setAccent,
+  setFontSize,
+  setFontFamily,
+  setLayoutMode,
+  setContainerSize,
+  setAnimationsEnabled,
+  setCardHoverEffects,
+  setVisualEffects,
+  setCardGradientsEnabled,
+) {
+  setTheme(readSaved(STORAGE_KEY_THEME, getSystemTheme()))
+  setAccent(readSaved(STORAGE_KEY_ACCENT, 'lime'))
+  setFontSize(readSaved(STORAGE_KEY_FONT, 'md'))
+  setFontFamily(readSaved(STORAGE_KEY_FONT_FAMILY, 'dm-sans'))
+  setLayoutMode(readSaved(STORAGE_KEY_LAYOUT, 'comfortable'))
+  setContainerSize(readSaved(STORAGE_KEY_CONTAINER_SIZE, 'sm'))
+  setAnimationsEnabled(readSavedBoolean(STORAGE_KEY_ANIMATIONS, getSystemAnimationsEnabled()))
+  setCardHoverEffects(readSavedBoolean(STORAGE_KEY_CARD_HOVER, !getIsMobileLayout()))
+  setVisualEffects(readSaved(STORAGE_KEY_VISUAL_EFFECTS, 'gradients'))
+  setCardGradientsEnabled(readSavedBoolean(STORAGE_KEY_CARD_GRADIENTS, false))
 }
 
 const ThemeContext = createContext(null)
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => readSaved(STORAGE_KEY_THEME, 'light'))
+  const [theme, setTheme] = useState(() => readSaved(STORAGE_KEY_THEME, getSystemTheme()))
   const [accent, setAccent] = useState(() => readSaved(STORAGE_KEY_ACCENT, 'lime'))
   const [fontSize, setFontSize] = useState(() => readSaved(STORAGE_KEY_FONT, 'md'))
   const [fontFamily, setFontFamily] = useState(() => readSaved(STORAGE_KEY_FONT_FAMILY, 'dm-sans'))
+  const [layoutMode, setLayoutMode] = useState(() => readSaved(STORAGE_KEY_LAYOUT, 'comfortable'))
+  const [containerSize, setContainerSize] = useState(() => readSaved(STORAGE_KEY_CONTAINER_SIZE, 'sm'))
+  const [animationsEnabled, setAnimationsEnabled] = useState(() => readSavedBoolean(STORAGE_KEY_ANIMATIONS, getSystemAnimationsEnabled()))
+  const [cardHoverEffects, setCardHoverEffects] = useState(() => readSavedBoolean(STORAGE_KEY_CARD_HOVER, !getIsMobileLayout()))
+  const [visualEffects, setVisualEffects] = useState(() => readSaved(STORAGE_KEY_VISUAL_EFFECTS, 'gradients'))
+  const [cardGradientsEnabled, setCardGradientsEnabled] = useState(() => readSavedBoolean(STORAGE_KEY_CARD_GRADIENTS, false))
+  const [isMobileLayout, setIsMobileLayout] = useState(() => getIsMobileLayout())
+  const resolvedContainerSize = isMobileLayout ? 'sm' : normalizeContainerSize(containerSize)
 
   useEffect(() => {
-    applyThemeToDom(theme, accent, fontSize, fontFamily)
+    applyThemeToDom(theme, accent, fontSize, fontFamily, resolvedContainerSize)
+    applyUiPreferencesToDom(animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled)
+    applyLayoutToDom(layoutMode)
     try {
       localStorage.setItem(STORAGE_KEY_THEME, theme)
       localStorage.setItem(STORAGE_KEY_ACCENT, accent)
       localStorage.setItem(STORAGE_KEY_FONT, fontSize)
       localStorage.setItem(STORAGE_KEY_FONT_FAMILY, fontFamily)
+      localStorage.setItem(STORAGE_KEY_LAYOUT, layoutMode)
+      localStorage.setItem(STORAGE_KEY_CONTAINER_SIZE, containerSize)
+      localStorage.setItem(STORAGE_KEY_ANIMATIONS, String(animationsEnabled))
+      localStorage.setItem(STORAGE_KEY_CARD_HOVER, String(cardHoverEffects))
+      localStorage.setItem(STORAGE_KEY_VISUAL_EFFECTS, visualEffects)
+      localStorage.setItem(STORAGE_KEY_CARD_GRADIENTS, String(cardGradientsEnabled))
+      window.dispatchEvent(new CustomEvent('apice:theme-updated'))
     } catch {
       // ignore
     }
-  }, [theme, accent, fontSize, fontFamily])
+  }, [theme, accent, fontSize, fontFamily, layoutMode, resolvedContainerSize, containerSize, animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled])
+
+  useEffect(() => {
+    const refresh = () => syncThemeFromStorage(
+      setTheme,
+      setAccent,
+      setFontSize,
+      setFontFamily,
+      setLayoutMode,
+      setContainerSize,
+      setAnimationsEnabled,
+      setCardHoverEffects,
+      setVisualEffects,
+      setCardGradientsEnabled,
+    )
+
+    window.addEventListener('apice:theme-updated', refresh)
+    window.addEventListener('apice:account-state-updated', refresh)
+
+    return () => {
+      window.removeEventListener('apice:theme-updated', refresh)
+      window.removeEventListener('apice:account-state-updated', refresh)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+
+    const mediaQuery = window.matchMedia?.(MOBILE_LAYOUT_QUERY) || null
+    const refreshMobileLayout = () => setIsMobileLayout(Boolean(mediaQuery?.matches))
+
+    refreshMobileLayout()
+    const detachMediaQuery = attachMediaQueryListener(mediaQuery, refreshMobileLayout)
+
+    return detachMediaQuery
+  }, [])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+
+    document.documentElement.setAttribute('data-mobile-layout', isMobileLayout ? 'true' : 'false')
+  }, [isMobileLayout])
+
+  useEffect(() => {
+    const html = document.documentElement
+    const readyFrame = window.requestAnimationFrame(() => {
+      html.setAttribute('data-layout-ready', 'true')
+    })
+
+    return () => window.cancelAnimationFrame(readyFrame)
+  }, [])
 
   const toggleTheme = useCallback(() => {
     setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
@@ -116,8 +295,16 @@ export function ThemeProvider({ children }) {
     theme, setTheme, toggleTheme,
     accent, setAccent,
     fontSize, setFontSize,
-    fontFamily, setFontFamily
-  }), [theme, toggleTheme, accent, fontSize, fontFamily])
+    fontFamily, setFontFamily,
+    layoutMode, setLayoutMode,
+    containerSize, setContainerSize,
+    animationsEnabled, setAnimationsEnabled,
+    cardHoverEffects, setCardHoverEffects,
+    visualEffects, setVisualEffects,
+    cardGradientsEnabled, setCardGradientsEnabled,
+    isMobileLayout,
+    resolvedContainerSize,
+  }), [theme, toggleTheme, accent, fontSize, fontFamily, layoutMode, containerSize, animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled, isMobileLayout, resolvedContainerSize])
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
