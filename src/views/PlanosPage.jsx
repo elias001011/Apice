@@ -154,16 +154,33 @@ export function PlanosPage() {
   const activePlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
   const trialAlreadyUsed = hasUsedTrial()
   const trialCurrentlyActive = isTrialActive()
+  const trialEnded = trialAlreadyUsed && !trialCurrentlyActive && billingState.status !== 'paid'
   const statusLabel = getBillingStatusLabel(billingState.status)
-  const statusDescription = getBillingStatusDescription(billingState.status)
   const quotaRow = quotaInfo || getQuotaInfo()
   const activeLimit = quotaRow.limit || getFreePlanUsageRows()[0]?.limit || 5
+  const trialEndDate = billingState.trialEndsAt ? new Date(billingState.trialEndsAt) : null
+  const trialEndLabel = trialEndDate && Number.isFinite(trialEndDate.getTime())
+    ? trialEndDate.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    })
+    : ''
+  const statusDescription = trialEnded && trialEndLabel
+    ? `Teste grátis encerrado em ${trialEndLabel}`
+    : getBillingStatusDescription(billingState.status)
 
   const currentStateText = (() => {
-    if (billingState.status === 'trial') {
+    if (trialCurrentlyActive) {
       return activePlan
         ? `Teste grátis ativo no plano ${activePlan.label}.`
         : `Teste grátis ativo por ${TRIAL_DAYS} dias.`
+    }
+
+    if (trialEnded) {
+      return trialEndLabel
+        ? `Seu teste grátis terminou em ${trialEndLabel}. Agora você pode assinar qualquer plano para continuar.`
+        : 'Seu teste grátis terminou. Agora você pode assinar qualquer plano para continuar.'
     }
 
     if (billingState.status === 'paid') {
@@ -190,9 +207,20 @@ export function PlanosPage() {
 
     try {
       const trialAvailable = billingState.status === 'free' && !trialAlreadyUsed
-      const trialActive = billingState.status === 'trial' && isTrialActive()
+      const trialActive = trialCurrentlyActive
 
-      if (trialAvailable || trialActive) {
+      if (trialActive) {
+        const activeTrialPlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
+        setFlash({
+          tone: 'warning',
+          text: activeTrialPlan && activeTrialPlan.key !== plan.key
+            ? `Você já está no teste grátis do plano ${activeTrialPlan.label}. Troque de plano só depois do fim do período gratuito${trialEndLabel ? `, em ${trialEndLabel}` : ''}.`
+            : `Seu teste grátis do plano ${plan.label} já está ativo${trialEndLabel ? ` até ${trialEndLabel}` : ''}.`,
+        })
+        return
+      }
+
+      if (trialAvailable) {
         startTrial({
           planKey: plan.key,
         })
@@ -263,12 +291,12 @@ export function PlanosPage() {
       return 'Plano ativo'
     }
 
-    if (billingState.status === 'trial' && isCurrentPlan) {
+    if (trialCurrentlyActive && isCurrentPlan) {
       return 'Teste grátis ativo'
     }
 
-    if (billingState.status === 'trial') {
-      return 'Trocar de plano'
+    if (trialCurrentlyActive) {
+      return isCurrentPlan ? 'Teste grátis ativo' : 'Aguardar fim do teste'
     }
 
     if (billingState.status === 'paid') {
@@ -287,18 +315,22 @@ export function PlanosPage() {
       return 'Sua assinatura já está ativa neste plano.'
     }
 
-    if (billingState.status === 'trial' && billingState.planKey === plan.key) {
-      if (billingState.trialEndsAt) {
-        const trialEnd = new Date(billingState.trialEndsAt)
-        if (Number.isFinite(trialEnd.getTime())) {
-          return `Seu teste grátis termina em ${trialEnd.toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: 'long',
-            year: 'numeric',
-          })}.`
-        }
-      }
-      return 'Seu teste grátis está ativo nesta conta.'
+    if (trialCurrentlyActive && billingState.planKey === plan.key) {
+      return trialEndLabel
+        ? `Seu teste grátis termina em ${trialEndLabel}.`
+        : 'Seu teste grátis está ativo nesta conta.'
+    }
+
+    if (trialCurrentlyActive) {
+      return trialEndLabel
+        ? `Você já está no teste grátis do plano ${billingState.planKey ? getPricingPlanByKey(billingState.planKey).label : 'atual'}. Troque só depois de ${trialEndLabel}.`
+        : 'Você já está no teste grátis nesta conta. Troque de plano só depois do período gratuito.'
+    }
+
+    if (trialEnded) {
+      return trialEndLabel
+        ? `O teste grátis terminou em ${trialEndLabel}. Agora a próxima ativação começa paga.`
+        : 'O teste grátis terminou. Agora a próxima ativação começa paga.'
     }
 
     if (trialAlreadyUsed) {
@@ -458,7 +490,7 @@ export function PlanosPage() {
                       disabled={
                         busyPlanKey === plan.key
                         || (billingState.status === 'paid' && billingState.planKey === plan.key)
-                        || (billingState.status === 'trial' && billingState.planKey === plan.key)
+                        || trialCurrentlyActive
                       }
                     >
                       {busyPlanKey === plan.key ? 'Abrindo checkout...' : buttonLabel}
@@ -494,7 +526,8 @@ export function PlanosPage() {
             <div className="faq-item">
               <div className="faq-q">Posso repetir o teste grátis em outro plano?</div>
               <div className="faq-a">
-                Não. O teste grátis de 7 dias é único por conta. Depois de usado, novos checkouts começam já pagos.
+                Não. O teste grátis de 7 dias é único por conta. Enquanto ele estiver ativo, a troca de plano fica bloqueada.
+                Quando o período termina, a conta volta para gratuito e o próximo checkout já começa pago.
               </div>
             </div>
             <div className="faq-item">
