@@ -91,7 +91,7 @@ function buildV2CheckoutPayload({ plan, externalId, returnUrl, completionUrl, us
   }
 }
 
-function buildV1CheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, userEmail, customerName, timestamp }) {
+function buildV1CheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, userEmail, customerName, customerCellphone, timestamp }) {
   const price = Math.max(0, Math.round(Number(plan.totalPrice) * 100))
   const payload = {
     frequency: 'ONE_TIME',
@@ -123,8 +123,9 @@ function buildV1CheckoutPayload({ plan, externalId, returnUrl, completionUrl, us
 
   if (userEmail || customerName) {
     payload.customer = {
-      name: customerName || userEmail,
-      email: userEmail || undefined,
+      name: customerName || userEmail || 'Cliente Ápice',
+      cellphone: safeText(customerCellphone),
+      email: userEmail || '',
     }
   }
 
@@ -182,6 +183,7 @@ async function createCheckout(req) {
   const userId = safeText(body?.userId ?? body?.accountId ?? body?.sub)
   const userEmail = safeText(body?.userEmail ?? body?.email)
   const customerName = safeText(body?.customerName ?? body?.fullName)
+  const customerCellphone = safeText(body?.customerCellphone ?? body?.phone ?? body?.cellphone)
 
   if (!plan || !plan.productId) {
     return new Response(JSON.stringify({ error: 'planKey inválido' }), { status: 400, headers })
@@ -208,6 +210,7 @@ async function createCheckout(req) {
     userId,
     userEmail,
     customerName,
+    customerCellphone,
     timestamp,
   }
 

@@ -199,6 +199,7 @@ export function PlanosPage() {
           userId: user.id || user.sub || '',
           userEmail: user.email || '',
           customerName: user?.user_metadata?.full_name || '',
+          customerCellphone: user?.phone || user?.user_metadata?.phone || user?.user_metadata?.cellphone || '',
         }),
       })
 
