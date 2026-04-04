@@ -14,11 +14,13 @@
       (() => {
         try {
           const savedContainerSize = localStorage.getItem('apice:containerSize')
+          const savedLayoutMode = localStorage.getItem('apice:layoutMode')
           const savedAnimations = localStorage.getItem('apice:animationsEnabled')
           const savedCardHover = localStorage.getItem('apice:cardHoverEffects')
           const validContainerSize = savedContainerSize === 'md' || savedContainerSize === 'lg'
             ? savedContainerSize
             : 'sm'
+          const layoutMode = savedLayoutMode === 'compact' ? 'compact' : 'comfortable'
           const mobileLayout = window.matchMedia('(max-width: 767px)').matches
           const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
           const systemAnimationsEnabled = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -27,6 +29,7 @@
           const cardHoverEffects = savedCardHover === null ? !mobileLayout : savedCardHover === 'true'
           const html = document.documentElement
           html.setAttribute('data-layout-size', mobileLayout ? 'sm' : validContainerSize)
+          html.classList.toggle('layout-compact', layoutMode === 'compact')
           html.setAttribute('data-mobile-layout', mobileLayout ? 'true' : 'false')
           html.setAttribute('data-animations', animationsEnabled ? 'on' : 'off')
           html.setAttribute('data-card-hover', cardHoverEffects ? 'on' : 'off')

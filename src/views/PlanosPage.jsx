@@ -23,6 +23,23 @@ import {
   getQuotaInfo,
 } from '../services/upgradeTrigger.js'
 
+function getAbacatePayErrorMessage(data, fallback) {
+  const primaryError = String(data?.error ?? '').trim()
+  if (primaryError) return primaryError
+
+  const details = data?.details
+  if (typeof details === 'string' && details.trim()) {
+    return details.trim()
+  }
+
+  if (details && typeof details === 'object') {
+    const nestedMessage = String(details.message ?? details.error ?? details.details ?? '').trim()
+    if (nestedMessage) return nestedMessage
+  }
+
+  return fallback
+}
+
 export function PlanosPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -88,7 +105,7 @@ export function PlanosPage() {
         const data = await response.json().catch(() => ({}))
 
         if (!response.ok) {
-          throw new Error(data.error || 'Não foi possível verificar o checkout.')
+          throw new Error(getAbacatePayErrorMessage(data, 'Não foi possível verificar o checkout.'))
         }
 
         if (cancelled) return
@@ -188,13 +205,13 @@ export function PlanosPage() {
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        throw new Error(data.error || 'Não foi possível criar o checkout.')
+        throw new Error(getAbacatePayErrorMessage(data, 'Não foi possível criar o checkout.'))
       }
 
       const checkoutUrl = data.checkoutUrl || data.checkout?.url || data.url || ''
       const checkoutId = data.checkoutId || data.checkout?.id || data.id || ''
       if (!checkoutUrl) {
-        throw new Error('A AbacatePay não retornou a URL de checkout.')
+        throw new Error(getAbacatePayErrorMessage(data, 'A AbacatePay não retornou a URL de checkout.'))
       }
 
       if (billingState.status === 'free' && !trialAlreadyUsed) {

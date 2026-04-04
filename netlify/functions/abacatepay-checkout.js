@@ -1,7 +1,9 @@
+import process from 'node:process'
 import { getPricingPlanByKey } from '../../src/services/upgradeTrigger.js'
 
 const ABACATE_API_BASE = 'https://api.abacatepay.com/v2'
-const env = globalThis.process?.env || {}
+const CHECKOUT_CREATE_PATH = '/subscriptions/create'
+const CHECKOUT_LIST_PATH = '/subscriptions/list'
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -11,14 +13,14 @@ const headers = {
 }
 
 function getApiKey() {
-  return String(env.ABACATE_PAY ?? '').trim()
+  return String(process.env.ABACATE_PAY ?? '').trim()
 }
 
 function getRequestOrigin(req) {
   try {
     return new URL(req.url).origin
   } catch {
-    return String(env.SITE_URL ?? env.URL ?? 'http://localhost:5173').trim() || 'http://localhost:5173'
+    return String(process.env.SITE_URL ?? process.env.URL ?? 'http://localhost:5173').trim() || 'http://localhost:5173'
   }
 }
 
@@ -57,7 +59,10 @@ async function abacateFetch(path, { method = 'GET', body } = {}) {
     const message = typeof payload === 'string'
       ? payload
       : payload?.error || payload?.message || 'Falha na integração com a AbacatePay.'
-    throw new Error(message)
+    const error = new Error(message)
+    error.status = response.status
+    error.details = payload
+    throw error
   }
 
   return payload
@@ -98,8 +103,7 @@ async function createCheckout(req) {
     externalId,
     returnUrl: returnUrl.toString(),
     completionUrl: completionUrl.toString(),
-    methods: ['PIX', 'CARD'],
-    frequency: 'SUBSCRIPTION',
+    methods: ['CARD'],
     metadata: {
       app: 'apice',
       planKey: plan.key,
@@ -112,7 +116,7 @@ async function createCheckout(req) {
     },
   }
 
-  const result = await abacateFetch('/checkouts/create', {
+  const result = await abacateFetch(CHECKOUT_CREATE_PATH, {
     method: 'POST',
     body: payload,
   })
@@ -148,8 +152,13 @@ async function verifyCheckout(req) {
   if (checkoutId) query.set('id', checkoutId)
   if (!checkoutId && externalId) query.set('externalId', externalId)
 
-  const result = await abacateFetch(`/checkouts/list?${query.toString()}`, { method: 'GET' })
-  const checkout = Array.isArray(result?.data) ? result.data[0] : null
+  const result = await abacateFetch(`${CHECKOUT_LIST_PATH}?${query.toString()}`, { method: 'GET' })
+  const checkouts = Array.isArray(result?.data) ? result.data : []
+  const checkout = checkoutId
+    ? checkouts.find((item) => String(item?.id ?? '') === checkoutId) || checkouts[0] || null
+    : externalId
+      ? checkouts.find((item) => String(item?.externalId ?? '') === externalId) || checkouts[0] || null
+      : checkouts[0] || null
 
   if (!checkout) {
     return new Response(JSON.stringify({ error: 'Checkout não encontrado' }), { status: 404, headers })
@@ -180,7 +189,8 @@ export default async function handler(req) {
       console.error('[abacatepay-checkout] create error:', error)
       return new Response(JSON.stringify({
         error: error?.message || 'Falha ao criar checkout',
-      }), { status: 502, headers })
+        details: error?.details || null,
+      }), { status: Number.isInteger(error?.status) ? error.status : 502, headers })
     }
   }
 
@@ -191,7 +201,8 @@ export default async function handler(req) {
       console.error('[abacatepay-checkout] verify error:', error)
       return new Response(JSON.stringify({
         error: error?.message || 'Falha ao verificar checkout',
-      }), { status: 502, headers })
+        details: error?.details || null,
+      }), { status: Number.isInteger(error?.status) ? error.status : 502, headers })
     }
   }
 

@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 
 const STORAGE_KEY_THEME = 'apice:theme'
 const STORAGE_KEY_ACCENT = 'apice:accent'
@@ -216,10 +216,13 @@ export function ThemeProvider({ children }) {
   const [isMobileLayout, setIsMobileLayout] = useState(() => getIsMobileLayout())
   const resolvedContainerSize = isMobileLayout ? 'sm' : normalizeContainerSize(containerSize)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyThemeToDom(theme, accent, fontSize, fontFamily, resolvedContainerSize)
     applyUiPreferencesToDom(animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled)
     applyLayoutToDom(layoutMode)
+  }, [theme, accent, fontSize, fontFamily, layoutMode, resolvedContainerSize, animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled])
+
+  useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_THEME, theme)
       localStorage.setItem(STORAGE_KEY_ACCENT, accent)
@@ -235,7 +238,7 @@ export function ThemeProvider({ children }) {
     } catch {
       // ignore
     }
-  }, [theme, accent, fontSize, fontFamily, layoutMode, resolvedContainerSize, containerSize, animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled])
+  }, [theme, accent, fontSize, fontFamily, layoutMode, containerSize, animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled])
 
   useEffect(() => {
     const refresh = () => syncThemeFromStorage(
