@@ -1,19 +1,73 @@
 /* Módulo: Meu Professor - Ajustes e Micro Componentes Internos */
 
+.professor-intro {
+  margin: 3rem auto 2rem;
+  padding: 0 1rem;
+}
+
+.professor-header-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 2rem;
+  align-items: flex-start;
+}
+
+.professor-header-box .corretor-title {
+  font-size: 2.2rem;
+}
+
+.professor-header-box .corretor-subtitle {
+  font-size: 1rem;
+}
+
+.dashboard-column-main {
+  min-width: 0;
+}
+
 .chat-card-container {
   display: flex !important;
   flex-direction: column;
-  height: 600px;
-  max-height: 70vh;
-  padding: 1.25rem; 
+  width: 100%;
+  min-height: 500px;
+  height: 650px;
+  max-height: 75vh;
+  padding: 1.25rem;
   /* The overarching .card class manages borders, backgrounds, and shadows perfectly */
 }
 
 @media (max-width: 768px) {
   .chat-card-container {
-    height: calc(100vh - var(--nav-h) - var(--tab-h) - 4rem);
+    width: 100%;
+    height: calc(100vh - var(--nav-h) - var(--tab-h) - 5rem);
+    min-height: auto;
     max-height: none;
   }
+}
+
+.chat-header-custom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+  margin-bottom: 0 !important;
+}
+
+.prof-active-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+}
+
+.prof-ia-badge {
+  margin-left: auto;
+  text-transform: none;
+  font-weight: normal;
+  color: var(--text3);
+  font-size: 0.75rem;
 }
 
 .chat-messages-scroll {
@@ -22,6 +76,7 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  padding: 1.5rem 0;
   padding-right: 8px; /* Room for scrollbar */
 }
 
@@ -70,7 +125,7 @@
 
 .user-message .message-content {
   background: var(--accent);
-  color: #000; /* Usually bright accent expects dark text */
+  color: #000;
   border-top-right-radius: 4px;
 }
 
@@ -80,6 +135,29 @@
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
+}
+
+.chat-input-native textarea {
+  width: 100%;
+  min-height: 50px;
+  max-height: 150px;
+  flex: 1;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  resize: vertical;
+  background: var(--bg);
+}
+
+.chat-input-native .btn-primary {
+  min-width: 54px;
+  height: 50px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  box-shadow: none;
 }
 
 /* Sidebar Categories Buttons */
@@ -93,6 +171,7 @@
   display: flex;
   align-items: center;
   padding: 12px;
+  min-width: 0;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 14px;
@@ -146,6 +225,13 @@
   line-height: 1.4;
 }
 
+.prof-disclaimer {
+  font-size: 0.75rem;
+  color: var(--text3);
+  text-align: center;
+  margin: 0;
+}
+
 /* Typing indicator */
 .typing-indicator {
   display: flex;
@@ -174,19 +260,24 @@
 
 @media (max-width: 768px) {
   /* On mobile we want the categories side column to stack and be a horizontal slider */
-  .corretor-grid {
-    display: flex !important;
-    flex-direction: column;
-  }
-  .corretor-column-side {
-    order: -1; /* Make it appear at the top so user can select category first */
-  }
   .prof-categories-list {
     flex-direction: row;
     overflow-x: auto;
     padding-bottom: 8px; /* space for physical scrollbar if any */
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
   }
+  
   .prof-cat-item {
     min-width: 200px;
+    flex-shrink: 0;
+    scroll-snap-align: start;
+    background: var(--bg2);
+    border-color: var(--border);
+  }
+
+  .prof-cat-item.active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
   }
 }

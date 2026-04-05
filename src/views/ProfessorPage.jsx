@@ -113,26 +113,26 @@ export function ProfessorPage() {
   return (
     <>
       <div className="view-container--wide">
-        <div className="professor-intro anim anim-d1" style={{ margin: '3rem auto 2rem', padding: '0 1rem' }}>
+        <div className="professor-intro anim anim-d1">
           
-          <div className="corretor-header" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '8px', marginBottom: '2rem' }}>
-            <h2 className="corretor-title" style={{ fontSize: '2.2rem' }}>Meu Professor</h2>
-            <p className="corretor-subtitle" style={{ fontSize: '1rem' }}>Tire dúvidas em tempo real com a inteligência artificial do Ápice.</p>
+          <div className="professor-header-box">
+            <h2 className="corretor-title">Meu Professor</h2>
+            <p className="corretor-subtitle">Tire dúvidas em tempo real com a inteligência artificial do Ápice.</p>
           </div>
 
-          <div className="corretor-grid">
+          <div className="dashboard-grid">
             {/* COLUNA PRINCIPAL: CHAT */}
-            <div className="corretor-column-main">
+            <div className="dashboard-column-main">
               <div className="card anim anim-d2 chat-card-container">
-                <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '0' }}>
-                  <span style={{ width: '18px', height: '18px', color: 'var(--accent)' }}>{iconSvg(activeCategory.icon)}</span>
+                <div className="card-title chat-header-custom">
+                  <span className="prof-active-icon">{iconSvg(activeCategory.icon)}</span>
                   Sessão Ativa: {activeCategory.label}
-                  <span style={{ marginLeft: 'auto', textTransform: 'none', fontWeight: 'normal', color: 'var(--text3)' }}>
+                  <span className="prof-ia-badge">
                     IA Experimental
                   </span>
                 </div>
 
-                <div className="chat-messages-scroll" style={{ padding: '1rem 0' }}>
+                <div className="chat-messages-scroll">
                   {activeMessages.map(msg => (
                     <div key={msg.id} className={`chat-message ${msg.sender === 'user' ? 'user-message' : 'ai-message'}`}>
                       {msg.sender === 'ai' && (
@@ -165,13 +165,11 @@ export function ProfessorPage() {
                     onKeyDown={handleKeyDown}
                     placeholder={`Escreva algo em '${activeCategory.label}'...`}
                     rows={1}
-                    style={{ minHeight: '50px', maxHeight: '150px', flex: 1, padding: '14px', borderRadius: '16px' }}
                   />
                   <button 
                     className="btn-primary" 
                     onClick={handleSendMessage}
                     disabled={!inputText.trim() || isTyping}
-                    style={{ padding: '0 18px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '16px', boxShadow: 'none' }}
                     aria-label="Enviar"
                   >
                     {iconSvg('send')}
@@ -181,10 +179,10 @@ export function ProfessorPage() {
             </div>
 
             {/* COLUNA LATERAL: CATEGORIAS */}
-            <div className="corretor-column-side">
+            <div className="dashboard-column-side">
               <div className="card anim anim-d3 sticky-side">
                 <div className="card-title">Modos de Estudo</div>
-                <div className="status-mode" style={{ marginBottom: '1.2rem' }}>O que você precisa?</div>
+                <div className="status-mode">O que você precisa?</div>
                 
                 <div className="prof-categories-list">
                   {CATEGORIES.map(cat => (
@@ -203,7 +201,7 @@ export function ProfessorPage() {
                 </div>
                 
                 <div className="side-separator"></div>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text3)', textAlign: 'center', margin: 0 }}>
+                <p className="prof-disclaimer">
                   Respostas geradas por IA podem ser imprecisas e devem ser verificadas.
                 </p>
               </div>
