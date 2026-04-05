@@ -32,6 +32,12 @@ import { usePwaInstall } from '../pwa/usePwaInstall.js'
 import { useTheme } from '../theme/ThemeProvider.jsx'
 import { ConfirmDialog } from '../ui/ConfirmDialog.jsx'
 import { AvatarVisual } from '../ui/AvatarVisual.jsx'
+import {
+  exportBackup,
+  parseBackupFile,
+  restoreFromBackup,
+  CATEGORIES as BACKUP_CATEGORIES,
+} from '../services/backupService.js'
 
 const perfilCss = `
   .profile-hero {
@@ -459,6 +465,51 @@ const perfilCss = `
     line-height: 1.5;
   }
 
+  .backup-card { padding: 1.5rem; }
+  .backup-row { display: flex; gap: 12px; margin-top: 1rem; }
+  .backup-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .backup-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .backup-btn svg { opacity: 0.7; }
+
+  .restore-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 1rem;
+    text-align: left;
+  }
+  .restore-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .restore-item:hover { border-color: var(--accent); }
+  .restore-item.active { border-color: var(--accent); background: var(--accent-dim); }
+  .restore-item-info { display: flex; flex-direction: column; gap: 2px; }
+  .restore-item-label { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+  .restore-item-detail { font-size: 0.7rem; color: var(--text3); }
+
   @media (max-width: 768px) {
     .perfil-grid { grid-template-columns: 1fr; }
     .profile-hero { flex-direction: column; text-align: center; padding: 2rem; }
@@ -538,6 +589,10 @@ export function PerfilPage() {
   const [avatarResetDialogOpen, setAvatarResetDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [quotaHelpDialogOpen, setQuotaHelpDialogOpen] = useState(false)
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
+  const [backupStats, setBackupStats] = useState(null)
+  const [selectedBackupCategories, setSelectedBackupCategories] = useState([])
+  const backupFileRef = useRef(null)
 
   const name = user?.user_metadata?.full_name || 'Usuário'
   const email = user?.email || 'Sem e-mail'
@@ -663,6 +718,54 @@ export function PerfilPage() {
 
     setDeleteDialogOpen(false)
     window.location.href = buildDeletionRequestMailto({ name, email })
+  }
+
+  const handleBackupExport = () => {
+    exportBackup()
+  }
+
+  const handleBackupFileChange = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const content = e.target?.result
+      if (typeof content === 'string') {
+        const stats = parseBackupFile(content)
+        if (stats) {
+          setBackupStats(stats)
+          setSelectedBackupCategories(stats.categories.map(c => c.id))
+          setRestoreDialogOpen(true)
+        } else {
+          alert('Arquivo de backup inválido ou corrompido.')
+        }
+      }
+      if (backupFileRef.current) backupFileRef.current.value = ''
+    }
+    reader.readAsText(file)
+  }
+
+  const handleRestoreConfirm = () => {
+    if (!backupStats) return
+
+    const success = restoreFromBackup(backupStats.rawData, selectedBackupCategories)
+    if (success) {
+      setRestoreDialogOpen(false)
+      setBackupStats(null)
+      // Feedback visual ou reload não é estritamente necessário pois emitimos eventos,
+      // mas o insights precisa recalcular.
+      setInsights(buildEssayInsights(loadEssayHistory()))
+      setUsageRows(getFreePlanUsageRows())
+    } else {
+      alert('Erro ao restaurar backup.')
+    }
+  }
+
+  const toggleBackupCategory = (id) => {
+    setSelectedBackupCategories(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    )
   }
 
   useEffect(() => {
@@ -1128,6 +1231,33 @@ export function PerfilPage() {
             </div>
           </div>
 
+          <div className="section-label anim anim-d4">Backup e Restauração</div>
+          <div className="card anim anim-d4 backup-card" style={{ marginBottom: '1.25rem' }}>
+            <div className="card-title" style={{ marginBottom: '0.5rem' }}>Proteja seus dados</div>
+            <div className="avatar-card-text">
+              Como salvamos apenas o essencial na nuvem, use o backup para transferir seu histórico completo (redações e radar) entre dispositivos.
+            </div>
+            
+            <input 
+              type="file" 
+              ref={backupFileRef} 
+              style={{ display: 'none' }} 
+              accept=".json"
+              onChange={handleBackupFileChange}
+            />
+
+            <div className="backup-row">
+              <button className="backup-btn" onClick={handleBackupExport} title="Salvar tudo em um arquivo">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Salvar Backup
+              </button>
+              <button className="backup-btn" onClick={() => backupFileRef.current?.click()} title="Restaurar de um arquivo">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Restaurar
+              </button>
+            </div>
+          </div>
+
           <button
             className="logout-btn anim anim-d4"
             type="button"
@@ -1198,6 +1328,44 @@ export function PerfilPage() {
         onConfirm={handleRequestAccountDeletionEmail}
         onCancel={() => {
           setDeleteDialogOpen(false)
+        }}
+      />
+      <ConfirmDialog
+        open={restoreDialogOpen}
+        title="Restaurar dados do Ápice?"
+        message={
+          <div className="restore-container">
+            <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text2)' }}>
+              Selecione as categorias que deseja restaurar. <strong>Aviso:</strong> Isso substituirá as informações atuais pelas do backup.
+            </p>
+            <div className="restore-list">
+              {backupStats?.categories.map(cat => (
+                <div 
+                  key={cat.id} 
+                  className={`restore-item ${selectedBackupCategories.includes(cat.id) ? 'active' : ''}`}
+                  onClick={() => toggleBackupCategory(cat.id)}
+                >
+                  <div className="restore-checkbox" style={{ color: selectedBackupCategories.includes(cat.id) ? 'var(--accent)' : 'var(--text3)' }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      {selectedBackupCategories.includes(cat.id) ? <polyline points="20 6 9 17 4 12" /> : <rect x="3" y="3" width="18" height="18" rx="4" />}
+                    </svg>
+                  </div>
+                  <div className="restore-item-info">
+                    <span className="restore-item-label">{cat.label}</span>
+                    {cat.detail && <span className="restore-item-detail">{cat.detail}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        }
+        confirmLabel="Confirmar Restauração"
+        cancelLabel="Cancelar"
+        confirmDisabled={selectedBackupCategories.length === 0}
+        onConfirm={handleRestoreConfirm}
+        onCancel={() => {
+          setRestoreDialogOpen(false)
+          setBackupStats(null)
         }}
       />
     </>

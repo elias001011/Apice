@@ -215,51 +215,19 @@ function compactRadarFavoriteSnapshot(favorite) {
   return {
     id: String(favorite.id ?? titulo).trim() || titulo,
     titulo,
-    probabilidade: Number.isFinite(Number(favorite.probabilidade)) ? Number(favorite.probabilidade) : 0,
-    hot: Boolean(favorite.hot),
-    savedAt: String(favorite.savedAt ?? favorite.createdAt ?? new Date().toISOString()).trim() || new Date().toISOString(),
-    origem: String(favorite.origem ?? 'ai').trim() || 'ai',
-  }
-}
-
-function compactRadarSnapshotForCloud(snapshot) {
-  if (!snapshot || typeof snapshot !== 'object') return null
-
-  const resumoPesquisa = String(snapshot.resumoPesquisa ?? '').trim()
-  const lastSearchAt = String(snapshot.lastSearchAt ?? '').trim()
-  const nextSearchAt = String(snapshot.nextSearchAt ?? '').trim()
-  const savedAt = String(snapshot.savedAt ?? snapshot.atualizadoEm ?? '').trim()
-  const atualizadoEm = String(snapshot.atualizadoEm ?? savedAt ?? '').trim()
-  const origem = String(snapshot.origem ?? 'ai').trim() || 'ai'
-
-  if (!resumoPesquisa && !lastSearchAt && !nextSearchAt && !savedAt && !atualizadoEm) {
-    return null
-  }
-
-  return {
-    version: Number(snapshot.version ?? 2) || 2,
-    resumoPesquisa,
-    atualizadoEm: atualizadoEm || savedAt || new Date().toISOString(),
-    origem,
-    savedAt: savedAt || new Date().toISOString(),
-    lastSearchAt,
-    nextSearchAt,
   }
 }
 
 export function buildAccountSnapshot(user) {
   return {
-    version: 16,
+    version: 17,
     profile: readProfileSnapshot(user),
-    preferences: readThemeSnapshot(),
-    history: buildCloudEssayHistorySnapshot(),
     historyCount: loadEssayHistoryCount(),
     usage: normalizeUsage(getFreePlanUsageSnapshot()),
     billing: getBillingState(),
     planStatus: getCurrentBillingStatus(),
     planTier: getCurrentPlanTier(),
     enemDate: loadManualEnemDate(),
-    radarSnapshot: compactRadarSnapshotForCloud(loadRadarSnapshot()),
     radarFavorites: loadRadarFavorites()
       .map((favorite) => compactRadarFavoriteSnapshot(favorite))
       .filter(Boolean),
@@ -305,20 +273,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
       user_metadata: rawSnapshot.profile || {},
       email: rawSnapshot.profile?.email || '',
     }),
-    preferences: {
-      theme: String(rawSnapshot.preferences?.theme ?? 'light').trim() || 'light',
-      accent: String(rawSnapshot.preferences?.accent ?? 'lime').trim() || 'lime',
-      fontSize: String(rawSnapshot.preferences?.fontSize ?? 'md').trim() || 'md',
-      fontFamily: String(rawSnapshot.preferences?.fontFamily ?? 'dm-sans').trim() || 'dm-sans',
-      layoutMode: String(rawSnapshot.preferences?.layoutMode ?? 'comfortable').trim() || 'comfortable',
-      containerSize: String(rawSnapshot.preferences?.containerSize ?? 'sm').trim() || 'sm',
-      ...(Object.prototype.hasOwnProperty.call(rawSnapshot.preferences || {}, 'animationsEnabled')
-        ? { animationsEnabled: normalizeBooleanPreference(rawSnapshot.preferences?.animationsEnabled, getSystemAnimationsEnabled()) }
-        : {}),
-      ...(Object.prototype.hasOwnProperty.call(rawSnapshot.preferences || {}, 'cardHoverEffects')
-        ? { cardHoverEffects: normalizeBooleanPreference(rawSnapshot.preferences?.cardHoverEffects, !getIsMobileLayout()) }
-        : {}),
-    },
+    preferences: null,
     history,
     historyCount: Number.isFinite(Number(rawSnapshot.historyCount)) ? Number(rawSnapshot.historyCount) : history.length,
     usage: normalizeUsage(rawSnapshot.usage),
@@ -331,12 +286,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
     ).trim() || 'free',
     enemDate: String(rawSnapshot.enemDate ?? rawSnapshot.examDate ?? '').trim(),
     radarFavorites,
-    radarSnapshot: normalizeRadarSnapshot(
-      rawSnapshot.radarSnapshot
-        || rawSnapshot.radarState
-        || rawSnapshot.currentRadar
-        || null,
-    ),
+    radarSnapshot: null,
     summary: rawSnapshot.summary ? normalizeUserSummary(rawSnapshot.summary) : null,
     avatarSettings: normalizeAvatarSettings(rawSnapshot.avatarSettings || rawSnapshot.avatar || null),
     notifications: loadNotificationPreferencesFromObject(rawSnapshot.notifications),
