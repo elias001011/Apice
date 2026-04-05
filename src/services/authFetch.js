@@ -1,0 +1,57 @@
+/**
+ * Authenticated fetch wrapper for Netlify Functions.
+ *
+ * Automatically attaches the user's JWT to the Authorization header
+ * so the backend can validate the request. Falls back gracefully if
+ * no user is logged in (the backend will return 401).
+ */
+
+let _getAuthToken = null
+
+/**
+ * Register a function that returns the current user's JWT string.
+ * This should be called once from AuthProvider during initialization.
+ *
+ * @param {() => Promise<string>} tokenGetter - async function returning the JWT
+ */
+export function registerAuthTokenGetter(tokenGetter) {
+  _getAuthToken = typeof tokenGetter === 'function' ? tokenGetter : null
+}
+
+/**
+ * Get the current auth token, or empty string if unavailable.
+ */
+async function getToken() {
+  if (!_getAuthToken) return ''
+  try {
+    const token = await _getAuthToken()
+    return typeof token === 'string' ? token : ''
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Perform an authenticated fetch to a Netlify Function endpoint.
+ *
+ * @param {string} url - The function URL (e.g. '/.netlify/functions/corrigir-redacao')
+ * @param {object} options - Standard fetch options. `headers` and `body` are common.
+ * @returns {Promise<Response>}
+ */
+export async function authFetch(url, options = {}) {
+  const token = await getToken()
+
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  }
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  return fetch(url, {
+    ...options,
+    headers,
+  })
+}

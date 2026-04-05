@@ -1,5 +1,7 @@
 import process from 'node:process'
 import { getPricingPlanByKey } from '../../src/services/upgradeTrigger.js'
+import { requireAuth } from './utils/auth.js'
+import { buildCheckoutCorsHeaders } from './utils/cors.js'
 
 const ABACATE_API_BASE = 'https://api.abacatepay.com'
 const API_VERSIONS = ['v1', 'v2']
@@ -12,13 +14,6 @@ const API_ENDPOINTS = {
     create: '/v2/subscriptions/create',
     list: '/v2/subscriptions/list',
   },
-}
-
-const headers = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Content-Type': 'application/json',
 }
 
 function getApiKey() {
@@ -177,13 +172,15 @@ async function abacateFetch(apiVersion, path, { method = 'GET', body } = {}) {
   return payload
 }
 
-async function createCheckout(req) {
+async function createCheckout(req, authUser, headers) {
   const body = await req.json().catch(() => ({}))
   const planKey = safeText(body?.planKey)
   const plan = getPricingPlanByKey(planKey)
-  const userId = safeText(body?.userId ?? body?.accountId ?? body?.sub)
-  const userEmail = safeText(body?.userEmail ?? body?.email)
-  const customerName = safeText(body?.customerName ?? body?.fullName)
+  // C-02 FIX: userId is ALWAYS derived from the authenticated JWT, never from the body.
+  // This prevents spoofing where an attacker could create checkouts attributed to other users.
+  const userId = safeText(authUser?.id)
+  const userEmail = safeText(authUser?.email || body?.userEmail || body?.email)
+  const customerName = safeText(authUser?.fullName || body?.customerName || body?.fullName)
   const customerCellphone = safeText(body?.customerCellphone ?? body?.phone ?? body?.cellphone)
   const customerTaxId = safeText(body?.customerTaxId ?? body?.taxId ?? body?.cpf ?? body?.cnpj)
 
@@ -258,7 +255,7 @@ async function createCheckout(req) {
   throw lastError || new Error('Falha ao criar checkout')
 }
 
-async function verifyCheckout(req) {
+async function verifyCheckout(req, headers) {
   const url = new URL(req.url)
   const checkoutId = safeText(url.searchParams.get('checkoutId'))
   const externalId = safeText(url.searchParams.get('externalId'))
@@ -307,8 +304,7 @@ async function verifyCheckout(req) {
   }
 
   return new Response(JSON.stringify({
-    error: lastError?.message || 'Checkout não encontrado',
-    details: lastError?.details || null,
+    error: 'Checkout não encontrado',
   }), {
     status: Number.isInteger(lastError?.status) ? lastError.status : 404,
     headers,
@@ -316,32 +312,35 @@ async function verifyCheckout(req) {
 }
 
 export default async function handler(req) {
+  const headers = buildCheckoutCorsHeaders(req)
+
   if (req.method === 'OPTIONS') {
     return new Response('', { status: 200, headers })
   }
 
   if (req.method === 'POST') {
+    // ── Authentication required for creating checkouts ─────────────────
+    const auth = requireAuth(req, headers)
+    if (auth instanceof Response) return auth
+
     try {
-      return await createCheckout(req)
+      return await createCheckout(req, auth.user, headers)
     } catch (error) {
       console.error('[abacatepay-checkout] create error:', error)
       return new Response(JSON.stringify({
-        error: error?.message || 'Falha ao criar checkout',
-        details: error?.details || null,
-        apiVersion: error?.apiVersion || null,
+        error: 'Falha ao criar checkout',
       }), { status: Number.isInteger(error?.status) ? error.status : 502, headers })
     }
   }
 
   if (req.method === 'GET') {
+    // GET (verify) remains public — the checkout status page needs it
     try {
-      return await verifyCheckout(req)
+      return await verifyCheckout(req, headers)
     } catch (error) {
       console.error('[abacatepay-checkout] verify error:', error)
       return new Response(JSON.stringify({
-        error: error?.message || 'Falha ao verificar checkout',
-        details: error?.details || null,
-        apiVersion: error?.apiVersion || null,
+        error: 'Falha ao verificar checkout',
       }), { status: Number.isInteger(error?.status) ? error.status : 502, headers })
     }
   }

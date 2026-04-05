@@ -12,6 +12,7 @@ import {
   consumeFreePlan,
 } from './freePlanUsage.js'
 import { loadAiResponsePreferenceText } from './aiResponsePreferences.js'
+import { authFetch } from './authFetch.js'
 
 const RADAR_SEARCH_ENDPOINT = '/.netlify/functions/gerar-radar'
 const RADAR_DETAIL_ENDPOINT = '/.netlify/functions/gerar-radar-detalhe'
@@ -111,9 +112,8 @@ export async function buscarRadarTemas() {
   }
 
   const responsePreference = loadAiResponsePreferenceText()
-  const response = await fetch(RADAR_SEARCH_ENDPOINT, {
+  const response = await authFetch(RADAR_SEARCH_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...(responsePreference ? { responsePreference } : {}),
     }),
@@ -167,9 +167,8 @@ export async function buscarRadarTemaDetalhe(tema) {
   }
 
   const responsePreference = loadAiResponsePreferenceText()
-  const response = await fetch(RADAR_DETAIL_ENDPOINT, {
+  const response = await authFetch(RADAR_DETAIL_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       tema: normalizedTheme,
       ...(responsePreference ? { responsePreference } : {}),

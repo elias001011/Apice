@@ -1,12 +1,11 @@
-const headers = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json',
-}
+import { authenticateRequest } from './utils/auth.js'
+import { buildCorsHeaders } from './utils/cors.js'
 
-function errorResponse(message, status = 400) {
-  return new Response(JSON.stringify({ error: message }), { status, headers })
+function errorResponse(message, status = 400, corsHeaders = {}) {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
 }
 
 function decodeBase64Json(rawValue) {
@@ -114,37 +113,46 @@ async function deleteIdentityUser(identity, userIds) {
 }
 
 export default async function handler(req, context = {}) {
+  const headers = buildCorsHeaders(req)
+
   if (req.method === 'OPTIONS') {
     return new Response('', { status: 200, headers })
   }
 
   if (req.method !== 'POST') {
-    return errorResponse('Method not allowed', 405)
+    return errorResponse('Method not allowed', 405, headers)
   }
 
+  // ── Primary auth: JWT from Authorization header ─────────────────────
+  const jwtAuth = authenticateRequest(req)
+
+  // ── Fallback: Netlify clientContext (legacy path) ───────────────────
   const clientContext = decodeNetlifyClientContext(context)
   const identity = clientContext?.identity
   const user = clientContext?.user
+
+  // Build user IDs from both sources
   const userIDs = [...new Set([
+    jwtAuth?.user?.id || '',
     getUserId(user),
     String(user?.id ?? '').trim(),
     String(user?.sub ?? '').trim(),
   ])].filter(Boolean)
 
   if (!identity?.url || !identity?.token || userIDs.length === 0) {
-    return errorResponse('Usuário não autenticado.', 401)
+    return errorResponse('Usuário não autenticado.', 401, headers)
   }
 
   try {
     const result = await deleteIdentityUser(identity, userIDs)
 
     if (!result.ok) {
-      return errorResponse(result.details || 'Falha ao excluir a conta.', result.status)
+      return errorResponse('Falha ao excluir a conta.', result.status, headers)
     }
 
     return new Response(JSON.stringify({ ok: true }), { status: 200, headers })
   } catch (error) {
     console.error('[excluir-conta] erro:', error)
-    return errorResponse(error?.message || 'Falha ao excluir a conta.', 502)
+    return errorResponse('Falha ao excluir a conta.', 502, headers)
   }
 }

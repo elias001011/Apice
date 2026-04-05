@@ -12,6 +12,7 @@ import {
   requestAccountDeletion,
 } from '../services/identityAuth.js'
 import { refreshUserSummaryFromHistory } from '../services/userSummary.js'
+import { registerAuthTokenGetter } from '../services/authFetch.js'
 
 // Configure GoTrue instance
 // The 'url' should be your Netlify site URL (e.g., https://your-site.netlify.app/.netlify/identity)
@@ -37,6 +38,20 @@ export function AuthProvider({ children }) {
   const syncLockRef = useRef(false)
   const lastSyncedSnapshotRef = useRef('')
   const syncSuspendedRef = useRef(false)
+
+  // Register the JWT token getter so authFetch can attach Bearer tokens
+  useEffect(() => {
+    registerAuthTokenGetter(async () => {
+      const currentUser = auth.currentUser()
+      if (!currentUser) return ''
+      try {
+        return await currentUser.jwt()
+      } catch {
+        return ''
+      }
+    })
+    return () => registerAuthTokenGetter(null)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -241,9 +256,18 @@ export function AuthProvider({ children }) {
     if (currentUser) {
       const nextAttributes = { ...attributes }
       if (nextAttributes.data && typeof nextAttributes.data === 'object') {
+        // M-04 FIX: Apply pickSafeUserMetadata AFTER user-supplied data
+        // so that only the allowed fields survive. This prevents callers
+        // from injecting arbitrary keys like 'roles' or 'app_metadata'.
+        const safeBase = pickSafeUserMetadata(currentUser.user_metadata)
+        const userSupplied = nextAttributes.data
         nextAttributes.data = {
-          ...pickSafeUserMetadata(currentUser.user_metadata),
-          ...nextAttributes.data,
+          ...safeBase,
+          full_name: String(userSupplied.full_name ?? safeBase.full_name).trim(),
+          first_name: String(userSupplied.first_name ?? safeBase.first_name).trim(),
+          school: String(userSupplied.school ?? safeBase.school).trim(),
+          // Preserve apice_state if the caller is syncing cloud state
+          ...(userSupplied.apice_state ? { apice_state: userSupplied.apice_state } : {}),
         }
       }
 

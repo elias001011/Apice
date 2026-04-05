@@ -3,6 +3,7 @@ import {
   consumeFreePlan,
 } from './freePlanUsage.js'
 import { loadAiResponsePreferenceText } from './aiResponsePreferences.js'
+import { authFetch } from './authFetch.js'
 import {
   buildRecentEssayContext,
   compactEssayHistoryEntry,
@@ -32,9 +33,8 @@ export async function gerarTemaDinamico({ retryCount = 1 } = {}) {
   for (let attempt = 0; attempt <= retryCount; attempt += 1) {
     try {
       const responsePreference = loadAiResponsePreferenceText()
-      const res = await fetch('/.netlify/functions/gerar-tema', {
+      const res = await authFetch('/.netlify/functions/gerar-tema', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...(responsePreference ? { responsePreference } : {}),
         }),
@@ -68,9 +68,8 @@ export async function corrigirRedacao({ redacao, tema, material, isRigido }) {
   }
 
   const responsePreference = loadAiResponsePreferenceText()
-  const res = await fetch('/.netlify/functions/corrigir-redacao', {
+  const res = await authFetch('/.netlify/functions/corrigir-redacao', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       redacao,
       tema,
@@ -99,9 +98,8 @@ export async function chamarIAEspecifica({ provider, systemPrompt, userMessages 
   }
 
   const responsePreference = loadAiResponsePreferenceText()
-  const res = await fetch('/.netlify/functions/chamar-ia', {
+  const res = await authFetch('/.netlify/functions/chamar-ia', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       provider,
       systemPrompt,
