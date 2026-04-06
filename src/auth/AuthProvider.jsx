@@ -107,7 +107,9 @@ export function AuthProvider({ children }) {
           full_name: snapshot.profile.full_name,
           first_name: snapshot.profile.first_name,
           school: snapshot.profile.school,
-          apice_state: snapshot,
+          // FIX: NÃO salvar apice_state no user_metadata — infla o JWT e causa 500 no API Gateway
+          // O estado do app fica apenas no localStorage. O user_metadata é incluído no JWT token.
+          // Removido em 06/04/2026 para corrigir erro 500 em todos os endpoints.
         },
       })
       setUser(updatedUser)
