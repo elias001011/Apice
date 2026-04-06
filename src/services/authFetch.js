@@ -48,10 +48,23 @@ export async function authFetch(url, options = {}) {
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
+  } else {
+    console.warn(`[authFetch] Nenhum token JWT disponível para ${url}`)
   }
 
-  return fetch(url, {
+  const response = await fetch(url, {
     ...options,
     headers,
   })
+
+  // Log 401/403 errors early for debugging
+  if (response.status === 401 || response.status === 403) {
+    console.error(
+      `[authFetch] ${response.status} ${response.statusText} em ${url}. ` +
+      `Token presente: ${Boolean(token)}. ` +
+      `Usuário logado: ${Boolean(typeof window !== 'undefined' && window.localStorage?.getItem('gotrue.user'))}`
+    )
+  }
+
+  return response
 }

@@ -21,7 +21,10 @@ export default async function handler(req) {
 
   // ── Authentication ──────────────────────────────────────────────────────
   const auth = requireAuth(req, headers)
-  if (auth instanceof Response) return auth
+  if (auth instanceof Response) {
+    console.warn('[chamar-ia] Requisição não autenticada (401). Verifique se o usuário está logado e o JWT está válido.')
+    return auth
+  }
 
   try {
     const body = await req.json().catch(() => ({}))
@@ -31,6 +34,8 @@ export default async function handler(req) {
     const systemPrompt = String(body?.systemPrompt ?? '').trim()
     const userMessages = Array.isArray(body?.userMessages) ? body.userMessages : []
     const responsePreference = body?.responsePreference ?? null
+
+    console.log(`[chamar-ia] Provider: ${provider}, modelVariant: ${modelVariant}, systemPrompt length: ${systemPrompt.length}, userMessages: ${userMessages.length}`)
 
     if (!provider) {
       return new Response(JSON.stringify({ error: 'provider é obrigatório' }), { status: 400, headers })

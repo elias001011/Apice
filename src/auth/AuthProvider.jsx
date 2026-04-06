@@ -230,10 +230,17 @@ export function AuthProvider({ children }) {
     clearVerificationPassword()
     // Limpeza total do localStorage para isolamento de contas
     if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.clear()
+      const keysToPreserve = [] // Não preservar nada — limpeza total
+      const allKeys = Object.keys(localStorage)
+      allKeys.forEach(key => {
+        if (!keysToPreserve.includes(key)) {
+          localStorage.removeItem(key)
+        }
+      })
     }
     syncLockRef.current = false
     lastSyncedSnapshotRef.current = ''
+    syncSuspendedRef.current = false // Reset para próximo login
     setUser(null)
   }
 
@@ -242,6 +249,11 @@ export function AuthProvider({ children }) {
     try {
       const result = await requestAccountDeletion(auth)
       clearVerificationPassword()
+      // Limpeza agressiva antes do logout
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const allKeys = Object.keys(localStorage)
+        allKeys.forEach(key => localStorage.removeItem(key))
+      }
       await logout()
       return result
     } finally {

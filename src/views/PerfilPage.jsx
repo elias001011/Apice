@@ -38,6 +38,7 @@ import {
   restoreFromBackup,
   CATEGORIES as BACKUP_CATEGORIES,
 } from '../services/backupService.js'
+import { fetchClima, getLastClimaResult, getLastClimaError } from '../services/climaService.js'
 
 const perfilCss = `
   .profile-hero {
@@ -594,6 +595,12 @@ export function PerfilPage() {
   const [selectedBackupCategories, setSelectedBackupCategories] = useState([])
   const backupFileRef = useRef(null)
 
+  // Clima (diagnóstico de autenticação)
+  const [climaLoading, setClimaLoading] = useState(false)
+  const [climaResult, setClimarResult] = useState(() => getLastClimaResult())
+  const [climaError, setClimError] = useState(() => getLastClimaError())
+  const [climaCity, setClimaCity] = useState('Sao Paulo')
+
   const name = user?.user_metadata?.full_name || 'Usuário'
   const email = user?.email || 'Sem e-mail'
   const maskedEmail = maskEmail(email)
@@ -857,6 +864,30 @@ export function PerfilPage() {
     }
   }
 
+  const handleFetchClima = async () => {
+    setClimaLoading(true)
+    setClimError(null)
+    setClimarResult(null)
+
+    try {
+      const data = await fetchClima(climaCity)
+      setClimarResult(data)
+      console.log('[Clima] Diagnóstico OK:', data)
+    } catch (err) {
+      const errorObj = {
+        message: err.message,
+        status: err.status,
+        detail: err.detail || '',
+        debug: err.debug || {},
+        timestamp: new Date().toISOString(),
+      }
+      setClimError(errorObj)
+      console.error('[Clima] Falha no diagnóstico:', errorObj)
+    } finally {
+      setClimaLoading(false)
+    }
+  }
+
   return (
     <>
       <style>{perfilCss}</style>
@@ -1053,6 +1084,130 @@ export function PerfilPage() {
                 <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
               </div>
             </Link>
+          </div>
+
+          {/* Card de Clima — Diagnóstico de Autenticação */}
+          <div className="section-label anim anim-d4">Diagnóstico</div>
+          <div className="card anim anim-d4" style={{ padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+              </svg>
+              <div className="settings-name">Teste de Autenticação (Clima)</div>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 0.75rem', lineHeight: 1.5 }}>
+              Se o clima funcionar, a autenticação está OK e o problema é nas IAs. Se falhar, é problema de auth.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                value={climaCity}
+                onChange={(e) => setClimaCity(e.target.value)}
+                placeholder="Cidade"
+                style={{
+                  flex: '1 1 auto',
+                  minWidth: '120px',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg)',
+                  color: 'var(--text)',
+                  fontSize: '0.85rem',
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleFetchClima}
+                disabled={climaLoading}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: climaLoading ? 'var(--border)' : 'var(--accent)',
+                  color: climaLoading ? 'var(--text-muted)' : '#fff',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: climaLoading ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {climaLoading ? 'Buscando...' : 'Buscar Clima'}
+              </button>
+            </div>
+            {climaError && (
+              <div style={{
+                padding: '0.65rem 0.75rem',
+                borderRadius: '8px',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                fontSize: '0.8rem',
+                color: 'var(--text)',
+                lineHeight: 1.5,
+                marginBottom: '0.5rem',
+              }}>
+                <strong style={{ color: '#ef4444' }}>❌ Falhou (HTTP {climaError.status})</strong>
+                <div style={{ marginTop: '0.25rem' }}>{climaError.message}</div>
+                {climaError.detail && <div style={{ marginTop: '0.25rem', opacity: 0.7 }}>{climaError.detail}</div>}
+                <details style={{ marginTop: '0.5rem', fontSize: '0.75rem' }}>
+                  <summary style={{ cursor: 'pointer', opacity: 0.6 }}>Debug</summary>
+                  <pre style={{
+                    margin: '0.5rem 0 0',
+                    padding: '0.5rem',
+                    background: 'rgba(0,0,0,0.05)',
+                    borderRadius: '4px',
+                    fontSize: '0.7rem',
+                    overflow: 'auto',
+                    maxHeight: '150px',
+                  }}>
+                    {JSON.stringify({ status: climaError.status, debug: climaError.debug, timestamp: climaError.timestamp }, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            )}
+            {climaResult && (
+              <div style={{
+                padding: '0.65rem 0.75rem',
+                borderRadius: '8px',
+                background: 'rgba(34, 197, 94, 0.08)',
+                border: '1px solid rgba(34, 197, 94, 0.2)',
+                fontSize: '0.8rem',
+                color: 'var(--text)',
+                lineHeight: 1.5,
+              }}>
+                <strong style={{ color: '#22c55e' }}>✅ Autenticação OK</strong>
+                <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {climaResult.icone && (
+                    <img
+                      src={`https://openweathermap.org/img/wn/${climaResult.icone}@2x.png`}
+                      alt=""
+                      style={{ width: '32px', height: '32px' }}
+                    />
+                  )}
+                  <div>
+                    <div style={{ fontWeight: 600 }}>
+                      {climaResult.temperatura}°C em {climaResult.cidade}{climaResult.pais ? `, ${climaResult.pais}` : ''}
+                    </div>
+                    <div style={{ opacity: 0.7, fontSize: '0.75rem' }}>
+                      {climaResult.descricao} • Sensação {climaResult.sensacao}°C • Umidade {climaResult.umidade}% • Vento {climaResult.vento} km/h
+                    </div>
+                    <details style={{ marginTop: '0.35rem' }}>
+                      <summary style={{ cursor: 'pointer', opacity: 0.6, fontSize: '0.7rem' }}>Debug</summary>
+                      <pre style={{
+                        margin: '0.35rem 0 0',
+                        padding: '0.4rem',
+                        background: 'rgba(0,0,0,0.05)',
+                        borderRadius: '4px',
+                        fontSize: '0.65rem',
+                        overflow: 'auto',
+                        maxHeight: '120px',
+                      }}>
+                        {JSON.stringify(climaResult.debug, null, 2)}
+                      </pre>
+                    </details>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
         </div>

@@ -90,15 +90,27 @@ function isTokenExpired(payload) {
 export function authenticateRequest(req) {
   try {
     const token = extractBearerToken(req)
-    if (!token) return null
+    if (!token) {
+      console.warn('[auth] Token JWT não fornecido na requisição')
+      return null
+    }
 
     const payload = decodeJwtPayload(token)
-    if (!payload) return null
+    if (!payload) {
+      console.error('[auth] Token JWT malformado ou inválido')
+      return null
+    }
 
-    if (isTokenExpired(payload)) return null
+    if (isTokenExpired(payload)) {
+      console.error(`[auth] Token JWT expirado em ${new Date(payload.exp * 1000).toISOString()}`)
+      return null
+    }
 
     const userId = String(payload.sub ?? payload.id ?? '').trim()
-    if (!userId) return null
+    if (!userId) {
+      console.error('[auth] Token JWT sem userId (sub/id). Payload:', JSON.stringify({ sub: payload.sub, id: payload.id }))
+      return null
+    }
 
     return {
       user: {
@@ -118,8 +130,9 @@ export function authenticateRequest(req) {
       token,
       payload,
     }
-  } catch {
+  } catch (error) {
     // Safety net — never crash the function
+    console.error('[auth] Erro inesperado ao autenticar:', error.message)
     return null
   }
 }
