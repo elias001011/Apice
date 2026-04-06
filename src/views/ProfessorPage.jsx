@@ -78,6 +78,7 @@ function iconSvg(kind) {
 
 export function ProfessorPage() {
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0])
+  const messageIdRef = useRef(0)
   
   const [conversations, setConversations] = useState(() => {
     try {
@@ -101,6 +102,17 @@ export function ProfessorPage() {
   const messagesWallRef = useRef(null)
 
   const activeMessages = conversations[activeCategory.id]
+
+  const nextMessageId = useCallback(() => {
+    const now = Date.now()
+    messageIdRef.current += 1
+    return now + messageIdRef.current
+  }, [])
+
+  const isBrowserOffline = useCallback(() => {
+    if (typeof navigator === 'undefined') return false
+    return navigator.onLine === false
+  }, [])
 
   /** Rola só a lista de mensagens — evita scrollIntoView, que puxa a página inteira. */
   const scrollMessagesToEnd = useCallback((behavior = 'smooth') => {
@@ -128,23 +140,31 @@ export function ProfessorPage() {
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || isTyping) return
+    if (isBrowserOffline()) {
+      setAiError(true)
+      window.alert('Você está offline. Verifique sua conexão para continuar usando o Professor IA.')
+      return
+    }
 
     const userMessage = inputText.trim()
+    const categoryAtSend = activeCategory
+    const categoryId = categoryAtSend.id
+    const categoryMessages = Array.isArray(conversations[categoryId]) ? conversations[categoryId] : []
     setInputText('')
     setAiError(false)
 
     setConversations(prev => ({
       ...prev,
-      [activeCategory.id]: [
-        ...prev[activeCategory.id],
-        { id: Date.now(), sender: 'user', text: userMessage }
+      [categoryId]: [
+        ...(Array.isArray(prev[categoryId]) ? prev[categoryId] : []),
+        { id: nextMessageId(), sender: 'user', text: userMessage }
       ]
     }))
 
     setIsTyping(true)
 
     // Monta histórico recente para contexto da IA
-    const recentMessages = activeMessages
+    const recentMessages = categoryMessages
       .slice(-MAX_CHAT_HISTORY)
       .filter(msg => msg.sender === 'user' || msg.sender === 'ai')
       .map(msg => ({
@@ -152,13 +172,13 @@ export function ProfessorPage() {
         content: msg.text
       }))
 
-    const systemPrompt = `Você é um professor especialista no ENEM, atuando na categoria "${activeCategory.label}".
+    const systemPrompt = `Você é um professor especialista no ENEM, atuando na categoria "${categoryAtSend.label}".
 
 DIRETRIZES:
-- ${activeCategory.id === 'duvidas' ? 'Explique de forma clara, passo a passo, com exemplos quando possível.' : ''}
-- ${activeCategory.id === 'resumos' ? 'Crie resumos objetivos com os pontos mais importantes para o ENEM. Use tópicos e seja direto.' : ''}
-- ${activeCategory.id === 'mapas' ? 'Estruture respostas como mapas mentais, com hierarquia visual usando caracteres como ─, ├, └, ●.' : ''}
-- ${activeCategory.id === 'pratica' ? 'Crie questões inéditas no estilo ENEM com 5 alternativas (A-E). Após o aluno responder, dê feedback detalhado.' : ''}
+- ${categoryAtSend.id === 'duvidas' ? 'Explique de forma clara, passo a passo, com exemplos quando possível.' : ''}
+- ${categoryAtSend.id === 'resumos' ? 'Crie resumos objetivos com os pontos mais importantes para o ENEM. Use tópicos e seja direto.' : ''}
+- ${categoryAtSend.id === 'mapas' ? 'Estruture respostas como mapas mentais, com hierarquia visual usando caracteres como ─, ├, └, ●.' : ''}
+- ${categoryAtSend.id === 'pratica' ? 'Crie questões inéditas no estilo ENEM com 5 alternativas (A-E). Após o aluno responder, dê feedback detalhado.' : ''}
 - Use linguagem acessível mas não infantilize.
 - Se não souber, seja honesto.
 - Mantenha o foco no contexto do ENEM e no Brasil.
@@ -200,13 +220,27 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
       { role: 'user', content: userMessage }
     ]
 
+    const callProfessorIa = async () => {
+      try {
+        return await chamarIAEspecifica({
+          provider: 'groq',
+          modelVariant: 'secondary',
+          systemPrompt: finalSystemPrompt,
+          userMessages,
+        })
+      } catch (secondaryError) {
+        console.warn('Groq secondary falhou no Professor, tentando primary.', secondaryError)
+        return await chamarIAEspecifica({
+          provider: 'groq',
+          modelVariant: 'primary',
+          systemPrompt: finalSystemPrompt,
+          userMessages,
+        })
+      }
+    }
+
     try {
-      const response = await chamarIAEspecifica({
-        provider: 'groq',
-        modelVariant: 'secondary',
-        systemPrompt: finalSystemPrompt,
-        userMessages,
-      })
+      const response = await callProfessorIa()
 
       // A resposta da IA vem como JSON parseado (campo 'texto' conforme systemPrompt)
       let aiText = response?.texto || response?.text || response?.content || response?.message
@@ -222,62 +256,40 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
 
       setConversations(prev => ({
         ...prev,
-        [activeCategory.id]: [
-          ...prev[activeCategory.id],
-          { id: Date.now(), sender: 'ai', text: aiText || fallback }
+        [categoryId]: [
+          ...(Array.isArray(prev[categoryId]) ? prev[categoryId] : []),
+          { id: nextMessageId(), sender: 'ai', text: String(aiText || fallback || '').trim() }
         ]
       }))
       setAiError(false)
     } catch (error) {
       console.error('Erro ao chamar IA do Professor:', error)
-      // Fallback: usa resposta offline se IA falhar
-      const mockResponse = getFallbackResponse(activeCategory.id)
       setConversations(prev => ({
         ...prev,
-        [activeCategory.id]: [
-          ...prev[activeCategory.id],
-          { id: Date.now(), sender: 'ai', text: mockResponse }
+        [categoryId]: [
+          ...(Array.isArray(prev[categoryId]) ? prev[categoryId] : []),
+          {
+            id: nextMessageId(),
+            sender: 'ai',
+            text: isBrowserOffline()
+              ? 'Estou sem conexão no momento. Verifique sua internet e tente novamente.'
+              : 'Não consegui responder agora. Tente novamente em alguns segundos.'
+          }
         ]
       }))
+      if (isBrowserOffline()) {
+        window.alert('Conexão offline detectada. O Professor IA não consegue responder sem internet.')
+      }
       setAiError(true)
     } finally {
       setIsTyping(false)
     }
   }
 
-  // Fallback simples caso IA falhe
-  const FALLBACK_RESPONSES = {
-    duvidas: [
-      "Essa dúvida é comum. Para entender melhor, revise o contexto histórico e as causas principais. Quer que eu explique algum ponto específico?",
-      "Boa pergunta! Pense na regra geral e depois nas exceções. Isso ajuda a fixar o conceito.",
-    ],
-    resumos: [
-      "Resumo rápido: foque nos 3 pontos principais — causas, desenvolvimento e consequências. Isso cobre o essencial para o ENEM.",
-      "Dica: organize em tópicos curtos. Cause → Efeito → Solução. Funciona pra quase tudo no ENEM.",
-    ],
-    mapas: [
-      "Estrutura básica:\n[TEMA CENTRAL]\n├── Causas\n├── Desenvolvimento\n├── Consequências\n└── Soluções/Exemplos",
-      "Mapa mental:\nCentro: Conceito\n→ Esquerda: Teoria\n→ Direita: Prática\n→ Cima: Contexto histórico\n→ Baixo: Atualidade",
-    ],
-    pratica: [
-      "Questão rápida: No contexto da independência do Brasil, qual foi o papel da elite econômica?\nA) Financiaram a guerra\nB) Mantiveram apoio a Portugal\nC) Buscaram autonomia comercial\nD) Não participaram\nE) Criaram milícias\n\nPense e me diz!",
-      "Desafio: O que foi o AI-5 e qual seu impacto na sociedade brasileira? Responda com suas palavras que eu te dou feedback.",
-    ],
-    fallback: [
-      "Entendi. Vou te ajudar a destrinchar isso. Pode reformular a pergunta ou ser mais específico?",
-      "Ponto interessante! Me conta mais sobre o que já sabe pra eu adaptar a explicação.",
-    ],
-  }
-
-  function getFallbackResponse(categoryId) {
-    const responses = FALLBACK_RESPONSES[categoryId] || FALLBACK_RESPONSES.fallback
-    return responses[Math.floor(Math.random() * responses.length)]
-  }
-
   const handleClearHistory = () => {
     setConversations(prev => ({
       ...prev,
-      [activeCategory.id]: [{ id: Date.now(), sender: 'ai', text: activeCategory.welcomeMessage }]
+      [activeCategory.id]: [{ id: nextMessageId(), sender: 'ai', text: activeCategory.welcomeMessage }]
     }))
   }
 
@@ -322,7 +334,7 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
                 </span>
                 <span className="prof-session-meta">
                   IA Experimental
-                  {aiError && <span className="prof-ai-error-badge" title="Usando resposta offline (IA indisponível)"> ⚠️ Offline</span>}
+                  {aiError && <span className="prof-ai-error-badge" title="Falha de conexão ou indisponibilidade temporária"> ⚠️ Indisponível</span>}
                 </span>
               </div>
               <button

@@ -21,6 +21,9 @@ export const FREE_PLAN_LIMITS = {
   directModelCall: {
     label: 'IA direta',
   },
+  professorChat: {
+    label: 'Professor IA',
+  },
   radarSearch: {
     label: 'Radar: busca',
   },

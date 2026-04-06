@@ -60,8 +60,8 @@ function getCheckoutStatus(checkout) {
   return String(checkout?.status ?? '').toUpperCase()
 }
 
-function buildV2CheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, userEmail, customerName, timestamp }) {
-  return {
+function buildV2CheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, userEmail, customerName, timestamp, isTrial }) {
+  const payload = {
     items: [
       {
         id: plan.productId,
@@ -84,6 +84,14 @@ function buildV2CheckoutPayload({ plan, externalId, returnUrl, completionUrl, us
       createdAt: timestamp,
     },
   }
+
+  // If trial is requested, we apply a 100% discount coupon
+  // CAUTION: The coupon "TRIAL7DIAS" must be previously created in the Dashboard
+  if (isTrial) {
+    payload.coupons = ['TRIAL7DIAS']
+  }
+
+  return payload
 }
 
 function buildV1CheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, userEmail, customerName, customerCellphone, customerTaxId, timestamp }) {
@@ -175,6 +183,7 @@ async function abacateFetch(apiVersion, path, { method = 'GET', body } = {}) {
 async function createCheckout(req, authUser, headers) {
   const body = await req.json().catch(() => ({}))
   const planKey = safeText(body?.planKey)
+  const isTrial = Boolean(body?.isTrial)
   const plan = getPricingPlanByKey(planKey)
   // C-02 FIX: userId is ALWAYS derived from the authenticated JWT, never from the body.
   // This prevents spoofing where an attacker could create checkouts attributed to other users.
@@ -212,6 +221,7 @@ async function createCheckout(req, authUser, headers) {
     customerCellphone,
     customerTaxId,
     timestamp,
+    isTrial,
   }
 
   let lastError = null

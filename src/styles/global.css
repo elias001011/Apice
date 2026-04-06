@@ -904,7 +904,9 @@ html[data-fx="none"] .card {
 html[data-fx="blur"] .nav-more-menu,
 html[data-fx="blur"] .app-busy-card,
 html[data-fx="blur"] .confirm-dialog,
-html[data-fx="blur"] .onboarding-card {
+html[data-fx="blur"] .onboarding-card,
+html[data-fx="blur"] .chat-card-container,
+html[data-fx="blur"] .criteria-card {
   background: var(--bg2-glass);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -1322,5 +1324,43 @@ html[data-card-hover="off"] .conq-card--unlocked:hover {
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
     align-items: start;
+  }
+}
+
+/* ── DASHBOARD LAYOUT (SHARED) ── */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: 1.8fr 1fr;
+  }
+}
+
+/* Sidebar behavior for Dashboards */
+.dashboard-column-side {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.sticky-side {
+  position: sticky;
+  top: calc(var(--nav-h) + 1.5rem);
+  z-index: 10;
+}
+
+@media (max-width: 768px) {
+  .dashboard-column-side {
+    order: -1; /* On mobile, side elements usually come first (e.g. modes, categories) */
+  }
+  
+  .sticky-side {
+    position: static;
+    top: auto;
   }
 }

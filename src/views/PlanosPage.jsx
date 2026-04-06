@@ -221,26 +221,15 @@ export function PlanosPage() {
         return
       }
 
-      if (trialAvailable) {
-        startTrial({
-          planKey: plan.key,
-        })
-
-        setFlash({
-          tone: 'success',
-          text: trialAvailable
-            ? `Teste grátis iniciado para o plano ${plan.label}. A cobrança só vai aparecer depois dos ${TRIAL_DAYS} dias.`
-            : `Seu teste grátis continua ativo no plano ${plan.label}. A cobrança só entra depois do período gratuito.`,
-        })
-
-        return
-      }
+      // We call the real checkout even for trials now
+      const trialRequested = trialAvailable
 
       const response = await authFetch('/.netlify/functions/abacatepay-checkout', {
         method: 'POST',
         body: JSON.stringify({
           planKey: plan.key,
-          // userId is derived from JWT on the backend (C-02 security fix)
+          isTrial: trialRequested,
+          // userId is derived from JWT on the backend
           userEmail: user.email || '',
           customerName: user?.user_metadata?.full_name || '',
           customerCellphone: user?.phone || user?.user_metadata?.phone || user?.user_metadata?.cellphone || '',
