@@ -291,7 +291,7 @@ export function ProfessorPage() {
 DIRETRIZES:
 - ${categoryAtSend.id === 'duvidas' ? 'Explique de forma clara, passo a passo, com exemplos quando possível.' : ''}
 - ${categoryAtSend.id === 'resumos' ? 'Crie resumos objetivos com os pontos mais importantes para o ENEM. Use tópicos e seja direto.' : ''}
-- ${categoryAtSend.id === 'mapas' ? `Além do texto explicativo, você DEVE retornar um objeto "mapa" com o JSON estruturado do mapa mental no formato exato: {"nodes":[{"id":"raiz","label":"Título central","parentId":null},{"id":"n1","label":"Subtema A","parentId":"raiz"},{"id":"n2","label":"Subtema B","parentId":"raiz"}]}. Crie entre 8 e 20 nós para garantir profundidade. Use hierarquia clara.` : ''}
+- ${categoryAtSend.id === 'mapas' ? `Para esta categoria (Mapas), você NÃO deve escrever uma explicação. Retorne EXATAMENTE a string "[MAPA_GERADO]" no campo "texto" e foque 100% no preenchimento do objeto "mapa". Crie um mapa profundo com 12 a 24 nós organizados hierarquicamente.` : ''}
 - ${categoryAtSend.id === 'pratica' ? 'Crie questões inéditas no estilo ENEM com 5 alternativas (A-E). Após o aluno responder, dê feedback detalhado.' : ''}
 - Use linguagem acessível mas não infantilize.
 - Se não souber, seja honesto.
@@ -300,11 +300,11 @@ DIRETRIZES:
 
 Responda SEMPRE em JSON válido neste formato:
 {
-  "texto": "Sua explicação teórica aqui em formato string...",
+  "texto": "Sua explicação (ou [MAPA_GERADO] se for categoria mapas)...",
   "mapa": { "nodes": [ ... ] }
 }
 
-DICA: Se for a categoria 'mapas', o campo 'mapa' é OBRIGATÓRIO.
+DICA: Na categoria 'mapas', o campo 'mapa' é OBRIGATÓRIO e o 'texto' deve ser "[MAPA_GERADO]".
 
 Histórico recente da conversa (para manter coerência):`
 
@@ -595,22 +595,27 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
               aria-live="polite"
               aria-relevant="additions"
             >
-              {activeMessages.map((msg, index) => (
-                <div
-                  key={msg.id}
-                  className={`prof-msg-row ${msg.sender === 'user' ? 'user-row' : 'ai-row'} anim-pop-in`}
-                  style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
-                >
-                  <div className="prof-msg-bubble">
-                    {msg.sender === 'ai' && <div className="prof-side-avatar">👨‍🏫</div>}
-                    <div className="prof-text-content">
-                      {msg.text.split('\n').map((line, i) => (
-                        <p key={i}>{line}</p>
-                      ))}
+              {activeMessages.map((msg, index) => {
+                // Oculta mensagens técnicas de geração de mapa no modo mapas
+                if (activeCategory.id === 'mapas' && msg.text === '[MAPA_GERADO]') return null
+
+                return (
+                  <div
+                    key={msg.id}
+                    className={`prof-msg-row ${msg.sender === 'user' ? 'user-row' : 'ai-row'} anim-pop-in`}
+                    style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
+                  >
+                    <div className="prof-msg-bubble">
+                      {msg.sender === 'ai' && <div className="prof-side-avatar">👨‍🏫</div>}
+                      <div className="prof-text-content">
+                        {msg.text.split('\n').map((line, i) => (
+                          <p key={i}>{line}</p>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
 
               {isTyping && (
                 <div className="prof-msg-row ai-row anim-pop-in">
