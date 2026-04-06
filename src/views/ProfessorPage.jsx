@@ -87,17 +87,25 @@ export function ProfessorPage() {
   
   const [inputText, setInputText] = useState('')
   const [isTyping, setIsTyping] = useState(false)
-  const messagesEndRef = useRef(null)
+  const messagesWallRef = useRef(null)
 
   const activeMessages = conversations[activeCategory.id]
 
-  const scrollToBottom = useCallback((behavior = 'smooth') => {
-    messagesEndRef.current?.scrollIntoView({ behavior })
+  /** Rola só a lista de mensagens — evita scrollIntoView, que puxa a página inteira. */
+  const scrollMessagesToEnd = useCallback((behavior = 'smooth') => {
+    const wall = messagesWallRef.current
+    if (!wall) return
+    const y = wall.scrollHeight
+    if (behavior === 'smooth') {
+      wall.scrollTo({ top: y, behavior: 'smooth' })
+    } else {
+      wall.scrollTop = y
+    }
   }, [])
 
   useEffect(() => {
-    scrollToBottom()
-  }, [activeMessages, isTyping, scrollToBottom])
+    scrollMessagesToEnd()
+  }, [activeMessages, isTyping, scrollMessagesToEnd])
 
   useEffect(() => {
     try {
@@ -162,10 +170,7 @@ export function ProfessorPage() {
                   key={cat.id}
                   type="button"
                   className={`prof-pill-btn ${activeCategory.id === cat.id ? 'active' : ''}`}
-                  onClick={() => {
-                    setActiveCategory(cat)
-                    scrollToBottom('auto')
-                  }}
+                  onClick={() => setActiveCategory(cat)}
                 >
                   {iconSvg(cat.icon)}
                   <span>{cat.label}</span>
@@ -201,7 +206,13 @@ export function ProfessorPage() {
           </div>
 
           <main className="prof-chat-surface">
-            <div className="prof-messages-wall" role="log" aria-live="polite" aria-relevant="additions">
+            <div
+              ref={messagesWallRef}
+              className="prof-messages-wall"
+              role="log"
+              aria-live="polite"
+              aria-relevant="additions"
+            >
               {activeMessages.map((msg, index) => (
                 <div
                   key={msg.id}
@@ -231,7 +242,6 @@ export function ProfessorPage() {
                   </div>
                 </div>
               )}
-              <div ref={messagesEndRef} />
             </div>
 
             <div className="prof-actions-dock">
