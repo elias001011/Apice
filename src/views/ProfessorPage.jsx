@@ -574,51 +574,57 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
           </div>
 
           <main className={`prof-chat-surface ${activeCategory.id === 'mapas' ? 'prof-chat-surface--map' : ''}`}>
-            {activeCategory.id === 'mapas' ? (
+            {activeCategory.id === 'mapas' && activeMindmap && (
               <ProfessorMindmapCanvas
                 tree={activeMindmap}
                 onExpandNode={handleExpandMindmapNode}
                 isExpanding={isExpandingMindmap}
               />
-            ) : (
-              <div
-                ref={messagesWallRef}
-                className="prof-messages-wall"
-                role="log"
-                aria-live="polite"
-                aria-relevant="additions"
-              >
-                {activeMessages.map((msg, index) => (
-                  <div
-                    key={msg.id}
-                    className={`prof-msg-row ${msg.sender === 'user' ? 'user-row' : 'ai-row'} anim-pop-in`}
-                    style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
-                  >
-                    <div className="prof-msg-bubble">
-                      {msg.sender === 'ai' && <div className="prof-side-avatar">👨‍🏫</div>}
-                      <div className="prof-text-content">
-                        {msg.text.split('\n').map((line, i) => (
-                          <p key={i}>{line}</p>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+            )}
 
-                {isTyping && (
-                  <div className="prof-msg-row ai-row anim-pop-in">
-                    <div className="prof-msg-bubble">
-                      <div className="prof-side-avatar">👨‍🏫</div>
-                      <div className="prof-typing-wave">
-                        <span />
-                        <span />
-                        <span />
-                      </div>
-                    </div>
-                  </div>
-                )}
+            {activeCategory.id === 'mapas' && !activeMindmap && !isTyping && (
+              <div className="prof-map-empty-state">
+                <p>Nenhum mapa mental gerado para esta sessão ainda. Digite um tema abaixo para criar!</p>
               </div>
             )}
+
+            <div
+              ref={messagesWallRef}
+              className="prof-messages-wall"
+              role="log"
+              aria-live="polite"
+              aria-relevant="additions"
+            >
+              {activeMessages.map((msg, index) => (
+                <div
+                  key={msg.id}
+                  className={`prof-msg-row ${msg.sender === 'user' ? 'user-row' : 'ai-row'} anim-pop-in`}
+                  style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
+                >
+                  <div className="prof-msg-bubble">
+                    {msg.sender === 'ai' && <div className="prof-side-avatar">👨‍🏫</div>}
+                    <div className="prof-text-content">
+                      {msg.text.split('\n').map((line, i) => (
+                        <p key={i}>{line}</p>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {isTyping && (
+                <div className="prof-msg-row ai-row anim-pop-in">
+                  <div className="prof-msg-bubble">
+                    <div className="prof-side-avatar">👨‍🏫</div>
+                    <div className="prof-typing-wave">
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="prof-actions-dock">
               <div className="prof-card-rule prof-card-rule--subtle" aria-hidden="true" />

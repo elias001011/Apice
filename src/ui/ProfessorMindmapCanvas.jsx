@@ -33,15 +33,16 @@ function buildNodeLayout(tree) {
   const HORIZONTAL_SPACING = 350
   const VERTICAL_SPACING = 150
 
-  // Cálculo de altura total de cada subárvore para centralizar pais
+  // Cálculo de altura total de cada subárvore para centralizar pais — com proteção contra loops
   const subTreeHeight = new Map()
-  const calculateHeight = (id) => {
+  const calculateHeight = (id, depth = 0) => {
+    if (depth > 25) return VERTICAL_SPACING // Proteção contra recursão infinita
     const children = byParent.get(id) || []
     if (children.length === 0) {
       subTreeHeight.set(id, VERTICAL_SPACING)
       return VERTICAL_SPACING
     }
-    const h = children.reduce((acc, child) => acc + calculateHeight(child.id), 0)
+    const h = children.reduce((acc, child) => acc + calculateHeight(child.id, depth + 1), 0)
     subTreeHeight.set(id, h)
     return h
   }
@@ -148,10 +149,14 @@ export function ProfessorMindmapCanvas({
       })
     })
 
-    editor.createShapes(shapeBatch)
-    requestAnimationFrame(() => {
-      editor.zoomToFit({ animation: { duration: 400 } })
-    })
+    try {
+      editor.createShapes(shapeBatch)
+      requestAnimationFrame(() => {
+        editor.zoomToFit({ animation: { duration: 450 } })
+      })
+    } catch (err) {
+      console.error('Falha ao renderizar mapa no tldraw:', err)
+    }
   }, [editor, normalizedNodes, tree])
 
   const getSelectedNodeId = useCallback(() => {
