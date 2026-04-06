@@ -77,7 +77,16 @@ function extractMindmapFromAiResponse(response, textFallback = '') {
 
   const parsedFromText = safeJsonParse(textFallback)
   if (parsedFromText) {
-    return normalizeMindmapTree(parsedFromText)
+    const map = normalizeMindmapTree(parsedFromText)
+    if (map) return map
+  }
+
+  // Novo fallback: Regex para capturar JSON de mapa que a IA pode ter "cuspido" dentro da string 'texto'
+  const text = String(response?.texto || response?.text || textFallback || '')
+  const match = text.match(/(\{[\s\S]*"nodes"[\s\S]*\})/i)
+  if (match) {
+    const extracted = safeJsonParse(match[1])
+    if (extracted) return normalizeMindmapTree(extracted)
   }
 
   return null
@@ -282,18 +291,20 @@ export function ProfessorPage() {
 DIRETRIZES:
 - ${categoryAtSend.id === 'duvidas' ? 'Explique de forma clara, passo a passo, com exemplos quando possível.' : ''}
 - ${categoryAtSend.id === 'resumos' ? 'Crie resumos objetivos com os pontos mais importantes para o ENEM. Use tópicos e seja direto.' : ''}
-- ${categoryAtSend.id === 'mapas' ? 'Além do texto explicativo, retorne também um objeto "mapa" com JSON estruturado do mapa mental. Use formato: {"nodes":[{"id":"raiz","label":"tema central","parentId":null},{"id":"n2","label":"subtema","parentId":"raiz"}]}. Inclua entre 6 e 16 nós.' : ''}
+- ${categoryAtSend.id === 'mapas' ? `Além do texto explicativo, você DEVE retornar um objeto "mapa" com o JSON estruturado do mapa mental no formato exato: {"nodes":[{"id":"raiz","label":"Título central","parentId":null},{"id":"n1","label":"Subtema A","parentId":"raiz"},{"id":"n2","label":"Subtema B","parentId":"raiz"}]}. Crie entre 8 e 20 nós para garantir profundidade. Use hierarquia clara.` : ''}
 - ${categoryAtSend.id === 'pratica' ? 'Crie questões inéditas no estilo ENEM com 5 alternativas (A-E). Após o aluno responder, dê feedback detalhado.' : ''}
 - Use linguagem acessível mas não infantilize.
 - Se não souber, seja honesto.
 - Mantenha o foco no contexto do ENEM e no Brasil.
 - Responda em português do Brasil.
 
-Responda SOMENTE com JSON válido neste formato:
+Responda SEMPRE em JSON válido neste formato:
 {
-  "texto": "sua resposta completa aqui, com quebras de linha \\n para parágrafos",
-  "mapa": { "nodes": [] }
+  "texto": "Sua explicação teórica aqui em formato string...",
+  "mapa": { "nodes": [ ... ] }
 }
+
+DICA: Se for a categoria 'mapas', o campo 'mapa' é OBRIGATÓRIO.
 
 Histórico recente da conversa (para manter coerência):`
 

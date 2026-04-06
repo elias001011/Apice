@@ -6,8 +6,11 @@ import 'tldraw/tldraw.css'
 
 function buildNodeLayout(tree) {
   const nodes = Array.isArray(tree?.nodes) ? tree.nodes : []
+  if (nodes.length === 0) return new Map()
+
   const byParent = new Map()
   const roots = []
+  const nodeMap = new Map()
 
   nodes.forEach((node) => {
     const normalized = {
@@ -15,39 +18,52 @@ function buildNodeLayout(tree) {
       label: String(node.label || 'Nó'),
       parentId: node.parentId ? String(node.parentId) : null,
     }
+    nodeMap.set(normalized.id, normalized)
 
     if (!normalized.parentId) {
       roots.push(normalized)
-      return
+    } else {
+      const siblings = byParent.get(normalized.parentId) || []
+      siblings.push(normalized)
+      byParent.set(normalized.parentId, siblings)
     }
-
-    const siblings = byParent.get(normalized.parentId) || []
-    siblings.push(normalized)
-    byParent.set(normalized.parentId, siblings)
   })
 
-  const levels = []
-  const queue = roots.map((node) => ({ node, depth: 0 }))
+  const positions = new Map()
+  const HORIZONTAL_SPACING = 350
+  const VERTICAL_SPACING = 150
 
-  while (queue.length > 0) {
-    const { node, depth } = queue.shift()
-    if (!levels[depth]) levels[depth] = []
-    levels[depth].push(node)
-    const children = byParent.get(node.id) || []
-    children.forEach((child) => queue.push({ node: child, depth: depth + 1 }))
+  // Cálculo de altura total de cada subárvore para centralizar pais
+  const subTreeHeight = new Map()
+  const calculateHeight = (id) => {
+    const children = byParent.get(id) || []
+    if (children.length === 0) {
+      subTreeHeight.set(id, VERTICAL_SPACING)
+      return VERTICAL_SPACING
+    }
+    const h = children.reduce((acc, child) => acc + calculateHeight(child.id), 0)
+    subTreeHeight.set(id, h)
+    return h
   }
 
-  const positions = new Map()
-  levels.forEach((levelNodes, depth) => {
-    const totalHeight = levelNodes.length * 130
-    const startY = -Math.max(totalHeight / 2, 0)
+  roots.forEach(r => calculateHeight(r.id))
 
-    levelNodes.forEach((node, index) => {
-      positions.set(node.id, {
-        x: depth * 320,
-        y: startY + (index * 130),
-      })
+  const layout = (id, x, startY) => {
+    const h = subTreeHeight.get(id)
+    positions.set(id, { x, y: startY + h / 2 - 36 }) // -36 para compensar metade da altura do nó
+
+    const children = byParent.get(id) || []
+    let currentY = startY
+    children.forEach(child => {
+      layout(child.id, x + HORIZONTAL_SPACING, currentY)
+      currentY += subTreeHeight.get(child.id)
     })
+  }
+
+  let globalY = 0
+  roots.forEach(r => {
+    layout(r.id, 0, globalY)
+    globalY += subTreeHeight.get(r.id) + VERTICAL_SPACING
   })
 
   return positions
@@ -133,7 +149,9 @@ export function ProfessorMindmapCanvas({
     })
 
     editor.createShapes(shapeBatch)
-    editor.zoomToFit({ animation: { duration: 300 } })
+    requestAnimationFrame(() => {
+      editor.zoomToFit({ animation: { duration: 400 } })
+    })
   }, [editor, normalizedNodes, tree])
 
   const getSelectedNodeId = useCallback(() => {
@@ -211,8 +229,10 @@ export function ProfessorMindmapCanvas({
   }, [])
 
   return (
-    <div className="prof-mindmap-canvas-wrap" ref={wrapperRef}>
-      <Tldraw onMount={setEditor} />
+    <div className="prof-mindmap-canvas-wrap">
+      <div className="prof-tldraw-container" ref={wrapperRef}>
+        <Tldraw onMount={setEditor} hideUi={true} />
+      </div>
 
       <div className="prof-mindmap-floating-menu">
         <button
