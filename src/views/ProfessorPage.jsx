@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { CATEGORIES, getRandomMockResponse } from '../data/mockProfessorData.js'
+import { CATEGORIES } from '../data/mockProfessorData.js'
+import { chamarIAEspecifica, buscarContexto } from '../services/aiService.js'
 import '../styles/professor.css'
 
 const STORAGE_KEY = 'apice:professor:conversations'
+const MAX_CHAT_HISTORY = 12 // Limita histórico enviado para IA (economia de tokens)
 
 function iconSvg(kind) {
   switch (kind) {
@@ -62,6 +64,13 @@ function iconSvg(kind) {
           <line x1="14" y1="11" x2="14" y2="17" />
         </svg>
       )
+    case 'search':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+      )
     default:
       return <svg viewBox="0 0 24 24" />
   }
@@ -86,7 +95,9 @@ export function ProfessorPage() {
   })
   
   const [inputText, setInputText] = useState('')
+  const [isSearchEnabled, setIsSearchEnabled] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
+  const [aiError, setAiError] = useState(false)
   const messagesWallRef = useRef(null)
 
   const activeMessages = conversations[activeCategory.id]
@@ -115,33 +126,152 @@ export function ProfessorPage() {
     }
   }, [conversations])
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputText.trim() || isTyping) return
 
     const userMessage = inputText.trim()
     setInputText('')
-    
+    setAiError(false)
+
     setConversations(prev => ({
       ...prev,
       [activeCategory.id]: [
-        ...prev[activeCategory.id], 
+        ...prev[activeCategory.id],
         { id: Date.now(), sender: 'user', text: userMessage }
       ]
     }))
 
     setIsTyping(true)
 
-    setTimeout(() => {
-      const botResponse = getRandomMockResponse(activeCategory.id)
+    // Monta histórico recente para contexto da IA
+    const recentMessages = activeMessages
+      .slice(-MAX_CHAT_HISTORY)
+      .filter(msg => msg.sender === 'user' || msg.sender === 'ai')
+      .map(msg => ({
+        role: msg.sender === 'user' ? 'user' : 'assistant',
+        content: msg.text
+      }))
+
+    const systemPrompt = `Você é um professor especialista no ENEM, atuando na categoria "${activeCategory.label}".
+
+DIRETRIZES:
+- ${activeCategory.id === 'duvidas' ? 'Explique de forma clara, passo a passo, com exemplos quando possível.' : ''}
+- ${activeCategory.id === 'resumos' ? 'Crie resumos objetivos com os pontos mais importantes para o ENEM. Use tópicos e seja direto.' : ''}
+- ${activeCategory.id === 'mapas' ? 'Estruture respostas como mapas mentais, com hierarquia visual usando caracteres como ─, ├, └, ●.' : ''}
+- ${activeCategory.id === 'pratica' ? 'Crie questões inéditas no estilo ENEM com 5 alternativas (A-E). Após o aluno responder, dê feedback detalhado.' : ''}
+- Use linguagem acessível mas não infantilize.
+- Se não souber, seja honesto.
+- Mantenha o foco no contexto do ENEM e no Brasil.
+- Responda em português do Brasil.
+
+Responda SOMENTE com JSON válido neste formato:
+{
+  "texto": "sua resposta completa aqui, com quebras de linha \\n para parágrafos"
+}
+
+Histórico recente da conversa (para manter coerência):`
+
+    let searchContextText = ''
+    if (isSearchEnabled) {
+      try {
+        const searchResult = await buscarContexto(userMessage)
+        if (searchResult) {
+          const cardsText = (searchResult.cards || [])
+            .map(c => `- ${c.titulo}: ${c.texto} (${c.fonte})`)
+            .join('\n')
+          
+          searchContextText = `
+--- CONTEXTO FACTUAL PESQUISADO (USE ISSO PARA ENRIQUECER A RESPOSTA) ---
+Resumo: ${searchResult.resumo || 'Sem resumo.'}
+Dados relevantes:
+${cardsText || 'Nenhum dado específico encontrado.'}
+-------------------------------------------------------------------------
+`
+        }
+      } catch (err) {
+        console.error('Falha na busca de contexto:', err)
+      }
+    }
+
+    const finalSystemPrompt = systemPrompt + (searchContextText ? `\n\n${searchContextText}` : '')
+
+    const userMessages = [
+      ...recentMessages,
+      { role: 'user', content: userMessage }
+    ]
+
+    try {
+      const response = await chamarIAEspecifica({
+        provider: 'groq',
+        modelVariant: 'secondary',
+        systemPrompt: finalSystemPrompt,
+        userMessages,
+      })
+
+      // A resposta da IA vem como JSON parseado (campo 'texto' conforme systemPrompt)
+      let aiText = response?.texto || response?.text || response?.content || response?.message
+      if (!aiText && typeof response === 'object') {
+        // Tenta campos alternativos
+        aiText = response.response || response.output || response.answer || response.reply
+      }
+      const fallback = typeof response === 'string' ? response : null
+
+      if (!aiText && !fallback) {
+        throw new Error('Resposta vazia da IA')
+      }
+
       setConversations(prev => ({
         ...prev,
         [activeCategory.id]: [
-          ...prev[activeCategory.id], 
-          { id: Date.now(), sender: 'ai', text: botResponse }
+          ...prev[activeCategory.id],
+          { id: Date.now(), sender: 'ai', text: aiText || fallback }
         ]
       }))
+      setAiError(false)
+    } catch (error) {
+      console.error('Erro ao chamar IA do Professor:', error)
+      // Fallback: usa resposta offline se IA falhar
+      const mockResponse = getFallbackResponse(activeCategory.id)
+      setConversations(prev => ({
+        ...prev,
+        [activeCategory.id]: [
+          ...prev[activeCategory.id],
+          { id: Date.now(), sender: 'ai', text: mockResponse }
+        ]
+      }))
+      setAiError(true)
+    } finally {
       setIsTyping(false)
-    }, 800 + Math.random() * 800)
+    }
+  }
+
+  // Fallback simples caso IA falhe
+  const FALLBACK_RESPONSES = {
+    duvidas: [
+      "Essa dúvida é comum. Para entender melhor, revise o contexto histórico e as causas principais. Quer que eu explique algum ponto específico?",
+      "Boa pergunta! Pense na regra geral e depois nas exceções. Isso ajuda a fixar o conceito.",
+    ],
+    resumos: [
+      "Resumo rápido: foque nos 3 pontos principais — causas, desenvolvimento e consequências. Isso cobre o essencial para o ENEM.",
+      "Dica: organize em tópicos curtos. Cause → Efeito → Solução. Funciona pra quase tudo no ENEM.",
+    ],
+    mapas: [
+      "Estrutura básica:\n[TEMA CENTRAL]\n├── Causas\n├── Desenvolvimento\n├── Consequências\n└── Soluções/Exemplos",
+      "Mapa mental:\nCentro: Conceito\n→ Esquerda: Teoria\n→ Direita: Prática\n→ Cima: Contexto histórico\n→ Baixo: Atualidade",
+    ],
+    pratica: [
+      "Questão rápida: No contexto da independência do Brasil, qual foi o papel da elite econômica?\nA) Financiaram a guerra\nB) Mantiveram apoio a Portugal\nC) Buscaram autonomia comercial\nD) Não participaram\nE) Criaram milícias\n\nPense e me diz!",
+      "Desafio: O que foi o AI-5 e qual seu impacto na sociedade brasileira? Responda com suas palavras que eu te dou feedback.",
+    ],
+    fallback: [
+      "Entendi. Vou te ajudar a destrinchar isso. Pode reformular a pergunta ou ser mais específico?",
+      "Ponto interessante! Me conta mais sobre o que já sabe pra eu adaptar a explicação.",
+    ],
+  }
+
+  function getFallbackResponse(categoryId) {
+    const responses = FALLBACK_RESPONSES[categoryId] || FALLBACK_RESPONSES.fallback
+    return responses[Math.floor(Math.random() * responses.length)]
   }
 
   const handleClearHistory = () => {
@@ -190,7 +320,10 @@ export function ProfessorPage() {
                 <span className="prof-session-active">
                   Sessão ativa: <strong>{activeCategory.label}</strong>
                 </span>
-                <span className="prof-session-meta">IA Experimental</span>
+                <span className="prof-session-meta">
+                  IA Experimental
+                  {aiError && <span className="prof-ai-error-badge" title="Usando resposta offline (IA indisponível)"> ⚠️ Offline</span>}
+                </span>
               </div>
               <button
                 type="button"
@@ -263,6 +396,14 @@ export function ProfessorPage() {
                     autoComplete="off"
                   />
                 </label>
+                <button
+                  type="button"
+                  className={`prof-search-toggle ${isSearchEnabled ? 'active' : ''}`}
+                  onClick={() => setIsSearchEnabled(!isSearchEnabled)}
+                  title={isSearchEnabled ? 'Desativar pesquisa IA' : 'Ativar pesquisa IA (mais lento, porém mais preciso)'}
+                >
+                  {iconSvg('search')}
+                </button>
                 <button
                   type="button"
                   className="prof-send-command"

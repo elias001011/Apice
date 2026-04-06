@@ -167,3 +167,19 @@ export function buildContextoParaIADireta({ prompt, historicoLimit = 3 } = {}) {
     },
   ]
 }
+export async function buscarContexto(query) {
+  if (!query) return null
+
+  const res = await authFetch('/.netlify/functions/buscar-contexto', {
+    method: 'POST',
+    body: JSON.stringify({ query }),
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    console.error('Erro na busca de contexto:', errorData.error)
+    return null
+  }
+
+  return await res.json()
+}
