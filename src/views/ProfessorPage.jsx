@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { CATEGORIES } from '../data/mockProfessorData.js'
 import { chamarIAEspecifica, buscarContexto } from '../services/aiService.js'
+import { ProfessorMindmapCanvas } from '../ui/ProfessorMindmapCanvas.jsx'
 import '../styles/professor.css'
 
 const STORAGE_KEY = 'apice:professor:conversations'
+const MINDMAP_STORAGE_KEY = 'apice:professor:mindmaps'
 const MAX_CHAT_HISTORY = 12 // Limita histórico enviado para IA (economia de tokens)
 const PROFESSOR_PROVIDER_FALLBACKS = [
   { provider: 'groq', modelVariant: 'secondary' },
@@ -11,6 +13,75 @@ const PROFESSOR_PROVIDER_FALLBACKS = [
   { provider: 'gemini', modelVariant: 'primary' },
   { provider: 'openrouter', modelVariant: 'primary' },
 ]
+
+function safeJsonParse(value) {
+  if (!value || typeof value !== 'string') return null
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+function normalizeMindmapTree(rawTree) {
+  if (!rawTree || typeof rawTree !== 'object') return null
+
+  const rawNodes = Array.isArray(rawTree.nodes) ? rawTree.nodes : null
+  if (rawNodes && rawNodes.length > 0) {
+    const nodes = rawNodes
+      .map((node, index) => ({
+        id: String(node.id || `node-${Date.now()}-${index}`),
+        label: String(node.label || node.text || node.titulo || 'Nó'),
+        parentId: node.parentId ? String(node.parentId) : null,
+      }))
+    return { nodes }
+  }
+
+  const rootLabel = String(rawTree.titulo || rawTree.topico || rawTree.topicoCentral || rawTree.label || '').trim()
+  const rawChildren = Array.isArray(rawTree.children) ? rawTree.children : []
+  if (!rootLabel || rawChildren.length === 0) return null
+
+  const nodes = []
+  const rootId = `root-${Date.now()}`
+  nodes.push({ id: rootId, label: rootLabel, parentId: null })
+
+  const walk = (children, parentId) => {
+    children.forEach((child, index) => {
+      const childId = String(child.id || `${parentId}-${index}-${Date.now()}`)
+      nodes.push({
+        id: childId,
+        label: String(child.label || child.text || child.titulo || 'Nó'),
+        parentId,
+      })
+      if (Array.isArray(child.children) && child.children.length > 0) {
+        walk(child.children, childId)
+      }
+    })
+  }
+
+  walk(rawChildren, rootId)
+  return { nodes }
+}
+
+function extractMindmapFromAiResponse(response, textFallback = '') {
+  if (response && typeof response === 'object') {
+    const directMap = normalizeMindmapTree(
+      response.mapa
+      || response.mapaMental
+      || response.mindmap
+      || response.tree
+      || response.arvore,
+    )
+    if (directMap) return directMap
+  }
+
+  const parsedFromText = safeJsonParse(textFallback)
+  if (parsedFromText) {
+    return normalizeMindmapTree(parsedFromText)
+  }
+
+  return null
+}
 
 function iconSvg(kind) {
   switch (kind) {
@@ -105,9 +176,19 @@ export function ProfessorPage() {
   const [isSearchEnabled, setIsSearchEnabled] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const [aiError, setAiError] = useState(false)
+  const [isExpandingMindmap, setIsExpandingMindmap] = useState(false)
+  const [mindmapsByCategory, setMindmapsByCategory] = useState(() => {
+    try {
+      const saved = localStorage.getItem(MINDMAP_STORAGE_KEY)
+      return saved ? JSON.parse(saved) : {}
+    } catch {
+      return {}
+    }
+  })
   const messagesWallRef = useRef(null)
 
   const activeMessages = conversations[activeCategory.id]
+  const activeMindmap = mindmapsByCategory[activeCategory.id] || null
 
   const nextMessageId = useCallback(() => {
     const now = Date.now()
@@ -143,6 +224,24 @@ export function ProfessorPage() {
       console.error('Failed to save professor conversation', e)
     }
   }, [conversations])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MINDMAP_STORAGE_KEY, JSON.stringify(mindmapsByCategory))
+    } catch (e) {
+      console.error('Failed to save professor mindmap', e)
+    }
+  }, [mindmapsByCategory])
+
+  useEffect(() => {
+    if (mindmapsByCategory.mapas) return
+    const mapMessages = Array.isArray(conversations.mapas) ? [...conversations.mapas].reverse() : []
+    const aiMessageWithTree = mapMessages.find(msg => msg.sender === 'ai')
+    if (!aiMessageWithTree?.text) return
+    const parsed = extractMindmapFromAiResponse(null, aiMessageWithTree.text)
+    if (!parsed) return
+    setMindmapsByCategory(prev => ({ ...prev, mapas: parsed }))
+  }, [conversations.mapas, mindmapsByCategory.mapas])
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || isTyping) return
@@ -183,7 +282,7 @@ export function ProfessorPage() {
 DIRETRIZES:
 - ${categoryAtSend.id === 'duvidas' ? 'Explique de forma clara, passo a passo, com exemplos quando possível.' : ''}
 - ${categoryAtSend.id === 'resumos' ? 'Crie resumos objetivos com os pontos mais importantes para o ENEM. Use tópicos e seja direto.' : ''}
-- ${categoryAtSend.id === 'mapas' ? 'Estruture respostas como mapas mentais, com hierarquia visual usando caracteres como ─, ├, └, ●.' : ''}
+- ${categoryAtSend.id === 'mapas' ? 'Além do texto explicativo, retorne também um objeto "mapa" com JSON estruturado do mapa mental. Use formato: {"nodes":[{"id":"raiz","label":"tema central","parentId":null},{"id":"n2","label":"subtema","parentId":"raiz"}]}. Inclua entre 6 e 16 nós.' : ''}
 - ${categoryAtSend.id === 'pratica' ? 'Crie questões inéditas no estilo ENEM com 5 alternativas (A-E). Após o aluno responder, dê feedback detalhado.' : ''}
 - Use linguagem acessível mas não infantilize.
 - Se não souber, seja honesto.
@@ -192,7 +291,8 @@ DIRETRIZES:
 
 Responda SOMENTE com JSON válido neste formato:
 {
-  "texto": "sua resposta completa aqui, com quebras de linha \\n para parágrafos"
+  "texto": "sua resposta completa aqui, com quebras de linha \\n para parágrafos",
+  "mapa": { "nodes": [] }
 }
 
 Histórico recente da conversa (para manter coerência):`
@@ -272,6 +372,12 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
           { id: nextMessageId(), sender: 'ai', text: String(aiText || fallback || '').trim() }
         ]
       }))
+      if (categoryId === 'mapas') {
+        const parsedMindmap = extractMindmapFromAiResponse(response, String(aiText || fallback || '').trim())
+        if (parsedMindmap) {
+          setMindmapsByCategory(prev => ({ ...prev, [categoryId]: parsedMindmap }))
+        }
+      }
       setAiError(false)
     } catch (error) {
       console.error('Erro ao chamar IA do Professor:', error)
@@ -310,6 +416,93 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
       ...prev,
       [activeCategory.id]: [{ id: nextMessageId(), sender: 'ai', text: activeCategory.welcomeMessage }]
     }))
+    if (activeCategory.id === 'mapas') {
+      setMindmapsByCategory(prev => ({ ...prev, mapas: null }))
+    }
+  }
+
+  const handleExpandMindmapNode = async (nodeId) => {
+    const currentTree = mindmapsByCategory.mapas
+    if (!currentTree || !Array.isArray(currentTree.nodes)) return
+    const parentNode = currentTree.nodes.find(node => String(node.id) === String(nodeId))
+    if (!parentNode) return
+
+    setIsExpandingMindmap(true)
+    setAiError(false)
+
+    try {
+      const contextLines = currentTree.nodes
+        .slice(0, 30)
+        .map(node => `- ${node.label}${node.parentId ? ` (pai: ${node.parentId})` : ' (raiz)'}`)
+        .join('\n')
+
+      const response = await chamarIAEspecifica({
+        provider: 'groq',
+        modelVariant: 'secondary',
+        systemPrompt: [
+          'Você expande mapas mentais para estudo ENEM.',
+          'Retorne somente JSON válido com exatamente 3 nós filhos curtos e objetivos.',
+          'Formato obrigatório:',
+          '{',
+          '  "nodes": [',
+          '    { "label": "filho 1" },',
+          '    { "label": "filho 2" },',
+          '    { "label": "filho 3" }',
+          '  ]',
+          '}',
+          'Nunca repita o texto do nó pai literalmente.',
+          'Use português do Brasil.',
+        ].join('\n'),
+        userMessages: [
+          {
+            role: 'user',
+            content: [
+              `Nó selecionado: ${parentNode.label}`,
+              `ID do nó pai: ${parentNode.id}`,
+              '',
+              'Mapa atual (resumo):',
+              contextLines || 'Sem contexto',
+            ].join('\n'),
+          },
+        ],
+      })
+
+      const expanded = response?.nodes && Array.isArray(response.nodes)
+        ? response
+        : safeJsonParse(String(response?.text || response?.texto || response?.content || '')) || {}
+      const children = Array.isArray(expanded.nodes) ? expanded.nodes.slice(0, 3) : []
+      if (children.length === 0) {
+        throw new Error('IA não retornou filhos válidos para expansão do mapa.')
+      }
+
+      const newNodes = children.map((child, index) => ({
+        id: `map-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+        label: String(child.label || child.text || `Subtópico ${index + 1}`),
+        parentId: parentNode.id,
+      }))
+
+      const nextTree = {
+        nodes: [...currentTree.nodes, ...newNodes],
+      }
+      setMindmapsByCategory(prev => ({ ...prev, mapas: nextTree }))
+      setConversations(prev => ({
+        ...prev,
+        mapas: [
+          ...(Array.isArray(prev.mapas) ? prev.mapas : []),
+          {
+            id: nextMessageId(),
+            sender: 'ai',
+            text: `Expansão IA no nó "${parentNode.label}":\n- ${newNodes.map(node => node.label).join('\n- ')}`,
+          },
+        ],
+      }))
+    } catch (error) {
+      console.error('Erro ao expandir mapa mental:', error)
+      setAiError(true)
+      window.alert('Não consegui expandir o nó selecionado agora. Tente novamente em alguns segundos.')
+    } finally {
+      setIsExpandingMindmap(false)
+    }
   }
 
   const handleKeyDown = (e) => {
@@ -369,44 +562,52 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
             <div className="prof-card-rule" aria-hidden="true" />
           </div>
 
-          <main className="prof-chat-surface">
-            <div
-              ref={messagesWallRef}
-              className="prof-messages-wall"
-              role="log"
-              aria-live="polite"
-              aria-relevant="additions"
-            >
-              {activeMessages.map((msg, index) => (
-                <div
-                  key={msg.id}
-                  className={`prof-msg-row ${msg.sender === 'user' ? 'user-row' : 'ai-row'} anim-pop-in`}
-                  style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
-                >
-                  <div className="prof-msg-bubble">
-                    {msg.sender === 'ai' && <div className="prof-side-avatar">👨‍🏫</div>}
-                    <div className="prof-text-content">
-                      {msg.text.split('\n').map((line, i) => (
-                        <p key={i}>{line}</p>
-                      ))}
+          <main className={`prof-chat-surface ${activeCategory.id === 'mapas' ? 'prof-chat-surface--map' : ''}`}>
+            {activeCategory.id === 'mapas' ? (
+              <ProfessorMindmapCanvas
+                tree={activeMindmap}
+                onExpandNode={handleExpandMindmapNode}
+                isExpanding={isExpandingMindmap}
+              />
+            ) : (
+              <div
+                ref={messagesWallRef}
+                className="prof-messages-wall"
+                role="log"
+                aria-live="polite"
+                aria-relevant="additions"
+              >
+                {activeMessages.map((msg, index) => (
+                  <div
+                    key={msg.id}
+                    className={`prof-msg-row ${msg.sender === 'user' ? 'user-row' : 'ai-row'} anim-pop-in`}
+                    style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
+                  >
+                    <div className="prof-msg-bubble">
+                      {msg.sender === 'ai' && <div className="prof-side-avatar">👨‍🏫</div>}
+                      <div className="prof-text-content">
+                        {msg.text.split('\n').map((line, i) => (
+                          <p key={i}>{line}</p>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
 
-              {isTyping && (
-                <div className="prof-msg-row ai-row anim-pop-in">
-                  <div className="prof-msg-bubble">
-                    <div className="prof-side-avatar">👨‍🏫</div>
-                    <div className="prof-typing-wave">
-                      <span />
-                      <span />
-                      <span />
+                {isTyping && (
+                  <div className="prof-msg-row ai-row anim-pop-in">
+                    <div className="prof-msg-bubble">
+                      <div className="prof-side-avatar">👨‍🏫</div>
+                      <div className="prof-typing-wave">
+                        <span />
+                        <span />
+                        <span />
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
             <div className="prof-actions-dock">
               <div className="prof-card-rule prof-card-rule--subtle" aria-hidden="true" />
