@@ -236,8 +236,12 @@ export function ProfessorPage() {
 
             <div className="prof-actions-dock">
               <div className="prof-card-rule prof-card-rule--subtle" aria-hidden="true" />
-              <div className="prof-composer-row">
-                <label className="prof-composer-field">
+              <div
+                className="prof-composer-unified"
+                role="group"
+                aria-label="Escrever e enviar mensagem"
+              >
+                <label className="prof-composer-input-area">
                   <span className="sr-only">Mensagem para o professor</span>
                   <textarea
                     className="prof-composer-input"
@@ -245,7 +249,7 @@ export function ProfessorPage() {
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={`Escreva algo em '${activeCategory.label}'...`}
-                    rows={2}
+                    rows={1}
                     autoComplete="off"
                   />
                 </label>

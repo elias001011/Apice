@@ -319,27 +319,30 @@
   background: var(--bg2);
 }
 
-.prof-composer-row {
+/* Um único bloco: borda e fundo envolvem texto + enviar */
+.prof-composer-unified {
+  --prof-composer-action: 44px;
   display: flex;
   flex-direction: row;
   align-items: flex-end;
-  gap: 10px;
-}
-
-.prof-composer-field {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem 0.55rem 0.85rem;
   background: var(--bg3);
-  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.prof-composer-field:focus-within {
+.prof-composer-unified:focus-within {
   border-color: rgba(var(--accent-rgb), 0.55);
   box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.prof-composer-input-area {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  align-self: stretch;
 }
 
 .prof-composer-input {
@@ -351,11 +354,12 @@
   font-family: inherit;
   font-size: 0.95rem;
   resize: none;
-  min-height: 44px;
+  min-height: var(--prof-composer-action);
   max-height: 140px;
+  padding: 0.55rem 0.2rem 0.55rem 0;
   color: var(--text);
   line-height: 1.45;
-  vertical-align: top;
+  box-sizing: border-box;
 }
 
 .prof-composer-input::placeholder {
@@ -364,8 +368,8 @@
 }
 
 .prof-send-command {
-  width: 46px;
-  height: 46px;
+  width: var(--prof-composer-action);
+  height: var(--prof-composer-action);
   flex-shrink: 0;
   padding: 0;
   border: none;
@@ -377,11 +381,12 @@
   justify-content: center;
   cursor: pointer;
   transition: opacity 0.2s, transform 0.2s, box-shadow 0.2s;
+  align-self: flex-end;
 }
 
 .prof-send-command svg {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
 }
 
 .prof-send-command:hover:not(:disabled) {
@@ -501,8 +506,10 @@
     padding: 0.5rem 0.85rem 0.85rem;
   }
 
-  .prof-send-command {
-    width: 44px;
-    height: 44px;
+  .prof-composer-unified {
+    --prof-composer-action: 42px;
+    padding: 0.5rem 0.55rem 0.5rem 0.75rem;
+    border-radius: 14px;
+    gap: 0.55rem;
   }
 }
