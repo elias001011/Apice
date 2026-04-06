@@ -154,7 +154,6 @@ export function ProfessorPage() {
     <div className="professor-sleek-view">
       <div className="professor-container anim-fade-in">
         
-        {/* HEADER SECTION - SLEEK & MINIMALIST */}
         <header className="professor-nav-header">
           <div className="prof-pills-bar anim-slide-down">
             <div className="prof-pills-scroll">
