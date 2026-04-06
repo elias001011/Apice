@@ -5,6 +5,12 @@ import '../styles/professor.css'
 
 const STORAGE_KEY = 'apice:professor:conversations'
 const MAX_CHAT_HISTORY = 12 // Limita histórico enviado para IA (economia de tokens)
+const PROFESSOR_PROVIDER_FALLBACKS = [
+  { provider: 'groq', modelVariant: 'secondary' },
+  { provider: 'groq', modelVariant: 'primary' },
+  { provider: 'gemini', modelVariant: 'primary' },
+  { provider: 'openrouter', modelVariant: 'primary' },
+]
 
 function iconSvg(kind) {
   switch (kind) {
@@ -221,22 +227,27 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
     ]
 
     const callProfessorIa = async () => {
-      try {
-        return await chamarIAEspecifica({
-          provider: 'groq',
-          modelVariant: 'secondary',
-          systemPrompt: finalSystemPrompt,
-          userMessages,
-        })
-      } catch (secondaryError) {
-        console.warn('Groq secondary falhou no Professor, tentando primary.', secondaryError)
-        return await chamarIAEspecifica({
-          provider: 'groq',
-          modelVariant: 'primary',
-          systemPrompt: finalSystemPrompt,
-          userMessages,
-        })
+      const errors = []
+
+      for (const config of PROFESSOR_PROVIDER_FALLBACKS) {
+        try {
+          return await chamarIAEspecifica({
+            provider: config.provider,
+            modelVariant: config.modelVariant,
+            systemPrompt: finalSystemPrompt,
+            userMessages,
+          })
+        } catch (err) {
+          errors.push(err)
+          console.warn(
+            `Falha no provider ${config.provider} (${config.modelVariant}) para Professor IA.`,
+            err,
+          )
+        }
       }
+
+      const lastError = errors[errors.length - 1]
+      throw lastError || new Error('Nenhum provedor respondeu no Professor IA.')
     }
 
     try {
@@ -264,6 +275,10 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
       setAiError(false)
     } catch (error) {
       console.error('Erro ao chamar IA do Professor:', error)
+      const rawMessage = String(error?.message || '').toLowerCase()
+      const isQuotaBlocked = error?.code === 'quota_blocked' || rawMessage.includes('limite do plano free')
+      const isOffline = isBrowserOffline()
+
       setConversations(prev => ({
         ...prev,
         [categoryId]: [
@@ -271,14 +286,18 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
           {
             id: nextMessageId(),
             sender: 'ai',
-            text: isBrowserOffline()
+            text: isQuotaBlocked
+              ? 'Você atingiu o limite diário de IA no plano atual. Tente novamente amanhã ou faça upgrade do plano.'
+              : isOffline
               ? 'Estou sem conexão no momento. Verifique sua internet e tente novamente.'
-              : 'Não consegui responder agora. Tente novamente em alguns segundos.'
+              : 'O serviço de IA está indisponível no momento. Já tentei provedores alternativos. Tente novamente em alguns segundos.'
           }
         ]
       }))
-      if (isBrowserOffline()) {
+      if (isOffline) {
         window.alert('Conexão offline detectada. O Professor IA não consegue responder sem internet.')
+      } else if (isQuotaBlocked) {
+        window.alert('Limite diário de IA atingido no plano atual.')
       }
       setAiError(true)
     } finally {
