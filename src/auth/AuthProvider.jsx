@@ -13,6 +13,11 @@ import {
 } from '../services/identityAuth.js'
 import { refreshUserSummaryFromHistory } from '../services/userSummary.js'
 import { registerAuthTokenGetter } from '../services/authFetch.js'
+import {
+  pullStateFromCloud,
+  pushStateToCloud,
+  clearLocalCloudSync,
+} from '../services/cloudSync.js'
 
 // Configure GoTrue instance
 // The 'url' should be your Netlify site URL (e.g., https://your-site.netlify.app/.netlify/identity)
@@ -36,8 +41,6 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => auth.currentUser() || null)
   const [loading, setLoading] = useState(true)
   const syncLockRef = useRef(false)
-  const lastSyncedSnapshotRef = useRef('')
-  const syncSuspendedRef = useRef(false)
 
   // Register the JWT token getter so authFetch can attach Bearer tokens
   useEffect(() => {
@@ -60,23 +63,12 @@ export function AuthProvider({ children }) {
       try {
         const validatedUser = await auth.validateCurrentSession()
         if (cancelled) return
-
         setUser(validatedUser)
-        if (!validatedUser) {
-          syncLockRef.current = false
-          lastSyncedSnapshotRef.current = ''
-        }
       } catch (error) {
         console.error('Auth session validation error:', error)
-        if (!cancelled) {
-          setUser(null)
-          syncLockRef.current = false
-          lastSyncedSnapshotRef.current = ''
-        }
+        if (!cancelled) setUser(null)
       } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
+        if (!cancelled) setLoading(false)
       }
     }
 
@@ -87,107 +79,75 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const syncLocalStateToCloud = useCallback(async () => {
-    if (!user || syncLockRef.current || syncSuspendedRef.current) return null
+  // ── Cloud Sync via Netlify Blobs (NÃO via user_metadata/JWT) ────────────
 
-    const currentUser = auth.currentUser()
-    if (!currentUser) return null
+  // No login, restaura estado da nuvem e aplica no localStorage
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
 
-    const snapshot = buildAccountSnapshot(currentUser)
-    const serialized = JSON.stringify(snapshot)
-    if (serialized === lastSyncedSnapshotRef.current) {
-      return snapshot
+    const restoreCloudState = async () => {
+      // Puxa estado da nuvem e aplica no localStorage
+      const pulled = await pullStateFromCloud()
+
+      if (!cancelled && pulled) {
+        console.log('[AuthProvider] Estado restaurado da nuvem com sucesso')
+      }
     }
 
-    syncLockRef.current = true
-    try {
-      const updatedUser = await currentUser.update({
-        data: {
-          ...pickSafeUserMetadata(currentUser.user_metadata),
-          full_name: snapshot.profile.full_name,
-          first_name: snapshot.profile.first_name,
-          school: snapshot.profile.school,
-          // FIX: NÃO salvar apice_state no user_metadata — infla o JWT e causa 500 no API Gateway
-          // O estado do app fica apenas no localStorage. O user_metadata é incluído no JWT token.
-          // Removido em 06/04/2026 para corrigir erro 500 em todos os endpoints.
-        },
-      })
-      setUser(updatedUser)
-      lastSyncedSnapshotRef.current = serialized
-      return snapshot
-    } catch (error) {
-      console.error('Account sync error:', error)
-      return null
-    } finally {
-      window.setTimeout(() => {
-        syncLockRef.current = false
-      }, 0)
-    }
+    void restoreCloudState()
+
+    return () => { cancelled = true }
   }, [user])
 
+  // Sync de mudanças do localStorage → nuvem (debounced)
   useEffect(() => {
-    if (!user) {
-      syncLockRef.current = false
-      lastSyncedSnapshotRef.current = ''
-      syncSuspendedRef.current = false
-      return undefined
-    }
-
+    if (!user) return
     let cancelled = false
-    const remoteSnapshot = extractAccountSnapshot(user)
+    let syncTimeout = null
 
-    if (remoteSnapshot) {
-      const serialized = JSON.stringify(remoteSnapshot)
-      if (serialized !== lastSyncedSnapshotRef.current) {
-        syncLockRef.current = true
-        applyAccountSnapshot(remoteSnapshot)
-        lastSyncedSnapshotRef.current = serialized
-        window.setTimeout(() => {
+    const scheduleSync = () => {
+      if (syncTimeout) clearTimeout(syncTimeout)
+      // Debounce de 2s para não chamar a API a cada tecla
+      syncTimeout = setTimeout(async () => {
+        if (!cancelled && !syncLockRef.current) {
+          syncLockRef.current = true
+          await pushStateToCloud(user)
           syncLockRef.current = false
-        }, 0)
-      }
+        }
+      }, 2000)
     }
 
-    const handleAccountStateChange = () => {
-      void syncLocalStateToCloud()
-    }
+    const events = [
+      'apice:historico-updated',
+      'apice:free-plan-usage-updated',
+      'apice:enem-date-updated',
+      'apice:radar-favorites-updated',
+      'apice:radar-state-updated',
+      'apice:theme-updated',
+      'apice:user-summary-updated',
+      'apice:ai-response-preferences-updated',
+      'apice:avatar-settings-updated',
+      'apice:notificacoes-updated',
+      'apice:conquistas-updated',
+    ]
 
-    window.addEventListener('apice:historico-updated', handleAccountStateChange)
-    window.addEventListener('apice:free-plan-usage-updated', handleAccountStateChange)
-    window.addEventListener('apice:enem-date-updated', handleAccountStateChange)
-    window.addEventListener('apice:radar-favorites-updated', handleAccountStateChange)
-    window.addEventListener('apice:radar-state-updated', handleAccountStateChange)
-    window.addEventListener('apice:theme-updated', handleAccountStateChange)
-    window.addEventListener('apice:user-summary-updated', handleAccountStateChange)
-    window.addEventListener('apice:ai-response-preferences-updated', handleAccountStateChange)
-    window.addEventListener('apice:avatar-settings-updated', handleAccountStateChange)
-    window.addEventListener('apice:notificacoes-updated', handleAccountStateChange)
-    window.addEventListener('apice:conquistas-updated', handleAccountStateChange)
+    events.forEach(event => {
+      window.addEventListener(event, scheduleSync)
+    })
 
-    const initializeCloudState = async () => {
-      await refreshUserSummaryFromHistory()
-      if (!cancelled) {
-        void syncLocalStateToCloud()
-      }
-    }
-
-    void initializeCloudState()
+    // Primeira sync ao montar
+    void refreshUserSummaryFromHistory()
+    scheduleSync()
 
     return () => {
       cancelled = true
-      window.removeEventListener('apice:historico-updated', handleAccountStateChange)
-      window.removeEventListener('apice:free-plan-usage-updated', handleAccountStateChange)
-      window.removeEventListener('apice:enem-date-updated', handleAccountStateChange)
-      window.removeEventListener('apice:radar-favorites-updated', handleAccountStateChange)
-      window.removeEventListener('apice:radar-state-updated', handleAccountStateChange)
-      window.removeEventListener('apice:theme-updated', handleAccountStateChange)
-      window.removeEventListener('apice:user-summary-updated', handleAccountStateChange)
-      window.removeEventListener('apice:ai-response-preferences-updated', handleAccountStateChange)
-      window.removeEventListener('apice:avatar-settings-updated', handleAccountStateChange)
-      window.removeEventListener('apice:notificacoes-updated', handleAccountStateChange)
-      window.removeEventListener('apice:conquistas-updated', handleAccountStateChange)
+      if (syncTimeout) clearTimeout(syncTimeout)
+      events.forEach(event => {
+        window.removeEventListener(event, scheduleSync)
+      })
     }
-  }, [user, syncLocalStateToCloud])
+  }, [user])
 
   const signup = async (email, password, data) => {
     return await auth.signup(email, password, data)
@@ -220,7 +180,6 @@ export function AuthProvider({ children }) {
   }
 
   const logout = async () => {
-    syncSuspendedRef.current = true
     const currentUser = auth.currentUser()
     if (currentUser) {
       try {
@@ -230,38 +189,28 @@ export function AuthProvider({ children }) {
       }
     }
     clearVerificationPassword()
-    // Limpeza total do localStorage para isolamento de contas
+    // Limpeza total do localStorage
     if (typeof window !== 'undefined' && window.localStorage) {
-      const keysToPreserve = [] // Não preservar nada — limpeza total
-      const allKeys = Object.keys(localStorage)
-      allKeys.forEach(key => {
-        if (!keysToPreserve.includes(key)) {
-          localStorage.removeItem(key)
-        }
-      })
+      Object.keys(localStorage).forEach(key => localStorage.removeItem(key))
     }
+    clearLocalCloudSync()
     syncLockRef.current = false
-    lastSyncedSnapshotRef.current = ''
-    syncSuspendedRef.current = false // Reset para próximo login
     setUser(null)
   }
 
   const deleteAccount = async () => {
-    syncSuspendedRef.current = true
     try {
       const result = await requestAccountDeletion(auth)
       clearVerificationPassword()
       // Limpeza agressiva antes do logout
       if (typeof window !== 'undefined' && window.localStorage) {
-        const allKeys = Object.keys(localStorage)
-        allKeys.forEach(key => localStorage.removeItem(key))
+        Object.keys(localStorage).forEach(key => localStorage.removeItem(key))
       }
+      clearLocalCloudSync()
       await logout()
       return result
     } finally {
-      if (auth.currentUser()) {
-        syncSuspendedRef.current = false
-      }
+      syncLockRef.current = false
     }
   }
 

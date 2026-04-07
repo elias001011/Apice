@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@netlify/blobs": "^10.7.4",
     "gotrue-js": "^1.0.1",
     "html-to-image": "^1.11.13",
     "jspdf": "^4.2.1",
