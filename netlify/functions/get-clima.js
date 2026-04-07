@@ -13,7 +13,7 @@
 import { requireAuth } from './utils/auth.js'
 import { buildCorsHeaders } from './utils/cors.js'
 
-const OWM_API_KEY = process.env.OPENWEATHERMAP_API_KEY
+const OWM_API_KEY = process.env.CLIMA
 const OWM_BASE_URL = 'https://api.openweathermap.org/data/2.5/weather'
 
 export default async function handler(req) {
