@@ -885,12 +885,30 @@ html[data-animations="off"] #radar-results .atualizado {
 
 /* ── CARDS ── */
 .card {
-  background: var(--bg2);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius);
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2);
+  border: 1px solid rgba(var(--accent-rgb), 0.08);
+  border-radius: calc(var(--radius) + 2px);
   padding: 1.25rem;
   margin-bottom: 12px;
-  transition: border-color 0.2s, transform 0.25s, background 0.55s ease, backdrop-filter 0.55s ease;
+  box-shadow: 0 16px 38px rgba(8, 9, 4, 0.06);
+  isolation: isolate;
+  transition: border-color 0.2s, transform 0.25s, background 0.55s ease, backdrop-filter 0.55s ease, box-shadow 0.25s ease;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top left, rgba(var(--accent-rgb), 0.08), transparent 36%);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.card > * {
+  position: relative;
+  z-index: 1;
 }
 
 html[data-fx="gradients"][data-card-gradients="on"] .card {
@@ -915,9 +933,9 @@ html[data-fx="blur"] .criteria-card {
 }
 
 .card:hover {
-  border-color: var(--border2);
-  transform: translateY(-4px);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+  border-color: rgba(var(--accent-rgb), 0.18);
+  transform: translateY(-3px);
+  box-shadow: 0 22px 48px rgba(8, 9, 4, 0.1);
 }
 
 html[data-card-hover="off"] .card:hover,
@@ -1351,16 +1369,25 @@ html[data-card-hover="off"] .conq-card--unlocked:hover {
 .sticky-side {
   position: sticky;
   top: calc(var(--nav-h) + 1.5rem);
-  z-index: 10;
+  z-index: 0;
 }
 
 @media (max-width: 768px) {
   .dashboard-column-side {
-    order: -1; /* On mobile, side elements usually come first (e.g. modes, categories) */
+    order: 2;
+  }
+
+  .dashboard-column-main {
+    order: 1;
   }
   
   .sticky-side {
     position: static;
     top: auto;
+    z-index: auto;
   }
+}
+
+.criteria-card {
+  z-index: 1;
 }

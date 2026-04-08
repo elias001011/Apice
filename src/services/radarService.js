@@ -127,11 +127,12 @@ export async function buscarRadarTemas() {
   const data = await response.json()
   const payload = normalizeRadarThemesPayload(data)
   const searchWindow = buildRadarSearchWindow()
+  const updatedAt = searchWindow.lastSearchAt
 
   const savedSnapshot = saveRadarSnapshot({
     temas: payload.temas,
     resumoPesquisa: payload.resumoPesquisa,
-    atualizadoEm: payload.atualizadoEm || searchWindow.lastSearchAt,
+    atualizadoEm: updatedAt,
     origem: payload.origem || 'ai',
     lastSearchAt: searchWindow.lastSearchAt,
     nextSearchAt: searchWindow.nextSearchAt,
@@ -144,7 +145,7 @@ export async function buscarRadarTemas() {
     ...(savedSnapshot || payload),
     temas: payload.temas,
     resumoPesquisa: payload.resumoPesquisa,
-    atualizadoEm: payload.atualizadoEm || searchWindow.lastSearchAt,
+    atualizadoEm: updatedAt,
     origem: payload.origem || 'ai',
     lastSearchAt: searchWindow.lastSearchAt,
     nextSearchAt: searchWindow.nextSearchAt,

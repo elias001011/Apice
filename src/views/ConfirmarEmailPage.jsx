@@ -116,7 +116,7 @@ const confirmCss = `
     transform: translateX(-50%);
     width: 600px;
     height: 600px;
-    background: radial-gradient(circle, rgba(200, 240, 96, 0.06) 0%, transparent 65%);
+    background: radial-gradient(circle, rgba(var(--accent-rgb), 0.06) 0%, transparent 65%);
     pointer-events: none;
     z-index: 0;
   }

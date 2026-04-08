@@ -447,7 +447,7 @@ export function TemaDetalhePage() {
 const temaDetalheCss = `
   .prob-hero {
     background: var(--card-dark);
-    border: 1.5px solid rgba(200, 240, 96, 0.2);
+    border: 1px solid rgba(var(--accent-rgb), 0.12);
     border-radius: 24px;
     padding: 1.75rem 1.25rem;
     margin-bottom: 14px;
@@ -495,7 +495,7 @@ const temaDetalheCss = `
     height: 68px;
     flex-shrink: 0;
     background: var(--accent-dim2);
-    border: 1.5px solid rgba(200, 240, 96, 0.3);
+    border: 1px solid rgba(var(--accent-rgb), 0.18);
     border-radius: 50%;
     display: flex;
     flex-direction: column;

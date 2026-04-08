@@ -155,7 +155,7 @@ const redefinirSenhaCss = `
     transform: translateX(-50%);
     width: 600px;
     height: 600px;
-    background: radial-gradient(circle, rgba(200, 240, 96, 0.06) 0%, transparent 65%);
+    background: radial-gradient(circle, rgba(var(--accent-rgb), 0.06) 0%, transparent 65%);
     pointer-events: none;
     z-index: 0;
   }
@@ -211,10 +211,11 @@ const redefinirSenhaCss = `
   }
 
   .rs-card {
-    background: var(--bg2);
-    border: 1.5px solid var(--border2);
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2);
+    border: 1px solid rgba(var(--accent-rgb), 0.08);
     border-radius: 24px;
     padding: 2rem;
+    box-shadow: 0 16px 38px rgba(8, 9, 4, 0.06);
   }
 
   .success-icon {

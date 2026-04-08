@@ -59,8 +59,8 @@
 }
 
 .intro-card-option {
-  background: var(--bg2);
-  border: 1px solid var(--border2);
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2);
+  border: 1px solid rgba(var(--accent-rgb), 0.08);
   border-radius: 24px;
   padding: 2rem;
   display: flex;
@@ -72,13 +72,14 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
+  box-shadow: 0 16px 38px rgba(8, 9, 4, 0.06);
 }
 
 .intro-card-option:hover {
-  transform: translateY(-5px);
-  border-color: var(--accent);
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
-  background: var(--bg3);
+  transform: translateY(-4px);
+  border-color: rgba(var(--accent-rgb), 0.18);
+  box-shadow: 0 22px 48px rgba(8, 9, 4, 0.1);
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.04), transparent 42%), var(--bg2);
 }
 
 .option-icon-box {
@@ -90,7 +91,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 16px var(--accent-dim);
+  box-shadow: 0 12px 24px rgba(var(--accent-rgb), 0.16);
 }
 
 .option-icon-box.manual {
@@ -162,12 +163,13 @@
 }
 
 .mode-toggle-pill {
-  background: var(--bg3);
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 40%), var(--bg3);
   padding: 4px;
   border-radius: 99px;
   display: flex;
   gap: 2px;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(var(--accent-rgb), 0.08);
+  box-shadow: 0 12px 26px rgba(8, 9, 4, 0.06);
 }
 
 .mode-pill-btn {
@@ -185,7 +187,7 @@
 .mode-pill-btn.active {
   background: var(--bg2);
   color: var(--accent);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 6px 18px rgba(8, 9, 4, 0.08);
 }
 
 /* Inputs & Materials */
@@ -206,11 +208,13 @@
 }
 
 .material-box {
-  background: var(--bg3);
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg3);
   border-radius: var(--radius-sm);
   padding: 1rem;
   margin-top: 1rem;
-  border-left: 4px solid var(--accent);
+  border: 1px solid rgba(var(--accent-rgb), 0.08);
+  border-left: 3px solid var(--accent);
+  box-shadow: 0 14px 32px rgba(8, 9, 4, 0.05);
 }
 
 .material-label {
@@ -256,13 +260,14 @@
 }
 
 .material-card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 36%), var(--bg2);
+  border: 1px solid rgba(var(--accent-rgb), 0.08);
   border-radius: 18px;
   padding: 0.95rem;
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+  box-shadow: 0 12px 28px rgba(8, 9, 4, 0.04);
 }
 
 .material-card-title {
@@ -352,9 +357,9 @@
   margin-bottom: 12px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  color: var(--text3);
+  background: var(--accent-dim);
+  border: 1px solid rgba(var(--accent-rgb), 0.12);
+  color: var(--accent);
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.7px;
@@ -380,19 +385,19 @@
 
 .main-submit {
   margin-top: 1rem;
-  box-shadow: 0 4px 15px var(--accent-dim);
+  box-shadow: 0 14px 32px rgba(var(--accent-rgb), 0.16);
 }
 
 .main-reset-btn {
   margin-top: 12px;
-  background: linear-gradient(135deg, var(--accent-dim), rgba(var(--accent-rgb), 0.18));
-  border: 1px solid rgba(var(--accent-rgb), 0.25);
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.08), rgba(var(--accent-rgb), 0.16));
+  border: 1px solid rgba(var(--accent-rgb), 0.18);
   color: var(--accent);
   box-shadow: none;
 }
 
 .main-reset-btn:hover {
-  background: linear-gradient(135deg, var(--accent-dim2), rgba(var(--accent-rgb), 0.24));
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.12), rgba(var(--accent-rgb), 0.22));
   color: var(--accent);
 }
 
@@ -433,7 +438,10 @@
 .criteria-card {
   position: relative;
   overflow: hidden;
-  background: var(--bg2);
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2);
+  border: 1px solid rgba(var(--accent-rgb), 0.08);
+  box-shadow: 0 16px 38px rgba(8, 9, 4, 0.06);
+  z-index: 1;
 }
 
 html[data-fx="blur"] .criteria-card {
