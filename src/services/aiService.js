@@ -41,8 +41,22 @@ export async function gerarTemaDinamico({ retryCount = 1 } = {}) {
       })
 
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Falha ao gerar tema dinâmico.')
+        let errorDetail = ''
+        try {
+          const errorData = await res.json()
+          errorDetail = errorData.error || errorData.detail || JSON.stringify(errorData)
+        } catch {
+          errorDetail = res.statusText || `HTTP ${res.status}`
+        }
+
+        const authHint = res.status === 401 ? ' (AUTH: faça logout e login novamente)' : ''
+        const serverHint = res.status === 502 ? ' (SERVIDOR: problema com chave API ou timeout)' : ''
+
+        console.error(
+          `[aiService] Falha ao gerar tema (tentativa ${attempt + 1}). HTTP ${res.status}: ${errorDetail}${authHint}${serverHint}`
+        )
+
+        throw new Error(errorDetail || 'Falha ao gerar tema dinâmico.')
       }
 
       const data = await res.json()
@@ -80,8 +94,22 @@ export async function corrigirRedacao({ redacao, tema, material, isRigido }) {
   })
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}))
-    throw new Error(errorData.error || 'Erro na comunicação com a IA.')
+    let errorDetail = ''
+    try {
+      const errorData = await res.json()
+      errorDetail = errorData.error || errorData.detail || JSON.stringify(errorData)
+    } catch {
+      errorDetail = res.statusText || `HTTP ${res.status}`
+    }
+
+    const authHint = res.status === 401 ? ' (AUTH: faça logout e login novamente)' : ''
+    const serverHint = res.status === 502 ? ' (SERVIDOR: problema com chave API ou timeout)' : ''
+
+    console.error(
+      `[aiService] Falha ao corrigir redação. HTTP ${res.status}: ${errorDetail}${authHint}${serverHint}`
+    )
+
+    throw new Error(errorDetail || 'Erro na comunicação com a IA.')
   }
 
   const data = await res.json()
@@ -111,8 +139,23 @@ export async function chamarIAEspecifica({ provider, systemPrompt, userMessages 
   })
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}))
-    throw new Error(errorData.error || 'Erro ao chamar IA específica.')
+    let errorDetail = ''
+    try {
+      const errorData = await res.json()
+      errorDetail = errorData.error || errorData.detail || JSON.stringify(errorData)
+    } catch {
+      errorDetail = res.statusText || `HTTP ${res.status}`
+    }
+
+    const authStatus = res.status === 401 ? '(PROBLEMA DE AUTENTICAÇÃO — faça logout e login novamente)' : ''
+    const providerStatus = res.status === 502 ? '(PROBLEMA NO PROVIDER DE IA — chave API ou timeout no servidor)' : ''
+
+    console.error(
+      `[aiService] Falha no provider ${provider} (${modelVariant}) para Professor IA. ` +
+      `HTTP ${res.status}: ${errorDetail} ${authStatus} ${providerStatus}`
+    )
+
+    throw new Error(errorDetail || 'Erro ao chamar IA específica.')
   }
 
   const data = await res.json()

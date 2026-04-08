@@ -7,6 +7,7 @@
  */
 
 let _getAuthToken = null
+let _tokenErrorLogged = false
 
 /**
  * Register a function that returns the current user's JWT string.
@@ -26,7 +27,12 @@ async function getToken() {
   try {
     const token = await _getAuthToken()
     return typeof token === 'string' ? token : ''
-  } catch {
+  } catch (err) {
+    // JWT refresh falhou — token expirado/inválido
+    if (!_tokenErrorLogged) {
+      _tokenErrorLogged = true
+      console.error('[authFetch] Falha ao obter JWT (token expirado ou refresh falhou):', err?.message || err)
+    }
     return ''
   }
 }
@@ -57,13 +63,25 @@ export async function authFetch(url, options = {}) {
     headers,
   })
 
-  // Log 401/403 errors early for debugging
+  // Log 401/403/500 errors early for debugging
   if (response.status === 401 || response.status === 403) {
+    const hasToken = Boolean(token)
+    const hasStoredUser = typeof window !== 'undefined' && Boolean(window.localStorage?.getItem('gotrue.user'))
     console.error(
       `[authFetch] ${response.status} ${response.statusText} em ${url}. ` +
-      `Token presente: ${Boolean(token)}. ` +
-      `Usuário logado: ${Boolean(typeof window !== 'undefined' && window.localStorage?.getItem('gotrue.user'))}`
+      `Token presente: ${hasToken}. ` +
+      `Usuário em storage: ${hasStoredUser}`
     )
+  } else if (response.status === 500 || response.status === 502) {
+    console.warn(
+      `[authFetch] ${response.status} em ${url}. ` +
+      `Isso pode indicar JWT grande demais, server error, ou API gateway timeout.`
+    )
+  }
+
+  // Reset token error flag on successful auth so future errors are logged again
+  if (response.ok && _tokenErrorLogged) {
+    _tokenErrorLogged = false
   }
 
   return response

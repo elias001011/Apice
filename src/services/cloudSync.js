@@ -19,7 +19,7 @@ const CLOUD_SYNC_KEY = 'apice:cloud-sync:last-pull:v1'
  * Retorna o user atual (para checar se está logado).
  * Usa o token JWT como indicador de sessão ativa.
  */
-async function getCurrentUser() {
+async function _getCurrentUser() {
   // Import dinâmico para evitar circular dependency
   try {
     const GoTrue = (await import('gotrue-js')).default
@@ -86,8 +86,19 @@ export async function pushStateToCloud(user) {
     })
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      console.error('[cloudSync] Falha ao salvar estado:', err.error)
+      let errorDetail = ''
+      try {
+        const errBody = await res.json()
+        errorDetail = errBody.error || errBody.detail || JSON.stringify(errBody)
+      } catch {
+        errorDetail = res.statusText || `HTTP ${res.status}`
+      }
+      console.error(
+        `[cloudSync] Falha ao salvar estado: HTTP ${res.status} — ${errorDetail}. ` +
+        `Usuário logado: ${Boolean(user)}. ` +
+        `UserId: ${user?.id || '(sem id)'}. ` +
+        `Snapshot version: ${snapshot?.version || '(sem versão)'}`
+      )
       return false
     }
 
@@ -95,7 +106,7 @@ export async function pushStateToCloud(user) {
     console.log(`[cloudSync] Estado salvo na nuvem (${data.sizeBytes || 'unknown'} bytes)`)
     return true
   } catch (error) {
-    console.error('[cloudSync] Erro ao salvar estado:', error.message)
+    console.error('[cloudSync] Erro ao salvar estado:', error.message, error.stack?.split('\n').slice(0, 3).join(' | '))
     return false
   }
 }

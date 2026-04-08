@@ -1,23 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import GoTrue from 'gotrue-js'
 import { AuthContext } from './authContext.js'
-import {
-  applyAccountSnapshot,
-  buildAccountSnapshot,
-  extractAccountSnapshot,
-} from '../services/accountSnapshot.js'
 import {
   clearVerificationPassword,
   resendVerificationEmail,
   requestAccountDeletion,
 } from '../services/identityAuth.js'
-import { refreshUserSummaryFromHistory } from '../services/userSummary.js'
 import { registerAuthTokenGetter } from '../services/authFetch.js'
 import {
   pullStateFromCloud,
   pushStateToCloud,
   clearLocalCloudSync,
 } from '../services/cloudSync.js'
+import { refreshUserSummaryFromHistory } from '../services/userSummary.js'
 
 // Configure GoTrue instance
 // The 'url' should be your Netlify site URL (e.g., https://your-site.netlify.app/.netlify/identity)
@@ -63,10 +58,44 @@ export function AuthProvider({ children }) {
       try {
         const validatedUser = await auth.validateCurrentSession()
         if (cancelled) return
-        setUser(validatedUser)
+
+        if (!validatedUser) {
+          // Sessão inválida/expirada — limpar dados locais para evitar corrupção
+          console.warn('[AuthProvider] Sessão inválida ou expirada. Limpando dados locais.')
+          if (typeof window !== 'undefined' && window.localStorage) {
+            // Remove apenas dados da app, mantém onboarding e preferências de UI
+            const appKeys = []
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i)
+              if (key && (key.startsWith('apice:') || key === 'gotrue.user')) {
+                appKeys.push(key)
+              }
+            }
+            appKeys.forEach(key => {
+              try { localStorage.removeItem(key) } catch {
+                // Falha silenciosa ao limpar chave individual
+              }
+            })
+            console.log(`[AuthProvider] ${appKeys.length} chaves locais removidas (sessão inválida)`)
+          }
+          setUser(null)
+        } else {
+          setUser(validatedUser)
+        }
       } catch (error) {
-        console.error('Auth session validation error:', error)
-        if (!cancelled) setUser(null)
+        console.error('[AuthProvider] Erro ao validar sessão:', error.message)
+        if (!cancelled) {
+          // Em caso de erro inesperado, também limpa para segurança
+          if (typeof window !== 'undefined' && window.localStorage) {
+            try {
+              const gotrueUser = localStorage.getItem('gotrue.user')
+              if (gotrueUser) localStorage.removeItem('gotrue.user')
+            } catch {
+              // Falha silenciosa ao limpar sessão
+            }
+          }
+          setUser(null)
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -87,11 +116,20 @@ export function AuthProvider({ children }) {
     let cancelled = false
 
     const restoreCloudState = async () => {
-      // Puxa estado da nuvem e aplica no localStorage
-      const pulled = await pullStateFromCloud()
+      try {
+        // Puxa estado da nuvem e aplica no localStorage
+        const pulled = await pullStateFromCloud()
 
-      if (!cancelled && pulled) {
-        console.log('[AuthProvider] Estado restaurado da nuvem com sucesso')
+        if (!cancelled && pulled) {
+          console.log('[AuthProvider] Estado restaurado da nuvem com sucesso')
+        } else if (!cancelled && !pulled) {
+          // Pull falhou (possivelmente 401/auth expirada) — dados locais podem estar stale
+          console.warn('[AuthProvider] Falha ao restaurar estado da nuvem. Dados locais podem estar desatualizados.')
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[AuthProvider] Erro inesperado no cloud restore:', err.message)
+        }
       }
     }
 
@@ -112,7 +150,14 @@ export function AuthProvider({ children }) {
       syncTimeout = setTimeout(async () => {
         if (!cancelled && !syncLockRef.current) {
           syncLockRef.current = true
-          await pushStateToCloud(user)
+          try {
+            await pushStateToCloud(user)
+          } catch (err) {
+            console.error('[AuthProvider] Erro no cloud sync:', err.message)
+            // Se falhou, pode ser auth expirada — reset lock para próxima tentativa
+            syncLockRef.current = false
+            return
+          }
           syncLockRef.current = false
         }
       }, 2000)

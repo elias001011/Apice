@@ -26,6 +26,8 @@ export default async function handler(req) {
     return auth
   }
 
+  console.log(`[chamar-ia] Auth OK. userId: ${auth.user.id}, email: ${auth.user.email}`)
+
   try {
     const body = await req.json().catch(() => ({}))
     const provider = String(body?.provider ?? '').trim()
@@ -69,12 +71,14 @@ export default async function handler(req) {
       responsePreference,
     })
 
+    console.log(`[chamar-ia] Sucesso. Provider: ${provider}, result keys: ${Object.keys(result || {}).join(', ')}`)
     return new Response(JSON.stringify(result), { status: 200, headers })
   } catch (error) {
-    console.error('[chamar-ia] erro:', error)
+    console.error('[chamar-ia] erro:', error.message, error.stack?.split('\n').slice(0, 4).join(' | '))
     return new Response(
       JSON.stringify({
         error: 'Falha ao chamar IA direta',
+        detail: error.message,
       }),
       { status: 502, headers },
     )

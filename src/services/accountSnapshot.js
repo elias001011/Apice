@@ -12,7 +12,6 @@ import {
 import {
   loadEssayHistory,
   compactEssayHistoryEntry,
-  buildCloudEssayHistorySnapshot,
   mergeEssayHistorySnapshots,
   saveEssayHistorySnapshot,
   loadEssayHistoryCount,
@@ -73,6 +72,11 @@ const CONTAINER_SIZE_KEY = 'apice:containerSize'
 const ANIMATIONS_ENABLED_KEY = 'apice:animationsEnabled'
 const CARD_HOVER_ENABLED_KEY = 'apice:cardHoverEffects'
 
+// Versão atual do schema do snapshot. Incrementar quando houver breaking changes.
+export const CURRENT_SCHEMA_VERSION = 17
+// Versões mínimas compatíveis (abaixo disso, os dados são considerados corrompidos/incompatíveis)
+export const MIN_COMPATIBLE_VERSION = 14
+
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
 }
@@ -99,7 +103,7 @@ function readStoredBoolean(key, fallback) {
   }
 }
 
-function normalizeBooleanPreference(value, fallback) {
+function _normalizeBooleanPreference(value, fallback) {
   if (typeof value === 'boolean') return value
   if (typeof value === 'number') return value !== 0
   if (typeof value === 'string') {
@@ -120,7 +124,7 @@ function getIsMobileLayout() {
   return window.matchMedia?.('(max-width: 767px)')?.matches ?? false
 }
 
-function readThemeSnapshot() {
+function _readThemeSnapshot() {
   return {
     theme: readStoredValue(THEME_KEY, 'light'),
     accent: readStoredValue(ACCENT_KEY, 'lime'),
@@ -313,6 +317,34 @@ function loadNotificationPreferencesFromObject(rawPreferences) {
 
 export function applyAccountSnapshot(snapshot) {
   if (!canUseStorage() || !snapshot || typeof snapshot !== 'object') return
+
+  // ── Verificação de versão/schema ──
+  const snapshotVersion = Number(snapshot.version ?? 0)
+  if (snapshotVersion > 0 && snapshotVersion < MIN_COMPATIBLE_VERSION) {
+    console.warn(
+      `[accountSnapshot] Snapshot da nuvem com versão antiga (${snapshotVersion} < ${MIN_COMPATIBLE_VERSION}). ` +
+      `Dados incompatíveis — limpando localStorage para evitar corrupção.`
+    )
+    // Limpa dados locais que podem estar em formato antigo
+    const keysToRemove = [
+      'apice:billing-state:v1', 'apice:plan:tier',
+      'apice:free-plan-usage:v1',
+      'apice:historico', 'apice:historico:total',
+      'apice:user-summary',
+      'apice:radar-favorites', 'apice:radar-state',
+      'apice:enem-manual-date',
+      'apice:ai-response-preference',
+      'apice:avatar-settings',
+      'apice:notificacoes',
+      'apice:conquistas',
+    ]
+    keysToRemove.forEach(key => {
+      try { localStorage.removeItem(key) } catch {
+        // Falha silenciosa ao limpar chave individual
+      }
+    })
+    console.log('[accountSnapshot] Dados locais incompatíveis removidos. Usando estado limpo da nuvem.')
+  }
 
   if (Object.prototype.hasOwnProperty.call(snapshot, 'history')) {
     const history = Array.isArray(snapshot.history) ? snapshot.history : []
