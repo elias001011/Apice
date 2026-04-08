@@ -23,7 +23,38 @@ function safeJsonParse(value) {
   }
 }
 
-function normalizeMindmapTree(rawTree) {
+function collectMindmapChildren(node) {
+  const collections = [
+    node?.children,
+    node?.topicos,
+    node?.topics,
+    node?.branches,
+    node?.ramificacoes,
+    node?.subtopics,
+  ]
+  return collections.find(Array.isArray) || []
+}
+
+function walkMindmapNodes(sourceNodes, parentId = null, output = []) {
+  if (!Array.isArray(sourceNodes)) return output
+
+  sourceNodes.forEach((node, index) => {
+    if (!node || typeof node !== 'object') return
+
+    const id = String(node.id || `${parentId || 'node'}-${index}-${Date.now()}`)
+    const label = String(node.label || node.text || node.titulo || node.title || node.topico || node.topic || 'Nó').trim() || 'Nó'
+    output.push({ id, label, parentId: parentId ? String(parentId) : null })
+
+    const childNodes = collectMindmapChildren(node)
+    if (childNodes.length > 0) {
+      walkMindmapNodes(childNodes, id, output)
+    }
+  })
+
+  return output
+}
+
+function _normalizeMindmapTreeLegacy(rawTree) {
   if (!rawTree || typeof rawTree !== 'object') return null
 
   const rawNodes = Array.isArray(rawTree.nodes) ? rawTree.nodes : null
@@ -63,6 +94,52 @@ function normalizeMindmapTree(rawTree) {
   return { nodes }
 }
 
+function normalizeMindmapTree(rawTree) {
+  if (!rawTree || typeof rawTree !== 'object') return null
+
+  const rawNodes = Array.isArray(rawTree.nodes) ? walkMindmapNodes(rawTree.nodes) : []
+  const collectedNodes = rawNodes.length > 0 ? rawNodes : walkMindmapNodes(collectMindmapChildren(rawTree))
+  if (collectedNodes.length === 0) return null
+
+  const title = String(
+    rawTree.titulo
+    || rawTree.title
+    || rawTree.topico
+    || rawTree.topicoCentral
+    || rawTree.label
+    || collectedNodes[0]?.label
+    || 'Mapa central',
+  ).trim() || 'Mapa central'
+
+  let nodes = collectedNodes.map((node) => ({ ...node }))
+  const nodeIds = new Set(nodes.map((node) => node.id))
+  const roots = nodes.filter((node) => !node.parentId || !nodeIds.has(node.parentId))
+  const rootId = roots[0]?.id || `root-${Date.now()}`
+
+  if (roots.length === 0) {
+    nodes = [
+      { id: rootId, label: title, parentId: null },
+      ...nodes.map((node) => ({ ...node, parentId: rootId })),
+    ]
+  } else {
+    nodes = nodes.map((node) => {
+      if (node.id === rootId) {
+        return { ...node, label: title, parentId: null }
+      }
+
+      if (!node.parentId || !nodeIds.has(node.parentId)) {
+        return { ...node, parentId: rootId }
+      }
+
+      return node
+    })
+
+    nodes = nodes.map((node) => (node.id === rootId ? { ...node, label: title, parentId: null } : node))
+  }
+
+  return { titulo: title, nodes }
+}
+
 function extractMindmapFromAiResponse(response, textFallback = '') {
   if (response && typeof response === 'object') {
     const directMap = normalizeMindmapTree(
@@ -90,6 +167,22 @@ function extractMindmapFromAiResponse(response, textFallback = '') {
   }
 
   return null
+}
+
+function getMindmapPromptBoost(categoryLabel) {
+  return `
+
+INSTRUCOES EXTRAS PARA MAPA MENTAL:
+- Crie um mapa escolar classico, com titulo central no meio e ramos ao redor.
+- O titulo central deve refletir o assunto escolhido: ${categoryLabel}.
+- Use de 5 a 8 ramos principais e, quando fizer sentido, de 1 a 3 subtopicos curtos por ramo.
+- Prefira labels curtos, como palavras-chave ou expressoes breves.
+- Nao escreva paragrafos longos no mapa.
+- O objeto "mapa" deve incluir "titulo" e "nodes".
+- O no raiz precisa ter parentId null.
+- Se existir um unico no raiz, o label dele deve ser igual ao titulo central.
+- Mantenha a estrutura limpa para caber bem em um canvas infinito.
+`
 }
 
 function iconSvg(kind) {
@@ -330,7 +423,9 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
       }
     }
 
-    const finalSystemPrompt = systemPrompt + (searchContextText ? `\n\n${searchContextText}` : '')
+    const finalSystemPrompt = systemPrompt
+      + (categoryAtSend.id === 'mapas' ? getMindmapPromptBoost(categoryAtSend.label) : '')
+      + (searchContextText ? `\n\n${searchContextText}` : '')
 
     const userMessages = [
       ...recentMessages,

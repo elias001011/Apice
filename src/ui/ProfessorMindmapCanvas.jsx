@@ -4,7 +4,7 @@ import { jsPDF } from 'jspdf'
 import { Tldraw, createShapeId } from 'tldraw'
 import 'tldraw/tldraw.css'
 
-function buildNodeLayout(tree) {
+function _buildNodeLayoutLegacy(tree) {
   const nodes = Array.isArray(tree?.nodes) ? tree.nodes : []
   if (nodes.length === 0) return new Map()
 
@@ -70,6 +70,187 @@ function buildNodeLayout(tree) {
   return positions
 }
 
+const MINDMAP_BRANCH_COLORS = ['blue', 'green', 'orange', 'violet', 'red', 'light-blue', 'light-green', 'light-violet', 'light-red', 'yellow']
+
+function getMindmapChildNodes(node) {
+  const collections = [
+    node?.children,
+    node?.topicos,
+    node?.topics,
+    node?.branches,
+    node?.ramificacoes,
+    node?.subtopics,
+  ]
+  return collections.find(Array.isArray) || []
+}
+
+function walkMindmapNodes(sourceNodes, parentId = null, output = []) {
+  if (!Array.isArray(sourceNodes)) return output
+
+  sourceNodes.forEach((node, index) => {
+    if (!node || typeof node !== 'object') return
+
+    const id = String(node.id || `${parentId || 'node'}-${index}-${Date.now()}`)
+    const label = String(node.label || node.text || node.titulo || node.title || node.topico || node.topic || 'Nó').trim() || 'Nó'
+    output.push({ id, label, parentId: parentId ? String(parentId) : null })
+
+    const childNodes = getMindmapChildNodes(node)
+    if (childNodes.length > 0) {
+      walkMindmapNodes(childNodes, id, output)
+    }
+  })
+
+  return output
+}
+
+function pickMindmapNodeSize(depth) {
+  if (depth === 0) return { w: 340, h: 108 }
+  if (depth === 1) return { w: 250, h: 76 }
+  if (depth === 2) return { w: 214, h: 66 }
+  return { w: 190, h: 58 }
+}
+
+function buildRadialMindmapLayout(tree) {
+  const rawNodes = Array.isArray(tree?.nodes) ? walkMindmapNodes(tree.nodes) : []
+  const collectedNodes = rawNodes.length > 0 ? rawNodes : walkMindmapNodes(getMindmapChildNodes(tree))
+  if (collectedNodes.length === 0) {
+    return {
+      nodes: [],
+      positions: new Map(),
+      metaById: new Map(),
+      rootId: null,
+    }
+  }
+
+  const title = String(
+    tree?.titulo
+    || tree?.title
+    || tree?.topicoCentral
+    || tree?.label
+    || collectedNodes[0]?.label
+    || 'Mapa central',
+  ).trim() || 'Mapa central'
+
+  let nodes = collectedNodes.map((node) => ({ ...node }))
+  const nodeIds = new Set(nodes.map((node) => node.id))
+  const roots = nodes.filter((node) => !node.parentId || !nodeIds.has(node.parentId))
+  const rootId = roots[0]?.id || `root-${Date.now()}`
+
+  if (roots.length === 0) {
+    nodes = [
+      { id: rootId, label: title, parentId: null },
+      ...nodes.map((node) => ({ ...node, parentId: rootId })),
+    ]
+  } else {
+    nodes = nodes.map((node) => {
+      if (node.id === rootId) {
+        return { ...node, label: title, parentId: null }
+      }
+
+      if (!node.parentId || !nodeIds.has(node.parentId)) {
+        return { ...node, parentId: rootId }
+      }
+
+      return node
+    })
+
+    nodes = nodes.map((node) => (node.id === rootId ? { ...node, label: title, parentId: null } : node))
+  }
+
+  const childrenByParent = new Map()
+  nodes.forEach((node) => {
+    if (!node.parentId) return
+    const siblings = childrenByParent.get(node.parentId) || []
+    siblings.push(node)
+    childrenByParent.set(node.parentId, siblings)
+  })
+
+  const leafWeightCache = new Map()
+  const getLeafWeight = (id, seen = new Set()) => {
+    if (leafWeightCache.has(id)) return leafWeightCache.get(id)
+    if (seen.has(id)) return 1
+
+    const nextSeen = new Set(seen)
+    nextSeen.add(id)
+
+    const children = childrenByParent.get(id) || []
+    if (children.length === 0) {
+      leafWeightCache.set(id, 1)
+      return 1
+    }
+
+    const weight = children.reduce((sum, child) => sum + getLeafWeight(child.id, nextSeen), 0)
+    leafWeightCache.set(id, weight)
+    return weight
+  }
+
+  const positions = new Map()
+  const metaById = new Map()
+  const orderedNodes = []
+  const baseRadius = 290
+  const radiusStep = 180
+  const sectorStart = -Math.PI / 2
+  const sectorEnd = sectorStart + Math.PI * 2
+
+  const layoutNode = (id, depth, startAngle, endAngle, branchColor = MINDMAP_BRANCH_COLORS[0], siblingIndex = 0) => {
+    const node = nodes.find((item) => item.id === id)
+    if (!node) return
+
+    const children = childrenByParent.get(id) || []
+    const size = pickMindmapNodeSize(depth)
+    const angle = depth === 0 ? -Math.PI / 2 : (startAngle + endAngle) / 2
+    const radius = depth === 0 ? 0 : baseRadius + ((depth - 1) * radiusStep)
+    const centerX = Math.cos(angle) * radius
+    const centerY = Math.sin(angle) * radius
+
+    positions.set(id, {
+      x: centerX - (size.w / 2),
+      y: centerY - (size.h / 2),
+      centerX,
+      centerY,
+      width: size.w,
+      height: size.h,
+    })
+
+    metaById.set(id, {
+      depth,
+      branchColor,
+      siblingIndex,
+      color: depth === 0 ? 'yellow' : branchColor,
+      size,
+    })
+    orderedNodes.push(node)
+
+    if (children.length === 0) return
+
+    const totalWeight = children.reduce((sum, child) => sum + getLeafWeight(child.id), 0) || children.length
+    let currentAngle = startAngle
+
+    children.forEach((child, index) => {
+      const weight = getLeafWeight(child.id)
+      const span = (endAngle - startAngle) * (weight / totalWeight)
+      const padding = Math.min(0.16, span * 0.12)
+      const childStart = currentAngle + padding
+      const childEnd = currentAngle + span - padding
+      const nextBranchColor = depth === 0
+        ? MINDMAP_BRANCH_COLORS[index % MINDMAP_BRANCH_COLORS.length]
+        : branchColor
+
+      layoutNode(child.id, depth + 1, childStart, childEnd, nextBranchColor, index)
+      currentAngle += span
+    })
+  }
+
+  layoutNode(rootId, 0, sectorStart, sectorEnd, MINDMAP_BRANCH_COLORS[0], 0)
+
+  return {
+    nodes: orderedNodes,
+    positions,
+    metaById,
+    rootId,
+  }
+}
+
 export function ProfessorMindmapCanvas({
   tree,
   onExpandNode,
@@ -81,7 +262,8 @@ export function ProfessorMindmapCanvas({
   const shapeIdByNodeRef = useRef(new Map())
   const nodeIdByShapeRef = useRef(new Map())
 
-  const normalizedNodes = useMemo(() => Array.isArray(tree?.nodes) ? tree.nodes : [], [tree])
+  const layout = useMemo(() => buildRadialMindmapLayout(tree), [tree])
+  const normalizedNodes = layout.nodes
 
   useEffect(() => {
     if (!editor) return
@@ -96,16 +278,18 @@ export function ProfessorMindmapCanvas({
 
     if (normalizedNodes.length === 0) return
 
-    const positions = buildNodeLayout(tree)
+    const shapeIds = []
     const shapeBatch = []
 
     normalizedNodes.forEach((node) => {
       const nodeId = String(node.id)
       const shapeId = createShapeId(`mindmap-node-${nodeId}`)
-      const pos = positions.get(nodeId) || { x: 0, y: 0 }
+      const pos = layout.positions.get(nodeId) || { x: 0, y: 0 }
+      const meta = layout.metaById.get(nodeId) || { depth: 1, branchColor: 'blue', size: { w: 240, h: 72 } }
 
       shapeIdByNodeRef.current.set(nodeId, shapeId)
       nodeIdByShapeRef.current.set(shapeId, nodeId)
+      shapeIds.push(shapeId)
 
       shapeBatch.push({
         id: shapeId,
@@ -113,12 +297,13 @@ export function ProfessorMindmapCanvas({
         x: pos.x,
         y: pos.y,
         props: {
-          geo: 'rectangle',
-          w: 240,
-          h: 72,
+          geo: meta.depth === 0 ? 'ellipse' : 'rectangle',
+          w: meta.size.w,
+          h: meta.size.h,
           text: String(node.label || 'Nó'),
-          fill: 'semi',
-          color: 'blue',
+          fill: meta.depth === 0 ? 'solid' : 'semi',
+          color: meta.color,
+          labelColor: 'black',
           size: 'm',
           align: 'middle',
           verticalAlign: 'middle',
@@ -130,34 +315,42 @@ export function ProfessorMindmapCanvas({
       if (!node.parentId) return
       const parentShape = shapeIdByNodeRef.current.get(String(node.parentId))
       const childShape = shapeIdByNodeRef.current.get(String(node.id))
-      const parentPos = positions.get(String(node.parentId))
-      const childPos = positions.get(String(node.id))
+      const parentPos = layout.positions.get(String(node.parentId))
+      const childPos = layout.positions.get(String(node.id))
+      const childMeta = layout.metaById.get(String(node.id))
       if (!parentShape || !childShape || !parentPos || !childPos) return
 
       const arrowId = createShapeId(`mindmap-link-${node.parentId}-${node.id}`)
+      shapeIds.push(arrowId)
       shapeBatch.push({
         id: arrowId,
         type: 'arrow',
         x: 0,
         y: 0,
         props: {
-          start: { type: 'point', x: parentPos.x + 240, y: parentPos.y + 36 },
-          end: { type: 'point', x: childPos.x, y: childPos.y + 36 },
+          start: { type: 'point', x: parentPos.centerX, y: parentPos.centerY },
+          end: { type: 'point', x: childPos.centerX, y: childPos.centerY },
           arrowheadEnd: 'arrow',
-          color: 'grey',
+          color: childMeta?.branchColor || 'grey',
         },
       })
     })
 
     try {
       editor.createShapes(shapeBatch)
-      requestAnimationFrame(() => {
-        editor.zoomToFit({ animation: { duration: 450 } })
+      const frameId = requestAnimationFrame(() => {
+        const bounds = editor.getShapesPageBounds(shapeIds)
+        if (bounds) {
+          editor.zoomToBounds(bounds, { inset: 160, animation: { duration: 450 } })
+        } else {
+          editor.zoomToFit({ animation: { duration: 450 } })
+        }
       })
+      return () => window.cancelAnimationFrame(frameId)
     } catch (err) {
       console.error('Falha ao renderizar mapa no tldraw:', err)
     }
-  }, [editor, normalizedNodes, tree])
+  }, [editor, layout, normalizedNodes])
 
   const getSelectedNodeId = useCallback(() => {
     if (!editor) return null
