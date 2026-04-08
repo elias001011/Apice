@@ -517,7 +517,7 @@ html[data-fx="blur"] .criteria-card {
 }
 
 .corretor-rigid-particles {
-  position: absolute;
+  position: fixed;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
@@ -527,20 +527,20 @@ html[data-fx="blur"] .criteria-card {
 .corretor-rigid-particle {
   position: absolute;
   left: var(--particle-left);
-  top: -16px;
-  width: var(--particle-width);
-  height: var(--particle-height);
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 82, 82, 0.95) 40%, rgba(255, 82, 82, 0.15) 82%, transparent 100%);
-  box-shadow: 0 0 10px rgba(255, 82, 82, 0.35);
+  top: var(--particle-top);
+  width: var(--particle-size);
+  height: var(--particle-size);
+  border-radius: 50%;
+  background: rgba(255, 82, 82, 0.95);
+  box-shadow: 0 0 5px rgba(255, 82, 82, 0.38);
   opacity: var(--particle-opacity);
   animation: rigidParticleFall var(--particle-duration) linear var(--particle-delay) forwards;
-  filter: drop-shadow(0 0 3px rgba(255, 82, 82, 0.35));
+  will-change: transform, opacity;
 }
 
 @keyframes rigidParticleFall {
   0% {
-    transform: translate3d(0, -10px, 0) rotate(0deg);
+    transform: translate3d(0, -8px, 0) scale(0.9);
     opacity: 0;
   }
 
@@ -548,8 +548,12 @@ html[data-fx="blur"] .criteria-card {
     opacity: var(--particle-opacity);
   }
 
+  52% {
+    transform: translate3d(calc(var(--particle-drift) * 0.45), 52vh, 0) scale(1);
+  }
+
   100% {
-    transform: translate3d(var(--particle-drift), 110vh, 0) rotate(320deg);
+    transform: translate3d(var(--particle-drift), 108vh, 0) scale(0.96);
     opacity: 0;
   }
 }

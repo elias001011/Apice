@@ -16,24 +16,24 @@ function createRigidParticles(count = 18) {
   const createdAt = Date.now()
 
   return Array.from({ length: count }, (_, index) => {
-    const width = 2 + Math.random() * 4
-    const height = 7 + Math.random() * 13
+    const size = 1.3 + Math.random() * 2
     const left = Math.random() * 100
-    const drift = (Math.random() * 2 - 1) * 88
-    const duration = 1.35 + Math.random() * 1.05
-    const delay = Math.random() * 0.35
-    const opacity = 0.55 + Math.random() * 0.45
+    const drift = (Math.random() * 2 - 1) * 24
+    const duration = 2.8 + Math.random() * 1.8
+    const delay = Math.random() * 1.4
+    const opacity = 0.35 + Math.random() * 0.5
+    const top = -10 - Math.random() * 30
 
     return {
       id: `${createdAt}-${index}-${Math.random().toString(36).slice(2, 7)}`,
       style: {
         '--particle-left': `${left}%`,
-        '--particle-width': `${width}px`,
-        '--particle-height': `${height}px`,
+        '--particle-size': `${size}px`,
         '--particle-drift': `${drift}px`,
         '--particle-duration': `${duration}s`,
         '--particle-delay': `${delay}s`,
         '--particle-opacity': opacity.toFixed(2),
+        '--particle-top': `${top}px`,
       },
     }
   })
@@ -118,14 +118,14 @@ export function CorretorPage() {
 
     if (wasRigido) return
 
-    setRigidParticles(createRigidParticles())
+    setRigidParticles(createRigidParticles(42))
     if (rigidBurstTimerRef.current) {
       window.clearTimeout(rigidBurstTimerRef.current)
     }
     rigidBurstTimerRef.current = window.setTimeout(() => {
       setRigidParticles([])
       rigidBurstTimerRef.current = null
-    }, 2200)
+    }, 5200)
   }, [isRigido])
 
   useEffect(() => () => {
