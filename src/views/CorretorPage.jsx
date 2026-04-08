@@ -12,6 +12,33 @@ import {
   UPGRADE_REASONS,
 } from '../services/upgradeTrigger.js'
 
+function createRigidParticles(count = 18) {
+  const createdAt = Date.now()
+
+  return Array.from({ length: count }, (_, index) => {
+    const width = 2 + Math.random() * 4
+    const height = 7 + Math.random() * 13
+    const left = Math.random() * 100
+    const drift = (Math.random() * 2 - 1) * 88
+    const duration = 1.35 + Math.random() * 1.05
+    const delay = Math.random() * 0.35
+    const opacity = 0.55 + Math.random() * 0.45
+
+    return {
+      id: `${createdAt}-${index}-${Math.random().toString(36).slice(2, 7)}`,
+      style: {
+        '--particle-left': `${left}%`,
+        '--particle-width': `${width}px`,
+        '--particle-height': `${height}px`,
+        '--particle-drift': `${drift}px`,
+        '--particle-duration': `${duration}s`,
+        '--particle-delay': `${delay}s`,
+        '--particle-opacity': opacity.toFixed(2),
+      },
+    }
+  })
+}
+
 export function CorretorPage() {
   const navigate = useNavigate()
   const { beginBusy, endBusy } = useAppBusy()
@@ -34,8 +61,11 @@ export function CorretorPage() {
   const [generatingTheme, setGeneratingTheme] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [novaRedacaoConfirmOpen, setNovaRedacaoConfirmOpen] = useState(false)
+  const [rigidParticles, setRigidParticles] = useState([])
   const themeRequestSeq = useRef(0)
   const correctionRequestSeq = useRef(0)
+  const rigidBurstTimerRef = useRef(null)
+  const previousRigidoRef = useRef(Boolean(draftBootstrap?.isRigido))
 
   // Contador de palavras
   const words = redacao.trim().split(/\s+/).filter(w => w.length > 0)
@@ -72,6 +102,37 @@ export function CorretorPage() {
       themeMode: temaModo,
     })
   }, [hasStarted, tema, material, redacao, isRigido, temaModo, shouldPersistDraft])
+
+  useEffect(() => {
+    const wasRigido = previousRigidoRef.current
+    previousRigidoRef.current = isRigido
+
+    if (!isRigido) {
+      setRigidParticles((current) => (current.length ? [] : current))
+      if (rigidBurstTimerRef.current) {
+        window.clearTimeout(rigidBurstTimerRef.current)
+        rigidBurstTimerRef.current = null
+      }
+      return
+    }
+
+    if (wasRigido) return
+
+    setRigidParticles(createRigidParticles())
+    if (rigidBurstTimerRef.current) {
+      window.clearTimeout(rigidBurstTimerRef.current)
+    }
+    rigidBurstTimerRef.current = window.setTimeout(() => {
+      setRigidParticles([])
+      rigidBurstTimerRef.current = null
+    }, 2200)
+  }, [isRigido])
+
+  useEffect(() => () => {
+    if (rigidBurstTimerRef.current) {
+      window.clearTimeout(rigidBurstTimerRef.current)
+    }
+  }, [])
 
   const invalidateRequests = () => {
     // Qualquer troca brusca de fluxo invalida requisições pendentes.
@@ -241,10 +302,21 @@ export function CorretorPage() {
     )
   }
 
-  return (
+    return (
       <div className="view-container--wide">
         <div className={`corretor-container ${isRigido ? 'modo-rigido' : ''}`}>
-        <div className="corretor-header anim anim-d1">
+          {rigidParticles.length > 0 && (
+            <div className="corretor-rigid-particles" aria-hidden="true">
+              {rigidParticles.map((particle) => (
+                <span
+                  key={particle.id}
+                  className="corretor-rigid-particle"
+                  style={particle.style}
+                />
+              ))}
+            </div>
+          )}
+          <div className="corretor-header anim anim-d1">
           <div className="corretor-header-left">
             <h2 className="corretor-title">Oficina de Escrita</h2>
             <p className="corretor-subtitle">Pronta para a nota máxima no ENEM.</p>

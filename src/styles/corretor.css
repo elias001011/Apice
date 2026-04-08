@@ -508,4 +508,48 @@ html[data-fx="blur"] .criteria-card {
 
 .corretor-container {
   position: relative;
+  isolation: isolate;
+}
+
+.corretor-container > :not(.corretor-rigid-particles) {
+  position: relative;
+  z-index: 1;
+}
+
+.corretor-rigid-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.corretor-rigid-particle {
+  position: absolute;
+  left: var(--particle-left);
+  top: -16px;
+  width: var(--particle-width);
+  height: var(--particle-height);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 82, 82, 0.95) 40%, rgba(255, 82, 82, 0.15) 82%, transparent 100%);
+  box-shadow: 0 0 10px rgba(255, 82, 82, 0.35);
+  opacity: var(--particle-opacity);
+  animation: rigidParticleFall var(--particle-duration) linear var(--particle-delay) forwards;
+  filter: drop-shadow(0 0 3px rgba(255, 82, 82, 0.35));
+}
+
+@keyframes rigidParticleFall {
+  0% {
+    transform: translate3d(0, -10px, 0) rotate(0deg);
+    opacity: 0;
+  }
+
+  12% {
+    opacity: var(--particle-opacity);
+  }
+
+  100% {
+    transform: translate3d(var(--particle-drift), 110vh, 0) rotate(320deg);
+    opacity: 0;
+  }
 }
