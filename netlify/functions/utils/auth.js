@@ -157,7 +157,9 @@ export function unauthorizedResponse(corsHeaders = {}) {
 }
 
 /**
- * Extract userId from X-User-Id header (fallback for large JWTs).
+ * Extract userId from X-User-Id header.
+ * This is now the primary auth mechanism because legacy user_metadata
+ * inflated JWT tokens causing 500 errors on Netlify API Gateway.
  */
 function extractUserIdFromHeader(req) {
   if (typeof req?.headers?.get === 'function') {
@@ -170,9 +172,8 @@ function extractUserIdFromHeader(req) {
  * Require authentication — convenience wrapper.
  * Returns the auth context or a 401 Response.
  *
- * Supports two auth mechanisms:
- * 1. Bearer JWT in Authorization header (standard, preferred)
- * 2. X-User-Id header (fallback for accounts with large legacy user_metadata)
+ * Primary auth: X-User-Id header (set by authFetch.js from gotrue.user localStorage)
+ * Fallback: Bearer JWT (for accounts without legacy bloat)
  *
  * Usage:
  *   const auth = requireAuth(req, headers)
@@ -180,20 +181,19 @@ function extractUserIdFromHeader(req) {
  *   // auth.user.id is the authenticated user
  */
 export function requireAuth(req, corsHeaders = {}) {
-  // First try standard JWT auth
-  const auth = authenticateRequest(req)
-  if (auth) return auth
-
-  // Fallback: accept X-User-Id header (for accounts with large legacy JWTs)
+  // Primary: accept X-User-Id header (no JWT involved)
   const userId = extractUserIdFromHeader(req)
   if (userId) {
-    console.log(`[auth] Fallback auth via X-User-Id: ${userId} (JWT too large or unavailable)`)
     return {
       user: { id: userId, email: '', fullName: '', roles: [], metadata: {}, appMetadata: {} },
       token: '',
       payload: { sub: userId },
     }
   }
+
+  // Fallback: try standard JWT auth
+  const auth = authenticateRequest(req)
+  if (auth) return auth
 
   return unauthorizedResponse(corsHeaders)
 }

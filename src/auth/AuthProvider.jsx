@@ -37,16 +37,14 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const syncLockRef = useRef(false)
 
-  // Register the JWT token getter so authFetch can attach Bearer tokens
+  // Register the user ID getter so authFetch can identify the user
+  // (No JWT — we use X-User-Id header instead because legacy user_metadata
+  // inflated JWT tokens and caused 500 errors on Netlify API Gateway)
   useEffect(() => {
     registerAuthTokenGetter(async () => {
       const currentUser = auth.currentUser()
       if (!currentUser) return ''
-      try {
-        return await currentUser.jwt()
-      } catch {
-        return ''
-      }
+      return currentUser.id || ''
     })
     return () => registerAuthTokenGetter(null)
   }, [])
@@ -80,44 +78,6 @@ export function AuthProvider({ children }) {
           }
           setUser(null)
         } else {
-          // ── AUTO-CURA: verificar se o JWT está inflado por metadata legado ──
-          try {
-            const jwt = await validatedUser.jwt()
-            const jwtSizeKB = new Blob([jwt]).size / 1024
-            if (jwtSizeKB > 4) {
-              console.warn(`[AuthProvider] JWT grande demais (${jwtSizeKB.toFixed(1)}KB). Limpando user_metadata legado.`)
-              // Limpa campos legados do metadata que inflam o JWT
-              const currentMetadata = validatedUser.user_metadata || {}
-              const legacyKeys = ['apice_state', 'app_data', 'billing', 'usage', 'history', 'preferences', 'planStatus', 'planTier', 'radar', 'conquistas', 'summary', 'enemDate']
-              const hasLegacy = legacyKeys.some(k => Object.prototype.hasOwnProperty.call(currentMetadata, k))
-              if (hasLegacy) {
-                const cleanMetadata = {}
-                // Preserva apenas campos essenciais
-                legacyKeys.forEach(k => {
-                  if (Object.prototype.hasOwnProperty.call(currentMetadata, k)) {
-                    console.log(`[AuthProvider] Removendo campo legado do metadata: ${k}`)
-                  }
-                })
-                // Faz o update com metadata limpo (mantém full_name, first_name, school)
-                try {
-                  await validatedUser.update({
-                    data: {
-                      full_name: currentMetadata.full_name || '',
-                      first_name: currentMetadata.first_name || '',
-                      school: currentMetadata.school || '',
-                    },
-                  })
-                  console.log('[AuthProvider] Metadata legado limpo com sucesso. JWT reduzido.')
-                } catch (updateErr) {
-                  console.error('[AuthProvider] Falha ao limpar metadata legado:', updateErr.message)
-                }
-              }
-            }
-          } catch (jwtErr) {
-            // Se não consegue obter JWT, o refresh falhou — sessão inválida
-            console.error('[AuthProvider] Falha ao verificar JWT:', jwtErr.message)
-          }
-
           setUser(validatedUser)
         }
       } catch (error) {
@@ -332,8 +292,7 @@ export function AuthProvider({ children }) {
           full_name: String(userSupplied.full_name ?? safeBase.full_name).trim(),
           first_name: String(userSupplied.first_name ?? safeBase.first_name).trim(),
           school: String(userSupplied.school ?? safeBase.school).trim(),
-          // Preserve apice_state if the caller is syncing cloud state
-          ...(userSupplied.apice_state ? { apice_state: userSupplied.apice_state } : {}),
+          // NO apice_state — all app state goes to Netlify Blobs via cloudSync
         }
       }
 
