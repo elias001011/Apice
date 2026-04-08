@@ -181,7 +181,7 @@ INSTRUCOES EXTRAS PARA MAPA MENTAL:
 - O objeto "mapa" deve incluir "titulo" e "nodes".
 - O no raiz precisa ter parentId null.
 - Se existir um unico no raiz, o label dele deve ser igual ao titulo central.
-- Mantenha a estrutura limpa para caber bem em um canvas infinito.
+- Mantenha a estrutura limpa, visual e pronta para uma pagina PDF.
 `
 }
 
@@ -384,7 +384,7 @@ export function ProfessorPage() {
 DIRETRIZES:
 - ${categoryAtSend.id === 'duvidas' ? 'Explique de forma clara, passo a passo, com exemplos quando possível.' : ''}
 - ${categoryAtSend.id === 'resumos' ? 'Crie resumos objetivos com os pontos mais importantes para o ENEM. Use tópicos e seja direto.' : ''}
-- ${categoryAtSend.id === 'mapas' ? `Para esta categoria (Mapas), você NÃO deve escrever uma explicação. Retorne EXATAMENTE a string "[MAPA_GERADO]" no campo "texto" e foque 100% no preenchimento do objeto "mapa". Crie um mapa profundo com 12 a 24 nós organizados hierarquicamente.` : ''}
+- ${categoryAtSend.id === 'mapas' ? `Para esta categoria (Mapas), você NÃO deve escrever uma explicação. Retorne EXATAMENTE a string "[MAPA_GERADO]" no campo "texto" e preencha o objeto "mapa" com um mapa mental escolar pronto para visualização: título central no meio, 5 a 8 tópicos principais ao redor e, quando fizer sentido, 1 a 3 subtópicos curtos por tópico. O resultado deve ter labels curtos e no máximo 18 nós. O objeto "mapa" precisa incluir "titulo" e "nodes".` : ''}
 - ${categoryAtSend.id === 'pratica' ? 'Crie questões inéditas no estilo ENEM com 5 alternativas (A-E). Após o aluno responder, dê feedback detalhado.' : ''}
 - Use linguagem acessível mas não infantilize.
 - Se não souber, seja honesto.
