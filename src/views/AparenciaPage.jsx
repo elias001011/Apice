@@ -304,8 +304,8 @@ export function AparenciaPage() {
             <div className="card-title" style={{ color: 'var(--red)' }}>⚠ Emergência: Limpar Dados da Conta</div>
             <p style={{ fontSize: '0.82rem', color: 'var(--text2)', lineHeight: 1.5, marginBottom: '10px' }}>
               Se TODAS as IAs estão falhando com erro 500 apenas na sua conta (e funciona em conta nova),
-              seu perfil pode ter dados legados que inflam o token de autenticação.
-              Clique abaixo para limpar automaticamente.
+              seu perfil no Netlify Identity pode ter dados legados que inflam o token de autenticação.
+              Clique abaixo para limpar automaticamente (limpa campos pesados do seu perfil na nuvem).
             </p>
             <button
               id="btn-limpar-metadata"
@@ -327,45 +327,58 @@ export function AparenciaPage() {
                 btn.disabled = true
                 btn.textContent = 'Limpando...'
 
-                // Obtém userId do localStorage (gotrue.user)
-                let userId = ''
-                try {
-                  const raw = localStorage.getItem('gotrue.user')
-                  if (raw) {
-                    const data = JSON.parse(raw)
-                    userId = data?.id || ''
-                  }
-                } catch {}
-
-                if (!userId) {
-                  alert('Não foi possível identificar seu usuário. Tente fazer logout e login novamente.')
-                  btn.disabled = false
-                  btn.textContent = '⚠ Limpar Dados da Conta'
-                  return
-                }
+                // Campos legados que inflam o JWT no user_metadata
+                const legacyKeys = [
+                  'apice_state', 'app_data', 'billing', 'usage', 'history',
+                  'preferences', 'planStatus', 'planTier', 'radar', 'conquistas',
+                  'summary', 'enemDate', 'radarFavorites', 'aiResponsePreference',
+                  'avatarSettings', 'notifications',
+                ]
 
                 try {
-                  const res = await fetch('/.netlify/functions/limpar-metadata', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId }),
+                  // Tenta obter o usuário atual via GoTrue
+                  const GoTrue = (await import('gotrue-js')).default
+                  const auth = new GoTrue({
+                    APIUrl: import.meta.env.VITE_NETLIFY_IDENTITY_URL || '/.netlify/identity',
+                    setCookie: false,
                   })
+                  const user = auth.currentUser()
 
-                  const result = await res.json()
-
-                  if (result.ok && result.cleaned) {
-                    alert(`✅ Sucesso! ${result.removedKeys?.length || 0} campos legados removidos.\nFaça logout e login novamente para aplicar.`)
-                    btn.textContent = '✅ Limpo!'
-                  } else if (result.ok && !result.cleaned) {
-                    alert('Seu perfil já está limpo. Se o problema persistir, tente fazer logout e login novamente.')
-                    btn.textContent = '✅ Já limpo'
-                  } else {
-                    alert(`Erro: ${result.error || 'Falha desconhecida'}`)
+                  if (!user) {
+                    alert('Você precisa estar logado para limpar seus dados.')
                     btn.disabled = false
                     btn.textContent = '⚠ Limpar Dados da Conta'
+                    return
                   }
+
+                  // Limpa apenas os campos legados, mantendo full_name, first_name, school
+                  const currentMetadata = user.user_metadata || {}
+                  const cleanMetadata = {}
+
+                  // Campos essenciais para manter
+                  const keepKeys = ['full_name', 'first_name', 'last_name', 'school', 'name', 'avatar_url']
+                  keepKeys.forEach(k => {
+                    if (Object.prototype.hasOwnProperty.call(currentMetadata, k)) {
+                      cleanMetadata[k] = currentMetadata[k]
+                    }
+                  })
+
+                  // Verifica se há campos legados para remover
+                  const hasLegacy = legacyKeys.some(k => Object.prototype.hasOwnProperty.call(currentMetadata, k))
+                  if (!hasLegacy) {
+                    alert('Seu perfil já está limpo (nenhum campo legado encontrado). Se o problema persistir, tente fazer logout e login novamente.')
+                    btn.textContent = '✅ Já limpo'
+                    return
+                  }
+
+                  // user.update() vai direto pro GoTrue, sem passar pelo API Gateway
+                  await user.update({ data: cleanMetadata })
+                  
+                  alert(`✅ Sucesso! Campos legados removidos do seu perfil.\n\nAGORA FAÇA LOGOUT E LOGIN NOVAMENTE para que o token de autenticação seja renovado sem os dados pesados.`)
+                  btn.textContent = '✅ Limpo! Faça logout/login'
                 } catch (err) {
-                  alert(`Erro de rede: ${err.message}`)
+                  console.error('[limpar-metadata] Erro:', err)
+                  alert(`Erro ao limpar: ${err.message || 'Falha desconhecida'}`)
                   btn.disabled = false
                   btn.textContent = '⚠ Limpar Dados da Conta'
                 }

@@ -114,26 +114,26 @@ html[data-fx="blur"] {
     radial-gradient(circle at top left, rgba(var(--accent-rgb), 0.02), transparent 28rem),
     radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.015), transparent 22rem),
     var(--bg);
-  --bg2-glass: rgba(255, 255, 255, 0.72);
-  --glass-blur: 16px;
-  --overlay-blur: 12px;
-  --nav-bg: rgba(255, 255, 255, 0.72);
-  --tab-bg: rgba(255, 255, 255, 0.72);
+  --bg2-glass: rgba(255, 255, 255, 0.65);
+  --glass-blur: 24px;
+  --overlay-blur: 16px;
+  --nav-bg: rgba(255, 255, 255, 0.65);
+  --tab-bg: rgba(255, 255, 255, 0.65);
 }
 
 html[data-fx="blur"]:not([data-theme="dark"]) {
-  --nav-surface: linear-gradient(180deg, rgba(var(--accent-rgb), 0.015), transparent 72%), rgba(255, 255, 255, 0.74);
-  --tab-surface: rgba(255, 255, 255, 0.74);
-  --footer-surface: rgba(255, 255, 255, 0.72);
+  --nav-surface: linear-gradient(180deg, rgba(var(--accent-rgb), 0.015), transparent 72%), rgba(255, 255, 255, 0.68);
+  --tab-surface: rgba(255, 255, 255, 0.68);
+  --footer-surface: rgba(255, 255, 255, 0.65);
 }
 
 html[data-theme="dark"][data-fx="blur"] {
-  --nav-surface: linear-gradient(180deg, rgba(var(--accent-rgb), 0.015), transparent 72%), rgba(18, 18, 18, 0.74);
-  --tab-surface: rgba(18, 18, 18, 0.74);
-  --footer-surface: rgba(18, 18, 18, 0.7);
-  --bg2-glass: rgba(18, 18, 18, 0.72);
-  --nav-bg: rgba(18, 18, 18, 0.72);
-  --tab-bg: rgba(18, 18, 18, 0.72);
+  --nav-surface: linear-gradient(180deg, rgba(var(--accent-rgb), 0.015), transparent 72%), rgba(18, 18, 18, 0.68);
+  --tab-surface: rgba(18, 18, 18, 0.68);
+  --footer-surface: rgba(18, 18, 18, 0.65);
+  --bg2-glass: rgba(18, 18, 18, 0.65);
+  --nav-bg: rgba(18, 18, 18, 0.65);
+  --tab-bg: rgba(18, 18, 18, 0.65);
 }
 
 html {
