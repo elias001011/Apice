@@ -13,6 +13,7 @@ import {
 import { Footer } from './Footer.jsx'
 import { ConquistaToast } from './ConquistaToast.jsx'
 import { UpgradeModalProvider } from './UpgradeModal.jsx'
+import { QuotaLimitBanner } from './QuotaLimitBanner.jsx'
 
 export function AppShell() {
   const { user } = useAuth()
@@ -137,6 +138,7 @@ export function AppShell() {
       </nav>
 
       <main className="main">
+        <QuotaLimitBanner />
         <Outlet />
       </main>
       <Footer />
