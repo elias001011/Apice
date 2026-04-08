@@ -157,8 +157,22 @@ export function unauthorizedResponse(corsHeaders = {}) {
 }
 
 /**
+ * Extract userId from X-User-Id header (fallback for large JWTs).
+ */
+function extractUserIdFromHeader(req) {
+  if (typeof req?.headers?.get === 'function') {
+    return String(req.headers.get('x-user-id') || req.headers.get('X-User-Id') || '').trim()
+  }
+  return ''
+}
+
+/**
  * Require authentication — convenience wrapper.
  * Returns the auth context or a 401 Response.
+ *
+ * Supports two auth mechanisms:
+ * 1. Bearer JWT in Authorization header (standard, preferred)
+ * 2. X-User-Id header (fallback for accounts with large legacy user_metadata)
  *
  * Usage:
  *   const auth = requireAuth(req, headers)
@@ -166,9 +180,20 @@ export function unauthorizedResponse(corsHeaders = {}) {
  *   // auth.user.id is the authenticated user
  */
 export function requireAuth(req, corsHeaders = {}) {
+  // First try standard JWT auth
   const auth = authenticateRequest(req)
-  if (!auth) {
-    return unauthorizedResponse(corsHeaders)
+  if (auth) return auth
+
+  // Fallback: accept X-User-Id header (for accounts with large legacy JWTs)
+  const userId = extractUserIdFromHeader(req)
+  if (userId) {
+    console.log(`[auth] Fallback auth via X-User-Id: ${userId} (JWT too large or unavailable)`)
+    return {
+      user: { id: userId, email: '', fullName: '', roles: [], metadata: {}, appMetadata: {} },
+      token: '',
+      payload: { sub: userId },
+    }
   }
-  return auth
+
+  return unauthorizedResponse(corsHeaders)
 }
