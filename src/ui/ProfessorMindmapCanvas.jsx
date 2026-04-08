@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toPng } from 'html-to-image'
 import { jsPDF } from 'jspdf'
 
@@ -19,6 +19,42 @@ const MINDMAP_MIN_STAGE_HEIGHT = 560
 
 function normalizeMindmapLabel(value, fallback = 'Mapa central') {
   return String(value || fallback).trim() || fallback
+}
+
+function resolveMindmapLabel(node, fallback = 'No') {
+  if (node == null) return fallback
+  if (typeof node === 'string' || typeof node === 'number') {
+    return String(node).trim() || fallback
+  }
+  if (typeof node !== 'object') return fallback
+
+  const labelCandidates = [
+    node.label,
+    node.text,
+    node.titulo,
+    node.title,
+    node.topico,
+    node.topic,
+    node.name,
+    node.nome,
+    node.assunto,
+    node.tema,
+    node.rotulo,
+    node.valor,
+    node.value,
+    node.content,
+    node.conteudo,
+    node.description,
+    node.descricao,
+  ]
+
+  for (const candidate of labelCandidates) {
+    if (candidate == null) continue
+    const text = String(candidate).trim()
+    if (text) return text
+  }
+
+  return fallback
 }
 
 function slugifyFileName(value) {
@@ -45,12 +81,16 @@ function hexToRgba(hex, alpha) {
 
 function getMindmapChildNodes(node) {
   const collections = [
+    node?.nodes,
     node?.children,
     node?.topicos,
+    node?.subtopicos,
     node?.topics,
     node?.branches,
     node?.ramificacoes,
     node?.subtopics,
+    node?.items,
+    node?.childrenNodes,
   ]
   return collections.find(Array.isArray) || []
 }
@@ -59,26 +99,14 @@ function walkMindmapNodes(sourceNodes, parentId = null, output = []) {
   if (!Array.isArray(sourceNodes)) return output
 
   sourceNodes.forEach((node, index) => {
-    if (!node || typeof node !== 'object') return
-
-    const label = normalizeMindmapLabel(
-      node.label
-      || node.text
-      || node.titulo
-      || node.title
-      || node.topico
-      || node.topic
-      || 'No',
-      'No',
-    )
-
+    const label = resolveMindmapLabel(node, 'No')
     const safeKey = label
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
 
     const id = String(
-      node.id
+      (node && typeof node === 'object' && node.id)
       || `${parentId || 'node'}-${index}-${safeKey || 'item'}-${output.length}`,
     )
 
@@ -170,8 +198,13 @@ function buildRadialMindmapLayout(tree) {
   const title = normalizeMindmapLabel(
     tree?.titulo
     || tree?.title
+    || tree?.name
+    || tree?.nome
     || tree?.topicoCentral
+    || tree?.assunto
+    || tree?.tema
     || tree?.label
+    || tree?.text
     || collectedNodes[0]?.label,
     'Mapa central',
   )
@@ -339,6 +372,16 @@ export function ProfessorMindmapCanvas({ tree }) {
   const layout = useMemo(() => buildRadialMindmapLayout(tree), [tree])
   const normalizedNodes = layout.nodes
   const fileName = useMemo(() => `${slugifyFileName(layout.title)}.pdf`, [layout.title])
+  const mindmapStats = useMemo(() => {
+    const branchCount = normalizedNodes.filter((node) => (layout.metaById.get(node.id)?.depth || 0) === 1).length
+    const subtopicCount = normalizedNodes.filter((node) => (layout.metaById.get(node.id)?.depth || 0) > 1).length
+
+    return {
+      branchCount,
+      subtopicCount,
+      totalCount: Math.max(0, normalizedNodes.length - 1),
+    }
+  }, [layout.metaById, normalizedNodes])
 
   const stageDimensions = useMemo(() => {
     const width = Math.max(
@@ -551,6 +594,11 @@ export function ProfessorMindmapCanvas({ tree }) {
           <span className="prof-mindmap-toolbar-subtitle">
             O PDF e a visualizacao sao gerados automaticamente assim que o mapa fica pronto.
           </span>
+          <div className="prof-mindmap-toolbar-stats">
+            <span className="prof-mindmap-stat-pill">{mindmapStats.totalCount} topicos</span>
+            <span className="prof-mindmap-stat-pill">{mindmapStats.branchCount} ramos</span>
+            <span className="prof-mindmap-stat-pill">{mindmapStats.subtopicCount} subtopicos</span>
+          </div>
         </div>
 
         <div className="prof-mindmap-toolbar-actions">
@@ -598,18 +646,18 @@ export function ProfessorMindmapCanvas({ tree }) {
           style={{ width: `${stageDimensions.width}px` }}
         >
           <div className="prof-mindmap-preview-header">
-            <div className="prof-mindmap-preview-copy">
-              <span className="prof-mindmap-preview-kicker">Mapa mental pronto</span>
-              <h3 className="prof-mindmap-preview-title">{layout.title}</h3>
-              <p className="prof-mindmap-preview-note">
-                {normalizedNodes.length} nos organizados em torno do tema central.
-              </p>
-            </div>
-
-            <div className="prof-mindmap-preview-badge">
-              <span>Gerado pela IA</span>
-            </div>
+          <div className="prof-mindmap-preview-copy">
+            <span className="prof-mindmap-preview-kicker">Mapa mental pronto</span>
+            <h3 className="prof-mindmap-preview-title">{layout.title}</h3>
+            <p className="prof-mindmap-preview-note">
+              {normalizedNodes.length} nos organizados em torno do tema central.
+            </p>
           </div>
+
+          <div className="prof-mindmap-preview-badge">
+            <span>Gerado pela IA</span>
+          </div>
+        </div>
 
           <div
             className="prof-mindmap-stage"
@@ -676,9 +724,15 @@ export function ProfessorMindmapCanvas({ tree }) {
                 </article>
               )
             })}
+
+            <div className="prof-mindmap-stage-footer">
+              <span>Estrutura radial pensada para estudo rapido.</span>
+              <span>Abra o PDF para ler, imprimir ou compartilhar.</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
   )
 }
+

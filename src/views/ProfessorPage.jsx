@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+﻿import { useState, useRef, useEffect, useCallback } from 'react'
 import { CATEGORIES } from '../data/mockProfessorData.js'
 import { chamarIAEspecifica, buscarContexto } from '../services/aiService.js'
 import { ProfessorMindmapCanvas } from '../ui/ProfessorMindmapCanvas.jsx'
@@ -6,7 +6,7 @@ import '../styles/professor.css'
 
 const STORAGE_KEY = 'apice:professor:conversations'
 const MINDMAP_STORAGE_KEY = 'apice:professor:mindmaps'
-const MAX_CHAT_HISTORY = 12 // Limita histórico enviado para IA (economia de tokens)
+const MAX_CHAT_HISTORY = 12 // Limita histÃ³rico enviado para IA (economia de tokens)
 const PROFESSOR_PROVIDER_FALLBACKS = [
   { provider: 'groq', modelVariant: 'secondary' },
   { provider: 'groq', modelVariant: 'primary' },
@@ -23,14 +23,54 @@ function safeJsonParse(value) {
   }
 }
 
+function resolveMindmapLabel(node, fallback = 'Nó') {
+  if (node == null) return fallback
+  if (typeof node === 'string' || typeof node === 'number') {
+    return String(node).trim() || fallback
+  }
+  if (typeof node !== 'object') return fallback
+
+  const labelCandidates = [
+    node.label,
+    node.text,
+    node.titulo,
+    node.title,
+    node.topico,
+    node.topic,
+    node.name,
+    node.nome,
+    node.assunto,
+    node.tema,
+    node.rotulo,
+    node.valor,
+    node.value,
+    node.content,
+    node.conteudo,
+    node.description,
+    node.descricao,
+  ]
+
+  for (const candidate of labelCandidates) {
+    if (candidate == null) continue
+    const text = String(candidate).trim()
+    if (text) return text
+  }
+
+  return fallback
+}
+
 function collectMindmapChildren(node) {
   const collections = [
+    node?.nodes,
     node?.children,
     node?.topicos,
+    node?.subtopicos,
     node?.topics,
     node?.branches,
     node?.ramificacoes,
     node?.subtopics,
+    node?.items,
+    node?.childrenNodes,
   ]
   return collections.find(Array.isArray) || []
 }
@@ -39,10 +79,17 @@ function walkMindmapNodes(sourceNodes, parentId = null, output = []) {
   if (!Array.isArray(sourceNodes)) return output
 
   sourceNodes.forEach((node, index) => {
-    if (!node || typeof node !== 'object') return
+    const label = resolveMindmapLabel(node, 'Nó')
+    const safeKey = label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
 
-    const id = String(node.id || `${parentId || 'node'}-${index}-${Date.now()}`)
-    const label = String(node.label || node.text || node.titulo || node.title || node.topico || node.topic || 'Nó').trim() || 'Nó'
+    const id = String(
+      (node && typeof node === 'object' && node.id)
+      || `${parentId || 'node'}-${index}-${safeKey || 'item'}-${output.length}`,
+    )
+
     output.push({ id, label, parentId: parentId ? String(parentId) : null })
 
     const childNodes = collectMindmapChildren(node)
@@ -62,7 +109,7 @@ function _normalizeMindmapTreeLegacy(rawTree) {
     const nodes = rawNodes
       .map((node, index) => ({
         id: String(node.id || `node-${Date.now()}-${index}`),
-        label: String(node.label || node.text || node.titulo || 'Nó'),
+        label: String(node.label || node.text || node.titulo || 'NÃ³'),
         parentId: node.parentId ? String(node.parentId) : null,
       }))
     return { nodes }
@@ -81,7 +128,7 @@ function _normalizeMindmapTreeLegacy(rawTree) {
       const childId = String(child.id || `${parentId}-${index}-${Date.now()}`)
       nodes.push({
         id: childId,
-        label: String(child.label || child.text || child.titulo || 'Nó'),
+        label: String(child.label || child.text || child.titulo || 'NÃ³'),
         parentId,
       })
       if (Array.isArray(child.children) && child.children.length > 0) {
@@ -104,9 +151,14 @@ function normalizeMindmapTree(rawTree) {
   const title = String(
     rawTree.titulo
     || rawTree.title
+    || rawTree.name
+    || rawTree.nome
     || rawTree.topico
     || rawTree.topicoCentral
+    || rawTree.assunto
+    || rawTree.tema
     || rawTree.label
+    || rawTree.text
     || collectedNodes[0]?.label
     || 'Mapa central',
   ).trim() || 'Mapa central'
@@ -179,6 +231,8 @@ INSTRUCOES EXTRAS PARA MAPA MENTAL:
 - Prefira labels curtos, como palavras-chave ou expressoes breves.
 - Nao escreva paragrafos longos no mapa.
 - O objeto "mapa" deve incluir "titulo" e "nodes".
+- Cada no dentro de "nodes" precisa ter label obrigatorio e nao vazio.
+- Nunca use labels genericos como "topico", "subtopico", "nó" ou "item" sem um nome real.
 - O no raiz precisa ter parentId null.
 - Se existir um unico no raiz, o label dele deve ser igual ao titulo central.
 - Mantenha a estrutura limpa, visual e pronta para uma pagina PDF.
@@ -303,7 +357,7 @@ export function ProfessorPage() {
     return navigator.onLine === false
   }, [])
 
-  /** Rola só a lista de mensagens — evita scrollIntoView, que puxa a página inteira. */
+  /** Rola sÃ³ a lista de mensagens â€” evita scrollIntoView, que puxa a pÃ¡gina inteira. */
   const scrollMessagesToEnd = useCallback((behavior = 'smooth') => {
     const wall = messagesWallRef.current
     if (!wall) return
@@ -349,7 +403,7 @@ export function ProfessorPage() {
     if (!inputText.trim() || isTyping) return
     if (isBrowserOffline()) {
       setAiError(true)
-      window.alert('Você está offline. Verifique sua conexão para continuar usando o Professor IA.')
+      window.alert('VocÃª estÃ¡ offline. Verifique sua conexÃ£o para continuar usando o Professor IA.')
       return
     }
 
@@ -370,7 +424,7 @@ export function ProfessorPage() {
 
     setIsTyping(true)
 
-    // Monta histórico recente para contexto da IA
+    // Monta histÃ³rico recente para contexto da IA
     const recentMessages = categoryMessages
       .slice(-MAX_CHAT_HISTORY)
       .filter(msg => msg.sender === 'user' || msg.sender === 'ai')
@@ -379,27 +433,27 @@ export function ProfessorPage() {
         content: msg.text
       }))
 
-    const systemPrompt = `Você é um professor especialista no ENEM, atuando na categoria "${categoryAtSend.label}".
+    const systemPrompt = `VocÃª Ã© um professor especialista no ENEM, atuando na categoria "${categoryAtSend.label}".
 
 DIRETRIZES:
-- ${categoryAtSend.id === 'duvidas' ? 'Explique de forma clara, passo a passo, com exemplos quando possível.' : ''}
-- ${categoryAtSend.id === 'resumos' ? 'Crie resumos objetivos com os pontos mais importantes para o ENEM. Use tópicos e seja direto.' : ''}
-- ${categoryAtSend.id === 'mapas' ? `Para esta categoria (Mapas), você NÃO deve escrever uma explicação. Retorne EXATAMENTE a string "[MAPA_GERADO]" no campo "texto" e preencha o objeto "mapa" com um mapa mental escolar pronto para visualização: título central no meio, 5 a 8 tópicos principais ao redor e, quando fizer sentido, 1 a 3 subtópicos curtos por tópico. O resultado deve ter labels curtos e no máximo 18 nós. O objeto "mapa" precisa incluir "titulo" e "nodes".` : ''}
-- ${categoryAtSend.id === 'pratica' ? 'Crie questões inéditas no estilo ENEM com 5 alternativas (A-E). Após o aluno responder, dê feedback detalhado.' : ''}
-- Use linguagem acessível mas não infantilize.
-- Se não souber, seja honesto.
+- ${categoryAtSend.id === 'duvidas' ? 'Explique de forma clara, passo a passo, com exemplos quando possÃ­vel.' : ''}
+- ${categoryAtSend.id === 'resumos' ? 'Crie resumos objetivos com os pontos mais importantes para o ENEM. Use tÃ³picos e seja direto.' : ''}
+- ${categoryAtSend.id === 'mapas' ? `Para esta categoria (Mapas), vocÃª NÃƒO deve escrever uma explicaÃ§Ã£o. Retorne EXATAMENTE a string "[MAPA_GERADO]" no campo "texto" e preencha o objeto "mapa" com um mapa mental escolar pronto para visualizaÃ§Ã£o: tÃ­tulo central no meio, 5 a 8 tÃ³picos principais ao redor e, quando fizer sentido, 1 a 3 subtÃ³picos curtos por tÃ³pico. O resultado deve ter labels curtos e no mÃ¡ximo 18 nÃ³s. Cada no em "nodes" precisa ter label obrigatÃ³rio e especÃ­fico, nunca genÃ©rico. O objeto "mapa" precisa incluir "titulo" e "nodes".` : ''}
+- ${categoryAtSend.id === 'pratica' ? 'Crie questÃµes inÃ©ditas no estilo ENEM com 5 alternativas (A-E). ApÃ³s o aluno responder, dÃª feedback detalhado.' : ''}
+- Use linguagem acessÃ­vel mas nÃ£o infantilize.
+- Se nÃ£o souber, seja honesto.
 - Mantenha o foco no contexto do ENEM e no Brasil.
-- Responda em português do Brasil.
+- Responda em portuguÃªs do Brasil.
 
-Responda SEMPRE em JSON válido neste formato:
+Responda SEMPRE em JSON vÃ¡lido neste formato:
 {
-  "texto": "Sua explicação (ou [MAPA_GERADO] se for categoria mapas)...",
+  "texto": "Sua explicaÃ§Ã£o (ou [MAPA_GERADO] se for categoria mapas)...",
   "mapa": { "nodes": [ ... ] }
 }
 
-DICA: Na categoria 'mapas', o campo 'mapa' é OBRIGATÓRIO e o 'texto' deve ser "[MAPA_GERADO]".
+DICA: Na categoria 'mapas', o campo 'mapa' Ã© OBRIGATÃ“RIO e o 'texto' deve ser "[MAPA_GERADO]".
 
-Histórico recente da conversa (para manter coerência):`
+HistÃ³rico recente da conversa (para manter coerÃªncia):`
 
     let searchContextText = ''
     if (isSearchEnabled) {
@@ -414,7 +468,7 @@ Histórico recente da conversa (para manter coerência):`
 --- CONTEXTO FACTUAL PESQUISADO (USE ISSO PARA ENRIQUECER A RESPOSTA) ---
 Resumo: ${searchResult.resumo || 'Sem resumo.'}
 Dados relevantes:
-${cardsText || 'Nenhum dado específico encontrado.'}
+${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
 -------------------------------------------------------------------------
 `
         }
@@ -499,17 +553,17 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
             id: nextMessageId(),
             sender: 'ai',
             text: isQuotaBlocked
-              ? 'Você atingiu o limite diário de IA no plano atual. Tente novamente amanhã ou faça upgrade do plano.'
+              ? 'VocÃª atingiu o limite diÃ¡rio de IA no plano atual. Tente novamente amanhÃ£ ou faÃ§a upgrade do plano.'
               : isOffline
-              ? 'Estou sem conexão no momento. Verifique sua internet e tente novamente.'
-              : 'O serviço de IA está indisponível no momento. Já tentei provedores alternativos. Tente novamente em alguns segundos.'
+              ? 'Estou sem conexÃ£o no momento. Verifique sua internet e tente novamente.'
+              : 'O serviÃ§o de IA estÃ¡ indisponÃ­vel no momento. JÃ¡ tentei provedores alternativos. Tente novamente em alguns segundos.'
           }
         ]
       }))
       if (isOffline) {
-        window.alert('Conexão offline detectada. O Professor IA não consegue responder sem internet.')
+        window.alert('ConexÃ£o offline detectada. O Professor IA nÃ£o consegue responder sem internet.')
       } else if (isQuotaBlocked) {
-        window.alert('Limite diário de IA atingido no plano atual.')
+        window.alert('Limite diÃ¡rio de IA atingido no plano atual.')
       }
       setAiError(true)
     } finally {
@@ -546,9 +600,9 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
         provider: 'groq',
         modelVariant: 'secondary',
         systemPrompt: [
-          'Você expande mapas mentais para estudo ENEM.',
-          'Retorne somente JSON válido com exatamente 3 nós filhos curtos e objetivos.',
-          'Formato obrigatório:',
+          'VocÃª expande mapas mentais para estudo ENEM.',
+          'Retorne somente JSON vÃ¡lido com exatamente 3 nÃ³s filhos curtos e objetivos.',
+          'Formato obrigatÃ³rio:',
           '{',
           '  "nodes": [',
           '    { "label": "filho 1" },',
@@ -556,15 +610,15 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
           '    { "label": "filho 3" }',
           '  ]',
           '}',
-          'Nunca repita o texto do nó pai literalmente.',
-          'Use português do Brasil.',
+          'Nunca repita o texto do nÃ³ pai literalmente.',
+          'Use portuguÃªs do Brasil.',
         ].join('\n'),
         userMessages: [
           {
             role: 'user',
             content: [
-              `Nó selecionado: ${parentNode.label}`,
-              `ID do nó pai: ${parentNode.id}`,
+              `NÃ³ selecionado: ${parentNode.label}`,
+              `ID do nÃ³ pai: ${parentNode.id}`,
               '',
               'Mapa atual (resumo):',
               contextLines || 'Sem contexto',
@@ -578,12 +632,12 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
         : safeJsonParse(String(response?.text || response?.texto || response?.content || '')) || {}
       const children = Array.isArray(expanded.nodes) ? expanded.nodes.slice(0, 3) : []
       if (children.length === 0) {
-        throw new Error('IA não retornou filhos válidos para expansão do mapa.')
+        throw new Error('IA nÃ£o retornou filhos vÃ¡lidos para expansÃ£o do mapa.')
       }
 
       const newNodes = children.map((child, index) => ({
         id: `map-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
-        label: String(child.label || child.text || `Subtópico ${index + 1}`),
+        label: String(child.label || child.text || `SubtÃ³pico ${index + 1}`),
         parentId: parentNode.id,
       }))
 
@@ -598,14 +652,14 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
           {
             id: nextMessageId(),
             sender: 'ai',
-            text: `Expansão IA no nó "${parentNode.label}":\n- ${newNodes.map(node => node.label).join('\n- ')}`,
+            text: `ExpansÃ£o IA no nÃ³ "${parentNode.label}":\n- ${newNodes.map(node => node.label).join('\n- ')}`,
           },
         ],
       }))
     } catch (error) {
       console.error('Erro ao expandir mapa mental:', error)
       setAiError(true)
-      window.alert('Não consegui expandir o nó selecionado agora. Tente novamente em alguns segundos.')
+      window.alert('NÃ£o consegui expandir o nÃ³ selecionado agora. Tente novamente em alguns segundos.')
     } finally {
       setIsExpandingMindmap(false)
     }
@@ -648,11 +702,11 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
               </div>
               <div className="prof-session-titles">
                 <span className="prof-session-active">
-                  Sessão ativa: <strong>{activeCategory.label}</strong>
+                  SessÃ£o ativa: <strong>{activeCategory.label}</strong>
                 </span>
                 <span className="prof-session-meta">
                   IA Experimental
-                  {aiError && <span className="prof-ai-error-badge" title="Falha de conexão ou indisponibilidade temporária"> ⚠️ Indisponível</span>}
+                  {aiError && <span className="prof-ai-error-badge" title="Falha de conexÃ£o ou indisponibilidade temporÃ¡ria"> ! Indisponivel</span>}
                 </span>
               </div>
               <button
@@ -660,7 +714,7 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
                 className="prof-session-clear"
                 onClick={handleClearHistory}
                 title="Limpar conversa"
-                aria-label="Limpar conversa desta sessão"
+                aria-label="Limpar conversa desta sessÃ£o"
               >
                 {iconSvg('trash')}
               </button>
@@ -679,7 +733,7 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
 
             {activeCategory.id === 'mapas' && !activeMindmap && !isTyping && (
               <div className="prof-map-empty-state">
-                <p>Nenhum mapa mental gerado para esta sessão ainda. Digite um tema abaixo para criar!</p>
+                <p>Nenhum mapa mental gerado para esta sessÃ£o ainda. Digite um tema abaixo para criar!</p>
               </div>
             )}
 
@@ -691,7 +745,7 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
               aria-relevant="additions"
             >
               {activeMessages.map((msg, index) => {
-                // Oculta mensagens técnicas de geração de mapa no modo mapas
+                // Oculta mensagens tÃ©cnicas de geraÃ§Ã£o de mapa no modo mapas
                 if (activeCategory.id === 'mapas' && msg.text === '[MAPA_GERADO]') return null
 
                 return (
@@ -701,7 +755,7 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
                     style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
                   >
                     <div className="prof-msg-bubble">
-                      {msg.sender === 'ai' && <div className="prof-side-avatar">👨‍🏫</div>}
+                      {msg.sender === 'ai' && <div className="prof-side-avatar">ðŸ‘¨â€ðŸ«</div>}
                       <div className="prof-text-content">
                         {msg.text.split('\n').map((line, i) => (
                           <p key={i}>{line}</p>
@@ -715,7 +769,7 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
               {isTyping && (
                 <div className="prof-msg-row ai-row anim-pop-in">
                   <div className="prof-msg-bubble">
-                    <div className="prof-side-avatar">👨‍🏫</div>
+                    <div className="prof-side-avatar">ðŸ‘¨â€ðŸ«</div>
                     <div className="prof-typing-wave">
                       <span />
                       <span />
@@ -749,7 +803,7 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
                   type="button"
                   className={`prof-search-toggle ${isSearchEnabled ? 'active' : ''}`}
                   onClick={() => setIsSearchEnabled(!isSearchEnabled)}
-                  title={isSearchEnabled ? 'Desativar pesquisa IA' : 'Ativar pesquisa IA (mais lento, porém mais preciso)'}
+                  title={isSearchEnabled ? 'Desativar pesquisa IA' : 'Ativar pesquisa IA (mais lento, porÃ©m mais preciso)'}
                 >
                   {iconSvg('search')}
                 </button>
@@ -771,3 +825,4 @@ ${cardsText || 'Nenhum dado específico encontrado.'}
     </div>
   )
 }
+
