@@ -299,6 +299,82 @@ export function AparenciaPage() {
             </div>
           )}
 
+          {/* ── EMERGÊNCIA: LIMPAR METADATA ── */}
+          <div className="card anim anim-d4" style={{ borderColor: 'var(--red)', borderWidth: '2px' }}>
+            <div className="card-title" style={{ color: 'var(--red)' }}>⚠ Emergência: Limpar Dados da Conta</div>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text2)', lineHeight: 1.5, marginBottom: '10px' }}>
+              Se TODAS as IAs estão falhando com erro 500 apenas na sua conta (e funciona em conta nova),
+              seu perfil pode ter dados legados que inflam o token de autenticação.
+              Clique abaixo para limpar automaticamente.
+            </p>
+            <button
+              id="btn-limpar-metadata"
+              className="card"
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                background: 'var(--red)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                boxShadow: '0 4px 12px rgba(225, 68, 68, 0.3)',
+              }}
+              onClick={async () => {
+                const btn = document.getElementById('btn-limpar-metadata')
+                btn.disabled = true
+                btn.textContent = 'Limpando...'
+
+                // Obtém userId do localStorage (gotrue.user)
+                let userId = ''
+                try {
+                  const raw = localStorage.getItem('gotrue.user')
+                  if (raw) {
+                    const data = JSON.parse(raw)
+                    userId = data?.id || ''
+                  }
+                } catch {}
+
+                if (!userId) {
+                  alert('Não foi possível identificar seu usuário. Tente fazer logout e login novamente.')
+                  btn.disabled = false
+                  btn.textContent = '⚠ Limpar Dados da Conta'
+                  return
+                }
+
+                try {
+                  const res = await fetch('/.netlify/functions/limpar-metadata', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId }),
+                  })
+
+                  const result = await res.json()
+
+                  if (result.ok && result.cleaned) {
+                    alert(`✅ Sucesso! ${result.removedKeys?.length || 0} campos legados removidos.\nFaça logout e login novamente para aplicar.`)
+                    btn.textContent = '✅ Limpo!'
+                  } else if (result.ok && !result.cleaned) {
+                    alert('Seu perfil já está limpo. Se o problema persistir, tente fazer logout e login novamente.')
+                    btn.textContent = '✅ Já limpo'
+                  } else {
+                    alert(`Erro: ${result.error || 'Falha desconhecida'}`)
+                    btn.disabled = false
+                    btn.textContent = '⚠ Limpar Dados da Conta'
+                  }
+                } catch (err) {
+                  alert(`Erro de rede: ${err.message}`)
+                  btn.disabled = false
+                  btn.textContent = '⚠ Limpar Dados da Conta'
+                }
+              }}
+            >
+              ⚠ Limpar Dados da Conta
+            </button>
+          </div>
+
           {/* ── PREVIEW AO VIVO ── */}
           <div className="card ap-preview anim anim-d4">
             <div className="card-title">Iniciar</div>

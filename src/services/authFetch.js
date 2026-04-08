@@ -8,6 +8,7 @@
 
 let _getAuthToken = null
 let _tokenErrorLogged = false
+let _jwtSizeLogged = false
 
 /**
  * Register a function that returns the current user's JWT string.
