@@ -115,9 +115,9 @@ export function AparenciaPage() {
             <div className="card-title">Efeitos Visuais</div>
             <div className="ap-fx-options">
               {[
-                { key: 'none', label: 'Desligado', sub: 'Interface limpa, sem gradientes decorativos nos cards ou no fundo.' },
-                { key: 'gradients', label: 'Gradiente', sub: 'Gradientes sutis no fundo, header e alguns elementos destacados.' },
-                { key: 'blur', label: 'Vidro leve', sub: 'Vidro discreto em navegação, modais e cards pontuais sobrepostos.' },
+                { key: 'none', label: 'Desligado', sub: 'Interface limpa, sem gradientes ou efeitos decorativos. Máxima performance.' },
+                { key: 'gradients', label: 'Gradiente', sub: 'Gradientes sutis no fundo do app e em cards de destaque (hero, features, etc).' },
+                { key: 'blur', label: 'Vidro', sub: 'Efeito glassmorphism (blur + transparência) na navegação, modais e cards sobrepostos.' },
               ].map(f => (
                 <button
                   key={f.key}
