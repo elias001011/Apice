@@ -1,12 +1,11 @@
-﻿import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { CATEGORIES } from '../data/mockProfessorData.js'
 import { chamarIAEspecifica, buscarContexto } from '../services/aiService.js'
-import { ProfessorMindmapCanvas } from '../ui/ProfessorMindmapCanvas.jsx'
 import '../styles/professor.css'
 
 const STORAGE_KEY = 'apice:professor:conversations'
-const MINDMAP_STORAGE_KEY = 'apice:professor:mindmaps'
-const MAX_CHAT_HISTORY = 12 // Limita histÃ³rico enviado para IA (economia de tokens)
+const MAX_CHAT_HISTORY = 12 // Limita o historico enviado para IA
+const EMPTY_MESSAGES = []
 const PROFESSOR_PROVIDER_FALLBACKS = [
   { provider: 'groq', modelVariant: 'secondary' },
   { provider: 'groq', modelVariant: 'primary' },
@@ -23,220 +22,108 @@ function safeJsonParse(value) {
   }
 }
 
-function resolveMindmapLabel(node, fallback = 'Nó') {
-  if (node == null) return fallback
-  if (typeof node === 'string' || typeof node === 'number') {
-    return String(node).trim() || fallback
-  }
-  if (typeof node !== 'object') return fallback
+function extractAiText(response) {
+  if (typeof response === 'string') {
+    const trimmed = response.trim()
+    if (!trimmed) return ''
 
-  const labelCandidates = [
-    node.label,
-    node.text,
-    node.titulo,
-    node.title,
-    node.topico,
-    node.topic,
-    node.name,
-    node.nome,
-    node.assunto,
-    node.tema,
-    node.rotulo,
-    node.valor,
-    node.value,
-    node.content,
-    node.conteudo,
-    node.description,
-    node.descricao,
-  ]
-
-  for (const candidate of labelCandidates) {
-    if (candidate == null) continue
-    const text = String(candidate).trim()
-    if (text) return text
-  }
-
-  return fallback
-}
-
-function collectMindmapChildren(node) {
-  const collections = [
-    node?.nodes,
-    node?.children,
-    node?.topicos,
-    node?.subtopicos,
-    node?.topics,
-    node?.branches,
-    node?.ramificacoes,
-    node?.subtopics,
-    node?.items,
-    node?.childrenNodes,
-  ]
-  return collections.find(Array.isArray) || []
-}
-
-function walkMindmapNodes(sourceNodes, parentId = null, output = []) {
-  if (!Array.isArray(sourceNodes)) return output
-
-  sourceNodes.forEach((node, index) => {
-    const label = resolveMindmapLabel(node, 'Nó')
-    const safeKey = label
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-
-    const id = String(
-      (node && typeof node === 'object' && node.id)
-      || `${parentId || 'node'}-${index}-${safeKey || 'item'}-${output.length}`,
-    )
-
-    output.push({ id, label, parentId: parentId ? String(parentId) : null })
-
-    const childNodes = collectMindmapChildren(node)
-    if (childNodes.length > 0) {
-      walkMindmapNodes(childNodes, id, output)
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      const parsed = safeJsonParse(trimmed)
+      if (parsed) {
+        const nested = extractAiText(parsed)
+        if (nested) return nested
+      }
     }
-  })
 
-  return output
-}
-
-function _normalizeMindmapTreeLegacy(rawTree) {
-  if (!rawTree || typeof rawTree !== 'object') return null
-
-  const rawNodes = Array.isArray(rawTree.nodes) ? rawTree.nodes : null
-  if (rawNodes && rawNodes.length > 0) {
-    const nodes = rawNodes
-      .map((node, index) => ({
-        id: String(node.id || `node-${Date.now()}-${index}`),
-        label: String(node.label || node.text || node.titulo || 'NÃ³'),
-        parentId: node.parentId ? String(node.parentId) : null,
-      }))
-    return { nodes }
+    return trimmed
   }
 
-  const rootLabel = String(rawTree.titulo || rawTree.topico || rawTree.topicoCentral || rawTree.label || '').trim()
-  const rawChildren = Array.isArray(rawTree.children) ? rawTree.children : []
-  if (!rootLabel || rawChildren.length === 0) return null
+  if (!response || typeof response !== 'object') return ''
 
-  const nodes = []
-  const rootId = `root-${Date.now()}`
-  nodes.push({ id: rootId, label: rootLabel, parentId: null })
+  const candidates = [
+    response.texto,
+    response.text,
+    response.content,
+    response.message,
+    response.response,
+    response.output,
+    response.answer,
+    response.reply,
+  ]
 
-  const walk = (children, parentId) => {
-    children.forEach((child, index) => {
-      const childId = String(child.id || `${parentId}-${index}-${Date.now()}`)
-      nodes.push({
-        id: childId,
-        label: String(child.label || child.text || child.titulo || 'NÃ³'),
-        parentId,
-      })
-      if (Array.isArray(child.children) && child.children.length > 0) {
-        walk(child.children, childId)
+  for (const candidate of candidates) {
+    if (candidate == null) continue
+
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim()
+      if (!trimmed) continue
+
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        const parsed = safeJsonParse(trimmed)
+        if (parsed) {
+          const nested = extractAiText(parsed)
+          if (nested) return nested
+        }
       }
-    })
+
+      return trimmed
+    }
+
+    if (typeof candidate === 'object') {
+      const nested = extractAiText(candidate)
+      if (nested) return nested
+    }
   }
 
-  walk(rawChildren, rootId)
-  return { nodes }
+  return ''
 }
 
-function normalizeMindmapTree(rawTree) {
-  if (!rawTree || typeof rawTree !== 'object') return null
+function buildSystemPrompt(category) {
+  const lines = [
+    `Você é um professor especialista no ENEM, atuando na categoria "${category.label}".`,
+    '',
+    'DIRETRIZES:',
+  ]
 
-  const rawNodes = Array.isArray(rawTree.nodes) ? walkMindmapNodes(rawTree.nodes) : []
-  const collectedNodes = rawNodes.length > 0 ? rawNodes : walkMindmapNodes(collectMindmapChildren(rawTree))
-  if (collectedNodes.length === 0) return null
-
-  const title = String(
-    rawTree.titulo
-    || rawTree.title
-    || rawTree.name
-    || rawTree.nome
-    || rawTree.topico
-    || rawTree.topicoCentral
-    || rawTree.assunto
-    || rawTree.tema
-    || rawTree.label
-    || rawTree.text
-    || collectedNodes[0]?.label
-    || 'Mapa central',
-  ).trim() || 'Mapa central'
-
-  let nodes = collectedNodes.map((node) => ({ ...node }))
-  const nodeIds = new Set(nodes.map((node) => node.id))
-  const roots = nodes.filter((node) => !node.parentId || !nodeIds.has(node.parentId))
-  const rootId = roots[0]?.id || `root-${Date.now()}`
-
-  if (roots.length === 0) {
-    nodes = [
-      { id: rootId, label: title, parentId: null },
-      ...nodes.map((node) => ({ ...node, parentId: rootId })),
-    ]
-  } else {
-    nodes = nodes.map((node) => {
-      if (node.id === rootId) {
-        return { ...node, label: title, parentId: null }
-      }
-
-      if (!node.parentId || !nodeIds.has(node.parentId)) {
-        return { ...node, parentId: rootId }
-      }
-
-      return node
-    })
-
-    nodes = nodes.map((node) => (node.id === rootId ? { ...node, label: title, parentId: null } : node))
+  if (category.id === 'duvidas') {
+    lines.push('- Explique de forma clara, passo a passo, com exemplos quando possível.')
   }
 
-  return { titulo: title, nodes }
-}
+  if (category.id === 'resumos') {
+    lines.push('- Crie resumos objetivos com os pontos mais importantes para o ENEM. Use tópicos e seja direto.')
+  }
 
-function extractMindmapFromAiResponse(response, textFallback = '') {
-  if (response && typeof response === 'object') {
-    const directMap = normalizeMindmapTree(
-      response.mapa
-      || response.mapaMental
-      || response.mindmap
-      || response.tree
-      || response.arvore,
+  if (category.id === 'mapas') {
+    lines.push('- Para Mapas Mentais, responda somente com uma estrutura textual organizada, sem JSON, sem canvas, sem PDF e sem comentários técnicos.')
+  }
+
+  if (category.id === 'pratica') {
+    lines.push('- Crie questões inéditas no estilo ENEM com 5 alternativas (A-E). Após o aluno responder, dê feedback detalhado.')
+  }
+
+  lines.push(
+    '- Use linguagem acessível, mas não infantilize.',
+    '- Se não souber, seja honesto.',
+    '- Mantenha o foco no contexto do ENEM e no Brasil.',
+    '- Responda em português do Brasil.',
+  )
+
+  if (category.id === 'mapas') {
+    lines.push(
+      '',
+      'INSTRUCOES EXTRA PARA O MAPA MENTAL POR ESCRITO:',
+      '- Comece com "Tema central:" seguido do assunto principal.',
+      '- Em seguida, liste de 5 a 8 ramos principais com nomes concretos.',
+      '- Abaixo de cada ramo, use de 1 a 3 subtópicos curtos quando fizer sentido.',
+      '- Use recuo ou marcadores para deixar a hierarquia visível.',
+      '- Prefira palavras-chave e expressões curtas.',
+      '- Não escreva parágrafos longos nem use rótulos genéricos como "tópico", "item" ou "assunto".',
+      '- Entregue o texto pronto para leitura, como um mapa mental escrito.',
     )
-    if (directMap) return directMap
   }
 
-  const parsedFromText = safeJsonParse(textFallback)
-  if (parsedFromText) {
-    const map = normalizeMindmapTree(parsedFromText)
-    if (map) return map
-  }
-
-  // Novo fallback: Regex para capturar JSON de mapa que a IA pode ter "cuspido" dentro da string 'texto'
-  const text = String(response?.texto || response?.text || textFallback || '')
-  const match = text.match(/(\{[\s\S]*"nodes"[\s\S]*\})/i)
-  if (match) {
-    const extracted = safeJsonParse(match[1])
-    if (extracted) return normalizeMindmapTree(extracted)
-  }
-
-  return null
-}
-
-function getMindmapPromptBoost(categoryLabel) {
-  return `
-
-INSTRUCOES EXTRAS PARA MAPA MENTAL:
-- Crie um mapa escolar classico, com titulo central no meio e ramos ao redor.
-- O titulo central deve refletir o assunto escolhido: ${categoryLabel}.
-- Use de 5 a 8 ramos principais e, quando fizer sentido, de 1 a 3 subtopicos curtos por ramo.
-- Prefira labels curtos, como palavras-chave ou expressoes breves.
-- Nao escreva paragrafos longos no mapa.
-- O objeto "mapa" deve incluir "titulo" e "nodes".
-- Cada no dentro de "nodes" precisa ter label obrigatorio e nao vazio.
-- Nunca use labels genericos como "topico", "subtopico", "nó" ou "item" sem um nome real.
-- O no raiz precisa ter parentId null.
-- Se existir um unico no raiz, o label dele deve ser igual ao titulo central.
-- Mantenha a estrutura limpa, visual e pronta para uma pagina PDF.
-`
+  lines.push('', 'Histórico recente da conversa (para manter coerência):')
+  return lines.join('\n')
 }
 
 function iconSvg(kind) {
@@ -309,42 +196,49 @@ function iconSvg(kind) {
   }
 }
 
+function renderMessageBody(messageText, isMindmap) {
+  const text = String(messageText || '').trim()
+  if (!text) return null
+
+  if (isMindmap) {
+    return <div className="prof-text-content prof-text-content--mindmap">{text}</div>
+  }
+
+  return (
+    <div className="prof-text-content">
+      {text.split('\n').map((line, index) => (
+        <p key={`${index}-${line}`}>{line}</p>
+      ))}
+    </div>
+  )
+}
+
 export function ProfessorPage() {
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0])
   const messageIdRef = useRef(0)
-  
+
   const [conversations, setConversations] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) return JSON.parse(saved)
-    } catch (e) {
-      console.error('Failed to load professor conversation', e)
+    } catch (error) {
+      console.error('Failed to load professor conversation', error)
     }
-    
+
     const initial = {}
-    CATEGORIES.forEach(cat => {
-      initial[cat.id] = [{ id: Date.now(), sender: 'ai', text: cat.welcomeMessage }]
+    CATEGORIES.forEach((cat, index) => {
+      initial[cat.id] = [{ id: Date.now() + index, sender: 'ai', text: cat.welcomeMessage }]
     })
     return initial
   })
-  
+
   const [inputText, setInputText] = useState('')
   const [isSearchEnabled, setIsSearchEnabled] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const [aiError, setAiError] = useState(false)
-  const [isExpandingMindmap, setIsExpandingMindmap] = useState(false)
-  const [mindmapsByCategory, setMindmapsByCategory] = useState(() => {
-    try {
-      const saved = localStorage.getItem(MINDMAP_STORAGE_KEY)
-      return saved ? JSON.parse(saved) : {}
-    } catch {
-      return {}
-    }
-  })
   const messagesWallRef = useRef(null)
 
-  const activeMessages = conversations[activeCategory.id]
-  const activeMindmap = mindmapsByCategory[activeCategory.id] || null
+  const activeMessages = Array.isArray(conversations[activeCategory.id]) ? conversations[activeCategory.id] : EMPTY_MESSAGES
 
   const nextMessageId = useCallback(() => {
     const now = Date.now()
@@ -357,7 +251,7 @@ export function ProfessorPage() {
     return navigator.onLine === false
   }, [])
 
-  /** Rola sÃ³ a lista de mensagens â€” evita scrollIntoView, que puxa a pÃ¡gina inteira. */
+  /** Rola so a lista de mensagens - evita scrollIntoView, que puxa a pagina inteira. */
   const scrollMessagesToEnd = useCallback((behavior = 'smooth') => {
     const wall = messagesWallRef.current
     if (!wall) return
@@ -376,34 +270,17 @@ export function ProfessorPage() {
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations))
-    } catch (e) {
-      console.error('Failed to save professor conversation', e)
+    } catch (error) {
+      console.error('Failed to save professor conversation', error)
     }
   }, [conversations])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(MINDMAP_STORAGE_KEY, JSON.stringify(mindmapsByCategory))
-    } catch (e) {
-      console.error('Failed to save professor mindmap', e)
-    }
-  }, [mindmapsByCategory])
-
-  useEffect(() => {
-    if (mindmapsByCategory.mapas) return
-    const mapMessages = Array.isArray(conversations.mapas) ? [...conversations.mapas].reverse() : []
-    const aiMessageWithTree = mapMessages.find(msg => msg.sender === 'ai')
-    if (!aiMessageWithTree?.text) return
-    const parsed = extractMindmapFromAiResponse(null, aiMessageWithTree.text)
-    if (!parsed) return
-    setMindmapsByCategory(prev => ({ ...prev, mapas: parsed }))
-  }, [conversations.mapas, mindmapsByCategory.mapas])
-
   const handleSendMessage = async () => {
     if (!inputText.trim() || isTyping) return
+
     if (isBrowserOffline()) {
       setAiError(true)
-      window.alert('VocÃª estÃ¡ offline. Verifique sua conexÃ£o para continuar usando o Professor IA.')
+      window.alert('Voce esta offline. Verifique sua conexao para continuar usando o Professor IA.')
       return
     }
 
@@ -411,49 +288,29 @@ export function ProfessorPage() {
     const categoryAtSend = activeCategory
     const categoryId = categoryAtSend.id
     const categoryMessages = Array.isArray(conversations[categoryId]) ? conversations[categoryId] : []
+
     setInputText('')
     setAiError(false)
 
-    setConversations(prev => ({
+    setConversations((prev) => ({
       ...prev,
       [categoryId]: [
         ...(Array.isArray(prev[categoryId]) ? prev[categoryId] : []),
-        { id: nextMessageId(), sender: 'user', text: userMessage }
-      ]
+        { id: nextMessageId(), sender: 'user', text: userMessage },
+      ],
     }))
 
     setIsTyping(true)
 
-    // Monta histÃ³rico recente para contexto da IA
     const recentMessages = categoryMessages
       .slice(-MAX_CHAT_HISTORY)
-      .filter(msg => msg.sender === 'user' || msg.sender === 'ai')
-      .map(msg => ({
+      .filter((msg) => msg.sender === 'user' || msg.sender === 'ai')
+      .map((msg) => ({
         role: msg.sender === 'user' ? 'user' : 'assistant',
-        content: msg.text
+        content: msg.text,
       }))
 
-    const systemPrompt = `VocÃª Ã© um professor especialista no ENEM, atuando na categoria "${categoryAtSend.label}".
-
-DIRETRIZES:
-- ${categoryAtSend.id === 'duvidas' ? 'Explique de forma clara, passo a passo, com exemplos quando possÃ­vel.' : ''}
-- ${categoryAtSend.id === 'resumos' ? 'Crie resumos objetivos com os pontos mais importantes para o ENEM. Use tÃ³picos e seja direto.' : ''}
-- ${categoryAtSend.id === 'mapas' ? `Para esta categoria (Mapas), vocÃª NÃƒO deve escrever uma explicaÃ§Ã£o. Retorne EXATAMENTE a string "[MAPA_GERADO]" no campo "texto" e preencha o objeto "mapa" com um mapa mental escolar pronto para visualizaÃ§Ã£o: tÃ­tulo central no meio, 5 a 8 tÃ³picos principais ao redor e, quando fizer sentido, 1 a 3 subtÃ³picos curtos por tÃ³pico. O resultado deve ter labels curtos e no mÃ¡ximo 18 nÃ³s. Cada no em "nodes" precisa ter label obrigatÃ³rio e especÃ­fico, nunca genÃ©rico. O objeto "mapa" precisa incluir "titulo" e "nodes".` : ''}
-- ${categoryAtSend.id === 'pratica' ? 'Crie questÃµes inÃ©ditas no estilo ENEM com 5 alternativas (A-E). ApÃ³s o aluno responder, dÃª feedback detalhado.' : ''}
-- Use linguagem acessÃ­vel mas nÃ£o infantilize.
-- Se nÃ£o souber, seja honesto.
-- Mantenha o foco no contexto do ENEM e no Brasil.
-- Responda em portuguÃªs do Brasil.
-
-Responda SEMPRE em JSON vÃ¡lido neste formato:
-{
-  "texto": "Sua explicaÃ§Ã£o (ou [MAPA_GERADO] se for categoria mapas)...",
-  "mapa": { "nodes": [ ... ] }
-}
-
-DICA: Na categoria 'mapas', o campo 'mapa' Ã© OBRIGATÃ“RIO e o 'texto' deve ser "[MAPA_GERADO]".
-
-HistÃ³rico recente da conversa (para manter coerÃªncia):`
+    const systemPrompt = buildSystemPrompt(categoryAtSend)
 
     let searchContextText = ''
     if (isSearchEnabled) {
@@ -461,29 +318,29 @@ HistÃ³rico recente da conversa (para manter coerÃªncia):`
         const searchResult = await buscarContexto(userMessage)
         if (searchResult) {
           const cardsText = (searchResult.cards || [])
-            .map(c => `- ${c.titulo}: ${c.texto} (${c.fonte})`)
+            .map((card) => `- ${card.titulo}: ${card.texto} (${card.fonte})`)
             .join('\n')
-          
-          searchContextText = `
---- CONTEXTO FACTUAL PESQUISADO (USE ISSO PARA ENRIQUECER A RESPOSTA) ---
-Resumo: ${searchResult.resumo || 'Sem resumo.'}
-Dados relevantes:
-${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
--------------------------------------------------------------------------
-`
+
+          searchContextText = [
+            '',
+            '--- CONTEXTO FACTUAL PESQUISADO (USE ISSO PARA ENRIQUECER A RESPOSTA) ---',
+            `Resumo: ${searchResult.resumo || 'Sem resumo.'}`,
+            'Dados relevantes:',
+            cardsText || 'Nenhum dado especifico encontrado.',
+            '-------------------------------------------------------------------------',
+            '',
+          ].join('\n')
         }
-      } catch (err) {
-        console.error('Falha na busca de contexto:', err)
+      } catch (error) {
+        console.error('Falha na busca de contexto:', error)
       }
     }
 
-    const finalSystemPrompt = systemPrompt
-      + (categoryAtSend.id === 'mapas' ? getMindmapPromptBoost(categoryAtSend.label) : '')
-      + (searchContextText ? `\n\n${searchContextText}` : '')
+    const finalSystemPrompt = systemPrompt + (searchContextText ? `\n\n${searchContextText}` : '')
 
     const userMessages = [
       ...recentMessages,
-      { role: 'user', content: userMessage }
+      { role: 'user', content: userMessage },
     ]
 
     const callProfessorIa = async () => {
@@ -497,11 +354,11 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
             systemPrompt: finalSystemPrompt,
             userMessages,
           })
-        } catch (err) {
-          errors.push(err)
+        } catch (error) {
+          errors.push(error)
           console.warn(
             `Falha no provider ${config.provider} (${config.modelVariant}) para Professor IA.`,
-            err,
+            error,
           )
         }
       }
@@ -512,32 +369,19 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
 
     try {
       const response = await callProfessorIa()
+      const aiText = extractAiText(response)
 
-      // A resposta da IA vem como JSON parseado (campo 'texto' conforme systemPrompt)
-      let aiText = response?.texto || response?.text || response?.content || response?.message
-      if (!aiText && typeof response === 'object') {
-        // Tenta campos alternativos
-        aiText = response.response || response.output || response.answer || response.reply
-      }
-      const fallback = typeof response === 'string' ? response : null
-
-      if (!aiText && !fallback) {
+      if (!aiText) {
         throw new Error('Resposta vazia da IA')
       }
 
-      setConversations(prev => ({
+      setConversations((prev) => ({
         ...prev,
         [categoryId]: [
           ...(Array.isArray(prev[categoryId]) ? prev[categoryId] : []),
-          { id: nextMessageId(), sender: 'ai', text: String(aiText || fallback || '').trim() }
-        ]
+          { id: nextMessageId(), sender: 'ai', text: aiText },
+        ],
       }))
-      if (categoryId === 'mapas') {
-        const parsedMindmap = extractMindmapFromAiResponse(response, String(aiText || fallback || '').trim())
-        if (parsedMindmap) {
-          setMindmapsByCategory(prev => ({ ...prev, [categoryId]: parsedMindmap }))
-        }
-      }
       setAiError(false)
     } catch (error) {
       console.error('Erro ao chamar IA do Professor:', error)
@@ -545,7 +389,7 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
       const isQuotaBlocked = error?.code === 'quota_blocked' || rawMessage.includes('limite do plano free')
       const isOffline = isBrowserOffline()
 
-      setConversations(prev => ({
+      setConversations((prev) => ({
         ...prev,
         [categoryId]: [
           ...(Array.isArray(prev[categoryId]) ? prev[categoryId] : []),
@@ -553,17 +397,18 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
             id: nextMessageId(),
             sender: 'ai',
             text: isQuotaBlocked
-              ? 'VocÃª atingiu o limite diÃ¡rio de IA no plano atual. Tente novamente amanhÃ£ ou faÃ§a upgrade do plano.'
+              ? 'Voce atingiu o limite diario de IA no plano atual. Tente novamente amanha ou faca upgrade do plano.'
               : isOffline
-              ? 'Estou sem conexÃ£o no momento. Verifique sua internet e tente novamente.'
-              : 'O serviÃ§o de IA estÃ¡ indisponÃ­vel no momento. JÃ¡ tentei provedores alternativos. Tente novamente em alguns segundos.'
-          }
-        ]
+              ? 'Estou sem conexao no momento. Verifique sua internet e tente novamente.'
+              : 'O servico de IA esta indisponivel no momento. Ja tentei provedores alternativos. Tente novamente em alguns segundos.',
+          },
+        ],
       }))
+
       if (isOffline) {
-        window.alert('ConexÃ£o offline detectada. O Professor IA nÃ£o consegue responder sem internet.')
+        window.alert('Conexao offline detectada. O Professor IA nao consegue responder sem internet.')
       } else if (isQuotaBlocked) {
-        window.alert('Limite diÃ¡rio de IA atingido no plano atual.')
+        window.alert('Limite diario de IA atingido no plano atual.')
       }
       setAiError(true)
     } finally {
@@ -572,102 +417,16 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
   }
 
   const handleClearHistory = () => {
-    setConversations(prev => ({
-      ...prev,
-      [activeCategory.id]: [{ id: nextMessageId(), sender: 'ai', text: activeCategory.welcomeMessage }]
-    }))
-    if (activeCategory.id === 'mapas') {
-      setMindmapsByCategory(prev => ({ ...prev, mapas: null }))
-    }
-  }
-
-  const handleExpandMindmapNode = async (nodeId) => {
-    const currentTree = mindmapsByCategory.mapas
-    if (!currentTree || !Array.isArray(currentTree.nodes)) return
-    const parentNode = currentTree.nodes.find(node => String(node.id) === String(nodeId))
-    if (!parentNode) return
-
-    setIsExpandingMindmap(true)
     setAiError(false)
-
-    try {
-      const contextLines = currentTree.nodes
-        .slice(0, 30)
-        .map(node => `- ${node.label}${node.parentId ? ` (pai: ${node.parentId})` : ' (raiz)'}`)
-        .join('\n')
-
-      const response = await chamarIAEspecifica({
-        provider: 'groq',
-        modelVariant: 'secondary',
-        systemPrompt: [
-          'VocÃª expande mapas mentais para estudo ENEM.',
-          'Retorne somente JSON vÃ¡lido com exatamente 3 nÃ³s filhos curtos e objetivos.',
-          'Formato obrigatÃ³rio:',
-          '{',
-          '  "nodes": [',
-          '    { "label": "filho 1" },',
-          '    { "label": "filho 2" },',
-          '    { "label": "filho 3" }',
-          '  ]',
-          '}',
-          'Nunca repita o texto do nÃ³ pai literalmente.',
-          'Use portuguÃªs do Brasil.',
-        ].join('\n'),
-        userMessages: [
-          {
-            role: 'user',
-            content: [
-              `NÃ³ selecionado: ${parentNode.label}`,
-              `ID do nÃ³ pai: ${parentNode.id}`,
-              '',
-              'Mapa atual (resumo):',
-              contextLines || 'Sem contexto',
-            ].join('\n'),
-          },
-        ],
-      })
-
-      const expanded = response?.nodes && Array.isArray(response.nodes)
-        ? response
-        : safeJsonParse(String(response?.text || response?.texto || response?.content || '')) || {}
-      const children = Array.isArray(expanded.nodes) ? expanded.nodes.slice(0, 3) : []
-      if (children.length === 0) {
-        throw new Error('IA nÃ£o retornou filhos vÃ¡lidos para expansÃ£o do mapa.')
-      }
-
-      const newNodes = children.map((child, index) => ({
-        id: `map-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
-        label: String(child.label || child.text || `SubtÃ³pico ${index + 1}`),
-        parentId: parentNode.id,
-      }))
-
-      const nextTree = {
-        nodes: [...currentTree.nodes, ...newNodes],
-      }
-      setMindmapsByCategory(prev => ({ ...prev, mapas: nextTree }))
-      setConversations(prev => ({
-        ...prev,
-        mapas: [
-          ...(Array.isArray(prev.mapas) ? prev.mapas : []),
-          {
-            id: nextMessageId(),
-            sender: 'ai',
-            text: `ExpansÃ£o IA no nÃ³ "${parentNode.label}":\n- ${newNodes.map(node => node.label).join('\n- ')}`,
-          },
-        ],
-      }))
-    } catch (error) {
-      console.error('Erro ao expandir mapa mental:', error)
-      setAiError(true)
-      window.alert('NÃ£o consegui expandir o nÃ³ selecionado agora. Tente novamente em alguns segundos.')
-    } finally {
-      setIsExpandingMindmap(false)
-    }
+    setConversations((prev) => ({
+      ...prev,
+      [activeCategory.id]: [{ id: nextMessageId(), sender: 'ai', text: activeCategory.welcomeMessage }],
+    }))
   }
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
       handleSendMessage()
     }
   }
@@ -675,11 +434,10 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
   return (
     <div className="professor-sleek-view">
       <div className="professor-container anim-fade-in">
-        
         <header className="professor-nav-header">
           <div className="prof-pills-bar anim-slide-down">
             <div className="prof-pills-scroll">
-              {CATEGORIES.map(cat => (
+              {CATEGORIES.map((cat) => (
                 <button
                   key={cat.id}
                   type="button"
@@ -702,11 +460,11 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
               </div>
               <div className="prof-session-titles">
                 <span className="prof-session-active">
-                  SessÃ£o ativa: <strong>{activeCategory.label}</strong>
+                  Sessão ativa: <strong>{activeCategory.label}</strong>
                 </span>
                 <span className="prof-session-meta">
                   IA Experimental
-                  {aiError && <span className="prof-ai-error-badge" title="Falha de conexÃ£o ou indisponibilidade temporÃ¡ria"> ! Indisponivel</span>}
+                  {aiError && <span className="prof-ai-error-badge" title="Falha de conexão ou indisponibilidade temporária"> ! Indisponível</span>}
                 </span>
               </div>
               <button
@@ -714,7 +472,7 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
                 className="prof-session-clear"
                 onClick={handleClearHistory}
                 title="Limpar conversa"
-                aria-label="Limpar conversa desta sessÃ£o"
+                aria-label="Limpar conversa desta sessão"
               >
                 {iconSvg('trash')}
               </button>
@@ -723,20 +481,6 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
           </div>
 
           <main className={`prof-chat-surface ${activeCategory.id === 'mapas' ? 'prof-chat-surface--map' : ''}`}>
-            {activeCategory.id === 'mapas' && activeMindmap && (
-              <ProfessorMindmapCanvas
-                tree={activeMindmap}
-                onExpandNode={handleExpandMindmapNode}
-                isExpanding={isExpandingMindmap}
-              />
-            )}
-
-            {activeCategory.id === 'mapas' && !activeMindmap && !isTyping && (
-              <div className="prof-map-empty-state">
-                <p>Nenhum mapa mental gerado para esta sessÃ£o ainda. Digite um tema abaixo para criar!</p>
-              </div>
-            )}
-
             <div
               ref={messagesWallRef}
               className="prof-messages-wall"
@@ -745,8 +489,9 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
               aria-relevant="additions"
             >
               {activeMessages.map((msg, index) => {
-                // Oculta mensagens tÃ©cnicas de geraÃ§Ã£o de mapa no modo mapas
                 if (activeCategory.id === 'mapas' && msg.text === '[MAPA_GERADO]') return null
+
+                const isMindmapReply = activeCategory.id === 'mapas' && msg.sender === 'ai'
 
                 return (
                   <div
@@ -755,12 +500,8 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
                     style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
                   >
                     <div className="prof-msg-bubble">
-                      {msg.sender === 'ai' && <div className="prof-side-avatar">ðŸ‘¨â€ðŸ«</div>}
-                      <div className="prof-text-content">
-                        {msg.text.split('\n').map((line, i) => (
-                          <p key={i}>{line}</p>
-                        ))}
-                      </div>
+                      {msg.sender === 'ai' && <div className="prof-side-avatar" aria-hidden="true">👨‍🏫</div>}
+                      {renderMessageBody(msg.text, isMindmapReply)}
                     </div>
                   </div>
                 )
@@ -769,7 +510,7 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
               {isTyping && (
                 <div className="prof-msg-row ai-row anim-pop-in">
                   <div className="prof-msg-bubble">
-                    <div className="prof-side-avatar">ðŸ‘¨â€ðŸ«</div>
+                    <div className="prof-side-avatar" aria-hidden="true">👨‍🏫</div>
                     <div className="prof-typing-wave">
                       <span />
                       <span />
@@ -792,7 +533,7 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
                   <textarea
                     className="prof-composer-input"
                     value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
+                    onChange={(event) => setInputText(event.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={`Escreva algo em '${activeCategory.label}'...`}
                     rows={1}
@@ -803,7 +544,7 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
                   type="button"
                   className={`prof-search-toggle ${isSearchEnabled ? 'active' : ''}`}
                   onClick={() => setIsSearchEnabled(!isSearchEnabled)}
-                  title={isSearchEnabled ? 'Desativar pesquisa IA' : 'Ativar pesquisa IA (mais lento, porÃ©m mais preciso)'}
+                  title={isSearchEnabled ? 'Desativar pesquisa IA' : 'Ativar pesquisa IA (mais lento, porém mais preciso)'}
                 >
                   {iconSvg('search')}
                 </button>
@@ -825,4 +566,3 @@ ${cardsText || 'Nenhum dado especÃ­fico encontrado.'}
     </div>
   )
 }
-

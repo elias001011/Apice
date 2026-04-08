@@ -790,6 +790,21 @@
   margin-top: 0.85rem;
 }
 
+.prof-text-content--mindmap {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+  border-left: 3px solid rgba(var(--accent-rgb), 0.42);
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.06), rgba(var(--accent-rgb), 0.02));
+}
+
+.ai-row .prof-text-content--mindmap {
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.07), rgba(var(--accent-rgb), 0.03));
+  border-left-color: var(--accent);
+}
+
 /* ── DIGITANDO ── */
 .prof-typing-wave {
   padding: 12px 16px;

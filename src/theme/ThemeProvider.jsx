@@ -125,7 +125,20 @@ function applyFontFamily(fontFamily) {
   }
 }
 
-function updateBrandAssets() {
+function buildBrandFaviconHref(accentColor) {
+  const accent = accentColor || '#b8e84f'
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+      <rect x="2" y="2" width="20" height="20" rx="6" fill="${accent}" />
+      <polyline points="4 15.5 10 9.5 14 13.5 20 7.5" stroke="#0f0f10" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+      <polyline points="13.5 7.5 20 7.5 20 14" stroke="#0f0f10" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  `
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
+}
+
+function updateBrandAssets(accentColor) {
   if (typeof document === 'undefined') return
 
   let themeMeta = document.querySelector('meta[name="theme-color"]')
@@ -135,6 +148,15 @@ function updateBrandAssets() {
     document.head.appendChild(themeMeta)
   }
   themeMeta.setAttribute('content', '#000000')
+
+  let faviconLink = document.querySelector('link[rel="icon"]')
+  if (!faviconLink) {
+    faviconLink = document.createElement('link')
+    faviconLink.rel = 'icon'
+    document.head.appendChild(faviconLink)
+  }
+  faviconLink.setAttribute('type', 'image/svg+xml')
+  faviconLink.setAttribute('href', buildBrandFaviconHref(accentColor))
 }
 
 function applyLayoutToDom(layoutMode) {
@@ -173,7 +195,7 @@ function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
   html.style.setProperty('--accent-dim2', colors.dim2)
 
   applyFontFamily(fontFamily || 'dm-sans')
-  updateBrandAssets()
+  updateBrandAssets(colors.base)
 }
 
 function syncThemeFromStorage(
