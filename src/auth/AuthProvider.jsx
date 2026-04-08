@@ -117,6 +117,26 @@ export function AuthProvider({ children }) {
 
     const restoreCloudState = async () => {
       try {
+        // ANTES de puxar da nuvem, limpar dados locais residuais de sessões anteriores.
+        // Isso previne que dados de uma conta antiga apareçam na conta atual.
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const appKeys = []
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i)
+            if (key && key.startsWith('apice:')) {
+              appKeys.push(key)
+            }
+          }
+          if (appKeys.length > 0) {
+            appKeys.forEach(key => {
+              try { localStorage.removeItem(key) } catch {
+                // Falha silenciosa
+              }
+            })
+            console.log(`[AuthProvider] ${appKeys.length} chaves locais limpas antes do cloud pull (previne dados cruzados)`)
+          }
+        }
+
         // Puxa estado da nuvem e aplica no localStorage
         const pulled = await pullStateFromCloud()
 
@@ -124,7 +144,7 @@ export function AuthProvider({ children }) {
           console.log('[AuthProvider] Estado restaurado da nuvem com sucesso')
         } else if (!cancelled && !pulled) {
           // Pull falhou (possivelmente 401/auth expirada) — dados locais podem estar stale
-          console.warn('[AuthProvider] Falha ao restaurar estado da nuvem. Dados locais podem estar desatualizados.')
+          console.warn('[AuthProvider] Falha ao restaurar estado da nuvem. Conta iniciada sem dados na nuvem.')
         }
       } catch (err) {
         if (!cancelled) {
