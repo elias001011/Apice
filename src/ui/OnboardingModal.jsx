@@ -1,18 +1,34 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { savePolicyConsent } from '../services/policyConsent.js'
 
-const ONBOARDING_KEY = 'apice:onboarding-shown'
+const ONBOARDING_LOGIN_KEY = 'apice:onboarding:pending-login:v1'
 
 function readShouldShowOnboarding() {
   if (typeof window === 'undefined') return false
-  return !localStorage.getItem(ONBOARDING_KEY)
+  try {
+    return sessionStorage.getItem(ONBOARDING_LOGIN_KEY) === 'true'
+  } catch {
+    return false
+  }
 }
 
 export function OnboardingModal({ onComplete }) {
   const [step, setStep] = useState(1)
   const [isVisible, setIsVisible] = useState(readShouldShowOnboarding)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!isVisible) return undefined
+
+    try {
+      sessionStorage.removeItem(ONBOARDING_LOGIN_KEY)
+    } catch {
+      // ignore
+    }
+
+    return undefined
+  }, [isVisible])
 
   if (!isVisible) return null
 
@@ -22,7 +38,11 @@ export function OnboardingModal({ onComplete }) {
 
   const finishOnboarding = (destination) => {
     savePolicyConsent(true)
-    localStorage.setItem(ONBOARDING_KEY, 'true')
+    try {
+      sessionStorage.removeItem(ONBOARDING_LOGIN_KEY)
+    } catch {
+      // ignore
+    }
     setIsVisible(false)
     if (onComplete) onComplete()
     navigate(destination, { replace: true })

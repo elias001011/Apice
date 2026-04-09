@@ -134,20 +134,6 @@ export function CorretorPage() {
     }
   }, [])
 
-  useEffect(() => {
-    const html = document.documentElement
-
-    if (isRigido) {
-      html.setAttribute('data-rigid-mode', 'on')
-    } else {
-      html.removeAttribute('data-rigid-mode')
-    }
-
-    return () => {
-      html.removeAttribute('data-rigid-mode')
-    }
-  }, [isRigido])
-
   const invalidateRequests = () => {
     // Qualquer troca brusca de fluxo invalida requisições pendentes.
     themeRequestSeq.current += 1

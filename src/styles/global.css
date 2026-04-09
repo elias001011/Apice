@@ -236,42 +236,6 @@ html[data-theme="dark"][data-fx="blur"] {
   --modal-shadow: 0 30px 74px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-html[data-rigid-mode="on"] {
-  --app-bg:
-    radial-gradient(circle at 12% 8%, rgba(255, 31, 31, 0.18), transparent 26rem),
-    radial-gradient(circle at 88% 0%, rgba(255, 31, 31, 0.1), transparent 20rem),
-    radial-gradient(circle at 50% 76%, rgba(255, 31, 31, 0.06), transparent 24rem);
-  --accent: #ff1f1f !important;
-  --accent2: #ff4b4b !important;
-  --accent-rgb: 255, 31, 31 !important;
-  --accent-dim: rgba(255, 31, 31, 0.18) !important;
-  --accent-dim2: rgba(255, 31, 31, 0.3) !important;
-  --red: #ff1f1f !important;
-  --border: rgba(255, 31, 31, 0.22) !important;
-  --border2: rgba(255, 31, 31, 0.32) !important;
-  --glass-surface: rgba(255, 31, 31, 0.08) !important;
-  --glass-surface-strong: rgba(255, 31, 31, 0.12) !important;
-  --glass-border: rgba(255, 31, 31, 0.22) !important;
-  --glass-border-strong: rgba(255, 31, 31, 0.32) !important;
-  --bg2-glass: rgba(255, 31, 31, 0.08) !important;
-  --chrome-border: rgba(255, 31, 31, 0.22) !important;
-  --floating-border: rgba(255, 31, 31, 0.24) !important;
-  --modal-border: rgba(255, 31, 31, 0.32) !important;
-  --nav-surface: linear-gradient(180deg, rgba(255, 31, 31, 0.14), rgba(255, 31, 31, 0.04)), rgba(255, 31, 31, 0.08) !important;
-  --tab-surface: linear-gradient(180deg, rgba(255, 31, 31, 0.12), rgba(255, 31, 31, 0.03)), rgba(255, 31, 31, 0.08) !important;
-  --footer-surface: linear-gradient(180deg, rgba(255, 31, 31, 0.12), rgba(255, 31, 31, 0.03)), rgba(255, 31, 31, 0.08) !important;
-  --floating-surface: linear-gradient(180deg, rgba(255, 31, 31, 0.16), rgba(255, 31, 31, 0.05)), rgba(255, 31, 31, 0.08) !important;
-  --modal-surface: linear-gradient(180deg, rgba(255, 31, 31, 0.2), rgba(255, 31, 31, 0.08)), rgba(255, 31, 31, 0.1) !important;
-  --surface-shadow-sm: 0 6px 16px rgba(120, 0, 0, 0.16) !important;
-  --surface-shadow-md: 0 16px 38px rgba(120, 0, 0, 0.2) !important;
-  --surface-shadow-lg: 0 24px 60px rgba(120, 0, 0, 0.28) !important;
-  --nav-shadow: 0 18px 44px rgba(120, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
-  --tab-shadow: 0 -18px 44px rgba(120, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
-  --footer-shadow: 0 -18px 44px rgba(120, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
-  --floating-shadow: 0 24px 64px rgba(120, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
-  --modal-shadow: 0 30px 74px rgba(120, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
-}
-
 html {
   scroll-behavior: smooth;
 }
@@ -1631,6 +1595,70 @@ html[data-fx="none"] :is(
   -webkit-backdrop-filter: none !important;
 }
 
+html[data-fx="none"] :is(
+  .btn-primary,
+  .btn-ghost,
+  .hero-cta,
+  .pv-feature-btn,
+  .ap-preview-btn,
+  .main-submit,
+  .main-reset-btn,
+  .mode-toggle-pill,
+  .status-mode,
+  .pv-pill,
+  .performance-chip,
+  .badge-new,
+  .mode-pill-btn.active,
+  .theme-icon-opt.selected,
+  .ap-color-btn.active,
+  .ap-font-btn.active,
+  .ap-fx-btn.active,
+  .ap-layout-btn.active
+) {
+  background: var(--bg3) !important;
+  background-image: none !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+html[data-fx="none"] :is(
+  .btn-primary,
+  .hero-cta,
+  .pv-feature-btn,
+  .ap-preview-btn,
+  .main-submit,
+  .main-reset-btn
+) {
+  color: var(--text) !important;
+}
+
+html[data-fx="none"] :is(
+  .btn-primary:hover,
+  .btn-ghost:hover,
+  .hero-cta:hover,
+  .pv-feature-btn:hover,
+  .ap-preview-btn:hover,
+  .main-submit:hover,
+  .main-reset-btn:hover
+) {
+  background: var(--bg2) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+html[data-fx="none"] :is(
+  .btn-primary:active,
+  .hero-cta:active,
+  .pv-feature-btn:active,
+  .ap-preview-btn:active,
+  .main-submit:active,
+  .main-reset-btn:active
+) {
+  transform: none !important;
+}
+
 html[data-fx="gradients"] :is(
   .card,
   .hero,
@@ -1681,17 +1709,17 @@ html[data-fx="gradients"] :is(
   .planos-change-card,
   .faq-item
 ) {
-  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.014), transparent 64%), var(--bg2) !important;
-  border-color: rgba(var(--accent-rgb), 0.08) !important;
-  box-shadow: var(--surface-shadow-md) !important;
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.008), transparent 70%), var(--bg2) !important;
+  border-color: rgba(var(--accent-rgb), 0.06) !important;
+  box-shadow: var(--surface-shadow-sm) !important;
 }
 
 html[data-fx="gradients"] .pv-feature--lime {
   background:
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.18), transparent 28%),
-    linear-gradient(145deg, rgba(var(--accent-rgb), 0.3), rgba(var(--accent-rgb), 0.14)) !important;
-  border-color: rgba(var(--accent-rgb), 0.2) !important;
-  box-shadow: 0 20px 42px rgba(8, 9, 4, 0.12) !important;
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.1), transparent 28%),
+    linear-gradient(145deg, rgba(var(--accent-rgb), 0.1), rgba(var(--accent-rgb), 0.045)) !important;
+  border-color: rgba(var(--accent-rgb), 0.12) !important;
+  box-shadow: 0 14px 28px rgba(8, 9, 4, 0.08) !important;
 }
 
 html[data-fx="blur"] :is(
@@ -1753,9 +1781,9 @@ html[data-fx="blur"] :is(
 
 html[data-fx="blur"] .pv-feature--lime {
   background:
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.14), transparent 28%),
-    linear-gradient(145deg, rgba(var(--accent-rgb), 0.2), rgba(var(--accent-rgb), 0.08)),
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.1), transparent 28%),
+    linear-gradient(145deg, rgba(var(--accent-rgb), 0.1), rgba(var(--accent-rgb), 0.04)),
     var(--bg2-glass) !important;
-  border-color: rgba(var(--accent-rgb), 0.16) !important;
-  box-shadow: var(--floating-shadow) !important;
+  border-color: rgba(var(--accent-rgb), 0.12) !important;
+  box-shadow: 0 18px 36px rgba(8, 9, 4, 0.12) !important;
 }
