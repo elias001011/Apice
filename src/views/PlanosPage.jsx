@@ -756,7 +756,7 @@ const planosCss = `
   }
 
   html[data-fx="gradients"] .pricing-card {
-    background: linear-gradient(160deg, rgba(var(--accent-rgb), 0.02), transparent 60%), var(--bg2);
+    background: linear-gradient(160deg, rgba(var(--accent-rgb), 0.01), transparent 72%), var(--bg2);
   }
 
   .pricing-badge {
@@ -868,6 +868,33 @@ const planosCss = `
     opacity: 0.75;
     box-shadow: none;
     transform: none;
+  }
+
+  html[data-fx="none"] .pricing-badge {
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  html[data-fx="none"] .plan-card-item svg {
+    color: var(--text2);
+  }
+
+  html[data-fx="none"] .plan-cta-btn {
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border);
+    box-shadow: none;
+  }
+
+  html[data-fx="none"] .plan-cta-btn:hover:not(:disabled) {
+    background: var(--bg2);
+    transform: none;
+    box-shadow: none;
+  }
+
+  html[data-fx="none"] .plan-cta-btn:disabled {
+    box-shadow: none;
   }
 
   .plan-cta-hint {

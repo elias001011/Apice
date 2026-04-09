@@ -166,7 +166,7 @@ const upgradeModalCss = `
   }
 
   .upgrade-header {
-    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.15), rgba(var(--accent-rgb), 0.04));
+    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.08), rgba(var(--accent-rgb), 0.02));
     padding: 2rem 2rem 1.5rem;
     display: flex;
     align-items: flex-start;
@@ -179,11 +179,11 @@ const upgradeModalCss = `
   }
 
   html[data-fx="blur"] .upgrade-header {
-    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.14), rgba(255, 255, 255, 0.04));
+    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.1), rgba(255, 255, 255, 0.03));
   }
 
   html[data-theme="dark"][data-fx="blur"] .upgrade-header {
-    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.18), rgba(255, 255, 255, 0.02));
+    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.12), rgba(255, 255, 255, 0.02));
   }
 
   .upgrade-icon-ring {
@@ -194,7 +194,22 @@ const upgradeModalCss = `
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 8px 24px rgba(var(--accent-rgb), 0.35);
+    box-shadow: 0 8px 20px rgba(var(--accent-rgb), 0.24);
+  }
+
+  html[data-fx="none"] .upgrade-overlay {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  html[data-fx="none"] .upgrade-card {
+    box-shadow: none;
+  }
+
+  html[data-fx="none"] .upgrade-icon-ring {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    box-shadow: none;
   }
 
   .upgrade-icon-emoji {
@@ -221,6 +236,16 @@ const upgradeModalCss = `
     background: var(--bg2);
     color: var(--text);
     border-color: var(--border2);
+  }
+
+  html[data-fx="none"] .upgrade-close-btn {
+    background: var(--bg3);
+    box-shadow: none;
+  }
+
+  html[data-fx="none"] .upgrade-close-btn:hover {
+    background: var(--bg2);
+    border-color: var(--border);
   }
 
   .upgrade-body {
@@ -251,6 +276,10 @@ const upgradeModalCss = `
     background: var(--bg3);
     border-radius: 16px;
     border: 1px solid var(--border);
+  }
+
+  html[data-fx="none"] .upgrade-benefits {
+    background: var(--bg3);
   }
 
   .upgrade-benefit-row {
@@ -297,6 +326,19 @@ const upgradeModalCss = `
     box-shadow: 0 10px 28px rgba(var(--accent-rgb), 0.4);
   }
 
+  html[data-fx="none"] .upgrade-cta-btn {
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border);
+    box-shadow: none;
+  }
+
+  html[data-fx="none"] .upgrade-cta-btn:hover {
+    background: var(--bg2);
+    transform: none;
+    box-shadow: none;
+  }
+
   .upgrade-cta-btn:active {
     transform: translateY(0);
   }
@@ -318,6 +360,18 @@ const upgradeModalCss = `
     color: var(--text2);
     border-color: var(--accent);
     background: var(--accent-dim);
+  }
+
+  html[data-fx="none"] .upgrade-dismiss-btn {
+    background: var(--bg3);
+    border-color: var(--border);
+    box-shadow: none;
+  }
+
+  html[data-fx="none"] .upgrade-dismiss-btn:hover {
+    color: var(--text);
+    background: var(--bg2);
+    border-color: var(--border2);
   }
 
   .anim-scale-up {

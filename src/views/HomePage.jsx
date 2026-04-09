@@ -733,9 +733,7 @@ export function HomePage() {
               </div>
               <div className="pv-feature-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
-                  <path d="M12 4v16" />
-                  <path d="M5 8h14" />
-                  <path d="M7 8v10a2 2 0 002 2h6a2 2 0 002-2V8" />
+                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
                 </svg>
               </div>
             </form>
@@ -859,7 +857,7 @@ const homeCss = `
     align-self: stretch;
     margin-top: 0;
     min-height: 172px;
-    box-shadow: 0 14px 32px rgba(8, 9, 4, 0.06);
+    box-shadow: 0 12px 26px rgba(8, 9, 4, 0.045);
   }
 
   html.layout-compact .home-radar-card {
@@ -872,19 +870,48 @@ const homeCss = `
 
   html[data-fx="gradients"] .home-radar-card {
     background:
-      radial-gradient(circle at top right, rgba(255, 255, 255, 0.08), transparent 28%),
-      linear-gradient(145deg, rgba(var(--accent-rgb), 0.08), rgba(var(--accent-rgb), 0.035)),
+      radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 28%),
+      linear-gradient(145deg, rgba(var(--accent-rgb), 0.05), rgba(var(--accent-rgb), 0.022)),
       var(--bg2) !important;
-    border-color: rgba(var(--accent-rgb), 0.12) !important;
+    border-color: rgba(var(--accent-rgb), 0.1) !important;
   }
 
   html[data-fx="blur"] .home-radar-card {
     background:
-      radial-gradient(circle at top right, rgba(255, 255, 255, 0.08), transparent 28%),
-      linear-gradient(145deg, rgba(var(--accent-rgb), 0.06), rgba(var(--accent-rgb), 0.025)),
+      radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 28%),
+      linear-gradient(145deg, rgba(var(--accent-rgb), 0.04), rgba(var(--accent-rgb), 0.018)),
       var(--bg2-glass) !important;
-    border-color: rgba(var(--accent-rgb), 0.12) !important;
-    box-shadow: 0 16px 34px rgba(8, 9, 4, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+    border-color: rgba(var(--accent-rgb), 0.1) !important;
+    box-shadow: 0 14px 30px rgba(8, 9, 4, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  }
+
+  html[data-fx="none"] .home-radar-card {
+    background: var(--bg2) !important;
+    border-color: var(--border) !important;
+    box-shadow: none !important;
+  }
+
+  html[data-fx="none"] .home-radar-card .pv-feature-icon {
+    background: var(--bg3) !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: none !important;
+  }
+
+  html[data-fx="none"] .home-radar-card .pv-feature-icon svg {
+    stroke: var(--accent) !important;
+  }
+
+  html[data-fx="none"] .home-radar-card .pv-pill {
+    background: var(--bg3) !important;
+    border-color: var(--border) !important;
+    color: var(--text2) !important;
+  }
+
+  html[data-fx="none"] .home-radar-card .pv-feature-btn {
+    background: var(--bg3) !important;
+    color: var(--text) !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: none !important;
   }
 
   form.home-professor-card.pv-feature {
@@ -1000,6 +1027,57 @@ const homeCss = `
 
   html[data-theme="dark"] .weather-card {
     border-color: rgba(var(--accent-rgb), 0.12);
+  }
+
+  html[data-fx="none"] .weather-card {
+    background: var(--bg2) !important;
+    border-color: var(--border) !important;
+    box-shadow: none !important;
+  }
+
+  html[data-fx="none"] .weather-card .weather-icon-shell {
+    background: var(--bg3) !important;
+    border-color: var(--border) !important;
+    box-shadow: none !important;
+  }
+
+  html[data-fx="none"] .weather-card .weather-icon {
+    filter: none !important;
+  }
+
+  html[data-fx="none"] .weather-card .weather-chip-row span,
+  html[data-fx="none"] .weather-card .weather-meta-strip span {
+    background: var(--bg3) !important;
+    border-color: var(--border) !important;
+    color: var(--text2) !important;
+  }
+
+  html[data-fx="none"] .weather-card .weather-city-input {
+    background: var(--bg3) !important;
+    border-color: var(--border) !important;
+    box-shadow: none !important;
+  }
+
+  html[data-fx="none"] .weather-card .weather-city-input:focus {
+    background: var(--bg3) !important;
+    border-color: var(--border2) !important;
+  }
+
+  html[data-fx="none"] .weather-card .weather-city-dropdown {
+    background: var(--bg2) !important;
+    border-color: var(--border) !important;
+    box-shadow: none !important;
+  }
+
+  html[data-fx="none"] .weather-card .weather-city-option:hover,
+  html[data-fx="none"] .weather-card .weather-city-option.is-focused {
+    background: var(--bg3) !important;
+    color: var(--text) !important;
+  }
+
+  html[data-fx="none"] .weather-card .weather-inline-note {
+    background: var(--bg3) !important;
+    border-color: var(--border) !important;
   }
 
   .weather-card-top {
@@ -1854,11 +1932,11 @@ const homeCss = `
   .pv-stat--dark:hover { border-color: rgba(var(--accent-rgb), 0.18); }
   .pv-stat--lime {
     background:
-      radial-gradient(circle at top right, rgba(255, 255, 255, 0.22), transparent 30%),
-      linear-gradient(145deg, rgba(var(--accent-rgb), 0.94), rgba(var(--accent-rgb), 0.78));
-    border: 1px solid rgba(var(--accent-rgb), 0.26);
+      radial-gradient(circle at top right, rgba(255, 255, 255, 0.12), transparent 30%),
+      linear-gradient(145deg, rgba(var(--accent-rgb), 0.16), rgba(var(--accent-rgb), 0.07));
+    border: 1px solid rgba(var(--accent-rgb), 0.14);
   }
-  .pv-stat--lime:hover { border-color: rgba(var(--accent-rgb), 0.32); }
+  .pv-stat--lime:hover { border-color: rgba(var(--accent-rgb), 0.18); }
 
   .pv-stat-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
 
@@ -1980,18 +2058,18 @@ const homeCss = `
   .pv-feature--dark { background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2); }
   .pv-feature--lime {
     background:
-      radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.12), transparent 30%),
-      linear-gradient(145deg, rgba(var(--accent-rgb), 0.12), rgba(var(--accent-rgb), 0.05)),
+      radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.06), transparent 30%),
+      linear-gradient(145deg, rgba(var(--accent-rgb), 0.05), rgba(var(--accent-rgb), 0.022)),
       var(--bg2);
-    border: 1px solid rgba(var(--accent-rgb), 0.14);
+    border: 1px solid rgba(var(--accent-rgb), 0.1);
   }
 
   html[data-theme="dark"] .pv-feature--lime {
     background:
-      radial-gradient(circle at top right, rgba(255, 255, 255, 0.08), transparent 30%),
-      linear-gradient(145deg, rgba(var(--accent-rgb), 0.08), rgba(var(--accent-rgb), 0.035)),
+      radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 30%),
+      linear-gradient(145deg, rgba(var(--accent-rgb), 0.04), rgba(var(--accent-rgb), 0.018)),
       var(--bg2);
-    border-color: rgba(var(--accent-rgb), 0.12);
+    border-color: rgba(var(--accent-rgb), 0.1);
   }
   .pv-feature-content { display: flex; flex-direction: column; gap: 7px; position: relative; z-index: 2; }
 
@@ -2025,7 +2103,7 @@ const homeCss = `
   .pv-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: 500; letter-spacing: 0.3px; width: fit-content; }
   .pv-feature--dark .pv-pill { background: var(--accent-dim); border: 1px solid var(--accent-dim2); color: var(--accent); }
   .pv-feature--lime .pv-pill { background: rgba(var(--accent-rgb), 0.1); border: 1px solid rgba(var(--accent-rgb), 0.12); color: var(--text); }
-  html[data-theme="dark"] .pv-feature--lime .pv-pill { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.08); color: var(--text); }
+  html[data-theme="dark"] .pv-feature--lime .pv-pill { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.06); color: var(--text); }
 
   html.layout-compact .pv-pill,
   html.layout-compact .pv-feature-btn {
@@ -2057,7 +2135,7 @@ const homeCss = `
   .pv-feature-icon { width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; z-index: 2; }
   .pv-feature--dark .pv-feature-icon { background: var(--accent-dim); }
   .pv-feature--dark .pv-feature-icon svg { stroke: var(--accent); }
-  .pv-feature--lime .pv-feature-icon { background: rgba(var(--accent-rgb), 0.1); }
+  .pv-feature--lime .pv-feature-icon { background: rgba(var(--accent-rgb), 0.08); }
   .pv-feature--lime .pv-feature-icon svg { stroke: var(--accent); }
   .pv-feature-icon svg { width: 26px; height: 26px; fill: none; stroke-width: 1.5; }
   .performance-card {
@@ -2170,9 +2248,60 @@ const homeCss = `
     background: var(--bg2);
   }
 
+  html[data-fx="none"] .pv-feature--lime {
+    background: var(--bg2) !important;
+    border-color: var(--border) !important;
+    box-shadow: none !important;
+  }
+
+  html[data-fx="none"] .pv-feature--lime .pv-feature-icon {
+    background: var(--bg3) !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: none !important;
+  }
+
+  html[data-fx="none"] .pv-feature--lime .pv-pill {
+    background: var(--bg3) !important;
+    border-color: var(--border) !important;
+    color: var(--text2) !important;
+  }
+
+  html[data-fx="none"] .pv-feature--lime .pv-feature-btn {
+    background: var(--bg3) !important;
+    border-color: var(--border) !important;
+    box-shadow: none !important;
+  }
+
   html[data-fx="none"] .pv-stat--dark,
   html[data-fx="none"] .performance-block {
     background: var(--bg3);
+  }
+
+  html[data-fx="none"] .pv-stat--lime {
+    background: var(--bg2) !important;
+    border-color: var(--border) !important;
+    box-shadow: none !important;
+  }
+
+  html[data-fx="none"] .pv-stat--lime .pv-stat-icon {
+    background: var(--bg3) !important;
+  }
+
+  html[data-fx="none"] .pv-stat--lime .pv-stat-delta {
+    background: var(--bg3) !important;
+    color: var(--text2) !important;
+  }
+
+  html[data-fx="none"] .pv-stat--lime .pv-stat-value {
+    color: var(--text) !important;
+  }
+
+  html[data-fx="none"] .pv-stat--lime .pv-stat-label {
+    color: var(--text3) !important;
+  }
+
+  html[data-fx="none"] .pv-stat--lime .pv-bar {
+    background: var(--border) !important;
   }
 
   .pwa-home-btn {

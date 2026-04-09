@@ -1062,7 +1062,7 @@ html[data-fx="blur"] .card::before {
 html[data-fx="none"] .card {
   background: var(--bg2);
   border-color: var(--border);
-  box-shadow: var(--surface-shadow-sm);
+  box-shadow: none;
 }
 
 html[data-fx="none"] .card::before {
@@ -1590,7 +1590,7 @@ html[data-fx="none"] :is(
   background: var(--bg2) !important;
   background-image: none !important;
   border-color: var(--border) !important;
-  box-shadow: var(--surface-shadow-sm) !important;
+  box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
@@ -1659,6 +1659,52 @@ html[data-fx="none"] :is(
   transform: none !important;
 }
 
+html[data-fx="none"] :is(
+  .card:hover,
+  .hero:hover,
+  .weather-card:hover,
+  .enem-card:hover,
+  .performance-card:hover,
+  .pv-feature:hover,
+  .pv-feature--dark:hover,
+  .pv-feature--lime:hover,
+  .pv-feature--quote:hover,
+  .profile-hero:hover,
+  .radar-hero:hover,
+  .tema-card:hover,
+  .score-hero:hover,
+  .comps-card:hover,
+  .feedback-block:hover,
+  .prob-hero:hover,
+  .detail-error:hover,
+  .material-box:hover,
+  .material-card:hover,
+  .criteria-card:hover,
+  .intro-card-option:hover,
+  .ap-color-btn:hover,
+  .ap-font-btn:hover,
+  .ap-fx-btn:hover,
+  .ap-layout-btn:hover,
+  .theme-icon-opt:hover,
+  .stat-small:hover,
+  .settings-icon:hover,
+  .weather-settings-card:hover,
+  .ai-pref-card:hover,
+  .quota-card:hover,
+  .meu-plano-card:hover,
+  .avatar-card:hover,
+  .backup-card:hover,
+  .planos-hero:hover,
+  .pricing-card:hover,
+  .planos-change-card:hover,
+  .planos-status-chip:hover,
+  .faq-item:hover,
+  .performance-block:hover
+) {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
 html[data-fx="gradients"] :is(
   .card,
   .hero,
@@ -1716,10 +1762,10 @@ html[data-fx="gradients"] :is(
 
 html[data-fx="gradients"] .pv-feature--lime {
   background:
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.1), transparent 28%),
-    linear-gradient(145deg, rgba(var(--accent-rgb), 0.1), rgba(var(--accent-rgb), 0.045)) !important;
-  border-color: rgba(var(--accent-rgb), 0.12) !important;
-  box-shadow: 0 14px 28px rgba(8, 9, 4, 0.08) !important;
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.06), transparent 30%),
+    linear-gradient(145deg, rgba(var(--accent-rgb), 0.05), rgba(var(--accent-rgb), 0.022)) !important;
+  border-color: rgba(var(--accent-rgb), 0.1) !important;
+  box-shadow: 0 12px 24px rgba(8, 9, 4, 0.06) !important;
 }
 
 html[data-fx="blur"] :is(
@@ -1781,9 +1827,9 @@ html[data-fx="blur"] :is(
 
 html[data-fx="blur"] .pv-feature--lime {
   background:
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.1), transparent 28%),
-    linear-gradient(145deg, rgba(var(--accent-rgb), 0.1), rgba(var(--accent-rgb), 0.04)),
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 30%),
+    linear-gradient(145deg, rgba(var(--accent-rgb), 0.045), rgba(var(--accent-rgb), 0.018)),
     var(--bg2-glass) !important;
-  border-color: rgba(var(--accent-rgb), 0.12) !important;
-  box-shadow: 0 18px 36px rgba(8, 9, 4, 0.12) !important;
+  border-color: rgba(var(--accent-rgb), 0.1) !important;
+  box-shadow: 0 14px 30px rgba(8, 9, 4, 0.1) !important;
 }

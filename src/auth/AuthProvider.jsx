@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import GoTrue from 'gotrue-js'
 import { AuthContext } from './authContext.js'
 import {
@@ -32,30 +32,19 @@ function pickSafeUserMetadata(metadata) {
   }
 }
 
-const ONBOARDING_LOGIN_KEY = 'apice:onboarding:pending-login:v1'
-
-function markOnboardingPendingLogin() {
-  if (typeof window === 'undefined' || !window.sessionStorage) return
-  try {
-    sessionStorage.setItem(ONBOARDING_LOGIN_KEY, 'true')
-  } catch {
-    // ignore
-  }
-}
-
-function clearOnboardingPendingLogin() {
-  if (typeof window === 'undefined' || !window.sessionStorage) return
-  try {
-    sessionStorage.removeItem(ONBOARDING_LOGIN_KEY)
-  } catch {
-    // ignore
-  }
-}
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => auth.currentUser() || null)
   const [loading, setLoading] = useState(true)
+  const [pendingOnboardingLogin, setPendingOnboardingLogin] = useState(false)
   const syncLockRef = useRef(false)
+
+  const armOnboardingAfterLogin = useCallback(() => {
+    setPendingOnboardingLogin(true)
+  }, [])
+
+  const clearOnboardingAfterLogin = useCallback(() => {
+    setPendingOnboardingLogin(false)
+  }, [])
 
   // Register the user ID getter so authFetch can identify the user
   // (No JWT — we use X-User-Id header instead because legacy user_metadata
@@ -125,6 +114,12 @@ export function AuthProvider({ children }) {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!user) {
+      setPendingOnboardingLogin(false)
+    }
+  }, [user])
 
   // ── Cloud Sync via Netlify Blobs (NÃO via user_metadata/JWT) ────────────
 
@@ -242,7 +237,7 @@ export function AuthProvider({ children }) {
     // Após confirmar, o GoTrue retorna o usuário logado
     if (response) {
       setUser(response)
-      markOnboardingPendingLogin()
+      armOnboardingAfterLogin()
     }
     return response
   }
@@ -255,7 +250,7 @@ export function AuthProvider({ children }) {
     const response = await auth.login(email, password, remember)
     clearVerificationPassword()
     setUser(response)
-    markOnboardingPendingLogin()
+    armOnboardingAfterLogin()
     return response
   }
 
@@ -263,7 +258,7 @@ export function AuthProvider({ children }) {
     const response = await auth.recover(token, true)
     clearVerificationPassword()
     setUser(response)
-    markOnboardingPendingLogin()
+    armOnboardingAfterLogin()
     return response
   }
 
@@ -277,7 +272,7 @@ export function AuthProvider({ children }) {
       }
     }
     clearVerificationPassword()
-    clearOnboardingPendingLogin()
+    clearOnboardingAfterLogin()
     // Limpeza total do localStorage
     if (typeof window !== 'undefined' && window.localStorage) {
       Object.keys(localStorage).forEach(key => localStorage.removeItem(key))
@@ -291,7 +286,7 @@ export function AuthProvider({ children }) {
     try {
       const result = await requestAccountDeletion(auth)
       clearVerificationPassword()
-      clearOnboardingPendingLogin()
+      clearOnboardingAfterLogin()
       // Limpeza agressiva antes do logout
       if (typeof window !== 'undefined' && window.localStorage) {
         Object.keys(localStorage).forEach(key => localStorage.removeItem(key))
@@ -347,6 +342,8 @@ export function AuthProvider({ children }) {
     updateAccount,
     updateMetadata,
     auth,
+    onboardingLoginPending: pendingOnboardingLogin,
+    clearOnboardingLoginPrompt: clearOnboardingAfterLogin,
   }
 
   return (

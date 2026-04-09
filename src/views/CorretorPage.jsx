@@ -12,16 +12,16 @@ import {
   UPGRADE_REASONS,
 } from '../services/upgradeTrigger.js'
 
-function createRigidParticles(count = 18) {
+function createRigidParticles(count = 12) {
   const createdAt = Date.now()
 
   return Array.from({ length: count }, (_, index) => {
-    const size = 1.3 + Math.random() * 2
+    const size = 1.1 + Math.random() * 1.6
     const left = Math.random() * 100
     const drift = (Math.random() * 2 - 1) * 24
-    const duration = 2.8 + Math.random() * 1.8
+    const duration = 3.2 + Math.random() * 1.4
     const delay = Math.random() * 1.4
-    const opacity = 0.35 + Math.random() * 0.5
+    const opacity = 0.16 + Math.random() * 0.24
     const top = -10 - Math.random() * 30
 
     return {
@@ -118,7 +118,7 @@ export function CorretorPage() {
 
     if (wasRigido) return
 
-    setRigidParticles(createRigidParticles(42))
+    setRigidParticles(createRigidParticles(18))
     if (rigidBurstTimerRef.current) {
       window.clearTimeout(rigidBurstTimerRef.current)
     }
