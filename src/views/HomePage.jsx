@@ -859,6 +859,7 @@ const homeCss = `
     align-self: stretch;
     margin-top: 0;
     min-height: 172px;
+    box-shadow: 0 18px 42px rgba(8, 9, 4, 0.08);
   }
 
   html.layout-compact .home-radar-card {
@@ -867,6 +868,22 @@ const homeCss = `
 
   .home-radar-card .pv-feature-content {
     gap: 10px;
+  }
+
+  html[data-fx="gradients"] .home-radar-card {
+    background:
+      radial-gradient(circle at top right, rgba(255, 255, 255, 0.2), transparent 28%),
+      linear-gradient(145deg, rgba(var(--accent-rgb), 0.34), rgba(var(--accent-rgb), 0.16)) !important;
+    border-color: rgba(var(--accent-rgb), 0.22) !important;
+  }
+
+  html[data-fx="blur"] .home-radar-card {
+    background:
+      radial-gradient(circle at top right, rgba(255, 255, 255, 0.14), transparent 28%),
+      linear-gradient(145deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-rgb), 0.1)),
+      var(--bg2-glass) !important;
+    border-color: rgba(var(--accent-rgb), 0.18) !important;
+    box-shadow: 0 20px 42px rgba(8, 9, 4, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
   }
 
   form.home-professor-card.pv-feature {

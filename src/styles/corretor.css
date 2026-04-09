@@ -479,35 +479,34 @@ html[data-fx="gradients"][data-card-gradients="on"] .criteria-card {
 
 html[data-fx="blur"] .criteria-card {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03)),
-    rgba(255, 255, 255, 0.1);
-  border-color: var(--floating-border);
-  backdrop-filter: blur(calc(var(--floating-blur) * 0.94)) saturate(calc(var(--glass-saturate) + 0.08));
-  -webkit-backdrop-filter: blur(calc(var(--floating-blur) * 0.94)) saturate(calc(var(--glass-saturate) + 0.08));
-  box-shadow: 0 22px 48px rgba(8, 9, 4, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  margin-top: -12px;
-  z-index: 2;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08)),
+    rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(calc(var(--floating-blur) * 1.05)) saturate(calc(var(--glass-saturate) + 0.12)) !important;
+  -webkit-backdrop-filter: blur(calc(var(--floating-blur) * 1.05)) saturate(calc(var(--glass-saturate) + 0.12)) !important;
+  box-shadow: 0 24px 54px rgba(8, 9, 4, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  margin-top: -18px;
+  z-index: 3;
 }
 
 html[data-theme="dark"][data-fx="blur"] .criteria-card {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01)),
-    rgba(18, 18, 18, 0.18);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03)),
+    rgba(18, 18, 18, 0.26) !important;
 }
 
 html[data-fx="blur"] .criteria-card::before {
   content: '';
   position: absolute;
-  inset: 0 0 auto 0;
-  height: 42%;
+  inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0));
-  opacity: 1;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0));
+  opacity: 0.85;
   z-index: 0;
 }
 
 html[data-theme="dark"][data-fx="blur"] .criteria-card::before {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0));
 }
 
 html[data-fx="blur"] .criteria-card > * {
