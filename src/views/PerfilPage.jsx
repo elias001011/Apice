@@ -672,7 +672,7 @@ function maskEmail(email) {
   return `${maskPiece(localPart)}@${maskedDomain}${tld}`
 }
 
-const DELETION_CONTACT_EMAIL = 'elias.juratti@outlook.com'
+const DELETION_CONTACT_EMAIL = 'elias.juriatti@outlook.com'
 
 function buildDeletionRequestMailto({ name, email }) {
   const subject = encodeURIComponent('Solicitação de exclusão de conta')

@@ -15,17 +15,12 @@ const VISUAL_EFFECT_OPTIONS = [
   {
     key: 'none',
     label: 'Desligado',
-    sub: 'Superfícies sólidas, sem blur, sem gradientes decorativos e com sombras mínimas.',
+    sub: 'Superfícies sólidas, sem efeitos decorativos. Visual minimalista e limpo.',
   },
   {
     key: 'gradients',
     label: 'Gradiente',
-    sub: 'Os gradientes ficam no fundo do app e em áreas de destaque. Cards comuns continuam sólidos.',
-  },
-  {
-    key: 'blur',
-    label: 'Vidro',
-    sub: 'Glassmorphism real com transparência e blur do conteúdo atrás em navegação, menus, rodapé e modais.',
+    sub: 'Gradientes sutis no fundo do app e nos cards de destaque. Cards comuns permanecem limpos.',
   },
 ]
 

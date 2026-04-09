@@ -167,8 +167,6 @@ const onboardingCss = `
     width: 100%;
     height: 100%;
     background: var(--overlay-surface);
-    backdrop-filter: blur(var(--overlay-blur));
-    -webkit-backdrop-filter: blur(var(--overlay-blur));
     z-index: 10000;
     display: flex;
     align-items: center;
@@ -184,10 +182,7 @@ const onboardingCss = `
     max-width: 480px;
     padding: 2.5rem 2rem;
     box-shadow: var(--modal-shadow);
-    backdrop-filter: blur(var(--modal-blur)) saturate(var(--glass-saturate));
-    -webkit-backdrop-filter: blur(var(--modal-blur)) saturate(var(--glass-saturate));
     position: relative;
-    isolation: isolate;
   }
 
   .onboarding-progress {

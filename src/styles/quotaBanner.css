@@ -26,22 +26,9 @@
   z-index: 0;
 }
 
-html[data-fx="blur"] .quota-banner {
-  background: var(--floating-surface);
-  border-color: var(--floating-border);
-  backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
-  box-shadow: var(--floating-shadow);
-}
-
-html[data-fx="none"] .quota-banner {
-  background: var(--bg2);
-  border-color: rgba(255, 171, 64, 0.18);
-  box-shadow: var(--surface-shadow-sm);
-}
-
-html[data-fx="none"] .quota-banner::before {
-  display: none;
+html[data-fx="gradients"] .quota-banner {
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.01), transparent 70%), var(--bg2);
+  border-color: rgba(var(--accent-rgb), 0.06);
 }
 
 .quota-banner > * {
