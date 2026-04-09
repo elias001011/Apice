@@ -897,21 +897,11 @@ html[data-animations="off"] #radar-results .atualizado {
   border-radius: var(--radius);
   padding: 1.25rem;
   margin-bottom: 12px;
-  box-shadow: 0 2px 8px rgba(8, 9, 4, 0.04);
-  transition: border-color 0.2s, box-shadow 0.2s ease;
-}
-
-html[data-fx="gradients"] .card {
-  border-color: rgba(var(--accent-rgb), 0.06);
-}
-
-html[data-fx="gradients"][data-card-gradients="on"] .card {
-  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.02), transparent 58%), var(--bg2);
+  transition: border-color 0.2s;
 }
 
 html[data-card-hover="on"] .card:hover {
   border-color: rgba(var(--accent-rgb), 0.15);
-  box-shadow: 0 4px 16px rgba(8, 9, 4, 0.06);
 }
 
 .card-title {
