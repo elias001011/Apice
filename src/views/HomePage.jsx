@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { usePwaInstall } from '../pwa/usePwaInstall.js'
 import {
@@ -736,6 +737,10 @@ const homeCss = `
       rgba(18, 18, 18, 0.2);
   }
 
+  html[data-theme="dark"] .weather-card {
+    border-color: rgba(var(--accent-rgb), 0.12);
+  }
+
   .weather-card-top {
     display: flex;
     align-items: center;
@@ -943,6 +948,10 @@ const homeCss = `
 
   html[data-fx="gradients"] .enem-card {
     background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.015), transparent 58%), var(--bg2);
+  }
+
+  html[data-fx="gradients"] .weather-card {
+    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.04), transparent 70%), var(--bg2);
   }
 
   .enem-card-header,
@@ -1840,7 +1849,8 @@ const homeCss = `
   html[data-fx="none"] .enem-card,
   html[data-fx="none"] .performance-card,
   html[data-fx="none"] .features-stack .pv-feature--quote,
-  html[data-fx="none"] .pv-feature--dark {
+  html[data-fx="none"] .pv-feature--dark,
+  html[data-fx="none"] .weather-card {
     background: var(--bg2);
   }
 
