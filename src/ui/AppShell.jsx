@@ -65,107 +65,111 @@ export function AppShell() {
 
   return (
     <UpgradeModalProvider>
-      <nav className="nav">
-        <div className="nav-inner">
-          <NavLink to="/home" className="nav-logo">
-            Áp<em>i</em>ce
-          </NavLink>
-          <div className="nav-center">
-            <NavLink to="/home" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Início</NavLink>
-            <NavLink to="/corretor" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Corretor</NavLink>
-            <NavLink to="/professor" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Professor</NavLink>
-            <NavLink to="/radar" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Radar</NavLink>
-            <NavLink to="/conquistas" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Conquistas</NavLink>
-          </div>
-          <div className="nav-right">
-            <ThemeToggleButton />
-            <div className="nav-more-wrap" ref={mobileMoreRef}>
-              <button
-                type="button"
-                className="nav-icon-btn nav-more-btn"
-                aria-label="Mais opções"
-                aria-haspopup="menu"
-                aria-expanded={mobileMoreOpen}
-                title="Mais opções"
-                onClick={() => setMobileMoreOpen((value) => !value)}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="12" cy="5" r="1.75" />
-                  <circle cx="12" cy="12" r="1.75" />
-                  <circle cx="12" cy="19" r="1.75" />
-                </svg>
-              </button>
-              {mobileMoreOpen && (
-                <div className="nav-more-menu" role="menu" aria-label="Mais opções">
-                  <NavLink
-                    to="/conquistas"
-                    className={({ isActive }) => `nav-more-link${isActive ? ' active' : ''}`}
-                    role="menuitem"
-                    onClick={() => setMobileMoreOpen(false)}
-                  >
-                    <span className="nav-more-link-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24">
-                        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-                        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-                        <path d="M4 22h16" />
-                        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
-                        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
-                        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
-                      </svg>
-                    </span>
-                    <span className="nav-more-link-text">
-                      <strong>Conquistas</strong>
-                      <span>Atalho da jornada de evolução.</span>
-                    </span>
-                  </NavLink>
-                </div>
-              )}
-            </div>
-            <NavLink
-              to="/perfil"
-              className="nav-avatar"
-              aria-label={`Perfil · ${avatarAppearance.summary}`}
-              title={avatarAppearance.summary}
-              style={avatarAppearance.palette}
-            >
-              <AvatarVisual
-                key={`${avatarAppearance.mode}|${avatarAppearance.accent}|${avatarAppearance.imageUrl}|${avatarAppearance.updatedAt}`}
-                appearance={avatarAppearance}
-              />
+      <div className="app-shell">
+        <div className="app-scene" aria-hidden="true" />
+
+        <nav className="nav">
+          <div className="nav-inner">
+            <NavLink to="/home" className="nav-logo">
+              Áp<em>i</em>ce
             </NavLink>
-          </div>
-        </div>
-      </nav>
-
-      <main className="main">
-        <QuotaLimitBanner />
-        <Outlet />
-      </main>
-      <Footer />
-      <ConquistaToast />
-
-      {busy && (
-        <div className="app-busy-overlay" role="status" aria-live="polite" aria-busy="true">
-          <div className="app-busy-card">
-            <div className="app-busy-spinner" aria-hidden="true" />
-            <div className="app-busy-label">Processando IA</div>
-            <div className="app-busy-copy">Aguarde um instante enquanto a resposta é preparada.</div>
-            <div className="app-busy-skeleton" aria-hidden="true">
-              <span />
-              <span />
-              <span />
+            <div className="nav-center">
+              <NavLink to="/home" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Início</NavLink>
+              <NavLink to="/corretor" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Corretor</NavLink>
+              <NavLink to="/professor" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Professor</NavLink>
+              <NavLink to="/radar" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Radar</NavLink>
+              <NavLink to="/conquistas" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Conquistas</NavLink>
+            </div>
+            <div className="nav-right">
+              <ThemeToggleButton />
+              <div className="nav-more-wrap" ref={mobileMoreRef}>
+                <button
+                  type="button"
+                  className="nav-icon-btn nav-more-btn"
+                  aria-label="Mais opções"
+                  aria-haspopup="menu"
+                  aria-expanded={mobileMoreOpen}
+                  title="Mais opções"
+                  onClick={() => setMobileMoreOpen((value) => !value)}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="5" r="1.75" />
+                    <circle cx="12" cy="12" r="1.75" />
+                    <circle cx="12" cy="19" r="1.75" />
+                  </svg>
+                </button>
+                {mobileMoreOpen && (
+                  <div className="nav-more-menu" role="menu" aria-label="Mais opções">
+                    <NavLink
+                      to="/conquistas"
+                      className={({ isActive }) => `nav-more-link${isActive ? ' active' : ''}`}
+                      role="menuitem"
+                      onClick={() => setMobileMoreOpen(false)}
+                    >
+                      <span className="nav-more-link-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                          <path d="M4 22h16" />
+                          <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+                          <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+                          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                        </svg>
+                      </span>
+                      <span className="nav-more-link-text">
+                        <strong>Conquistas</strong>
+                        <span>Atalho da jornada de evolução.</span>
+                      </span>
+                    </NavLink>
+                  </div>
+                )}
+              </div>
+              <NavLink
+                to="/perfil"
+                className="nav-avatar"
+                aria-label={`Perfil · ${avatarAppearance.summary}`}
+                title={avatarAppearance.summary}
+                style={avatarAppearance.palette}
+              >
+                <AvatarVisual
+                  key={`${avatarAppearance.mode}|${avatarAppearance.accent}|${avatarAppearance.imageUrl}|${avatarAppearance.updatedAt}`}
+                  appearance={avatarAppearance}
+                />
+              </NavLink>
             </div>
           </div>
-        </div>
-      )}
+        </nav>
 
-      <nav className="bottom-tab" aria-label="Navegação principal">
-        <TabLink to="/home" label="Início" icon="home" />
-        <TabLink to="/professor" label="Professor" icon="professor" />
-        <TabLink to="/corretor" label="Corretor" icon="edit" />
-        <TabLink to="/radar" label="Radar" icon="radar" />
-        <TabLink to="/perfil" label="Perfil" icon="user" />
-      </nav>
+        <main className="main">
+          <QuotaLimitBanner />
+          <Outlet />
+        </main>
+        <Footer />
+        <ConquistaToast />
+
+        {busy && (
+          <div className="app-busy-overlay" role="status" aria-live="polite" aria-busy="true">
+            <div className="app-busy-card">
+              <div className="app-busy-spinner" aria-hidden="true" />
+              <div className="app-busy-label">Processando IA</div>
+              <div className="app-busy-copy">Aguarde um instante enquanto a resposta é preparada.</div>
+              <div className="app-busy-skeleton" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <nav className="bottom-tab" aria-label="Navegação principal">
+          <TabLink to="/home" label="Início" icon="home" />
+          <TabLink to="/professor" label="Professor" icon="professor" />
+          <TabLink to="/corretor" label="Corretor" icon="edit" />
+          <TabLink to="/radar" label="Radar" icon="radar" />
+          <TabLink to="/perfil" label="Perfil" icon="user" />
+        </nav>
+      </div>
     </UpgradeModalProvider>
   )
 }

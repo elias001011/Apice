@@ -450,11 +450,19 @@ html[data-fx="gradients"][data-card-gradients="on"] .criteria-card {
 }
 
 html[data-fx="blur"] .criteria-card {
-  background: var(--floating-surface);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.05)),
+    rgba(255, 255, 255, 0.16);
   border-color: var(--floating-border);
   backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
   box-shadow: var(--floating-shadow);
+}
+
+html[data-theme="dark"][data-fx="blur"] .criteria-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.015)),
+    rgba(18, 18, 18, 0.18);
 }
 
 html[data-fx="blur"] .criteria-card::before {

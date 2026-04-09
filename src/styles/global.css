@@ -173,15 +173,14 @@ html[data-fx="gradients"] {
 
 html[data-fx="blur"] {
   --app-bg:
-    radial-gradient(circle at 14% 10%, rgba(var(--accent-rgb), 0.13), transparent 32rem),
-    radial-gradient(circle at 86% 8%, rgba(255, 255, 255, 0.28), transparent 24rem),
-    radial-gradient(circle at 50% 82%, rgba(var(--accent-rgb), 0.08), transparent 34rem),
-    linear-gradient(155deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05) 34%, transparent 62%);
+    radial-gradient(circle at 12% 8%, rgba(var(--accent-rgb), 0.08), transparent 26rem),
+    radial-gradient(circle at 88% 0%, rgba(var(--accent-rgb), 0.05), transparent 20rem),
+    radial-gradient(circle at 50% 76%, rgba(var(--accent-rgb), 0.04), transparent 24rem);
   --scene-opacity: 1;
   --scene-texture:
-    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.3) 1px, transparent 0),
-    linear-gradient(115deg, rgba(var(--accent-rgb), 0.035), transparent 42%, rgba(255, 255, 255, 0.08) 58%, transparent 78%);
-  --scene-texture-opacity: 0.18;
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0 1px, transparent 1px 16px),
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.26) 1px, transparent 0);
+  --scene-texture-opacity: 0.08;
   --bg2-glass: var(--glass-surface);
   --glass-blur: 28px;
   --overlay-blur: 18px;
@@ -206,14 +205,13 @@ html[data-fx="blur"] {
 
 html[data-theme="dark"][data-fx="blur"] {
   --app-bg:
-    radial-gradient(circle at 14% 10%, rgba(var(--accent-rgb), 0.16), transparent 32rem),
-    radial-gradient(circle at 86% 6%, rgba(255, 255, 255, 0.05), transparent 24rem),
-    radial-gradient(circle at 50% 82%, rgba(var(--accent-rgb), 0.1), transparent 34rem),
-    linear-gradient(160deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01) 38%, transparent 64%);
+    radial-gradient(circle at 12% 8%, rgba(var(--accent-rgb), 0.08), transparent 26rem),
+    radial-gradient(circle at 88% 0%, rgba(var(--accent-rgb), 0.05), transparent 20rem),
+    radial-gradient(circle at 50% 76%, rgba(var(--accent-rgb), 0.04), transparent 24rem);
   --scene-texture:
-    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.18) 1px, transparent 0),
-    linear-gradient(120deg, rgba(var(--accent-rgb), 0.04), transparent 45%, rgba(255, 255, 255, 0.03) 60%, transparent 78%);
-  --scene-texture-opacity: 0.22;
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0 1px, transparent 1px 16px),
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.14) 1px, transparent 0);
+  --scene-texture-opacity: 0.1;
   --bg2-glass: var(--glass-surface);
   --nav-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)), var(--glass-surface-strong);
   --tab-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)), var(--glass-surface-strong);
@@ -258,12 +256,21 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Mantém uma cena fixa atrás da interface para o vidro ter conteúdo real para desfocar. */
-body::before {
-  content: '';
+#root {
+  min-height: 100vh;
+}
+
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+  isolation: isolate;
+}
+
+/* Camada fixa do app usada como backdrop real para os elementos de vidro. */
+.app-scene {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: -1;
   pointer-events: none;
   opacity: var(--scene-opacity);
   background: var(--app-bg);
@@ -271,24 +278,15 @@ body::before {
   transform: translateZ(0);
 }
 
-body::after {
+.app-scene::after {
   content: '';
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: 0;
-  pointer-events: none;
   opacity: var(--scene-texture-opacity);
   background-image: var(--scene-texture);
-  background-size: 24px 24px, auto;
-  background-position: 0 0, center;
+  background-size: auto, 18px 18px;
+  background-position: center, 0 0;
   transition: opacity 0.55s ease, background-image 0.55s ease;
-  transform: translateZ(0);
-}
-
-#root {
-  position: relative;
-  z-index: 1;
-  min-height: 100vh;
 }
 
 body.app-busy {
