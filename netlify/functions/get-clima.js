@@ -81,10 +81,16 @@ export default async function handler(req) {
       cidade: data.name,
       pais: data.sys?.country,
       temperatura: Math.round(data.main?.temp),
+      minima: Math.round(data.main?.temp_min),
+      maxima: Math.round(data.main?.temp_max),
       sensacao: Math.round(data.main?.feels_like),
       descricao: data.weather?.[0]?.description,
       icone: data.weather?.[0]?.icon,
+      condicaoId: data.weather?.[0]?.id,
       umidade: data.main?.humidity,
+      pressao: data.main?.pressure,
+      nuvens: data.clouds?.all,
+      visibilidadeKm: Number.isFinite(data.visibility) ? Math.round((data.visibility / 1000) * 10) / 10 : null,
       vento: Math.round((data.wind?.speed || 0) * 3.6), // m/s → km/h
       debug: {
         auth: 'ok',

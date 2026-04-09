@@ -21,6 +21,15 @@ import {
   loadRadarSnapshot,
   subscribeRadarSnapshot,
 } from '../services/radarState.js'
+import {
+  fetchClima,
+  getLastClimaResult,
+  isClimaResultFresh,
+} from '../services/climaService.js'
+import {
+  loadWeatherLocation,
+  subscribeWeatherLocation,
+} from '../services/weatherPreferences.js'
 import frases from '../data/frases.json'
 import { OnboardingModal } from '../ui/OnboardingModal.jsx'
 
@@ -38,6 +47,24 @@ function getGreetingLabel(date = new Date()) {
   return 'Boa noite'
 }
 
+function formatWeatherDescription(value) {
+  const text = String(value || '').trim()
+  if (!text) return 'Condições atuais'
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+function formatWeatherUpdatedAt(value) {
+  if (!value) return 'Atualização pendente'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Atualização pendente'
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
 export function HomePage() {
   const { user } = useAuth()
   
@@ -52,6 +79,15 @@ export function HomePage() {
   const [radarSnapshot, setRadarSnapshot] = useState(() => loadRadarSnapshot())
   const [greeting, setGreeting] = useState(() => getGreetingLabel())
   const [pwaHint, setPwaHint] = useState('')
+  const [weatherLocation, setWeatherLocation] = useState(() => loadWeatherLocation())
+  const [weatherData, setWeatherData] = useState(() => {
+    const location = loadWeatherLocation()
+    const cached = getLastClimaResult()
+    return isClimaResultFresh(cached, location) ? cached : null
+  })
+  const [weatherLoading, setWeatherLoading] = useState(false)
+  const [weatherError, setWeatherError] = useState('')
+  const [weatherRefreshKey, setWeatherRefreshKey] = useState(0)
   const enemLabel = getEnemYearLabel()
   const [dailyQuote] = useState(() => frases[getDailyQuoteIndex()])
 
@@ -144,17 +180,176 @@ export function HomePage() {
     const unlistenHistory = subscribeEssayHistory(refresh)
     const unlistenSummary = subscribeUserSummary(refreshSummary)
     const unlistenRadar = subscribeRadarSnapshot(refreshRadar)
+    const unlistenWeatherLocation = subscribeWeatherLocation(setWeatherLocation)
 
     return () => {
       window.clearInterval(intervalId)
       unlistenHistory()
       unlistenSummary()
       unlistenRadar()
+      unlistenWeatherLocation()
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    const cached = getLastClimaResult()
+    const hasFreshCache = isClimaResultFresh(cached, weatherLocation)
+
+    if (hasFreshCache) {
+      setWeatherData(cached)
+      setWeatherError('')
+      setWeatherLoading(false)
+      return undefined
+    }
+
+    if (cached?.requestedCityKey === String(weatherLocation || '').trim().toLowerCase()) {
+      setWeatherData(cached)
+    } else {
+      setWeatherData(null)
+    }
+    setWeatherError('')
+    setWeatherLoading(true)
+
+    const fetchWeather = async () => {
+      try {
+        const data = await fetchClima(weatherLocation)
+        if (!cancelled) {
+          setWeatherData(data)
+          setWeatherError('')
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setWeatherError(error?.message || 'Nao foi possivel atualizar o clima agora.')
+        }
+      } finally {
+        if (!cancelled) {
+          setWeatherLoading(false)
+        }
+      }
+    }
+
+    void fetchWeather()
+
+    return () => {
+      cancelled = true
+    }
+  }, [weatherLocation, weatherRefreshKey])
+
   const ultimaNota = insights.latestEssay?.nota || 0
   const ultimaNotaPercent = Math.round((ultimaNota / 1000) * 100)
+  const weatherDescription = formatWeatherDescription(weatherData?.descricao)
+  const weatherUpdatedAt = formatWeatherUpdatedAt(weatherData?.fetchedAt)
+  const weatherHeaderLocation = weatherData?.cidade || weatherLocation
+  const weatherCountry = weatherData?.pais ? `, ${weatherData.pais}` : ''
+  const hasWeatherData = Boolean(weatherData)
+
+  const weatherCard = (
+    <section className={`weather-card anim anim-d2${weatherLoading ? ' is-loading' : ''}`}>
+      <div className="weather-card-head">
+        <div>
+          <div className="weather-card-kicker">Clima agora</div>
+          <h2 className="weather-card-location">
+            {weatherHeaderLocation}
+            <span>{weatherCountry}</span>
+          </h2>
+        </div>
+        <div className="weather-card-actions">
+          <Link to="/perfil#clima" className="weather-card-link">
+            Ajustar local
+          </Link>
+          <button
+            type="button"
+            className="weather-card-refresh"
+            onClick={() => setWeatherRefreshKey((value) => value + 1)}
+            disabled={weatherLoading}
+          >
+            {weatherLoading ? 'Atualizando' : 'Atualizar'}
+          </button>
+        </div>
+      </div>
+
+      {hasWeatherData ? (
+        <>
+          <div className="weather-hero">
+            <div className="weather-hero-copy">
+              <div className="weather-temp-row">
+                <div className="weather-temp">{weatherData.temperatura}°</div>
+                <div className="weather-summary">
+                  <strong>{weatherDescription}</strong>
+                  <span>
+                    Sensação de {weatherData.sensacao}°C
+                  </span>
+                </div>
+              </div>
+
+              <div className="weather-range-row">
+                <span>Máx. {weatherData.maxima}°</span>
+                <span>Min. {weatherData.minima}°</span>
+                <span>{weatherData.cidade}{weatherCountry}</span>
+              </div>
+            </div>
+
+            <div className="weather-icon-shell" aria-hidden="true">
+              {weatherData.icone ? (
+                <img
+                  src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
+                  alt=""
+                  className="weather-icon"
+                />
+              ) : (
+                <svg viewBox="0 0 24 24" className="weather-fallback-icon">
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                </svg>
+              )}
+            </div>
+          </div>
+
+          <div className="weather-metrics">
+            <div className="weather-metric">
+              <span>Sensação</span>
+              <strong>{weatherData.sensacao}°C</strong>
+            </div>
+            <div className="weather-metric">
+              <span>Umidade</span>
+              <strong>{weatherData.umidade}%</strong>
+            </div>
+            <div className="weather-metric">
+              <span>Vento</span>
+              <strong>{weatherData.vento} km/h</strong>
+            </div>
+            <div className="weather-metric">
+              <span>Visibilidade</span>
+              <strong>{weatherData.visibilidadeKm ?? '--'} km</strong>
+            </div>
+          </div>
+
+          <div className="weather-meta-strip">
+            <span>Pressão {weatherData.pressao ?? '--'} hPa</span>
+            <span>Nuvens {weatherData.nuvens ?? '--'}%</span>
+            <span>Atualizado às {weatherUpdatedAt}</span>
+          </div>
+
+          {weatherError && (
+            <div className="weather-inline-note">
+              Mostrando o último resultado salvo. {weatherError}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="weather-empty-state">
+          <div className="weather-empty-copy">
+            {weatherLoading ? 'Buscando o clima atual...' : 'Ainda não conseguimos carregar o clima da sua região.'}
+          </div>
+          {!weatherLoading && weatherError && (
+            <div className="weather-inline-note">{weatherError}</div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+
   const enemCard = (
     <section
       className="enem-card anim anim-d5 home-enem-card"
@@ -291,6 +486,8 @@ export function HomePage() {
               {pwaHint && <div className="hero-pwa-hint">{pwaHint}</div>}
             </div>
           </div>
+
+          {weatherCard}
 
           {enemCard}
 
@@ -520,6 +717,282 @@ const homeCss = `
 
   .home-radar-card .pv-feature-content {
     gap: 10px;
+  }
+
+  .weather-card {
+    width: 100%;
+    padding: 1.05rem 1.1rem;
+    border-radius: 24px;
+    border: 1px solid rgba(var(--accent-rgb), 0.08);
+    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.03), transparent 62%), var(--bg2);
+    box-shadow: 0 16px 38px rgba(8, 9, 4, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 0.95rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  html[data-fx="blur"] .weather-card {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.06)),
+      rgba(255, 255, 255, 0.14);
+    border-color: var(--floating-border);
+    backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
+    box-shadow: var(--floating-shadow);
+  }
+
+  html[data-theme="dark"][data-fx="blur"] .weather-card {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.015)),
+      rgba(18, 18, 18, 0.16);
+  }
+
+  .weather-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  .weather-card-kicker {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 0.32rem;
+  }
+
+  .weather-card-location {
+    margin: 0;
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.28rem;
+    line-height: 1.08;
+    color: var(--text);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.18rem;
+    align-items: baseline;
+  }
+
+  .weather-card-location span {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    color: var(--text3);
+    font-weight: 600;
+  }
+
+  .weather-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .weather-card-link,
+  .weather-card-refresh {
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .weather-card-link {
+    color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.08);
+    border: 1px solid rgba(var(--accent-rgb), 0.14);
+  }
+
+  .weather-card-refresh {
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text2);
+    cursor: pointer;
+  }
+
+  .weather-card-refresh:disabled {
+    opacity: 0.7;
+    cursor: wait;
+  }
+
+  .weather-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.9rem;
+    align-items: center;
+  }
+
+  .weather-temp-row {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+  }
+
+  .weather-temp {
+    font-family: 'DM Serif Display', serif;
+    font-size: 3rem;
+    line-height: 0.9;
+    color: var(--text);
+    letter-spacing: -0.05em;
+  }
+
+  .weather-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.22rem;
+  }
+
+  .weather-summary strong {
+    font-size: 0.95rem;
+    line-height: 1.2;
+    color: var(--text);
+  }
+
+  .weather-summary span {
+    font-size: 0.82rem;
+    color: var(--text2);
+  }
+
+  .weather-range-row {
+    margin-top: 0.7rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .weather-range-row span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text2);
+  }
+
+  .weather-icon-shell {
+    width: 94px;
+    height: 94px;
+    border-radius: 28px;
+    background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.7), rgba(var(--accent-rgb), 0.14));
+    border: 1px solid rgba(var(--accent-rgb), 0.14);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 18px 32px rgba(var(--accent-rgb), 0.14);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .weather-icon {
+    width: 86px;
+    height: 86px;
+    object-fit: contain;
+    filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.1));
+  }
+
+  .weather-fallback-icon {
+    width: 42px;
+    height: 42px;
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.8;
+  }
+
+  .weather-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+
+  .weather-metric {
+    padding: 0.7rem 0.75rem;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.44);
+    border: 1px solid rgba(var(--accent-rgb), 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 0.22rem;
+    min-width: 0;
+  }
+
+  html[data-theme="dark"] .weather-metric {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .weather-metric span {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+
+  .weather-metric strong {
+    font-size: 0.92rem;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .weather-meta-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .weather-meta-strip span {
+    font-size: 0.72rem;
+    color: var(--text2);
+    background: rgba(var(--accent-rgb), 0.07);
+    border: 1px solid rgba(var(--accent-rgb), 0.1);
+    border-radius: 999px;
+    padding: 0.34rem 0.6rem;
+  }
+
+  .weather-inline-note {
+    font-size: 0.76rem;
+    line-height: 1.5;
+    color: var(--text2);
+    padding: 0.7rem 0.8rem;
+    border-radius: 14px;
+    border: 1px solid rgba(var(--accent-rgb), 0.1);
+    background: rgba(var(--accent-rgb), 0.05);
+  }
+
+  .weather-empty-state {
+    min-height: 132px;
+    border-radius: 18px;
+    border: 1px dashed var(--border2);
+    background: var(--bg3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .weather-empty-copy {
+    font-size: 0.88rem;
+    line-height: 1.55;
+    color: var(--text2);
+    max-width: 30ch;
+  }
+
+  .weather-card.is-loading .weather-card-refresh {
+    opacity: 0.75;
   }
 
   .enem-card {
@@ -798,6 +1271,41 @@ const homeCss = `
   }
 
   @media (max-width: 767px) {
+    .weather-card {
+      padding: 0.95rem;
+      border-radius: 22px;
+      gap: 0.85rem;
+    }
+
+    .weather-hero {
+      grid-template-columns: 1fr;
+      justify-items: start;
+    }
+
+    .weather-icon-shell {
+      width: 84px;
+      height: 84px;
+      border-radius: 24px;
+    }
+
+    .weather-icon {
+      width: 74px;
+      height: 74px;
+    }
+
+    .weather-temp {
+      font-size: 2.5rem;
+    }
+
+    .weather-metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .weather-card-actions {
+      width: 100%;
+      justify-content: space-between;
+    }
+
     .enem-card {
       padding: 0.95rem;
       margin: 12px auto 0;
@@ -833,6 +1341,17 @@ const homeCss = `
   }
 
   @media (max-width: 480px) {
+    .weather-temp-row {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .weather-card-link,
+    .weather-card-refresh {
+      flex: 1 1 0;
+    }
+
     .enem-card {
       padding: 0.95rem;
     }

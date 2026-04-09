@@ -9,6 +9,11 @@ import { authFetch } from './authFetch.js'
 
 const CLIMA_KEY = 'apice:clima:last-result:v1'
 const CLIMA_ERROR_KEY = 'apice:clima:last-error:v1'
+export const CLIMA_CACHE_MAX_AGE = 30 * 60 * 1000
+
+function normalizeCityKey(city) {
+  return String(city || '').trim().toLowerCase()
+}
 
 /**
  * Busca o clima de uma cidade.
@@ -17,12 +22,14 @@ const CLIMA_ERROR_KEY = 'apice:clima:last-error:v1'
  * @returns {Promise<object>} Dados do clima
  */
 export async function fetchClima(city = 'Sao Paulo') {
+  const normalizedCity = String(city || '').trim() || 'Sao Paulo'
+
   // Limpa erro anterior
   if (typeof window !== 'undefined' && window.localStorage) {
     localStorage.removeItem(CLIMA_ERROR_KEY)
   }
 
-  const res = await authFetch(`/.netlify/functions/get-clima?city=${encodeURIComponent(city)}`)
+  const res = await authFetch(`/.netlify/functions/get-clima?city=${encodeURIComponent(normalizedCity)}`)
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}))
@@ -45,16 +52,19 @@ export async function fetchClima(city = 'Sao Paulo') {
   }
 
   const data = await res.json()
+  const payload = {
+    ...data,
+    fetchedAt: new Date().toISOString(),
+    requestedCity: normalizedCity,
+    requestedCityKey: normalizeCityKey(normalizedCity),
+  }
 
   // Salva resultado para referência
   if (typeof window !== 'undefined' && window.localStorage) {
-    localStorage.setItem(CLIMA_KEY, JSON.stringify({
-      ...data,
-      fetchedAt: new Date().toISOString(),
-    }))
+    localStorage.setItem(CLIMA_KEY, JSON.stringify(payload))
   }
 
-  return data
+  return payload
 }
 
 /**
@@ -68,6 +78,20 @@ export function getLastClimaResult() {
   } catch {
     return null
   }
+}
+
+export function isClimaResultFresh(result, city, maxAgeMs = CLIMA_CACHE_MAX_AGE) {
+  if (!result?.fetchedAt) return false
+
+  const fetchedAt = new Date(result.fetchedAt).getTime()
+  if (Number.isNaN(fetchedAt)) return false
+  if (Date.now() - fetchedAt > maxAgeMs) return false
+
+  if (city) {
+    return normalizeCityKey(result.requestedCityKey || result.requestedCity || result.cidade) === normalizeCityKey(city)
+  }
+
+  return true
 }
 
 /**

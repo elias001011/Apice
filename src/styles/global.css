@@ -266,11 +266,16 @@ body {
   isolation: isolate;
 }
 
+.app-shell > :not(.app-scene) {
+  position: relative;
+  z-index: 1;
+}
+
 /* Camada fixa do app usada como backdrop real para os elementos de vidro. */
 .app-scene {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: 0;
   pointer-events: none;
   opacity: var(--scene-opacity);
   background: var(--app-bg);
@@ -287,6 +292,24 @@ body {
   background-size: auto, 18px 18px;
   background-position: center, 0 0;
   transition: opacity 0.55s ease, background-image 0.55s ease;
+  mix-blend-mode: soft-light;
+}
+
+/*
+  O backdrop-filter precisa "enxergar" a cena compartilhada do app.
+  Em vários blocos de vidro, o isolation criava uma barreira e o resultado virava
+  só transparência. No modo blur, essas superfícies voltam a compor com o backdrop real.
+*/
+html[data-fx="blur"] .nav,
+html[data-fx="blur"] .bottom-tab,
+html[data-fx="blur"] .nav-more-menu,
+html[data-fx="blur"] .card,
+html[data-fx="blur"] .confirm-dialog,
+html[data-fx="blur"] .app-busy-card,
+html[data-fx="blur"] .footer,
+html[data-fx="blur"] .onboarding-card,
+html[data-fx="blur"] .upgrade-card {
+  isolation: auto;
 }
 
 body.app-busy {
