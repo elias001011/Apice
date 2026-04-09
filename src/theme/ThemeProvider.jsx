@@ -15,6 +15,7 @@ const MOBILE_LAYOUT_QUERY = '(max-width: 767px)'
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
 const VALID_CONTAINER_SIZES = new Set(['sm', 'md', 'lg'])
+const VALID_VISUAL_EFFECTS = new Set(['none', 'gradients', 'blur'])
 
 function readSaved(key, defaultVal) {
   try {
@@ -53,6 +54,10 @@ function getIsMobileLayout() {
 
 function normalizeContainerSize(size) {
   return VALID_CONTAINER_SIZES.has(size) ? size : 'sm'
+}
+
+function normalizeVisualEffects(value) {
+  return VALID_VISUAL_EFFECTS.has(value) ? value : 'gradients'
 }
 
 function attachMediaQueryListener(mediaQuery, handler) {
@@ -169,10 +174,11 @@ function applyLayoutToDom(layoutMode) {
 
 function applyUiPreferencesToDom(animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled) {
   const html = document.documentElement
+  const safeVisualEffects = normalizeVisualEffects(visualEffects)
   html.setAttribute('data-animations', animationsEnabled ? 'on' : 'off')
   html.setAttribute('data-card-hover', cardHoverEffects ? 'on' : 'off')
-  html.setAttribute('data-fx', visualEffects || 'gradients')
-  html.setAttribute('data-card-gradients', cardGradientsEnabled ? 'on' : 'off')
+  html.setAttribute('data-fx', safeVisualEffects)
+  html.setAttribute('data-card-gradients', safeVisualEffects === 'gradients' && cardGradientsEnabled ? 'on' : 'off')
 }
 
 function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
@@ -217,7 +223,7 @@ function syncThemeFromStorage(
   setContainerSize(readSaved(STORAGE_KEY_CONTAINER_SIZE, 'sm'))
   setAnimationsEnabled(readSavedBoolean(STORAGE_KEY_ANIMATIONS, getSystemAnimationsEnabled()))
   setCardHoverEffects(readSavedBoolean(STORAGE_KEY_CARD_HOVER, !getIsMobileLayout()))
-  setVisualEffects(readSaved(STORAGE_KEY_VISUAL_EFFECTS, 'gradients'))
+  setVisualEffects(normalizeVisualEffects(readSaved(STORAGE_KEY_VISUAL_EFFECTS, 'gradients')))
   setCardGradientsEnabled(readSavedBoolean(STORAGE_KEY_CARD_GRADIENTS, false))
 }
 
@@ -232,7 +238,7 @@ export function ThemeProvider({ children }) {
   const [containerSize, setContainerSize] = useState(() => readSaved(STORAGE_KEY_CONTAINER_SIZE, 'sm'))
   const [animationsEnabled, setAnimationsEnabled] = useState(() => readSavedBoolean(STORAGE_KEY_ANIMATIONS, getSystemAnimationsEnabled()))
   const [cardHoverEffects, setCardHoverEffects] = useState(() => readSavedBoolean(STORAGE_KEY_CARD_HOVER, !getIsMobileLayout()))
-  const [visualEffects, setVisualEffects] = useState(() => readSaved(STORAGE_KEY_VISUAL_EFFECTS, 'gradients'))
+  const [visualEffects, setVisualEffects] = useState(() => normalizeVisualEffects(readSaved(STORAGE_KEY_VISUAL_EFFECTS, 'gradients')))
   const [cardGradientsEnabled, setCardGradientsEnabled] = useState(() => readSavedBoolean(STORAGE_KEY_CARD_GRADIENTS, false))
   const [isMobileLayout, setIsMobileLayout] = useState(() => getIsMobileLayout())
   const resolvedContainerSize = isMobileLayout ? 'sm' : normalizeContainerSize(containerSize)
@@ -253,7 +259,7 @@ export function ThemeProvider({ children }) {
       localStorage.setItem(STORAGE_KEY_CONTAINER_SIZE, containerSize)
       localStorage.setItem(STORAGE_KEY_ANIMATIONS, String(animationsEnabled))
       localStorage.setItem(STORAGE_KEY_CARD_HOVER, String(cardHoverEffects))
-      localStorage.setItem(STORAGE_KEY_VISUAL_EFFECTS, visualEffects)
+      localStorage.setItem(STORAGE_KEY_VISUAL_EFFECTS, normalizeVisualEffects(visualEffects))
       localStorage.setItem(STORAGE_KEY_CARD_GRADIENTS, String(cardGradientsEnabled))
       window.dispatchEvent(new CustomEvent('apice:theme-updated'))
     } catch {

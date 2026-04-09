@@ -671,6 +671,15 @@
   backdrop-filter: blur(10px);
 }
 
+html[data-fx="none"] .prof-mindmap-action,
+html[data-fx="none"] .prof-mindmap-toolbar,
+html[data-fx="none"] .prof-mindmap-preview-header,
+html[data-fx="none"] .prof-mindmap-node,
+html[data-fx="none"] .prof-mindmap-stage-footer span {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .prof-mindmap-error {
   display: flex;
   align-items: center;

@@ -11,6 +11,24 @@ const ACCENT_OPTIONS = [
   { key: 'pink',   label: 'Rosa', light: '#f04fbc', dark: '#f060d8' },
 ]
 
+const VISUAL_EFFECT_OPTIONS = [
+  {
+    key: 'none',
+    label: 'Desligado',
+    sub: 'Superfícies sólidas, sem blur, sem gradientes decorativos e com sombras mínimas.',
+  },
+  {
+    key: 'gradients',
+    label: 'Gradiente',
+    sub: 'Os gradientes ficam no fundo do app e em áreas de destaque. Cards comuns continuam sólidos.',
+  },
+  {
+    key: 'blur',
+    label: 'Vidro',
+    sub: 'Glassmorphism real com transparência e blur do conteúdo atrás em navegação, menus, rodapé e modais.',
+  },
+]
+
 export function AparenciaPage() {
   const {
     theme,
@@ -114,11 +132,7 @@ export function AparenciaPage() {
           <div className="card anim anim-d4">
             <div className="card-title">Efeitos Visuais</div>
             <div className="ap-fx-options">
-              {[
-                { key: 'none', label: 'Desligado', sub: 'Interface limpa, sem gradientes ou efeitos decorativos. Máxima performance.' },
-                { key: 'gradients', label: 'Gradiente', sub: 'Gradientes sutis no fundo do app e em cards de destaque (hero, features, etc).' },
-                { key: 'blur', label: 'Vidro', sub: 'Efeito glassmorphism (blur + transparência) na navegação, modais e cards sobrepostos.' },
-              ].map(f => (
+              {VISUAL_EFFECT_OPTIONS.map(f => (
                 <button
                   key={f.key}
                   className={`ap-fx-btn ${visualEffects === f.key ? 'active' : ''}`}
@@ -268,7 +282,7 @@ export function AparenciaPage() {
               </button>
             </div>
 
-            <div className="card-footer-tip" style={{ marginTop: '12px', fontSize: '0.72rem', opacity: 0.5, textAlign: 'center' }}>
+            <div className="card-footer-tip">
               Essas preferências acompanham sua conta e são reaplicadas na nuvem.
             </div>
           </div>
@@ -293,7 +307,7 @@ export function AparenciaPage() {
                   </button>
                 ))}
               </div>
-              <div className="card-footer-tip" style={{ marginTop: '12px', fontSize: '0.72rem', opacity: 0.5, textAlign: 'center' }}>
+              <div className="card-footer-tip">
                 Dica: O Corretor mantém sua largura ideal independente desta escolha.
               </div>
             </div>
@@ -323,6 +337,14 @@ export function AparenciaPage() {
 const aparenciaCss = `
   /* ── GRADE APARÊNCIA ── */
   /* no mobile: coluna única (aplica-se pelo global.css .aparencia-grid) */
+
+  .card-footer-tip {
+    margin-top: 12px;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    opacity: 0.58;
+    text-align: center;
+  }
 
   /* ── TEMA ── */
   .theme-preview-icons {
@@ -673,6 +695,27 @@ const aparenciaCss = `
     text-decoration: none;
   }
   .ap-preview-btn:hover { opacity: 0.85; }
+
+  html[data-fx="none"] .theme-icon-opt,
+  html[data-fx="none"] .ap-color-btn,
+  html[data-fx="none"] .ap-font-btn,
+  html[data-fx="none"] .ap-fx-btn,
+  html[data-fx="none"] .ap-size-btn,
+  html[data-fx="none"] .ap-layout-btn,
+  html[data-fx="none"] .ap-fx-extra,
+  html[data-fx="none"] .ap-preview-box {
+    background: var(--bg3);
+    box-shadow: 0 6px 16px rgba(8, 9, 4, 0.04);
+  }
+
+  html[data-fx="none"] .theme-icon-opt.selected,
+  html[data-fx="none"] .ap-color-btn.active,
+  html[data-fx="none"] .ap-font-btn.active,
+  html[data-fx="none"] .ap-fx-btn.active,
+  html[data-fx="none"] .ap-size-btn.active,
+  html[data-fx="none"] .ap-layout-btn.active {
+    background: var(--accent-dim);
+  }
 
   @media (max-width: 900px) {
     .desktop-only-feature { display: none; }

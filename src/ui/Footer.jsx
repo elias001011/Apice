@@ -153,21 +153,15 @@ export function Footer() {
 const footerCss = `
   .footer {
     background: var(--footer-surface);
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--chrome-border);
+    box-shadow: var(--footer-shadow);
+    backdrop-filter: blur(var(--chrome-blur)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--chrome-blur)) saturate(var(--glass-saturate));
     padding: 3rem 1.5rem 1.5rem;
     margin-top: 2rem;
     position: relative;
     overflow: hidden;
-  }
-
-  html[data-fx="blur"] .footer {
-    background: var(--bg2-glass);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-  }
-
-  html[data-fx="none"] .footer {
-    background: var(--bg2);
+    isolation: isolate;
   }
 
   @media (min-width: 768px) {

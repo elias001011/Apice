@@ -10,7 +10,6 @@ import {
   markPlanPaid,
   isTrialActive,
   saveBillingState,
-  startTrial,
   subscribeBillingState,
   TRIAL_DAYS,
 } from '../services/billingState.js'

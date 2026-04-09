@@ -157,8 +157,9 @@ const onboardingCss = `
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: none;
+    background: var(--overlay-surface);
+    backdrop-filter: blur(var(--overlay-blur));
+    -webkit-backdrop-filter: blur(var(--overlay-blur));
     z-index: 10000;
     display: flex;
     align-items: center;
@@ -166,20 +167,18 @@ const onboardingCss = `
     padding: 20px;
   }
 
-  html[data-fx="blur"] .onboarding-overlay {
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-  }
-
   .onboarding-card {
-    background: var(--bg2);
-    border: 1px solid var(--border);
+    background: var(--modal-surface);
+    border: 1px solid var(--modal-border);
     border-radius: 28px;
     width: 100%;
     max-width: 480px;
     padding: 2.5rem 2rem;
-    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--modal-shadow);
+    backdrop-filter: blur(var(--modal-blur)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--modal-blur)) saturate(var(--glass-saturate));
     position: relative;
+    isolation: isolate;
   }
 
   .onboarding-progress {

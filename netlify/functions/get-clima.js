@@ -10,6 +10,7 @@
  * GET /.netlify/functions/get-clima?city=Sao+Paulo
  */
 
+import process from 'node:process'
 import { requireAuth } from './utils/auth.js'
 import { buildCorsHeaders } from './utils/cors.js'
 

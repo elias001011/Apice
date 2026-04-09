@@ -1,5 +1,4 @@
 import process from 'node:process'
-import { getPricingPlanByProductId } from '../../src/services/upgradeTrigger.js'
 
 /**
  * Webhook handler for AbacatePay.
