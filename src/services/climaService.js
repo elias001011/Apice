@@ -9,7 +9,7 @@ import { authFetch } from './authFetch.js'
 
 const CLIMA_KEY = 'apice:clima:last-result:v1'
 const CLIMA_ERROR_KEY = 'apice:clima:last-error:v1'
-export const CLIMA_CACHE_MAX_AGE = 30 * 60 * 1000
+export const CLIMA_CACHE_MAX_AGE = 60 * 60 * 1000 // 1 hora
 
 function normalizeCityKey(city) {
   return String(city || '').trim().toLowerCase()

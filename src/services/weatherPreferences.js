@@ -15,7 +15,45 @@ export const WEATHER_LOCATION_SUGGESTIONS = [
   'Salvador',
   'Recife',
   'Fortaleza',
+  'Manaus',
+  'Belem',
+  'Goiania',
+  'Campinas',
+  'Sao Luis',
+  'Maceio',
+  'Natal',
+  'Teresina',
+  'Campo Grande',
+  'Nova Iguacu',
+  'Sao Goncalo',
+  'Joao Pessoa',
+  'Londrina',
+  'Cuiaba',
+  'Sorocaba',
+  'Feira de Santana',
+  'Aracaju',
+  'Joinville',
+  'Ribeirao Preto',
+  'Uberlandia',
+  'Contagem',
+  'Santos',
+  'Macapa',
+  'Vitoria',
+  'Flora',
 ]
+
+/**
+ * Filtra cidades sugeridas com base na query do usuário.
+ * Usa busca fuzzy que corresponde a partes da string.
+ */
+export function filterCitySuggestions(query, limit = 10) {
+  if (!query || !query.trim()) return WEATHER_LOCATION_SUGGESTIONS.slice(0, limit)
+
+  const q = query.toLowerCase().trim()
+  return WEATHER_LOCATION_SUGGESTIONS
+    .filter(city => city.toLowerCase().includes(q))
+    .slice(0, limit)
+}
 
 export function normalizeWeatherLocation(value) {
   const normalized = String(value || '').trim().replace(/\s+/g, ' ')

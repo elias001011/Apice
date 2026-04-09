@@ -29,8 +29,10 @@ import {
 import {
   loadWeatherCardEnabled,
   loadWeatherLocation,
+  saveWeatherLocation,
   subscribeWeatherCardEnabled,
   subscribeWeatherLocation,
+  filterCitySuggestions,
 } from '../services/weatherPreferences.js'
 import frases from '../data/frases.json'
 import { OnboardingModal } from '../ui/OnboardingModal.jsx'
@@ -52,6 +54,7 @@ function getGreetingLabel(date = new Date()) {
 function formatWeatherDescription(value) {
   const text = String(value || '').trim()
   if (!text) return 'Condições atuais'
+  // Corrige capitalização de descrições em português
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
@@ -61,7 +64,19 @@ function formatWeatherUpdatedAt(value) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return 'Atualização pendente'
 
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+
+  if (diffMins < 1) return 'Agora mesmo'
+  if (diffMins < 60) return `Há ${diffMins} min`
+
+  const diffHours = Math.floor(diffMins / 60)
+  if (diffHours < 24) return `Há ${diffHours}h`
+
   return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
   }).format(date)
@@ -90,7 +105,9 @@ export function HomePage() {
   })
   const [weatherLoading, setWeatherLoading] = useState(false)
   const [weatherError, setWeatherError] = useState('')
-  const [weatherRefreshKey, setWeatherRefreshKey] = useState(0)
+  const [citySearchQuery, setCitySearchQuery] = useState('')
+  const [citySearchOpen, setCitySearchOpen] = useState(false)
+  const [citySearchFocused, setCitySearchFocused] = useState(-1)
   const enemLabel = getEnemYearLabel()
   const [dailyQuote] = useState(() => frases[getDailyQuoteIndex()])
 
@@ -231,7 +248,7 @@ export function HomePage() {
         }
       } catch (error) {
         if (!cancelled) {
-          setWeatherError(error?.message || 'Nao foi possivel atualizar o clima agora.')
+          setWeatherError(error?.message || 'Não foi possível atualizar o clima agora.')
         }
       } finally {
         if (!cancelled) {
@@ -242,10 +259,21 @@ export function HomePage() {
 
     void fetchWeather()
 
+    // Auto-update: verifica a cada 5 minutos se o cache expirou
+    const intervalId = setInterval(() => {
+      if (cancelled) return
+      const currentCached = getLastClimaResult()
+      const stillFresh = isClimaResultFresh(currentCached, weatherLocation)
+      if (!stillFresh && !weatherLoading) {
+        void fetchWeather()
+      }
+    }, 5 * 60 * 1000) // 5 minutos
+
     return () => {
       cancelled = true
+      clearInterval(intervalId)
     }
-  }, [weatherCardEnabled, weatherLocation, weatherRefreshKey])
+  }, [weatherCardEnabled, weatherLocation])
 
   const ultimaNota = insights.latestEssay?.nota || 0
   const ultimaNotaPercent = Math.round((ultimaNota / 1000) * 100)
@@ -254,6 +282,51 @@ export function HomePage() {
   const weatherHeaderLocation = weatherData?.cidade || weatherLocation
   const weatherCountry = weatherData?.pais || ''
   const hasWeatherData = Boolean(weatherData)
+
+  // Busca inteligente de cidades
+  const citySuggestions = filterCitySuggestions(citySearchQuery)
+  const showSuggestions = citySearchOpen && citySearchQuery.trim().length > 0
+
+  function handleCitySearchFocus() {
+    setCitySearchOpen(true)
+    setCitySearchFocused(-1)
+  }
+
+  function handleCitySearchBlur() {
+    // Fecha o dropdown após um delay para permitir clique nas sugestões
+    setTimeout(() => {
+      setCitySearchOpen(false)
+      setCitySearchFocused(-1)
+    }, 150)
+  }
+
+  function handleCitySelect(city) {
+    setWeatherLocation(city)
+    saveWeatherLocation(city)
+    setCitySearchQuery('')
+    setCitySearchOpen(false)
+    setCitySearchFocused(-1)
+  }
+
+  function handleCitySearchKeyDown(e) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setCitySearchFocused(prev => Math.min(prev + 1, citySuggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setCitySearchFocused(prev => Math.max(prev - 1, 0))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (citySearchFocused >= 0 && citySuggestions[citySearchFocused]) {
+        handleCitySelect(citySuggestions[citySearchFocused])
+      } else if (citySuggestions.length > 0) {
+        handleCitySelect(citySuggestions[0])
+      }
+    } else if (e.key === 'Escape') {
+      setCitySearchOpen(false)
+      setCitySearchFocused(-1)
+    }
+  }
 
   const weatherCard = weatherCardEnabled ? (
     <section className={`weather-card anim anim-d2${weatherLoading ? ' is-loading' : ''}`}>
@@ -265,15 +338,37 @@ export function HomePage() {
             {weatherCountry && <span>{weatherCountry}</span>}
           </div>
         </div>
-        <button
-          type="button"
-          className="weather-card-refresh"
-          onClick={() => setWeatherRefreshKey((value) => value + 1)}
-          disabled={weatherLoading}
-          title="Atualizar clima"
-        >
-          {weatherLoading ? '...' : 'Atualizar'}
-        </button>
+        <div className="weather-city-search">
+          <input
+            type="text"
+            className="weather-city-input"
+            placeholder="Buscar cidade..."
+            value={citySearchQuery}
+            onChange={e => setCitySearchQuery(e.target.value)}
+            onFocus={handleCitySearchFocus}
+            onBlur={handleCitySearchBlur}
+            onKeyDown={handleCitySearchKeyDown}
+            aria-label="Buscar cidade para ver o clima"
+            aria-expanded={showSuggestions}
+            aria-haspopup="listbox"
+          />
+          {showSuggestions && citySuggestions.length > 0 && (
+            <ul className="weather-city-dropdown" role="listbox">
+              {citySuggestions.map((city, idx) => (
+                <li
+                  key={city}
+                  role="option"
+                  aria-selected={idx === citySearchFocused}
+                  className={`weather-city-option${idx === citySearchFocused ? ' is-focused' : ''}`}
+                  onClick={() => handleCitySelect(city)}
+                  onMouseEnter={() => setCitySearchFocused(idx)}
+                >
+                  {city}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       {hasWeatherData ? (
@@ -328,7 +423,7 @@ export function HomePage() {
       ) : (
         <div className="weather-empty-state">
           <div className="weather-empty-copy">
-            {weatherLoading ? 'Buscando o clima atual...' : 'Ainda não conseguimos carregar o clima da sua região.'}
+            {weatherLoading ? 'Buscando o clima da sua região...' : 'Ainda não conseguimos carregar o clima da sua região.'}
           </div>
           {!weatherLoading && weatherError && (
             <div className="weather-inline-note">{weatherError}</div>
@@ -779,21 +874,64 @@ const homeCss = `
     font-weight: 700;
   }
 
-  .weather-card-refresh {
-    min-height: 30px;
-    padding: 0 10px;
-    border-radius: 999px;
-    border: 1px solid rgba(var(--accent-rgb), 0.12);
-    background: rgba(var(--accent-rgb), 0.06);
-    color: var(--text2);
-    font-size: 0.72rem;
-    font-weight: 700;
-    cursor: pointer;
+  .weather-city-search {
+    position: relative;
+    min-width: 180px;
   }
 
-  .weather-card-refresh:disabled {
+  .weather-city-input {
+    width: 100%;
+    min-height: 34px;
+    padding: 0.35rem 0.7rem;
+    border-radius: 12px;
+    border: 1px solid rgba(var(--accent-rgb), 0.15);
+    background: rgba(var(--accent-rgb), 0.04);
+    color: var(--text);
+    font-size: 0.78rem;
+    font-weight: 500;
+    outline: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .weather-city-input::placeholder {
+    color: var(--text3);
     opacity: 0.7;
-    cursor: wait;
+  }
+
+  .weather-city-input:focus {
+    border-color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.08);
+  }
+
+  .weather-city-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 10;
+    max-height: 200px;
+    overflow-y: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border2);
+    background: var(--bg2);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .weather-city-option {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8rem;
+    color: var(--text2);
+    cursor: pointer;
+    transition: background 0.1s ease, color 0.1s ease;
+  }
+
+  .weather-city-option:hover,
+  .weather-city-option.is-focused {
+    background: rgba(var(--accent-rgb), 0.1);
+    color: var(--accent);
   }
 
   .weather-card-core {
@@ -919,10 +1057,6 @@ const homeCss = `
     line-height: 1.55;
     color: var(--text2);
     max-width: 32ch;
-  }
-
-  .weather-card.is-loading .weather-card-refresh {
-    opacity: 0.75;
   }
 
   .enem-card {
@@ -1212,7 +1346,13 @@ const homeCss = `
     }
 
     .weather-card-top {
-      align-items: flex-start;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .weather-city-search {
+      min-width: unset;
+      width: 100%;
     }
 
     .weather-icon-shell {
