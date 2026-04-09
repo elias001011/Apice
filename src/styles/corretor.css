@@ -451,36 +451,33 @@ html[data-fx="gradients"][data-card-gradients="on"] .criteria-card {
 
 html[data-fx="blur"] .criteria-card {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.05)),
-    rgba(255, 255, 255, 0.16);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.08);
   border-color: var(--floating-border);
-  backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(calc(var(--floating-blur) * 1.08)) saturate(calc(var(--glass-saturate) + 0.12));
+  -webkit-backdrop-filter: blur(calc(var(--floating-blur) * 1.08)) saturate(calc(var(--glass-saturate) + 0.12));
   box-shadow: var(--floating-shadow);
 }
 
 html[data-theme="dark"][data-fx="blur"] .criteria-card {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.015)),
-    rgba(18, 18, 18, 0.18);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.008)),
+    rgba(18, 18, 18, 0.16);
 }
 
 html[data-fx="blur"] .criteria-card::before {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: 0 0 auto 0;
+  height: 42%;
   pointer-events: none;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.28), transparent 38%),
-    linear-gradient(180deg, transparent 46%, rgba(var(--accent-rgb), 0.07) 100%);
-  opacity: 0.9;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0));
+  opacity: 1;
   z-index: 0;
 }
 
 html[data-theme="dark"][data-fx="blur"] .criteria-card::before {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 38%),
-    linear-gradient(180deg, transparent 46%, rgba(var(--accent-rgb), 0.08) 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0));
 }
 
 html[data-fx="blur"] .criteria-card > * {

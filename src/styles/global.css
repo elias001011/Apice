@@ -178,25 +178,30 @@ html[data-fx="blur"] {
     radial-gradient(circle at 50% 76%, rgba(var(--accent-rgb), 0.04), transparent 24rem);
   --scene-opacity: 1;
   --scene-texture:
-    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0 1px, transparent 1px 16px),
-    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.26) 1px, transparent 0);
-  --scene-texture-opacity: 0.08;
+    linear-gradient(115deg, rgba(255, 255, 255, 0.1), transparent 42%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 14px),
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.14) 1px, transparent 0);
+  --scene-texture-opacity: 0.14;
+  --glass-surface: rgba(255, 255, 255, 0.16);
+  --glass-surface-strong: rgba(255, 255, 255, 0.24);
+  --glass-border: rgba(255, 255, 255, 0.22);
+  --glass-border-strong: rgba(255, 255, 255, 0.32);
   --bg2-glass: var(--glass-surface);
-  --glass-blur: 28px;
+  --glass-blur: 30px;
   --overlay-blur: 18px;
-  --nav-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.08)), var(--glass-surface-strong);
-  --tab-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.06)), var(--glass-surface-strong);
-  --footer-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)), var(--glass-surface-strong);
+  --nav-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.03)), var(--glass-surface-strong);
+  --tab-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03)), var(--glass-surface-strong);
+  --footer-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02)), var(--glass-surface-strong);
   --chrome-border: var(--glass-border-strong);
   --nav-shadow: 0 18px 44px rgba(8, 9, 4, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.28);
   --tab-shadow: 0 -18px 44px rgba(8, 9, 4, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   --footer-shadow: 0 -18px 44px rgba(8, 9, 4, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   --chrome-blur: var(--glass-blur);
-  --floating-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.08)), var(--glass-surface);
+  --floating-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04)), var(--glass-surface);
   --floating-border: var(--glass-border);
   --floating-shadow: 0 24px 64px rgba(8, 9, 4, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.22);
   --floating-blur: calc(var(--glass-blur) * 0.92);
-  --modal-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.12)), var(--glass-surface-strong);
+  --modal-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06)), var(--glass-surface-strong);
   --modal-border: var(--glass-border-strong);
   --modal-shadow: 0 30px 74px rgba(8, 9, 4, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.28);
   --modal-blur: var(--glass-blur);
@@ -209,15 +214,20 @@ html[data-theme="dark"][data-fx="blur"] {
     radial-gradient(circle at 88% 0%, rgba(var(--accent-rgb), 0.05), transparent 20rem),
     radial-gradient(circle at 50% 76%, rgba(var(--accent-rgb), 0.04), transparent 24rem);
   --scene-texture:
-    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0 1px, transparent 1px 16px),
-    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.14) 1px, transparent 0);
-  --scene-texture-opacity: 0.1;
+    linear-gradient(115deg, rgba(255, 255, 255, 0.04), transparent 42%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 14px),
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.1) 1px, transparent 0);
+  --scene-texture-opacity: 0.16;
+  --glass-surface: rgba(18, 18, 18, 0.24);
+  --glass-surface-strong: rgba(18, 18, 18, 0.32);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-strong: rgba(255, 255, 255, 0.14);
   --bg2-glass: var(--glass-surface);
-  --nav-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)), var(--glass-surface-strong);
-  --tab-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)), var(--glass-surface-strong);
-  --footer-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008)), var(--glass-surface-strong);
-  --floating-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.015)), var(--glass-surface);
-  --modal-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)), var(--glass-surface-strong);
+  --nav-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008)), var(--glass-surface-strong);
+  --tab-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.006)), var(--glass-surface-strong);
+  --footer-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.006)), var(--glass-surface-strong);
+  --floating-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)), var(--glass-surface);
+  --modal-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)), var(--glass-surface-strong);
   --overlay-surface: rgba(0, 0, 0, 0.44);
   --nav-shadow: 0 18px 44px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   --tab-shadow: 0 -18px 44px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -289,8 +299,8 @@ body {
   inset: 0;
   opacity: var(--scene-texture-opacity);
   background-image: var(--scene-texture);
-  background-size: auto, 18px 18px;
-  background-position: center, 0 0;
+  background-size: 100% 100%, auto, 18px 18px;
+  background-position: center, center, 0 0;
   transition: opacity 0.55s ease, background-image 0.55s ease;
   mix-blend-mode: soft-light;
 }
@@ -482,6 +492,16 @@ html[data-fx="blur"] .nav-avatar {
 .nav-icon-btn:hover {
   border-color: var(--accent);
   background: var(--bg3);
+}
+
+html[data-fx="blur"] .nav-icon-btn:hover,
+html[data-fx="blur"] .nav-avatar:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+html[data-theme="dark"][data-fx="blur"] .nav-icon-btn:hover,
+html[data-theme="dark"][data-fx="blur"] .nav-avatar:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .nav-icon-btn:active {

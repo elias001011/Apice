@@ -39,8 +39,11 @@ import {
   CATEGORIES as BACKUP_CATEGORIES,
 } from '../services/backupService.js'
 import {
+  loadWeatherCardEnabled,
   loadWeatherLocation,
+  saveWeatherCardEnabled,
   saveWeatherLocation,
+  subscribeWeatherCardEnabled,
   subscribeWeatherLocation,
   WEATHER_LOCATION_SUGGESTIONS,
 } from '../services/weatherPreferences.js'
@@ -240,6 +243,14 @@ const perfilCss = `
     letter-spacing: 0.08em;
     text-transform: uppercase;
     white-space: nowrap;
+  }
+
+  .weather-settings-toggle {
+    margin-bottom: 0.95rem;
+    padding: 0.9rem 1rem;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
   }
 
   .weather-settings-form {
@@ -710,6 +721,7 @@ export function PerfilPage() {
   const [backupStats, setBackupStats] = useState(null)
   const [selectedBackupCategories, setSelectedBackupCategories] = useState([])
   const backupFileRef = useRef(null)
+  const [weatherCardEnabled, setWeatherCardEnabled] = useState(() => loadWeatherCardEnabled())
   const [weatherLocation, setWeatherLocation] = useState(() => loadWeatherLocation())
   const [weatherMsg, setWeatherMsg] = useState('')
 
@@ -911,6 +923,9 @@ export function PerfilPage() {
     }
     refreshAvatar()
     const unlistenAvatar = subscribeAvatarSettings(refreshAvatar)
+    const refreshWeatherCardEnabled = () => setWeatherCardEnabled(loadWeatherCardEnabled())
+    refreshWeatherCardEnabled()
+    const unlistenWeatherCardEnabled = subscribeWeatherCardEnabled(refreshWeatherCardEnabled)
     const refreshWeatherLocation = () => setWeatherLocation(loadWeatherLocation())
     refreshWeatherLocation()
     const unlistenWeatherLocation = subscribeWeatherLocation(refreshWeatherLocation)
@@ -920,6 +935,7 @@ export function PerfilPage() {
       unlistenInsights()
       unlistenAiPreference()
       unlistenAvatar()
+      unlistenWeatherCardEnabled()
       unlistenWeatherLocation()
     }
   }, [])
@@ -985,6 +1001,12 @@ export function PerfilPage() {
     const nextLocation = saveWeatherLocation(weatherLocation)
     setWeatherLocation(nextLocation)
     setWeatherMsg('Localizacao salva. O card da home vai usar essa cidade.')
+  }
+
+  const handleWeatherCardToggle = () => {
+    const nextEnabled = saveWeatherCardEnabled(!weatherCardEnabled)
+    setWeatherCardEnabled(nextEnabled)
+    setWeatherMsg(nextEnabled ? 'Card de clima ativado na home.' : 'Card de clima ocultado na home.')
   }
 
   return (
@@ -1195,6 +1217,26 @@ export function PerfilPage() {
                 </div>
               </div>
               <div className="weather-settings-badge">Home</div>
+            </div>
+
+            <div className="toggle-row weather-settings-toggle">
+              <div className="toggle-info">
+                <div className="toggle-label">Mostrar card na home</div>
+                <div className="toggle-sub">
+                  {weatherCardEnabled
+                    ? 'O clima aparece na tela inicial.'
+                    : 'O card de clima fica oculto na tela inicial.'}
+                </div>
+              </div>
+              <button
+                type="button"
+                className={`toggle ${weatherCardEnabled ? 'on' : ''}`}
+                onClick={handleWeatherCardToggle}
+                aria-pressed={weatherCardEnabled}
+                aria-label={weatherCardEnabled ? 'Desativar card de clima' : 'Ativar card de clima'}
+              >
+                <span className="toggle-knob" />
+              </button>
             </div>
 
             <div className="weather-settings-form">
