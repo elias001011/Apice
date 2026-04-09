@@ -878,11 +878,30 @@ const homeCss = `
 
   html[data-fx="blur"] .home-radar-card {
     background:
-      radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 28%),
-      linear-gradient(145deg, rgba(var(--accent-rgb), 0.04), rgba(var(--accent-rgb), 0.018)),
-      var(--bg2-glass) !important;
-    border-color: rgba(var(--accent-rgb), 0.1) !important;
-    box-shadow: 0 14px 30px rgba(8, 9, 4, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+      radial-gradient(circle at top right, rgba(255, 255, 255, 0.12), transparent 24%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+      rgba(var(--accent-rgb), 0.9) !important;
+    border-color: rgba(var(--accent-rgb), 0.22) !important;
+    box-shadow: 0 18px 42px rgba(8, 9, 4, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
+  }
+
+  html[data-fx="blur"] .home-radar-card .pv-feature-title,
+  html[data-fx="blur"] .home-radar-card .pv-feature-desc,
+  html[data-fx="blur"] .home-radar-card .pv-pill {
+    color: #0f0f0f !important;
+  }
+
+  html[data-fx="blur"] .home-radar-card .pv-pill {
+    background: rgba(15, 15, 15, 0.1) !important;
+    border-color: rgba(15, 15, 15, 0.08) !important;
+  }
+
+  html[data-fx="blur"] .home-radar-card .pv-feature-icon {
+    background: rgba(15, 15, 15, 0.12) !important;
+  }
+
+  html[data-fx="blur"] .home-radar-card .pv-feature-icon svg {
+    stroke: #0f0f0f !important;
   }
 
   html[data-fx="none"] .home-radar-card {
@@ -1949,6 +1968,46 @@ const homeCss = `
     border: 1px solid rgba(var(--accent-rgb), 0.25);
   }
   .pv-stat--lime:hover { border-color: rgba(var(--accent-rgb), 0.35); }
+
+  html[data-fx="blur"] .pv-stat--lime {
+    background:
+      radial-gradient(circle at top right, rgba(255, 255, 255, 0.14), transparent 30%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+      rgba(var(--accent-rgb), 0.9);
+    border-color: rgba(var(--accent-rgb), 0.22);
+    box-shadow: 0 18px 42px rgba(8, 9, 4, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
+
+  html[data-fx="blur"] .pv-stat--lime .pv-stat-icon {
+    background: rgba(15, 15, 15, 0.12);
+  }
+
+  html[data-fx="blur"] .pv-stat--lime .pv-stat-icon svg {
+    stroke: #0f0f0f;
+  }
+
+  html[data-fx="blur"] .pv-stat--lime .pv-stat-delta {
+    background: rgba(15, 15, 15, 0.1);
+    color: #0f0f0f;
+  }
+
+  html[data-fx="blur"] .pv-stat--lime .pv-stat-value,
+  html[data-fx="blur"] .pv-stat--lime .pv-stat-value span,
+  html[data-fx="blur"] .pv-stat--lime .pv-stat-label {
+    color: #0f0f0f;
+  }
+
+  html[data-fx="blur"] .pv-stat--lime .pv-stat-value span {
+    opacity: 0.78;
+  }
+
+  html[data-fx="blur"] .pv-stat--lime .pv-bar {
+    background: rgba(15, 15, 15, 0.14);
+  }
+
+  html[data-fx="blur"] .pv-stat--lime .pv-bar-fill {
+    background: #0f0f0f;
+  }
 
   .pv-stat-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
 
