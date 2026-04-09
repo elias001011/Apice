@@ -276,7 +276,7 @@ body {
   isolation: isolate;
 }
 
-.app-shell > :not(.app-scene) {
+.app-shell > :not(.app-scene):not(.bottom-tab):not(.app-busy-overlay) {
   position: relative;
   z-index: 1;
 }
@@ -684,7 +684,7 @@ html[data-fx="blur"] .nav-more-link.active {
   border-top: 1px solid var(--chrome-border);
   box-shadow: var(--tab-shadow);
   display: flex;
-  z-index: 200;
+  z-index: 300;
 }
 
 .app-busy-overlay {

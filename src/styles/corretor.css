@@ -215,6 +215,41 @@ html[data-fx="blur"] .mode-toggle-pill {
   border-bottom-color: var(--accent);
 }
 
+.mode-pill-btn {
+  padding: 6px 16px;
+  border-radius: 99px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--text3);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mode-pill-btn.active {
+  background: var(--bg2);
+  color: var(--accent);
+  box-shadow: 0 6px 18px rgba(8, 9, 4, 0.08);
+}
+
+/* Inputs & Materials */
+.dynamic-input {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--border);
+  border-radius: 0;
+  padding: 8px 0;
+  font-size: 1.2rem;
+  font-family: 'DM Serif Display', serif;
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+.dynamic-input:focus {
+  border-bottom-color: var(--accent);
+}
+
 .material-box {
   background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg3);
   border-radius: var(--radius-sm);
@@ -230,12 +265,12 @@ html[data-fx="gradients"] .material-box {
 }
 
 html[data-fx="blur"] .material-box {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--floating-border);
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.03), transparent 50%), var(--bg2-glass);
+  border-color: rgba(var(--accent-rgb), 0.14);
   border-left-color: var(--accent);
   backdrop-filter: blur(calc(var(--glass-blur) * 0.55)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.55)) saturate(var(--glass-saturate));
-  box-shadow: var(--floating-shadow);
+  box-shadow: 0 12px 28px rgba(8, 9, 4, 0.08);
 }
 
 .material-label {
@@ -393,42 +428,6 @@ html[data-fx="blur"] .status-mode {
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.35)) saturate(var(--glass-saturate));
 }
 
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--border2);
-}
-
-.status-dot.done {
-  background: var(--accent);
-  box-shadow: none;
-}
-
-.side-separator {
-  height: 1px;
-  background: var(--border);
-  margin: 1.5rem 0;
-}
-
-.main-submit {
-  margin-top: 1rem;
-  box-shadow: 0 14px 32px rgba(var(--accent-rgb), 0.16);
-}
-
-.main-reset-btn {
-  margin-top: 12px;
-  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.08), rgba(var(--accent-rgb), 0.16));
-  border: 1px solid rgba(var(--accent-rgb), 0.18);
-  color: var(--accent);
-  box-shadow: none;
-}
-
-.main-reset-btn:hover {
-  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.12), rgba(var(--accent-rgb), 0.22));
-  color: var(--accent);
-}
-
 .btn-ghost-small {
   background: transparent;
   border: none;
@@ -472,42 +471,86 @@ html[data-fx="blur"] .status-mode {
   z-index: 1;
 }
 
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border2);
+}
+
+.status-dot.done {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.side-separator {
+  height: 1px;
+  background: var(--border);
+  margin: 1.5rem 0;
+}
+
+.main-submit {
+  margin-top: 1rem;
+  box-shadow: 0 14px 32px rgba(var(--accent-rgb), 0.16);
+}
+
+.main-reset-btn {
+  margin-top: 12px;
+  background: transparent;
+  border: 1.5px solid var(--border2);
+  color: var(--text2);
+  box-shadow: none;
+}
+
+.main-reset-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: transparent;
+}
+
+html[data-fx="blur"] .main-reset-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--floating-border);
+}
+
+html[data-fx="blur"] .main-reset-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+html[data-theme="dark"][data-fx="blur"] .main-reset-btn {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme="dark"][data-fx="blur"] .main-reset-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+
 html[data-fx="gradients"][data-card-gradients="on"] .criteria-card {
   background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2);
   border-color: rgba(var(--accent-rgb), 0.08);
 }
-
-html[data-fx="blur"] .criteria-card {
+html[data-fx="blur"] .criteria-card {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
-    rgba(255, 255, 255, 0.38) !important;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%),
+    var(--bg2-glass) !important;
   border-color: rgba(255, 255, 255, 0.18) !important;
-  backdrop-filter: blur(calc(var(--floating-blur) * 1.05)) saturate(calc(var(--glass-saturate) + 0.08)) !important;
-  -webkit-backdrop-filter: blur(calc(var(--floating-blur) * 1.05)) saturate(calc(var(--glass-saturate) + 0.08)) !important;
-  box-shadow: 0 22px 48px rgba(8, 9, 4, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
-  margin-top: -8px;
-  z-index: 4;
+  backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
+  box-shadow: 0 16px 40px rgba(8, 9, 4, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+  margin-top: 0;
+  z-index: 1;
 }
 
 html[data-theme="dark"][data-fx="blur"] .criteria-card {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
-    rgba(18, 18, 18, 0.44) !important;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%),
+    var(--bg2-glass) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 html[data-fx="blur"] .criteria-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0));
-  opacity: 0.82;
-  z-index: 0;
-}
-
-html[data-theme="dark"][data-fx="blur"] .criteria-card::before {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
+  display: none;
 }
 
 html[data-fx="blur"] .criteria-card > * {
@@ -522,6 +565,7 @@ html[data-fx="blur"] .dashboard-column-side {
 html[data-fx="blur"] .sticky-side {
   z-index: 1;
 }
+
 
 html[data-fx="none"] .criteria-card {
   background: var(--bg2);

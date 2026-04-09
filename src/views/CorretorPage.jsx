@@ -167,6 +167,7 @@ export function CorretorPage() {
     setHasStarted(true)
     setTemaModo('manual')
     setErrorMsg('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const handleGerarTema = async () => {
@@ -190,6 +191,7 @@ export function CorretorPage() {
       setMaterial(novoMaterial)
       setHasStarted(true)
       setTemaModo('dynamic')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
       if (themeRequestSeq.current !== requestId) return
       setErrorMsg(err?.message || 'Não foi possível gerar um tema agora. Tente digitar um manualmente.')

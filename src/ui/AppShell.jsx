@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { ThemeToggleButton } from './ThemeToggleButton.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { useAppBusy } from './AppBusyContext.jsx'
@@ -16,6 +16,7 @@ import { UpgradeModalProvider } from './UpgradeModal.jsx'
 import { QuotaLimitBanner } from './QuotaLimitBanner.jsx'
 
 export function AppShell() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const { busy } = useAppBusy()
   const { theme, accent } = useTheme()
@@ -104,7 +105,12 @@ export function AppShell() {
                       to="/conquistas"
                       className={({ isActive }) => `nav-more-link${isActive ? ' active' : ''}`}
                       role="menuitem"
-                      onClick={() => setMobileMoreOpen(false)}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setMobileMoreOpen(false)
+                        // Pequeno delay para garantir que o menu fecha antes de navegar
+                        requestAnimationFrame(() => navigate('/conquistas'))
+                      }}
                     >
                       <span className="nav-more-link-icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24">
