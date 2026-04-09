@@ -178,7 +178,7 @@ function applyUiPreferencesToDom(animationsEnabled, cardHoverEffects, visualEffe
   html.setAttribute('data-animations', animationsEnabled ? 'on' : 'off')
   html.setAttribute('data-card-hover', cardHoverEffects ? 'on' : 'off')
   html.setAttribute('data-fx', safeVisualEffects)
-  html.setAttribute('data-card-gradients', safeVisualEffects === 'gradients' && cardGradientsEnabled ? 'on' : 'off')
+  html.setAttribute('data-card-gradients', safeVisualEffects === 'gradients' ? 'on' : 'off')
 }
 
 function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
@@ -248,6 +248,16 @@ export function ThemeProvider({ children }) {
     applyUiPreferencesToDom(animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled)
     applyLayoutToDom(layoutMode)
   }, [theme, accent, fontSize, fontFamily, layoutMode, resolvedContainerSize, animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled])
+
+  useEffect(() => {
+    if (visualEffects === 'gradients' && !cardGradientsEnabled) {
+      setCardGradientsEnabled(true)
+    }
+
+    if (visualEffects !== 'gradients' && cardGradientsEnabled) {
+      setCardGradientsEnabled(false)
+    }
+  }, [visualEffects, cardGradientsEnabled])
 
   useEffect(() => {
     try {

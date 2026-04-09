@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { usePwaInstall } from '../pwa/usePwaInstall.js'
 import {
@@ -34,6 +34,7 @@ import {
   subscribeWeatherLocation,
   filterCitySuggestions,
 } from '../services/weatherPreferences.js'
+import { saveProfessorHandoff } from '../services/professorHandoff.js'
 import frases from '../data/frases.json'
 import { OnboardingModal } from '../ui/OnboardingModal.jsx'
 
@@ -84,6 +85,7 @@ function formatWeatherUpdatedAt(value) {
 
 export function HomePage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   
   const rawName = user?.user_metadata?.full_name || 'Sua conta'
   const nameParts = rawName.split(' ')
@@ -108,6 +110,8 @@ export function HomePage() {
   const [citySearchQuery, setCitySearchQuery] = useState('')
   const [citySearchOpen, setCitySearchOpen] = useState(false)
   const [citySearchFocused, setCitySearchFocused] = useState(-1)
+  const [professorMessage, setProfessorMessage] = useState('')
+  const [professorMessageError, setProfessorMessageError] = useState('')
   const enemLabel = getEnemYearLabel()
   const [dailyQuote] = useState(() => frases[getDailyQuoteIndex()])
 
@@ -326,6 +330,26 @@ export function HomePage() {
       setCitySearchOpen(false)
       setCitySearchFocused(-1)
     }
+  }
+
+  function handleProfessorWidgetSubmit(event) {
+    event.preventDefault()
+
+    const message = professorMessage.trim()
+    if (!message) {
+      setProfessorMessageError('Escreva uma dúvida antes de enviar.')
+      return
+    }
+
+    const handoff = saveProfessorHandoff({
+      message,
+      categoryId: 'duvidas',
+      source: 'home-widget',
+    })
+
+    setProfessorMessage('')
+    setProfessorMessageError('')
+    navigate('/professor', { state: { handoff } })
   }
 
   const weatherCard = weatherCardEnabled ? (
@@ -673,6 +697,49 @@ export function HomePage() {
               </div>
             </Link>
 
+            <form
+              className="pv-feature pv-feature--dark pv-feature--professor anim anim-d4 home-professor-card"
+              onSubmit={handleProfessorWidgetSubmit}
+            >
+              <div className="pv-feature-content">
+                <div className="pv-feature-title">Professor IA</div>
+                <div className="pv-feature-desc">
+                  Escreva sua dúvida aqui e eu encaminho direto para a conversa do professor.
+                </div>
+                <label className="prof-widget-input-shell">
+                  <span className="sr-only">Mensagem para o professor</span>
+                  <textarea
+                    className="prof-widget-input"
+                    value={professorMessage}
+                    onChange={(event) => {
+                      setProfessorMessage(event.target.value)
+                      if (professorMessageError) setProfessorMessageError('')
+                    }}
+                    placeholder="Ex: como montar uma tese mais forte para a redação?"
+                    rows={3}
+                    aria-label="Mensagem para o professor"
+                  />
+                </label>
+                <div className="prof-widget-actions">
+                  <button type="submit" className="pv-feature-btn prof-widget-btn">
+                    Enviar para o Professor
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                  <div className="prof-widget-hint">Abre o Professor já com sua dúvida preenchida.</div>
+                </div>
+                {professorMessageError && <div className="prof-widget-error">{professorMessageError}</div>}
+              </div>
+              <div className="pv-feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 4v16" />
+                  <path d="M5 8h14" />
+                  <path d="M7 8v10a2 2 0 002 2h6a2 2 0 002-2V8" />
+                </svg>
+              </div>
+            </form>
+
             {userSummary && (
               <div className="card performance-card anim anim-d4 home-performance-card">
                 <div className="card-title">Análise de Desempenho</div>
@@ -800,6 +867,87 @@ const homeCss = `
 
   .home-radar-card .pv-feature-content {
     gap: 10px;
+  }
+
+  form.home-professor-card.pv-feature {
+    display: flex;
+    align-items: stretch;
+    gap: 1rem;
+    min-height: auto;
+    cursor: default;
+  }
+
+  form.home-professor-card.pv-feature:hover {
+    transform: none;
+    box-shadow: 0 16px 38px rgba(8, 9, 4, 0.06);
+    border-color: rgba(var(--accent-rgb), 0.08);
+  }
+
+  form.home-professor-card.pv-feature .pv-feature-content {
+    flex: 1;
+    gap: 0.7rem;
+  }
+
+  .prof-widget-input-shell {
+    display: block;
+  }
+
+  .prof-widget-input {
+    width: 100%;
+    min-height: 86px;
+    resize: vertical;
+    border-radius: 16px;
+    border: 1px solid rgba(var(--accent-rgb), 0.12);
+    background: rgba(var(--accent-rgb), 0.04);
+    color: var(--text);
+    padding: 0.85rem 0.95rem;
+    font: inherit;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    outline: none;
+    transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .prof-widget-input::placeholder {
+    color: var(--text3);
+  }
+
+  .prof-widget-input:focus {
+    border-color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.08);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+  }
+
+  html[data-fx="blur"] .prof-widget-input {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(calc(var(--glass-blur) * 0.42));
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.42));
+  }
+
+  .prof-widget-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  form.home-professor-card.pv-feature .prof-widget-btn {
+    margin-top: 0;
+  }
+
+  .prof-widget-hint {
+    font-size: 0.72rem;
+    line-height: 1.45;
+    color: var(--text3);
+    max-width: 28ch;
+  }
+
+  .prof-widget-error {
+    font-size: 0.74rem;
+    line-height: 1.5;
+    color: var(--red);
+    margin-top: -0.15rem;
   }
 
   .weather-card {

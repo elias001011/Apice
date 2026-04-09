@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import { CATEGORIES } from '../data/mockProfessorData.js'
 import { chamarIAEspecifica, buscarContexto } from '../services/aiService.js'
+import { clearProfessorHandoff, loadProfessorHandoff, normalizeProfessorHandoff } from '../services/professorHandoff.js'
 import '../styles/professor.css'
 
 const STORAGE_KEY = 'apice:professor:conversations'
@@ -214,8 +216,10 @@ function renderMessageBody(messageText, isMindmap) {
 }
 
 export function ProfessorPage() {
+  const location = useLocation()
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0])
   const messageIdRef = useRef(0)
+  const autoHandoffRef = useRef(false)
 
   const [conversations, setConversations] = useState(() => {
     try {
@@ -237,6 +241,7 @@ export function ProfessorPage() {
   const [isTyping, setIsTyping] = useState(false)
   const [aiError, setAiError] = useState(false)
   const messagesWallRef = useRef(null)
+  const [queuedHandoff] = useState(() => normalizeProfessorHandoff(location.state?.handoff) || loadProfessorHandoff())
 
   const activeMessages = Array.isArray(conversations[activeCategory.id]) ? conversations[activeCategory.id] : EMPTY_MESSAGES
 
@@ -275,8 +280,10 @@ export function ProfessorPage() {
     }
   }, [conversations])
 
-  const handleSendMessage = async () => {
-    if (!inputText.trim() || isTyping) return
+  const handleSendMessage = async (messageOverride = inputText, categoryOverride = activeCategory) => {
+    const userMessage = String(messageOverride ?? '').trim()
+    const categoryAtSend = categoryOverride || activeCategory
+    if (!userMessage || isTyping) return
 
     if (isBrowserOffline()) {
       setAiError(true)
@@ -284,8 +291,6 @@ export function ProfessorPage() {
       return
     }
 
-    const userMessage = inputText.trim()
-    const categoryAtSend = activeCategory
     const categoryId = categoryAtSend.id
     const categoryMessages = Array.isArray(conversations[categoryId]) ? conversations[categoryId] : []
 
@@ -415,6 +420,19 @@ export function ProfessorPage() {
       setIsTyping(false)
     }
   }
+
+  useEffect(() => {
+    const handoff = queuedHandoff
+    if (!handoff || autoHandoffRef.current) return
+
+    autoHandoffRef.current = true
+    clearProfessorHandoff()
+
+    const category = CATEGORIES.find((item) => item.id === handoff.categoryId) || CATEGORIES[0]
+    setActiveCategory(category)
+    setInputText('')
+    void handleSendMessage(handoff.message, category)
+  }, [queuedHandoff])
 
   const handleClearHistory = () => {
     setAiError(false)

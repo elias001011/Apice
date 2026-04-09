@@ -1532,3 +1532,186 @@ html[data-card-hover="off"] .conq-card--unlocked:hover {
 .criteria-card {
   z-index: 1;
 }
+
+/* FX CONSISTENCY
+   Aplica a mesma leitura visual em todo o app para que none / gradients / blur
+   não virem experiências híbridas entre páginas. */
+html[data-fx="none"] :is(
+  .card,
+  .hero,
+  .weather-card,
+  .enem-card,
+  .performance-card,
+  .pv-feature--dark,
+  .pv-feature--lime,
+  .pv-feature--quote,
+  .profile-hero,
+  .radar-hero,
+  .tema-card,
+  .score-hero,
+  .comps-card,
+  .feedback-block,
+  .prob-hero,
+  .detail-error,
+  .material-box,
+  .material-card,
+  .criteria-card,
+  .prof-chat-card,
+  .prof-pills-bar,
+  .prof-composer-unified,
+  .prof-mindmap-canvas-wrap,
+  .prof-mindmap-toolbar,
+  .prof-mindmap-preview-shell,
+  .prof-mindmap-preview-paper,
+  .prof-mindmap-node,
+  .prof-mindmap-stage-footer span,
+  .prof-mindmap-action,
+  .prof-mindmap-error,
+  .prof-mindmap-error-action,
+  .intro-card-option,
+  .ap-color-btn,
+  .ap-font-btn,
+  .ap-fx-btn,
+  .ap-layout-btn,
+  .theme-icon-opt,
+  .stat-small,
+  .settings-icon,
+  .weather-settings-card,
+  .ai-pref-card,
+  .quota-card,
+  .meu-plano-card,
+  .avatar-card,
+  .backup-card,
+  .planos-hero,
+  .pricing-card,
+  .planos-change-card,
+  .faq-item
+) {
+  background: var(--bg2) !important;
+  background-image: none !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--surface-shadow-sm) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-fx="gradients"] :is(
+  .card,
+  .hero,
+  .weather-card,
+  .enem-card,
+  .performance-card,
+  .pv-feature--dark,
+  .pv-feature--quote,
+  .profile-hero,
+  .radar-hero,
+  .tema-card,
+  .score-hero,
+  .comps-card,
+  .feedback-block,
+  .prob-hero,
+  .detail-error,
+  .material-box,
+  .material-card,
+  .criteria-card,
+  .prof-chat-card,
+  .prof-pills-bar,
+  .prof-composer-unified,
+  .prof-mindmap-canvas-wrap,
+  .prof-mindmap-toolbar,
+  .prof-mindmap-preview-shell,
+  .prof-mindmap-preview-paper,
+  .prof-mindmap-node,
+  .prof-mindmap-stage-footer span,
+  .prof-mindmap-action,
+  .prof-mindmap-error,
+  .prof-mindmap-error-action,
+  .intro-card-option,
+  .ap-color-btn,
+  .ap-font-btn,
+  .ap-fx-btn,
+  .ap-layout-btn,
+  .theme-icon-opt,
+  .stat-small,
+  .settings-icon,
+  .weather-settings-card,
+  .ai-pref-card,
+  .quota-card,
+  .meu-plano-card,
+  .avatar-card,
+  .backup-card,
+  .planos-hero,
+  .pricing-card,
+  .planos-change-card,
+  .faq-item
+) {
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.014), transparent 64%), var(--bg2) !important;
+  border-color: rgba(var(--accent-rgb), 0.08) !important;
+  box-shadow: var(--surface-shadow-md) !important;
+}
+
+html[data-fx="gradients"] .pv-feature--lime {
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.14), rgba(var(--accent-rgb), 0.06)) !important;
+  border-color: rgba(var(--accent-rgb), 0.14) !important;
+}
+
+html[data-fx="blur"] :is(
+  .card,
+  .hero,
+  .weather-card,
+  .enem-card,
+  .performance-card,
+  .pv-feature--dark,
+  .pv-feature--quote,
+  .profile-hero,
+  .radar-hero,
+  .tema-card,
+  .score-hero,
+  .comps-card,
+  .feedback-block,
+  .prob-hero,
+  .detail-error,
+  .material-box,
+  .material-card,
+  .criteria-card,
+  .prof-chat-card,
+  .prof-pills-bar,
+  .prof-composer-unified,
+  .prof-mindmap-canvas-wrap,
+  .prof-mindmap-toolbar,
+  .prof-mindmap-preview-shell,
+  .prof-mindmap-preview-paper,
+  .prof-mindmap-node,
+  .prof-mindmap-stage-footer span,
+  .prof-mindmap-action,
+  .prof-mindmap-error,
+  .prof-mindmap-error-action,
+  .intro-card-option,
+  .ap-color-btn,
+  .ap-font-btn,
+  .ap-fx-btn,
+  .ap-layout-btn,
+  .theme-icon-opt,
+  .stat-small,
+  .settings-icon,
+  .weather-settings-card,
+  .ai-pref-card,
+  .quota-card,
+  .meu-plano-card,
+  .avatar-card,
+  .backup-card,
+  .planos-hero,
+  .pricing-card,
+  .planos-change-card,
+  .faq-item
+) {
+  background: var(--bg2-glass) !important;
+  border-color: var(--floating-border) !important;
+  box-shadow: var(--floating-shadow) !important;
+  backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
+}
+
+html[data-fx="blur"] .pv-feature--lime {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05)), var(--bg2-glass) !important;
+}
