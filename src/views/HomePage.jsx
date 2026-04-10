@@ -322,36 +322,36 @@ export function HomePage() {
 
       {hasWeatherData ? (
         <div className="weather-body">
-          <div className="weather-icon-shell" aria-hidden="true">
-            {weatherData.icone ? (
-              <img
-                src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
-                alt=""
-                className="weather-icon"
-              />
-            ) : (
-              <svg viewBox="0 0 24 24" className="weather-fallback-icon">
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-              </svg>
-            )}
-          </div>
-          <div className="weather-data">
-            <div className="weather-temp-value">{weatherData.temperatura}°</div>
-            <div className="weather-chips-row">
-              <span className="weather-chip">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
+          <div className="weather-row">
+            <div className="weather-icon-shell" aria-hidden="true">
+              {weatherData.icone ? (
+                <img
+                  src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
+                  alt=""
+                  className="weather-icon"
+                />
+              ) : (
+                <svg viewBox="0 0 24 24" className="weather-fallback-icon">
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
                 </svg>
-                {weatherData.maxima}°
-              </span>
-              <span className="weather-chip">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M12 5v14" /><path d="M19 12l-7 7-7-7" />
-                </svg>
-                {weatherData.minima}°
-              </span>
+              )}
             </div>
+            <div className="weather-temp-value">{weatherData.temperatura}°</div>
+          </div>
+          <div className="weather-chips-row">
+            <span className="weather-chip">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
+              </svg>
+              {weatherData.maxima}°
+            </span>
+            <span className="weather-chip">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 5v14" /><path d="M19 12l-7 7-7-7" />
+              </svg>
+              {weatherData.minima}°
+            </span>
           </div>
         </div>
       ) : (
@@ -876,14 +876,20 @@ const homeCss = `
 
   .weather-body {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 1.1rem;
+    gap: 0.35rem;
+  }
+
+  .weather-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
   }
 
   .weather-icon-shell {
-    width: 72px;
-    height: 72px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -892,26 +898,18 @@ const homeCss = `
   }
 
   .weather-icon {
-    width: 72px;
-    height: 72px;
+    width: 56px;
+    height: 56px;
     object-fit: contain;
-    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.08));
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.06));
   }
 
   .weather-fallback-icon {
-    width: 36px;
-    height: 36px;
+    width: 28px;
+    height: 28px;
     fill: none;
     stroke: var(--accent);
     stroke-width: 1.8;
-  }
-
-  .weather-data {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.3rem;
   }
 
   .weather-temp-value {
@@ -920,14 +918,12 @@ const homeCss = `
     line-height: 1;
     color: var(--text);
     letter-spacing: -0.03em;
-    text-align: center;
   }
 
   .weather-chips-row {
     display: flex;
-    gap: 0.4rem;
+    gap: 0.45rem;
     align-items: center;
-    justify-content: center;
   }
 
   .weather-chip {

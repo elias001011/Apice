@@ -1134,7 +1134,7 @@ export function PerfilPage() {
     event.preventDefault()
     const nextLocation = saveWeatherLocation(weatherLocation)
     setWeatherLocation(nextLocation)
-    setWeatherMsg('Localizacao salva. O card da home vai usar essa cidade.')
+    setWeatherMsg('Localização salva. O card da home vai usar essa cidade.')
   }
 
   const handleWeatherCardToggle = () => {
