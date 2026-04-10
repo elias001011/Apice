@@ -830,8 +830,8 @@ const homeCss = `
     width: 100%;
     padding: 1.25rem 1rem;
     border-radius: 20px;
-    border: none;
-    background: transparent;
+    border: 1px solid var(--border);
+    background: var(--bg2);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1560,32 +1560,32 @@ const homeCss = `
     background: var(--accent);
     border: 1px solid var(--accent);
   }
-  .pv-stat--lime .pv-stat-icon { background: rgba(0, 0, 0, 0.12); }
-  .pv-stat--lime .pv-stat-icon svg { stroke: var(--text); }
-  .pv-stat--lime .pv-stat-delta { background: rgba(0, 0, 0, 0.1); color: var(--text); }
+  .pv-stat--lime .pv-stat-icon { background: rgba(0, 0, 0, 0.15); }
+  .pv-stat--lime .pv-stat-icon svg { stroke: #0f0f0f; }
+  .pv-stat--lime .pv-stat-delta { background: rgba(0, 0, 0, 0.12); color: #0f0f0f; }
   .pv-stat--lime .pv-stat-value,
   .pv-stat--lime .pv-stat-value span,
-  .pv-stat--lime .pv-stat-label { color: var(--text); }
+  .pv-stat--lime .pv-stat-label { color: #0f0f0f; }
   .pv-stat--lime .pv-stat-value span { opacity: 0.7; }
-  .pv-stat--lime .pv-bar { background: rgba(0, 0, 0, 0.1); }
-  .pv-stat--lime .pv-bar-fill { background: var(--text); }
+  .pv-stat--lime .pv-bar { background: rgba(0, 0, 0, 0.12); }
+  .pv-stat--lime .pv-bar-fill { background: #0f0f0f; }
 
   .pv-stat-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
 
   .pv-stat-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
   .pv-stat--dark .pv-stat-icon { background: var(--accent-dim); }
   .pv-stat--dark .pv-stat-icon svg { stroke: var(--accent); }
-  .pv-stat--lime .pv-stat-icon { background: rgba(0, 0, 0, 0.12); }
-  .pv-stat--lime .pv-stat-icon svg { stroke: var(--text); }
+  .pv-stat--lime .pv-stat-icon { background: rgba(0, 0, 0, 0.15); }
+  .pv-stat--lime .pv-stat-icon svg { stroke: #0f0f0f; }
   .pv-stat-icon svg { width: 18px; height: 18px; fill: none; stroke-width: 1.7; }
 
   .pv-stat-delta { font-size: 0.65rem; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
   .pv-stat--dark .pv-stat-delta { background: var(--accent-dim); color: var(--accent); }
-  .pv-stat--lime .pv-stat-delta { background: rgba(0, 0, 0, 0.1); color: var(--text); }
+  .pv-stat--lime .pv-stat-delta { background: rgba(0, 0, 0, 0.12); color: #0f0f0f; }
 
   .pv-stat-value { font-family: 'DM Serif Display', serif; font-size: 2rem; line-height: 1; margin-bottom: 3px; }
   .pv-stat--dark .pv-stat-value { color: var(--text); }
-  .pv-stat--lime .pv-stat-value { color: var(--text); }
+  .pv-stat--lime .pv-stat-value { color: #0f0f0f; }
   .pv-stat-value span { font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 400; opacity: 0.5; }
 
   html.layout-compact .pv-stat-value {
@@ -1594,14 +1594,14 @@ const homeCss = `
 
   .pv-stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
   .pv-stat--dark .pv-stat-label { color: var(--text2); }
-  .pv-stat--lime .pv-stat-label { color: var(--text); }
+  .pv-stat--lime .pv-stat-label { color: #0f0f0f; }
 
   .pv-bar { height: 3px; border-radius: 3px; overflow: hidden; }
   .pv-stat--dark .pv-bar { background: var(--border); }
-  .pv-stat--lime .pv-bar { background: rgba(0, 0, 0, 0.1); }
+  .pv-stat--lime .pv-bar { background: rgba(0, 0, 0, 0.12); }
   .pv-bar-fill { height: 100%; border-radius: 3px; }
   .pv-stat--dark .pv-bar-fill { background: var(--accent); }
-  .pv-stat--lime .pv-bar-fill { background: var(--text); }
+  .pv-stat--lime .pv-bar-fill { background: #0f0f0f; }
 
   @media (max-width: 767px) {
     .pv-stat-top {
@@ -1691,12 +1691,12 @@ const homeCss = `
     background: var(--accent);
     border: 1px solid var(--accent);
   }
-  .pv-feature--lime .pv-feature-title { color: var(--text); }
-  .pv-feature--lime .pv-feature-desc { color: var(--text2); }
-  .pv-feature--lime .pv-pill { background: rgba(0, 0, 0, 0.1); color: var(--text); }
-  .pv-feature--lime .pv-feature-btn { background: var(--text); color: var(--accent); }
-  .pv-feature--lime .pv-feature-icon svg { stroke: var(--text); }
-  .pv-feature--lime .pv-feature-icon { background: rgba(0, 0, 0, 0.08); }
+  .pv-feature--lime .pv-feature-title { color: #0f0f0f; }
+  .pv-feature--lime .pv-feature-desc { color: #333; }
+  .pv-feature--lime .pv-pill { background: rgba(0, 0, 0, 0.12); color: #0f0f0f; }
+  .pv-feature--lime .pv-feature-btn { background: #0f0f0f; color: var(--accent); }
+  .pv-feature--lime .pv-feature-icon svg { stroke: #0f0f0f; }
+  .pv-feature--lime .pv-feature-icon { background: rgba(0, 0, 0, 0.1); }
 
   .pv-feature-content { display: flex; flex-direction: column; gap: 7px; position: relative; z-index: 2; }
 
@@ -1741,14 +1741,14 @@ const homeCss = `
   .pv-feature-btn:active { transform: scale(0.97); }
   .pv-feature--dark .pv-feature-btn { background: var(--accent); color: #0f0f0f; }
   .pv-feature--dark .pv-feature-btn:hover { background: var(--accent2); }
-  .pv-feature--lime .pv-feature-btn { background: var(--bg3); color: var(--text); border: 1px solid rgba(var(--accent-rgb), 0.12); }
-  .pv-feature--lime .pv-feature-btn:hover { background: var(--bg2); }
+  .pv-feature--lime .pv-feature-btn { background: #0f0f0f; color: var(--accent); }
+  .pv-feature--lime .pv-feature-btn:hover { background: #333; }
 
   .pv-feature-icon { width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; z-index: 2; }
   .pv-feature--dark .pv-feature-icon { background: var(--accent-dim); }
   .pv-feature--dark .pv-feature-icon svg { stroke: var(--accent); }
-  .pv-feature--lime .pv-feature-icon { background: rgba(var(--accent-rgb), 0.08); }
-  .pv-feature--lime .pv-feature-icon svg { stroke: var(--accent); }
+  .pv-feature--lime .pv-feature-icon { background: rgba(0, 0, 0, 0.1); }
+  .pv-feature--lime .pv-feature-icon svg { stroke: #0f0f0f; }
   .pv-feature-icon svg { width: 26px; height: 26px; fill: none; stroke-width: 1.5; }
   .performance-card {
     background: var(--bg2);
