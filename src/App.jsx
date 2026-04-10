@@ -21,7 +21,7 @@ import { TemaDetalhePage } from './views/TemaDetalhePage.jsx'
 import { RedefinirSenhaPage } from './views/RedefinirSenhaPage.jsx'
 import { ConfirmarEmailPage } from './views/ConfirmarEmailPage.jsx'
 import { VerificarEmailPage } from './views/VerificarEmailPage.jsx'
-import { LandingPage } from './views/LandingPage/LandingPage.jsx'
+import LandingPage from './views/LandingPage/LandingPage.jsx'
 import { useAuth } from './auth/useAuth.js'
 
 /**
