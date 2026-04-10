@@ -17,20 +17,38 @@ const RADAR_TEMAS = [
   { titulo: 'Segurança alimentar no Brasil', prob: 74, area: 'Economia' },
 ];
 
+// Cálculos de desconto fixos (base: mensal R$19,90)
+const DISCOUNTS = {
+  monthly: 0,
+  semiannual: Math.round(((19.90 - 14.90) / 19.90) * 100), // 25%
+  annual: Math.round(((19.90 - 11.90) / 19.90) * 100),      // 40%
+};
+
 /**
  * Landing Page Component
- * Com ferramentas interativas (Mini-Radar + Corretor) como lead magnet
  */
 const LandingPage = () => {
+  // Detecta tema do dispositivo
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return true;
+  });
+
+  // Escuta mudança de tema do SO
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e) => setDarkMode(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   const [billingPeriod, setBillingPeriod] = useState('annual');
   const [enemCountdown, setEnemCountdown] = useState(null);
-
-  // Mini-Radar state
-  const [radarStep, setRadarStep] = useState('idle'); // idle, loading, preview, gated
+  const [radarStep, setRadarStep] = useState('idle');
   const [radarResults, setRadarResults] = useState([]);
-
-  // Corretor state
-  const [correctorStep, setCorrectorStep] = useState('idle'); // idle, loading, preview, gated
+  const [correctorStep, setCorrectorStep] = useState('idle');
   const [correctorEssay, setCorrectorEssay] = useState('');
   const [correctorResult, setCorrectorResult] = useState(null);
 
@@ -52,7 +70,7 @@ const LandingPage = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // ── Mini-Radar handlers ──
+  // Handlers
   const handleRadarSearch = () => {
     setRadarStep('loading');
     setTimeout(() => {
@@ -62,11 +80,6 @@ const LandingPage = () => {
     }, 1800);
   };
 
-  const handleRadarGated = () => {
-    setRadarStep('gated');
-  };
-
-  // ── Corretor handlers ──
   const handleCorrectorSubmit = () => {
     if (!correctorEssay.trim() || correctorEssay.trim().split(/\s+/).length < 30) return;
     setCorrectorStep('loading');
@@ -96,18 +109,13 @@ const LandingPage = () => {
     }, 2200);
   };
 
-  const handleCorrectorGated = () => {
-    setCorrectorStep('gated');
-  };
-
   const plans = {
-    monthly: { label: 'Mensal', totalPrice: 19.90, pricePerMonth: 19.90, billingPeriodLabel: 'a cada mês', discount: null },
-    semiannual: { label: 'Semestral', totalPrice: 89.40, pricePerMonth: 14.90, billingPeriodLabel: 'a cada 6 meses', discount: 'Economia de R$ 30' },
-    annual: { label: 'Anual', totalPrice: 142.80, pricePerMonth: 11.90, billingPeriodLabel: 'a cada 12 meses', discount: 'Melhor custo-benefício' },
+    monthly: { label: 'Mensal', totalPrice: 19.90, pricePerMonth: 19.90, billingPeriodLabel: 'a cada mês' },
+    semiannual: { label: 'Semestral', totalPrice: 89.40, pricePerMonth: 14.90, billingPeriodLabel: 'a cada 6 meses' },
+    annual: { label: 'Anual', totalPrice: 142.80, pricePerMonth: 11.90, billingPeriodLabel: 'a cada 12 meses' },
   };
 
   const selectedPlan = plans[billingPeriod];
-  const savingsPercent = Math.round(((19.90 - selectedPlan.pricePerMonth) / 19.90) * 100);
 
   const testimonials = [
     { initials: 'MC', name: 'Maria Clara', role: 'Medicina — UFMG', text: 'O corretor me ajudou a sair dos 720 e chegar nos 960. O feedback por competências mostrou exatamente onde melhorar.', gradient: 'linear-gradient(135deg, #c8f060, #e0f69a)' },
@@ -116,7 +124,26 @@ const LandingPage = () => {
   ];
 
   return (
-    <div className="lp-container">
+    <div className={`lp-container${darkMode ? ' lp-dark' : ' lp-light'}`}>
+
+      {/* ══════════════ THEME TOGGLE ══════════════ */}
+      <button
+        className="lp-theme-toggle"
+        onClick={() => setDarkMode(d => !d)}
+        aria-label={darkMode ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
+        title={darkMode ? 'Modo claro' : 'Modo escuro'}
+      >
+        {darkMode ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        )}
+      </button>
+
       {/* ══════════════ HEADER ══════════════ */}
       <header className="lp-header">
         <nav className="lp-nav">
@@ -181,7 +208,7 @@ const LandingPage = () => {
         </button>
       </div>
 
-      {/* ══════════════ DEMO INTERATIVA (Lead Magnets) ══════════════ */}
+      {/* ══════════════ DEMO INTERATIVA ══════════════ */}
       <section id="demo" className="lp-demo-tools">
         <div className="lp-section-header">
           <span className="lp-section-badge">TESTE GRÁTIS</span>
@@ -461,9 +488,15 @@ const LandingPage = () => {
         </div>
 
         <div className="lp-billing-toggle">
-          <button className={`lp-toggle-option${billingPeriod === 'monthly' ? ' active' : ''}`} onClick={() => setBillingPeriod('monthly')}><span>Mensal</span></button>
-          <button className={`lp-toggle-option${billingPeriod === 'semiannual' ? ' active' : ''}`} onClick={() => setBillingPeriod('semiannual')}><span>Semestral</span></button>
-          <button className={`lp-toggle-option${billingPeriod === 'annual' ? ' active' : ''}`} onClick={() => setBillingPeriod('annual')}><span>Anual</span><span className="lp-toggle-badge">-{savingsPercent}%</span></button>
+          <button className={`lp-toggle-option${billingPeriod === 'monthly' ? ' active' : ''}`} onClick={() => setBillingPeriod('monthly')}>Mensal</button>
+          <button className={`lp-toggle-option${billingPeriod === 'semiannual' ? ' active' : ''}`} onClick={() => setBillingPeriod('semiannual')}>
+            Semestral
+            <span className="lp-toggle-badge">-{DISCOUNTS.semiannual}%</span>
+          </button>
+          <button className={`lp-toggle-option${billingPeriod === 'annual' ? ' active' : ''}`} onClick={() => setBillingPeriod('annual')}>
+            Anual
+            <span className="lp-toggle-badge">-{DISCOUNTS.annual}%</span>
+          </button>
         </div>
 
         <div className="lp-pricing-compare">
@@ -483,7 +516,8 @@ const LandingPage = () => {
           <div className="lp-plan-column lp-plan-featured">
             <div className="lp-plan-card">
               {billingPeriod === 'annual' && <div className="lp-plan-popular-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Mais escolhido</div>}
-              <div className="lp-plan-header"><h3>Premium {selectedPlan.label}</h3><p>Sem limites</p><div className="lp-plan-price"><span className="lp-plan-price-value">{selectedPlan.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span><span className="lp-plan-price-period">/{selectedPlan.billingPeriodLabel}</span></div><div className="lp-plan-price-note">{selectedPlan.pricePerMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês em média</div>{selectedPlan.discount && <div className="lp-plan-discount">{selectedPlan.discount}</div>}</div>
+              {billingPeriod === 'semiannual' && <div className="lp-plan-popular-badge">Economia de R$ 30</div>}
+              <div className="lp-plan-header"><h3>Premium {selectedPlan.label}</h3><p>Sem limites</p><div className="lp-plan-price"><span className="lp-plan-price-value">{selectedPlan.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span><span className="lp-plan-price-period">/{selectedPlan.billingPeriodLabel}</span></div><div className="lp-plan-price-note">{selectedPlan.pricePerMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês em média</div></div>
               <ul className="lp-plan-features">
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>10 usos de IA/dia</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>7 dias grátis</span></li>

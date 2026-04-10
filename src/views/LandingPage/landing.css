@@ -5,7 +5,17 @@
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900&family=DM+Serif+Display&display=swap');
 
-:root {
+/* ═══ THEME VARIABLES ═══ */
+.lp-container {
+  min-height: 100vh;
+  font-family: 'DM Sans', sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+/* Dark mode (default) */
+.lp-dark {
   --lp-bg: #0a0a0a;
   --lp-surface: #121212;
   --lp-card: #1a1a1a;
@@ -14,6 +24,54 @@
   --lp-text: #ffffff;
   --lp-muted: #c4c2bc;
   --lp-dim: #8a8882;
+  --lp-header-bg: rgba(10, 10, 10, 0.85);
+}
+
+/* Light mode */
+.lp-light {
+  --lp-bg: #f5f4f0;
+  --lp-surface: #ffffff;
+  --lp-card: #ffffff;
+  --lp-border: rgba(15, 15, 12, 0.14);
+  --lp-border-h: rgba(15, 15, 12, 0.28);
+  --lp-text: #080904;
+  --lp-muted: #3a3935;
+  --lp-dim: #585752;
+  --lp-header-bg: rgba(245, 244, 240, 0.85);
+}
+
+.lp-container {
+  background: var(--lp-bg);
+  color: var(--lp-text);
+}
+
+/* ═══ THEME TOGGLE ═══ */
+.lp-theme-toggle {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 200;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1.5px solid var(--lp-border);
+  background: var(--lp-card);
+  color: var(--lp-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+}
+
+.lp-theme-toggle:hover {
+  transform: scale(1.1);
+  border-color: #c8f060;
+}
+
+/* Shared vars (both themes) */
+:root {
   --lp-accent: #c8f060;
   --lp-accent-dim: rgba(200, 240, 96, 0.12);
   --lp-accent-dim2: rgba(200, 240, 96, 0.22);
@@ -38,7 +96,7 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(10, 10, 10, 0.85);
+  background: var(--lp-header-bg);
   backdrop-filter: blur(16px) saturate(1.2);
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
   border-bottom: 1px solid var(--lp-border);
@@ -112,7 +170,7 @@
   font-family: inherit;
 }
 
-.lp-btn-ghost:hover { background: rgba(255,255,255,0.04); border-color: var(--lp-border-h); }
+.lp-btn-ghost:hover { background: rgba(128,128,128,0.06); border-color: var(--lp-border-h); }
 
 .lp-btn-large { padding: 0.95rem 1.8rem; font-size: 0.98rem; }
 
