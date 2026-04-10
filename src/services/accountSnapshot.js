@@ -235,6 +235,7 @@ export function buildAccountSnapshot(user) {
     radarFavorites: loadRadarFavorites()
       .map((favorite) => compactRadarFavoriteSnapshot(favorite))
       .filter(Boolean),
+    radarSnapshot: loadRadarSnapshot(),
     summary: loadUserSummary(),
     aiResponsePreference: loadAiResponsePreference(),
     avatarSettings: loadAvatarSettings(),

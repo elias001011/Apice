@@ -910,6 +910,7 @@ const homeCss = `
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 0.3rem;
   }
 
@@ -919,12 +920,14 @@ const homeCss = `
     line-height: 1;
     color: var(--text);
     letter-spacing: -0.03em;
+    text-align: center;
   }
 
   .weather-chips-row {
     display: flex;
     gap: 0.4rem;
     align-items: center;
+    justify-content: center;
   }
 
   .weather-chip {
