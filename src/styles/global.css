@@ -792,7 +792,7 @@ body,
 
 /* ── MAIN ── */
 .main {
-  padding-top: calc(var(--nav-h) + 1.25rem);
+  padding-top: calc(var(--nav-h) + 0.5rem);
   padding-bottom: calc(var(--tab-h) + 1.5rem);
   padding-left: 1rem;
   padding-right: 1rem;
@@ -1202,7 +1202,7 @@ html[data-card-hover="on"] .card:hover {
 @media (min-width: 768px) {
   .main {
     max-width: 1200px;
-    padding-top: calc(var(--nav-h) + 2rem);
+    padding-top: calc(var(--nav-h) + 1rem);
     padding-bottom: 3.25rem;
     padding-left: 2rem;
     padding-right: 2rem;

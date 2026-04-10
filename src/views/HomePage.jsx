@@ -794,23 +794,23 @@ const homeCss = `
   .home-grid-right {
     display: flex;
     flex-direction: column;
-    gap: 0.85rem;
+    gap: 0.7rem;
     min-width: 0;
   }
 
   html.layout-compact .home-grid-left,
   html.layout-compact .home-grid-right {
-    gap: 0.7rem;
+    gap: 0.6rem;
   }
 
   .home-grid {
     display: flex;
     flex-direction: column;
-    gap: 0.85rem;
+    gap: 0.7rem;
   }
 
   html.layout-compact .home-grid {
-    gap: 0.7rem;
+    gap: 0.6rem;
   }
 
   /* Grid principal */
