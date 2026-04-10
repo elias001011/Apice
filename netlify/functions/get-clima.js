@@ -1,9 +1,10 @@
 /**
- * Endpoint de clima usando OpenWeatherMap Geocoding + One Call 3.
+ * Endpoint de clima usando OpenWeatherMap Geocoding + One Call 3 + Air Pollution.
  *
  * Fluxo:
  *  1. Geocoding API para converter cidade → lat/lon
- *  2. One Call 3 para dados climáticos atuais + previsão
+ *  2. One Call 3 para dados climáticos atuais
+ *  3. Air Pollution API para índice de qualidade do ar
  *
  * Endpoints públicos:
  *   GET /.netlify/functions/get-clima?city=São+Paulo
@@ -17,6 +18,21 @@ import { buildCorsHeaders } from './utils/cors.js'
 const OWM_API_KEY = process.env.CLIMA
 const OWM_GEO_URL = 'https://api.openweathermap.org/geo/1.0/direct'
 const OWM_WEATHER_URL = 'https://api.openweathermap.org/data/3.0/onecall'
+const OWM_AIR_URL = 'https://api.openweathermap.org/data/2.5/air_pollution'
+
+/**
+ * Mapeia o AQI numérico (1-5) para label e cor em português.
+ */
+function aqiInfo(aqi) {
+  const map = {
+    1: { label: 'Boa', color: '#4caf50' },
+    2: { label: 'Razoável', color: '#8bc34a' },
+    3: { label: 'Moderada', color: '#ff9800' },
+    4: { label: 'Ruim', color: '#f44336' },
+    5: { label: 'Muito ruim', color: '#b71c1c' },
+  }
+  return map[aqi] || { label: 'N/A', color: '#888' }
+}
 
 export default async function handler(req) {
   const headers = buildCorsHeaders(req)
@@ -37,7 +53,7 @@ export default async function handler(req) {
     return handleGeocode(url, headers)
   }
 
-  // ── Weather endpoint (com auth) ─────────────────────────────────
+  // ── Weather + Air Quality endpoint (com auth) ───────────────────
   const auth = requireAuth(req, headers)
   if (auth instanceof Response) {
     console.warn('[get-clima] Não autenticado')
@@ -45,7 +61,6 @@ export default async function handler(req) {
   }
 
   const cityParam = url.searchParams.get('city') || 'São Paulo'
-  // Remove sufixo de estado/país para a busca geocoding
   const cityName = cityParam.split(',')[0].trim()
 
   if (!OWM_API_KEY) {
@@ -64,7 +79,7 @@ export default async function handler(req) {
     }
     const { lat, lon, name, state, country } = geoData[0]
 
-    // Passo 2: One Call 3
+    // Passo 2: One Call 3 (clima)
     const weatherUrl = `${OWM_WEATHER_URL}?lat=${lat}&lon=${lon}&units=metric&lang=pt_br&exclude=minutely,hourly,daily,alerts&appid=${OWM_API_KEY}`
     const weatherRes = await fetch(weatherUrl)
 
@@ -81,6 +96,28 @@ export default async function handler(req) {
     const weatherData = await weatherRes.json()
     const current = weatherData.current || {}
 
+    // Passo 3: Air Pollution
+    let airQuality = null
+    try {
+      const airRes = await fetch(`${OWM_AIR_URL}?lat=${lat}&lon=${lon}&appid=${OWM_API_KEY}`)
+      if (airRes.ok) {
+        const airData = await airRes.json()
+        const main = airData?.list?.[0]?.main
+        const components = airData?.list?.[0]?.components
+        if (main?.aqi) {
+          const info = aqiInfo(main.aqi)
+          airQuality = {
+            aqi: main.aqi,
+            label: info.label,
+            color: info.color,
+            components: components || {},
+          }
+        }
+      }
+    } catch (airErr) {
+      console.warn('[get-clima] Falha ao buscar qualidade do ar:', airErr.message)
+    }
+
     // Monta resposta compatível com o frontend
     const result = {
       cidade: name,
@@ -95,10 +132,11 @@ export default async function handler(req) {
       condicaoId: current.weather?.[0]?.id,
       umidade: current.humidity,
       pressao: current.pressure,
-      vento: Math.round((current.wind_speed || 0) * 3.6), // m/s → km/h
+      vento: Math.round((current.wind_speed || 0) * 3.6),
       visibilidadeKm: current.visibility ? Math.round(current.visibility / 1000 * 10) / 10 : null,
       nuvens: current.clouds,
       alertas: weatherData.alerts || [],
+      qualidadeAr: airQuality,
       debug: {
         auth: 'ok',
         userId: auth.user.id.slice(0, 12),

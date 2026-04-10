@@ -322,39 +322,58 @@ export function HomePage() {
 
       {hasWeatherData ? (
         <>
-          <div className="weather-body">
-            <div className="weather-row">
-              <div className="weather-icon-shell" aria-hidden="true">
-                {weatherData.icone ? (
-                  <img
-                    src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
-                    alt=""
-                    className="weather-icon"
-                  />
-                ) : (
-                  <svg viewBox="0 0 24 24" className="weather-fallback-icon">
-                    <circle cx="12" cy="12" r="4" />
-                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-                  </svg>
-                )}
+          <div className="weather-grid">
+            {/* Esquerda: clima */}
+            <div className="weather-left">
+              <div className="weather-body">
+                <div className="weather-row">
+                  <div className="weather-icon-shell" aria-hidden="true">
+                    {weatherData.icone ? (
+                      <img
+                        src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
+                        alt=""
+                        className="weather-icon"
+                      />
+                    ) : (
+                      <svg viewBox="0 0 24 24" className="weather-fallback-icon">
+                        <circle cx="12" cy="12" r="4" />
+                        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="weather-temp-value">{weatherData.temperatura}°</div>
+                </div>
+                <div className="weather-chips-row">
+                  <span className="weather-chip">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
+                    </svg>
+                    {weatherData.maxima}°
+                  </span>
+                  <span className="weather-chip">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 5v14" /><path d="M19 12l-7 7-7-7" />
+                    </svg>
+                    {weatherData.minima}°
+                  </span>
+                </div>
               </div>
-              <div className="weather-temp-value">{weatherData.temperatura}°</div>
             </div>
-            <div className="weather-chips-row">
-              <span className="weather-chip">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
-                </svg>
-                {weatherData.maxima}°
-              </span>
-              <span className="weather-chip">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M12 5v14" /><path d="M19 12l-7 7-7-7" />
-                </svg>
-                {weatherData.minima}°
-              </span>
-            </div>
+
+            {/* Direita: qualidade do ar */}
+            {weatherData.qualidadeAr && (
+              <div className="weather-right">
+                <div className="air-quality-label">Qualidade do ar</div>
+                <div className="air-quality-badge" style={{ borderColor: weatherData.qualidadeAr.color }}>
+                  <span className="air-quality-dot" style={{ backgroundColor: weatherData.qualidadeAr.color }} />
+                  <span className="air-quality-value" style={{ color: weatherData.qualidadeAr.color }}>
+                    {weatherData.qualidadeAr.label}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
+
           {weatherData.alertas && weatherData.alertas.length > 0 && (
             <div className="weather-alert">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -851,13 +870,13 @@ const homeCss = `
 
   .weather-card {
     width: 100%;
-    padding: 1rem 1.2rem;
+    padding: 1rem 1.25rem;
     border-radius: 20px;
     border: 1px solid var(--border);
     background: var(--bg2);
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
+    gap: 0.5rem;
     position: relative;
     overflow: visible;
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
@@ -889,11 +908,66 @@ const homeCss = `
     margin-left: 0.35rem;
   }
 
+  .weather-grid {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .weather-left {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .weather-right {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+    padding-left: 1rem;
+    border-left: 1px solid var(--border);
+  }
+
+  .air-quality-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text3);
+  }
+
+  .air-quality-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    border: 1.5px solid;
+    background: var(--bg3);
+  }
+
+  .air-quality-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .air-quality-value {
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
   .weather-body {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 0.35rem;
+    width: 100%;
   }
 
   .weather-row {
@@ -1030,6 +1104,13 @@ const homeCss = `
     align-self: stretch;
     position: relative;
     overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+
+  html[data-card-hover="on"] .enem-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    border-color: var(--accent);
   }
 
   html.layout-compact .enem-card {
@@ -1611,7 +1692,13 @@ const homeCss = `
     justify-content: space-between;
     border: 1px solid var(--border);
     background: var(--bg2);
-    transition: border-color 0.2s;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+
+  html[data-card-hover="on"] .pv-stat:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    border-color: var(--accent);
   }
 
   html.layout-compact .pv-stat {
@@ -1755,7 +1842,9 @@ const homeCss = `
   }
 
   html[data-card-hover="on"] .pv-feature:hover {
-    border-color: rgba(var(--accent-rgb), 0.15);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    border-color: var(--accent);
   }
 
   .pv-feature--dark { background: var(--bg2); }
