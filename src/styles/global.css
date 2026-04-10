@@ -215,7 +215,7 @@ body {
   min-height: 100vh;
 }
 
-.app-shell > :not(.app-scene):not(.bottom-tab):not(.app-busy-overlay) {
+.app-shell > :not(.app-scene):not(.bottom-tab):not(.app-busy-overlay):not(.nav) {
   position: relative;
   z-index: 1;
 }
