@@ -321,39 +321,54 @@ export function HomePage() {
       </div>
 
       {hasWeatherData ? (
-        <div className="weather-body">
-          <div className="weather-row">
-            <div className="weather-icon-shell" aria-hidden="true">
-              {weatherData.icone ? (
-                <img
-                  src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
-                  alt=""
-                  className="weather-icon"
-                />
-              ) : (
-                <svg viewBox="0 0 24 24" className="weather-fallback-icon">
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-                </svg>
-              )}
+        <>
+          <div className="weather-body">
+            <div className="weather-row">
+              <div className="weather-icon-shell" aria-hidden="true">
+                {weatherData.icone ? (
+                  <img
+                    src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
+                    alt=""
+                    className="weather-icon"
+                  />
+                ) : (
+                  <svg viewBox="0 0 24 24" className="weather-fallback-icon">
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                  </svg>
+                )}
+              </div>
+              <div className="weather-temp-value">{weatherData.temperatura}°</div>
             </div>
-            <div className="weather-temp-value">{weatherData.temperatura}°</div>
+            <div className="weather-chips-row">
+              <span className="weather-chip">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
+                </svg>
+                {weatherData.maxima}°
+              </span>
+              <span className="weather-chip">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 5v14" /><path d="M19 12l-7 7-7-7" />
+                </svg>
+                {weatherData.minima}°
+              </span>
+            </div>
           </div>
-          <div className="weather-chips-row">
-            <span className="weather-chip">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
+          {weatherData.alertas && weatherData.alertas.length > 0 && (
+            <div className="weather-alert">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
               </svg>
-              {weatherData.maxima}°
-            </span>
-            <span className="weather-chip">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 5v14" /><path d="M19 12l-7 7-7-7" />
-              </svg>
-              {weatherData.minima}°
-            </span>
-          </div>
-        </div>
+              <div>
+                <strong>Alerta meteorológico</strong>
+                <span>{weatherData.alertas[0].description || 'Condições climáticas adversas na região.'}</span>
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <div className="weather-empty-state">
           <div className="weather-empty-copy">
@@ -940,8 +955,45 @@ const homeCss = `
   }
 
   .weather-chip svg {
-    opacity: 0.8;
+    opacity: 0.7;
     flex-shrink: 0;
+  }
+
+  .weather-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 12px;
+    background: rgba(225, 68, 68, 0.1);
+    border: 1px solid rgba(225, 68, 68, 0.25);
+    width: 100%;
+  }
+
+  .weather-alert svg {
+    color: var(--red);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .weather-alert div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .weather-alert strong {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--red);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .weather-alert span {
+    font-size: 0.7rem;
+    color: var(--text2);
+    line-height: 1.4;
   }
 
   .weather-empty-state {
