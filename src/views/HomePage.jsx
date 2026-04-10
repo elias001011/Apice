@@ -361,17 +361,21 @@ export function HomePage() {
             </div>
 
             {/* Direita: qualidade do ar */}
-            {weatherData.qualidadeAr && (
-              <div className="weather-right">
-                <div className="air-quality-label">Qualidade do ar</div>
+            <div className="weather-right">
+              <div className="air-quality-label">Qualidade do ar</div>
+              {weatherData.qualidadeAr ? (
                 <div className="air-quality-badge" style={{ borderColor: weatherData.qualidadeAr.color }}>
                   <span className="air-quality-dot" style={{ backgroundColor: weatherData.qualidadeAr.color }} />
                   <span className="air-quality-value" style={{ color: weatherData.qualidadeAr.color }}>
                     {weatherData.qualidadeAr.label}
                   </span>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="air-quality-badge air-quality-unavailable">
+                  <span className="air-quality-value">N/A</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {weatherData.alertas && weatherData.alertas.length > 0 && (
@@ -909,26 +913,25 @@ const homeCss = `
   }
 
   .weather-grid {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
     align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
   }
 
   .weather-left {
     display: flex;
     align-items: center;
-    flex: 1;
-    min-width: 0;
+    justify-content: center;
+    padding: 0.5rem 0;
   }
 
   .weather-right {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.4rem;
-    flex-shrink: 0;
-    padding-left: 1rem;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
     border-left: 1px solid var(--border);
   }
 
@@ -936,18 +939,24 @@ const homeCss = `
     font-size: 0.62rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
     color: var(--text3);
   }
 
   .air-quality-badge {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.25rem 0.6rem;
+    gap: 0.4rem;
+    padding: 0.3rem 0.75rem;
     border-radius: 999px;
     border: 1.5px solid;
     background: var(--bg3);
+    min-width: 80px;
+    justify-content: center;
+  }
+
+  .air-quality-badge.air-quality-unavailable {
+    border-color: var(--border);
   }
 
   .air-quality-dot {
@@ -958,7 +967,7 @@ const homeCss = `
   }
 
   .air-quality-value {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     font-weight: 700;
   }
 
@@ -966,14 +975,15 @@ const homeCss = `
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.3rem;
     width: 100%;
   }
 
   .weather-row {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    justify-content: center;
+    gap: 0.5rem;
   }
 
   .weather-icon-shell {
