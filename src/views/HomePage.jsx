@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { usePwaInstall } from '../pwa/usePwaInstall.js'
@@ -322,39 +322,41 @@ export function HomePage() {
 
       {hasWeatherData ? (
         <div className="weather-body">
-          <div className="weather-icon-shell" aria-hidden="true">
-            {weatherData.icone ? (
-              <img
-                src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
-                alt=""
-                className="weather-icon"
-              />
-            ) : (
-              <svg viewBox="0 0 24 24" className="weather-fallback-icon">
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-              </svg>
-            )}
-          </div>
-
-          <div className="weather-temp-main">
-            <span className="weather-temp-value">{weatherData.temperatura}°</span>
-          </div>
-
-          <div className="weather-chips-mini">
-            <div className="weather-chip-mini">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 19V5" />
-                <path d="M5 12l7-7 7 7" />
-              </svg>
-              <span>Máx {weatherData.maxima}°</span>
+          <div className="weather-left">
+            <div className="weather-icon-shell" aria-hidden="true">
+              {weatherData.icone ? (
+                <img
+                  src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
+                  alt=""
+                  className="weather-icon"
+                />
+              ) : (
+                <svg viewBox="0 0 24 24" className="weather-fallback-icon">
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                </svg>
+              )}
             </div>
-            <div className="weather-chip-mini">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 5v14" />
-                <path d="M19 12l-7 7-7-7" />
-              </svg>
-              <span>Mín {weatherData.minima}°</span>
+          </div>
+          <div className="weather-right">
+            <div className="weather-temp-main">
+              <span className="weather-temp-value">{weatherData.temperatura}°</span>
+            </div>
+            <div className="weather-chips-mini">
+              <div className="weather-chip-mini">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 19V5" />
+                  <path d="M5 12l7-7 7 7" />
+                </svg>
+                <span>Máx {weatherData.maxima}°</span>
+              </div>
+              <div className="weather-chip-mini">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M19 12l-7 7-7-7" />
+                </svg>
+                <span>Mín {weatherData.minima}°</span>
+              </div>
             </div>
           </div>
         </div>
@@ -840,13 +842,12 @@ const homeCss = `
 
   .weather-card {
     width: 100%;
-    padding: 1.25rem 1rem;
+    padding: 1rem 1.15rem;
     border-radius: 20px;
     border: 1px solid var(--border);
     background: var(--bg2);
     display: flex;
     flex-direction: column;
-    align-items: center;
     gap: 0.6rem;
     position: relative;
     overflow: visible;
@@ -863,19 +864,19 @@ const homeCss = `
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.15rem;
+    gap: 0.1rem;
   }
 
   .weather-location-text {
     font-family: 'DM Serif Display', serif;
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     color: var(--text);
     font-weight: 400;
     text-align: center;
   }
 
   .weather-country-text {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     color: var(--text3);
     font-weight: 600;
     text-transform: uppercase;
@@ -883,15 +884,30 @@ const homeCss = `
   }
 
   .weather-body {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0;
+    align-items: center;
+  }
+
+  .weather-left {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-right: 1rem;
+  }
+
+  .weather-right {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
+    justify-content: center;
+    gap: 0.35rem;
   }
 
   .weather-icon-shell {
-    width: 72px;
-    height: 72px;
+    width: 88px;
+    height: 88px;
     border-radius: 50%;
     background: transparent;
     border: none;
@@ -902,15 +918,15 @@ const homeCss = `
   }
 
   .weather-icon {
-    width: 72px;
-    height: 72px;
+    width: 88px;
+    height: 88px;
     object-fit: contain;
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
   }
 
   .weather-fallback-icon {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     fill: none;
     stroke: var(--accent);
     stroke-width: 1.8;
@@ -923,7 +939,7 @@ const homeCss = `
 
   .weather-temp-value {
     font-family: 'DM Serif Display', serif;
-    font-size: 3.2rem;
+    font-size: 3rem;
     line-height: 1;
     color: var(--text);
     letter-spacing: -0.04em;
@@ -931,18 +947,18 @@ const homeCss = `
 
   .weather-chips-mini {
     display: flex;
-    gap: 0.75rem;
+    gap: 0.6rem;
     align-items: center;
   }
 
   .weather-chip-mini {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.3rem 0.65rem;
+    gap: 0.25rem;
+    padding: 0.25rem 0.6rem;
     border-radius: 999px;
     background: var(--bg3);
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 600;
     color: var(--text2);
   }
@@ -1245,27 +1261,26 @@ const homeCss = `
 
   @media (max-width: 767px) {
     .weather-card {
-      padding: 1rem 0.85rem;
+      padding: 0.9rem 1rem;
       border-radius: 18px;
-      gap: 0.5rem;
     }
 
     .weather-location-text {
-      font-size: 1rem;
+      font-size: 0.95rem;
     }
 
     .weather-icon-shell {
-      width: 64px;
-      height: 64px;
+      width: 72px;
+      height: 72px;
     }
 
     .weather-icon {
-      width: 64px;
-      height: 64px;
+      width: 72px;
+      height: 72px;
     }
 
     .weather-temp-value {
-      font-size: 2.8rem;
+      font-size: 2.6rem;
     }
 
     .enem-card {
@@ -1303,17 +1318,35 @@ const homeCss = `
   }
 
   @media (max-width: 480px) {
-    .weather-temp-value {
-      font-size: 2.5rem;
-    }
-
-    .weather-chips-mini {
+    .weather-body {
       gap: 0.5rem;
     }
 
+    .weather-left {
+      padding-right: 0.6rem;
+    }
+
+    .weather-icon-shell {
+      width: 64px;
+      height: 64px;
+    }
+
+    .weather-icon {
+      width: 64px;
+      height: 64px;
+    }
+
+    .weather-temp-value {
+      font-size: 2.2rem;
+    }
+
+    .weather-chips-mini {
+      gap: 0.4rem;
+    }
+
     .weather-chip-mini {
-      padding: 0.25rem 0.55rem;
-      font-size: 0.68rem;
+      padding: 0.2rem 0.5rem;
+      font-size: 0.66rem;
     }
 
     .enem-card {
