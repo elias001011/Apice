@@ -178,7 +178,7 @@ function applyUiPreferencesToDom(animationsEnabled, cardHoverEffects, visualEffe
   html.setAttribute('data-animations', animationsEnabled ? 'on' : 'off')
   html.setAttribute('data-card-hover', cardHoverEffects ? 'on' : 'off')
   html.setAttribute('data-fx', safeVisualEffects)
-  html.setAttribute('data-card-gradients', safeVisualEffects === 'gradients' ? 'on' : 'off')
+  html.setAttribute('data-card-gradients', cardGradientsEnabled ? 'on' : 'off')
 }
 
 function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {

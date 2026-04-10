@@ -213,7 +213,6 @@ body {
 .app-shell {
   position: relative;
   min-height: 100vh;
-  isolation: isolate;
 }
 
 .app-shell > :not(.app-scene):not(.bottom-tab):not(.app-busy-overlay) {
