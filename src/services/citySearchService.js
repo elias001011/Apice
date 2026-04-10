@@ -6,7 +6,7 @@
 
 const CLIMA_FUNCTION_PATH = '/.netlify/functions/get-clima'
 
-// Lista expandida de cidades brasileiras para fallback robusto
+// Lista extensa de cidades brasileiras (capitais + maiores cidades)
 const FALLBACK_CITIES = [
   'São Paulo, SP', 'Rio de Janeiro, RJ', 'Brasília, DF', 'Belo Horizonte, MG',
   'Curitiba, PR', 'Porto Alegre, RS', 'Florianópolis, SC', 'Salvador, BA',
@@ -28,6 +28,42 @@ const FALLBACK_CITIES = [
   'Hortolândia, SP', 'Santa Bárbara d\'Oeste, SP', 'Ferraz de Vasconcelos, SP',
   'Francisco Morato, SP', 'Itapecerica da Serra, SP', 'Itu, SP',
   'Bragança Paulista, SP', 'Pindamonhangaba, SP', 'Atibaia, SP',
+  'Sarandi, PR', 'Sarandi, RS', 'Marília, SP', 'Indaiatuba, SP',
+  'Cotia, SP', 'Santana de Parnaíba, SP', 'São Bernardo do Campo, SP',
+  'Diadema, SP', 'Vila Velha, ES', 'Serra, ES', 'Cariacica, ES',
+  'Caxias do Sul, RS', 'Pelotas, RS', 'Canoas, RS', 'Santa Maria, RS',
+  'Gravataí, RS', 'Viamão, RS', 'Novo Hamburgo, RS', 'São Leopoldo, RS',
+  'Rio Grande, RS', 'Alvorada, RS', 'Passo Fundo, RS', 'Uruguaiana, RS',
+  'Santa Cruz do Sul, RS', 'Erechim, RS', 'Bagé, RS', 'Bento Gonçalves, RS',
+  'Guaíba, RS', 'Sapucaia do Sul, RS', 'Esteio, RS', 'Eldorado do Sul, RS',
+  'Charqueadas, RS', 'Montenegro, RS', 'Triunfo, RS', 'Camaquã, RS',
+  'Ijuí, RS', 'Santo Ângelo, RS', 'Santa Rosa, RS', 'Cruz Alta, RS',
+  'Cachoeira do Sul, RS', 'Lajeado, RS', 'Estrela, RS', 'Venâncio Aires, RS',
+  'São Gabriel, RS', 'Rosário do Sul, RS', 'Alegrete, RS', 'Santana do Livramento, RS',
+  'Dom Pedrito, RS', 'Jaguarão, RS', 'Herval, RS', 'Pedras Altas, RS',
+  'Aceguá, RS', 'Candiota, RS', 'Hulha Negra, RS', 'Pedro Osório, RS',
+  'Morro Redondo, RS', 'São Lourenço do Sul, RS', 'Turuçu, RS', 'Arroio do Padre, RS',
+  'Capão do Leão, RS', 'Rio Grande, RS', 'São José do Norte, RS', 'Mostardas, RS',
+  'Tavares, RS', 'São José do Norte, RS', 'Imbé, RS', 'Tramandaí, RS',
+  'Capão da Canoa, RS', 'Torres, RS', 'Arroio do Sal, RS', 'Mampituba, RS',
+  'Praia Grande, RS', 'Dom Feliciano, RS', 'Cristal, RS', 'Chuvisca, RS',
+  'Cerro Branco, RS', 'Barão do Triunfo, RS', 'Arambaré, RS', 'Sentinela do Sul, RS',
+  'Tapes, RS', 'Glorinha, RS', 'Viamão, RS', 'Cachoeirinha, RS',
+  'Gravataí, RS', 'Alvorada, RS', 'Eldorado do Sul, RS', 'Novo Hamburgo, RS',
+  'Estância Velha, RS', 'Igrejinha, RS', 'Taquara, RS', 'Gramado, RS',
+  'Canela, RS', 'São Francisco de Paula, RS', 'Vacaria, RS', 'Bom Jesus, RS',
+  'Cambará do Sul, RS', 'Jaquirana, RS', 'São José dos Ausentes, RS',
+  'Esmeralda, RS', 'Pinhal da Serra, RS', 'Campos Borges, RS', 'Ibiraiaras, RS',
+  'Sananduva, RS', 'Iraí, RS', 'Frederico Westphalen, RS', 'Palmeira das Missões, RS',
+  'Carazinho, RS', 'Cruz Alta, RS', 'Ijuí, RS', 'Santo Ângelo, RS',
+  'Giruá, RS', 'São Luiz Gonzaga, RS', 'São Miguel das Missões, RS',
+  'Santo Antônio das Missões, RS', 'São Borja, RS', 'Itaqui, RS', 'Mata, RS',
+  'Manoel Viana, RS', 'Alegrete, RS', 'Quaraí, RS', 'Barra do Quaraí, RS',
+  'Uruguaiana, RS', 'Rosário do Sul, RS', 'Cacequi, RS', 'Santa Maria, RS',
+  'Formigueiro, RS', 'São Sepé, RS', 'Caçapava do Sul, RS', 'Lavras do Sul, RS',
+  'São Gabriel, RS', 'Dom Pedrito, RS', 'Santana do Livramento, RS',
+  'Aceguá, RS', 'Bagé, RS', 'Pedro Osório, RS', 'Canguçu, RS',
+  'Piratini, RS', 'Herval, RS', 'Jaguarão, RS', 'Rio Grande, RS',
 ]
 
 /**
@@ -57,7 +93,7 @@ export async function searchCities(query, limit = 8) {
     // API retornou vazio — usa fallback
     return fallbackCitySearch(q, limit)
   } catch (error) {
-    console.warn('[citySearch] API indisponível, usando fallback:', error.message)
+    // Fallback silencioso - não logar erro se a API ainda não está disponível
     return fallbackCitySearch(q, limit)
   }
 }
@@ -67,32 +103,20 @@ export async function searchCities(query, limit = 8) {
  */
 function fallbackCitySearch(query, limit) {
   const normalizedQuery = normalizeStr(query)
+  const words = normalizedQuery.split(/\s+/).filter(Boolean)
 
+  // Busca por match de todas as palavras (ex: "sao paulo" = "sao" AND "paulo")
   const results = FALLBACK_CITIES
-    .filter(city => normalizeStr(city).includes(normalizedQuery))
+    .filter(city => {
+      const normalizedCity = normalizeStr(city)
+      return words.every(word => normalizedCity.includes(word))
+    })
     .slice(0, limit)
     .map(city => ({
       name: city.split(',')[0].trim(),
       state: city.split(',')[1]?.trim() || '',
       displayName: city,
     }))
-
-  // Se não achou nada com acento, tenta sem
-  if (results.length === 0) {
-    return FALLBACK_CITIES
-      .filter(city => {
-        const normalizedCity = normalizeStr(city)
-        // Tenta match parcial
-        return normalizedCity.includes(normalizedQuery) ||
-               normalizedQuery.includes(normalizedCity.slice(0, Math.min(normalizedQuery.length + 3, normalizedCity.length)))
-      })
-      .slice(0, limit)
-      .map(city => ({
-        name: city.split(',')[0].trim(),
-        state: city.split(',')[1]?.trim() || '',
-        displayName: city,
-      }))
-  }
 
   return results
 }

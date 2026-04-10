@@ -204,6 +204,11 @@ const perfilCss = `
 
   .weather-settings-card {
     padding: 1.2rem 1.25rem;
+    overflow: visible;
+  }
+
+  .weather-city-search-wrapper {
+    position: relative;
   }
 
   .weather-settings-top {

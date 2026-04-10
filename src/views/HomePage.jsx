@@ -877,6 +877,7 @@ const homeCss = `
   .weather-body {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 1.1rem;
   }
 
