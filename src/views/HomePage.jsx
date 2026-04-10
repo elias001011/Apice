@@ -322,41 +322,35 @@ export function HomePage() {
 
       {hasWeatherData ? (
         <div className="weather-body">
-          <div className="weather-left">
-            <div className="weather-icon-shell" aria-hidden="true">
-              {weatherData.icone ? (
-                <img
-                  src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
-                  alt=""
-                  className="weather-icon"
-                />
-              ) : (
-                <svg viewBox="0 0 24 24" className="weather-fallback-icon">
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-                </svg>
-              )}
-            </div>
+          <div className="weather-icon-shell" aria-hidden="true">
+            {weatherData.icone ? (
+              <img
+                src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
+                alt=""
+                className="weather-icon"
+              />
+            ) : (
+              <svg viewBox="0 0 24 24" className="weather-fallback-icon">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+              </svg>
+            )}
           </div>
-          <div className="weather-right">
-            <div className="weather-temp-main">
-              <span className="weather-temp-value">{weatherData.temperatura}°</span>
-            </div>
-            <div className="weather-chips-mini">
-              <div className="weather-chip-mini">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M12 19V5" />
-                  <path d="M5 12l7-7 7 7" />
+          <div className="weather-data">
+            <div className="weather-temp-value">{weatherData.temperatura}°</div>
+            <div className="weather-chips-row">
+              <span className="weather-chip">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
                 </svg>
-                <span>Máx {weatherData.maxima}°</span>
-              </div>
-              <div className="weather-chip-mini">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M12 5v14" />
-                  <path d="M19 12l-7 7-7-7" />
+                {weatherData.maxima}°
+              </span>
+              <span className="weather-chip">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 5v14" /><path d="M19 12l-7 7-7-7" />
                 </svg>
-                <span>Mín {weatherData.minima}°</span>
-              </div>
+                {weatherData.minima}°
+              </span>
             </div>
           </div>
         </div>
@@ -842,13 +836,13 @@ const homeCss = `
 
   .weather-card {
     width: 100%;
-    padding: 1rem 1.15rem;
+    padding: 1rem 1.2rem;
     border-radius: 20px;
     border: 1px solid var(--border);
     background: var(--bg2);
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 0.45rem;
     position: relative;
     overflow: visible;
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
@@ -861,56 +855,35 @@ const homeCss = `
   }
 
   .weather-header {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.1rem;
+    text-align: center;
   }
 
   .weather-location-text {
     font-family: 'DM Serif Display', serif;
-    font-size: 1.05rem;
+    font-size: 1rem;
     color: var(--text);
     font-weight: 400;
-    text-align: center;
   }
 
   .weather-country-text {
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     color: var(--text3);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
+    margin-left: 0.35rem;
   }
 
   .weather-body {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 0;
-    align-items: center;
-  }
-
-  .weather-left {
     display: flex;
     align-items: center;
-    justify-content: center;
-    padding-right: 1rem;
-  }
-
-  .weather-right {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.35rem;
+    gap: 1.1rem;
   }
 
   .weather-icon-shell {
-    width: 88px;
-    height: 88px;
+    width: 72px;
+    height: 72px;
     border-radius: 50%;
-    background: transparent;
-    border: none;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -918,54 +891,56 @@ const homeCss = `
   }
 
   .weather-icon {
-    width: 88px;
-    height: 88px;
+    width: 72px;
+    height: 72px;
     object-fit: contain;
-    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.08));
   }
 
   .weather-fallback-icon {
-    width: 44px;
-    height: 44px;
+    width: 36px;
+    height: 36px;
     fill: none;
     stroke: var(--accent);
     stroke-width: 1.8;
   }
 
-  .weather-temp-main {
+  .weather-data {
     display: flex;
-    align-items: baseline;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
   }
 
   .weather-temp-value {
     font-family: 'DM Serif Display', serif;
-    font-size: 3rem;
+    font-size: 2.6rem;
     line-height: 1;
     color: var(--text);
-    letter-spacing: -0.04em;
+    letter-spacing: -0.03em;
   }
 
-  .weather-chips-mini {
+  .weather-chips-row {
     display: flex;
-    gap: 0.6rem;
+    gap: 0.4rem;
     align-items: center;
   }
 
-  .weather-chip-mini {
+  .weather-chip {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.6rem;
+    gap: 0.2rem;
+    padding: 0.15rem 0.5rem;
     border-radius: 999px;
     background: var(--bg3);
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     font-weight: 600;
     color: var(--text2);
+    white-space: nowrap;
   }
 
-  .weather-chip-mini svg {
-    color: var(--text2);
-    opacity: 1;
+  .weather-chip svg {
+    opacity: 0.8;
     flex-shrink: 0;
   }
 
@@ -1261,26 +1236,22 @@ const homeCss = `
 
   @media (max-width: 767px) {
     .weather-card {
-      padding: 0.9rem 1rem;
+      padding: 0.9rem 1.1rem;
       border-radius: 18px;
     }
 
-    .weather-location-text {
-      font-size: 0.95rem;
-    }
-
     .weather-icon-shell {
-      width: 72px;
-      height: 72px;
+      width: 64px;
+      height: 64px;
     }
 
     .weather-icon {
-      width: 72px;
-      height: 72px;
+      width: 64px;
+      height: 64px;
     }
 
     .weather-temp-value {
-      font-size: 2.6rem;
+      font-size: 2.2rem;
     }
 
     .enem-card {
@@ -1319,34 +1290,30 @@ const homeCss = `
 
   @media (max-width: 480px) {
     .weather-body {
-      gap: 0.5rem;
-    }
-
-    .weather-left {
-      padding-right: 0.6rem;
+      gap: 0.75rem;
     }
 
     .weather-icon-shell {
-      width: 64px;
-      height: 64px;
+      width: 56px;
+      height: 56px;
     }
 
     .weather-icon {
-      width: 64px;
-      height: 64px;
+      width: 56px;
+      height: 56px;
     }
 
     .weather-temp-value {
-      font-size: 2.2rem;
+      font-size: 1.9rem;
     }
 
-    .weather-chips-mini {
-      gap: 0.4rem;
+    .weather-chips-row {
+      gap: 0.35rem;
     }
 
-    .weather-chip-mini {
-      padding: 0.2rem 0.5rem;
-      font-size: 0.66rem;
+    .weather-chip {
+      padding: 0.12rem 0.4rem;
+      font-size: 0.64rem;
     }
 
     .enem-card {

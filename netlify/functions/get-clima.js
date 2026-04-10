@@ -29,20 +29,20 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers })
   }
 
+  // ── Parse query params ────────────────────────────────────────────────
+  const url = new URL(req.url)
+  
+  // Suporte a busca de cidades via Geocoding API (sem auth - endpoint público)
+  const geocode = url.searchParams.get('geocode')
+  if (geocode === '1') {
+    return handleGeocode(url, headers)
+  }
+
   // ── Authentication (mesma proteção das IAs) ────────────────────────────
   const auth = requireAuth(req, headers)
   if (auth instanceof Response) {
     console.warn('[get-clima] Requisição não autenticada (401).')
     return auth
-  }
-
-  // ── Parse query params ────────────────────────────────────────────────
-  const url = new URL(req.url)
-  
-  // Suporte a busca de cidades via Geocoding API
-  const geocode = url.searchParams.get('geocode')
-  if (geocode === '1') {
-    return handleGeocode(url, headers)
   }
 
   const city = url.searchParams.get('city') || 'Sao Paulo'
