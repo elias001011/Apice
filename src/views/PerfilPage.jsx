@@ -45,8 +45,8 @@ import {
   saveWeatherLocation,
   subscribeWeatherCardEnabled,
   subscribeWeatherLocation,
-  WEATHER_LOCATION_SUGGESTIONS,
 } from '../services/weatherPreferences.js'
+import { searchCities, formatCityDisplayName } from '../services/citySearchService.js'
 
 const perfilCss = `
   .profile-hero {
@@ -272,6 +272,60 @@ const perfilCss = `
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--text3);
+  }
+
+  .weather-city-search-wrapper {
+    position: relative;
+  }
+
+  .weather-search-loading {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent);
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: translateY(-50%) rotate(0deg); }
+    to { transform: translateY(-50%) rotate(360deg); }
+  }
+
+  .weather-city-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 100;
+    max-height: 220px;
+    overflow-y: auto;
+    border-radius: 14px;
+    border: 1px solid var(--border2);
+    background: var(--bg2);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .weather-city-option {
+    padding: 0.6rem 0.85rem;
+    font-size: 0.85rem;
+    color: var(--text2);
+    cursor: pointer;
+    transition: background 0.1s ease, color 0.1s ease;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .weather-city-option:last-child {
+    border-bottom: none;
+  }
+
+  .weather-city-option:hover,
+  .weather-city-option.is-focused {
+    background: var(--accent-dim);
+    color: var(--accent);
   }
 
   .weather-settings-input {
@@ -724,6 +778,12 @@ export function PerfilPage() {
   const [weatherCardEnabled, setWeatherCardEnabled] = useState(() => loadWeatherCardEnabled())
   const [weatherLocation, setWeatherLocation] = useState(() => loadWeatherLocation())
   const [weatherMsg, setWeatherMsg] = useState('')
+  const [citySearchQuery, setCitySearchQuery] = useState('')
+  const [citySuggestions, setCitySuggestions] = useState([])
+  const [citySearchLoading, setCitySearchLoading] = useState(false)
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false)
+  const [cityFocused, setCityFocused] = useState(-1)
+  const citySearchRef = useRef(null)
 
   const name = user?.user_metadata?.full_name || 'Usuário'
   const email = user?.email || 'Sem e-mail'
@@ -996,6 +1056,75 @@ export function PerfilPage() {
     }
   }
 
+  // Busca dinâmica de cidades via API
+  useEffect(() => {
+    const query = citySearchQuery.trim()
+    if (query.length < 2) {
+      setCitySuggestions([])
+      setCityDropdownOpen(false)
+      return
+    }
+
+    const timerId = setTimeout(async () => {
+      setCitySearchLoading(true)
+      try {
+        const results = await searchCities(query, 8)
+        setCitySuggestions(results)
+        setCityDropdownOpen(results.length > 0)
+        setCityFocused(-1)
+      } catch (error) {
+        console.error('Erro na busca de cidades:', error)
+        setCitySuggestions([])
+      } finally {
+        setCitySearchLoading(false)
+      }
+    }, 300) // Debounce de 300ms
+
+    return () => clearTimeout(timerId)
+  }, [citySearchQuery])
+
+  const handleCitySelect = (city) => {
+    const displayName = typeof city === 'string' ? city : formatCityDisplayName(city)
+    setWeatherLocation(displayName)
+    setCitySearchQuery(displayName)
+    setCityDropdownOpen(false)
+    setCityFocused(-1)
+    setWeatherMsg('')
+  }
+
+  const handleCitySearchKeyDown = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setCityFocused(prev => Math.min(prev + 1, citySuggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setCityFocused(prev => Math.max(prev - 1, 0))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (cityFocused >= 0 && citySuggestions[cityFocused]) {
+        handleCitySelect(citySuggestions[cityFocused])
+      }
+    } else if (e.key === 'Escape') {
+      setCityDropdownOpen(false)
+      setCityFocused(-1)
+    }
+  }
+
+  // Fecha o dropdown ao clicar fora
+  useEffect(() => {
+    if (!cityDropdownOpen) return undefined
+
+    const handleClickOutside = (event) => {
+      if (citySearchRef.current && !citySearchRef.current.contains(event.target)) {
+        setCityDropdownOpen(false)
+        setCityFocused(-1)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [cityDropdownOpen])
+
   const handleWeatherLocationSave = (event) => {
     event.preventDefault()
     const nextLocation = saveWeatherLocation(weatherLocation)
@@ -1211,7 +1340,7 @@ export function PerfilPage() {
           <form className="card anim anim-d4 weather-settings-card" onSubmit={handleWeatherLocationSave}>
             <div className="weather-settings-top">
               <div>
-                <div className="weather-settings-title">Localizacao do card de clima</div>
+                <div className="weather-settings-title">Localização do card de clima</div>
                 <div className="weather-settings-copy">
                   Escolha a cidade usada no card da tela inicial. O clima atual e os indicadores extras da home passam a seguir esse local.
                 </div>
@@ -1240,35 +1369,68 @@ export function PerfilPage() {
             </div>
 
             <div className="weather-settings-form">
-              <label className="weather-settings-field">
+              <div className="weather-settings-field" ref={citySearchRef}>
                 <span>Cidade</span>
-                <input
-                  type="text"
-                  list="weather-location-options"
-                  className="weather-settings-input"
-                  value={weatherLocation}
-                  onChange={(event) => {
-                    setWeatherLocation(event.target.value)
-                    setWeatherMsg('')
-                  }}
-                  placeholder="Ex: Porto Alegre"
-                />
-              </label>
+                <div className="weather-city-search-wrapper">
+                  <input
+                    type="text"
+                    className="weather-settings-input"
+                    value={citySearchQuery || weatherLocation}
+                    onChange={(event) => {
+                      setCitySearchQuery(event.target.value)
+                      setWeatherLocation(event.target.value)
+                      setWeatherMsg('')
+                    }}
+                    onFocus={() => {
+                      if (citySuggestions.length > 0 && citySearchQuery.trim().length >= 2) {
+                        setCityDropdownOpen(true)
+                      }
+                    }}
+                    onKeyDown={handleCitySearchKeyDown}
+                    placeholder="Digite para buscar cidade..."
+                    aria-label="Buscar cidade"
+                    aria-expanded={cityDropdownOpen}
+                    aria-haspopup="listbox"
+                    autoComplete="off"
+                  />
+                  {citySearchLoading && (
+                    <div className="weather-search-loading" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" opacity="0.3" />
+                        <path d="M12 2a10 10 0 0 1 10 10" />
+                      </svg>
+                    </div>
+                  )}
+                  {cityDropdownOpen && citySuggestions.length > 0 && (
+                    <ul className="weather-city-dropdown" role="listbox">
+                      {citySuggestions.map((city, idx) => {
+                        const displayName = typeof city === 'string' ? city : formatCityDisplayName(city)
+                        return (
+                          <li
+                            key={displayName}
+                            role="option"
+                            aria-selected={idx === cityFocused}
+                            className={`weather-city-option${idx === cityFocused ? ' is-focused' : ''}`}
+                            onClick={() => handleCitySelect(city)}
+                            onMouseEnter={() => setCityFocused(idx)}
+                          >
+                            {displayName}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
 
               <button type="submit" className="btn-primary weather-settings-submit">
-                Salvar local
+                Salvar localização
               </button>
             </div>
 
-            <datalist id="weather-location-options">
-              {WEATHER_LOCATION_SUGGESTIONS.map((location) => (
-                <option key={location} value={location} />
-              ))}
-            </datalist>
-
             <div className="weather-settings-foot">
               <div className="weather-settings-note">
-                Dica: use cidade ou cidade, estado quando quiser resultados mais precisos.
+                Dica: digite o nome da cidade e selecione na lista para resultados mais precisos.
               </div>
               {weatherMsg && <div className="weather-settings-msg">{weatherMsg}</div>}
             </div>

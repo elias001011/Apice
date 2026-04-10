@@ -189,7 +189,6 @@ export function AppShell() {
 
         <nav className="bottom-tab" aria-label="Navegação principal">
           <TabLink to="/home" label="Início" icon="home" />
-          <TabLink to="/professor" label="Professor" icon="professor" />
           <TabLink to="/corretor" label="Corretor" icon="edit" />
           <TabLink to="/radar" label="Radar" icon="radar" />
           <TabLink to="/perfil" label="Perfil" icon="user" />

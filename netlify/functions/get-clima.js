@@ -16,6 +16,7 @@ import { buildCorsHeaders } from './utils/cors.js'
 
 const OWM_API_KEY = process.env.CLIMA
 const OWM_BASE_URL = 'https://api.openweathermap.org/data/2.5/weather'
+const OWM_GEO_BASE_URL = 'https://api.openweathermap.org/geo/1.0/direct'
 
 export default async function handler(req) {
   const headers = buildCorsHeaders(req)
@@ -37,6 +38,13 @@ export default async function handler(req) {
 
   // ── Parse query params ────────────────────────────────────────────────
   const url = new URL(req.url)
+  
+  // Suporte a busca de cidades via Geocoding API
+  const geocode = url.searchParams.get('geocode')
+  if (geocode === '1') {
+    return handleGeocode(url, headers)
+  }
+
   const city = url.searchParams.get('city') || 'Sao Paulo'
 
   if (!OWM_API_KEY) {
@@ -115,5 +123,51 @@ export default async function handler(req) {
       }),
       { status: 502, headers }
     )
+  }
+}
+
+/**
+ * Handler para busca de cidades via Geocoding API.
+ * GET /.netlify/functions/get-clima?geocode=1&q=Sao+Paulo&limit=8
+ */
+async function handleGeocode(url, headers) {
+  const query = url.searchParams.get('q')
+  const limit = url.searchParams.get('limit') || '8'
+
+  if (!query || query.trim().length < 2) {
+    return new Response(JSON.stringify([]), { status: 200, headers })
+  }
+
+  if (!OWM_API_KEY) {
+    console.error('[get-clima:geocode] OPENWEATHERMAP_API_KEY não configurada')
+    return new Response(JSON.stringify([]), { status: 200, headers })
+  }
+
+  try {
+    const geoUrl = `${OWM_GEO_BASE_URL}/direct?q=${encodeURIComponent(query)}&limit=${limit}&appid=${OWM_API_KEY}`
+    
+    const response = await fetch(geoUrl)
+
+    if (!response.ok) {
+      console.error(`[get-clima:geocode] OpenWeatherMap Geocoding erro ${response.status}`)
+      return new Response(JSON.stringify([]), { status: 200, headers })
+    }
+
+    const data = await response.json()
+
+    // Formata resultados para o frontend
+    const results = Array.isArray(data) ? data.slice(0, parseInt(limit, 10)).map(item => ({
+      name: item.name,
+      state: item.state || '',
+      country: item.country || '',
+      lat: item.lat,
+      lon: item.lon,
+      displayName: [item.name, item.state].filter(Boolean).join(', '),
+    })) : []
+
+    return new Response(JSON.stringify(results), { status: 200, headers })
+  } catch (error) {
+    console.error('[get-clima:geocode] Erro inesperado:', error.message)
+    return new Response(JSON.stringify([]), { status: 200, headers })
   }
 }

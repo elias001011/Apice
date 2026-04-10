@@ -29,10 +29,8 @@ import {
 import {
   loadWeatherCardEnabled,
   loadWeatherLocation,
-  saveWeatherLocation,
   subscribeWeatherCardEnabled,
   subscribeWeatherLocation,
-  filterCitySuggestions,
 } from '../services/weatherPreferences.js'
 import { saveProfessorHandoff } from '../services/professorHandoff.js'
 import frases from '../data/frases.json'
@@ -101,15 +99,11 @@ export function HomePage() {
   const [weatherCardEnabled, setWeatherCardEnabled] = useState(() => loadWeatherCardEnabled())
   const [weatherLocation, setWeatherLocation] = useState(() => loadWeatherLocation())
   const [weatherData, setWeatherData] = useState(() => {
-    const location = loadWeatherLocation()
     const cached = getLastClimaResult()
-    return isClimaResultFresh(cached, location) ? cached : null
+    return isClimaResultFresh(cached, loadWeatherLocation()) ? cached : null
   })
   const [weatherLoading, setWeatherLoading] = useState(false)
   const [weatherError, setWeatherError] = useState('')
-  const [citySearchQuery, setCitySearchQuery] = useState('')
-  const [citySearchOpen, setCitySearchOpen] = useState(false)
-  const [citySearchFocused, setCitySearchFocused] = useState(-1)
   const [professorMessage, setProfessorMessage] = useState('')
   const [professorMessageError, setProfessorMessageError] = useState('')
   const enemLabel = getEnemYearLabel()
@@ -287,51 +281,6 @@ export function HomePage() {
   const weatherCountry = weatherData?.pais || ''
   const hasWeatherData = Boolean(weatherData)
 
-  // Busca inteligente de cidades
-  const citySuggestions = filterCitySuggestions(citySearchQuery)
-  const showSuggestions = citySearchOpen && citySearchQuery.trim().length > 0
-
-  function handleCitySearchFocus() {
-    setCitySearchOpen(true)
-    setCitySearchFocused(-1)
-  }
-
-  function handleCitySearchBlur() {
-    // Fecha o dropdown após um delay para permitir clique nas sugestões
-    setTimeout(() => {
-      setCitySearchOpen(false)
-      setCitySearchFocused(-1)
-    }, 150)
-  }
-
-  function handleCitySelect(city) {
-    setWeatherLocation(city)
-    saveWeatherLocation(city)
-    setCitySearchQuery('')
-    setCitySearchOpen(false)
-    setCitySearchFocused(-1)
-  }
-
-  function handleCitySearchKeyDown(e) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setCitySearchFocused(prev => Math.min(prev + 1, citySuggestions.length - 1))
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setCitySearchFocused(prev => Math.max(prev - 1, 0))
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      if (citySearchFocused >= 0 && citySuggestions[citySearchFocused]) {
-        handleCitySelect(citySuggestions[citySearchFocused])
-      } else if (citySuggestions.length > 0) {
-        handleCitySelect(citySuggestions[0])
-      }
-    } else if (e.key === 'Escape') {
-      setCitySearchOpen(false)
-      setCitySearchFocused(-1)
-    }
-  }
-
   function handleProfessorWidgetSubmit(event) {
     event.preventDefault()
 
@@ -354,104 +303,52 @@ export function HomePage() {
 
   const weatherCard = weatherCardEnabled ? (
     <section className={`weather-card anim anim-d2${weatherLoading ? ' is-loading' : ''}`}>
-      <div className="weather-card-top">
-        <div>
-          <div className="weather-card-kicker">Clima agora</div>
-          <div className="weather-card-location">
-            <strong>{weatherHeaderLocation}</strong>
-            {weatherCountry && <span>{weatherCountry}</span>}
-          </div>
-        </div>
-        <div className="weather-city-search">
-          <input
-            type="text"
-            className="weather-city-input"
-            placeholder="Buscar cidade..."
-            value={citySearchQuery}
-            onChange={e => setCitySearchQuery(e.target.value)}
-            onFocus={handleCitySearchFocus}
-            onBlur={handleCitySearchBlur}
-            onKeyDown={handleCitySearchKeyDown}
-            aria-label="Buscar cidade para ver o clima"
-            aria-expanded={showSuggestions}
-            aria-haspopup="listbox"
-          />
-          {showSuggestions && citySuggestions.length > 0 && (
-            <ul className="weather-city-dropdown" role="listbox">
-              {citySuggestions.map((city, idx) => (
-                <li
-                  key={city}
-                  role="option"
-                  aria-selected={idx === citySearchFocused}
-                  className={`weather-city-option${idx === citySearchFocused ? ' is-focused' : ''}`}
-                  onClick={() => handleCitySelect(city)}
-                  onMouseEnter={() => setCitySearchFocused(idx)}
-                >
-                  {city}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+      <div className="weather-header">
+        <span className="weather-location-text">{weatherHeaderLocation}</span>
+        {weatherCountry && <span className="weather-country-text">{weatherCountry}</span>}
       </div>
 
       {hasWeatherData ? (
-        <>
-          <div className="weather-card-core">
-            <div className="weather-icon-shell" aria-hidden="true">
-              {weatherData.icone ? (
-                <img
-                  src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
-                  alt=""
-                  className="weather-icon"
-                />
-              ) : (
-                <svg viewBox="0 0 24 24" className="weather-fallback-icon">
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-                </svg>
-              )}
-            </div>
-
-            <div className="weather-card-main">
-              <div className="weather-temp-row">
-                <div className="weather-temp">{weatherData.temperatura}°</div>
-                <div className="weather-summary">
-                  <strong>{weatherDescription}</strong>
-                  <span>Sensação {weatherData.sensacao}°C</span>
-                </div>
-              </div>
-
-              <div className="weather-chip-row">
-                <span>Máx {weatherData.maxima}°</span>
-                <span>Mín {weatherData.minima}°</span>
-                <span>Umidade {weatherData.umidade}%</span>
-                <span>Vento {weatherData.vento} km/h</span>
-              </div>
-            </div>
+        <div className="weather-body">
+          <div className="weather-icon-shell" aria-hidden="true">
+            {weatherData.icone ? (
+              <img
+                src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
+                alt=""
+                className="weather-icon"
+              />
+            ) : (
+              <svg viewBox="0 0 24 24" className="weather-fallback-icon">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+              </svg>
+            )}
           </div>
 
-          <div className="weather-meta-strip">
-            <span>Visib. {weatherData.visibilidadeKm ?? '--'} km</span>
-            <span>Pressão {weatherData.pressao ?? '--'} hPa</span>
-            <span>Nuvens {weatherData.nuvens ?? '--'}%</span>
-            <span>Atualizado {weatherUpdatedAt}</span>
+          <div className="weather-temp-main">
+            <span className="weather-temp-value">{weatherData.temperatura}°</span>
           </div>
 
-          {weatherError && (
-            <div className="weather-inline-note">
-              Mostrando o último resultado salvo. {weatherError}
+          <div className="weather-chips-mini">
+            <div className="weather-chip-mini">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M12 2v10M12 18h.01" />
+              </svg>
+              <span>Máx {weatherData.maxima}°</span>
             </div>
-          )}
-        </>
+            <div className="weather-chip-mini">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M12 22V12M12 6h.01" />
+              </svg>
+              <span>Mín {weatherData.minima}°</span>
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="weather-empty-state">
           <div className="weather-empty-copy">
-            {weatherLoading ? 'Buscando o clima da sua região...' : 'Ainda não conseguimos carregar o clima da sua região.'}
+            {weatherLoading ? 'Buscando o clima...' : 'Não foi possível carregar o clima.'}
           </div>
-          {!weatherLoading && weatherError && (
-            <div className="weather-inline-note">{weatherError}</div>
-          )}
         </div>
       )}
     </section>
@@ -931,230 +828,54 @@ const homeCss = `
 
   .weather-card {
     width: 100%;
-    padding: 0.9rem 0.95rem;
+    padding: 1.25rem 1rem;
     border-radius: 20px;
-    border: 1px solid var(--border);
-    background: var(--bg2);
+    border: none;
+    background: transparent;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    position: relative;
-    overflow: hidden;
-  }
-
-  html[data-theme="dark"] .weather-card {
-    border-color: rgba(var(--accent-rgb), 0.12);
-  }
-
-  html[data-fx="none"] .weather-card .weather-icon-shell {
-    filter: none !important;
-  }
-
-  html[data-fx="none"] .weather-card .weather-chip-row span,
-  html[data-fx="none"] .weather-card .weather-meta-strip span {
-    background: var(--bg3) !important;
-    border-color: var(--border) !important;
-    color: var(--text2) !important;
-  }
-
-  html[data-fx="none"] .weather-card .weather-city-input {
-    background: var(--bg3) !important;
-    border-color: var(--border) !important;
-    box-shadow: none !important;
-  }
-
-  html[data-fx="none"] .weather-card .weather-city-input:focus {
-    background: var(--bg3) !important;
-    border-color: var(--border2) !important;
-  }
-
-  html[data-fx="none"] .weather-card .weather-city-dropdown {
-    background: var(--bg2) !important;
-    border-color: var(--border) !important;
-    box-shadow: none !important;
-  }
-
-  html[data-fx="none"] .weather-card .weather-city-option:hover,
-  html[data-fx="none"] .weather-card .weather-city-option.is-focused {
-    background: var(--bg3) !important;
-    color: var(--text) !important;
-  }
-
-  html[data-fx="none"] .weather-card .weather-inline-note {
-    background: var(--bg3) !important;
-    border-color: var(--border) !important;
-  }
-
-  .weather-card-top {
-    display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    flex-wrap: wrap;
+    gap: 0.6rem;
+    position: relative;
+    overflow: visible;
   }
 
-  .weather-card-kicker {
-    font-size: 0.64rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--text3);
-    margin-bottom: 0.2rem;
-  }
-
-  .weather-card-location {
+  .weather-header {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    align-items: baseline;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
   }
 
-  .weather-card-location strong {
+  .weather-location-text {
     font-family: 'DM Serif Display', serif;
-    font-size: 1.05rem;
-    line-height: 1;
+    font-size: 1.1rem;
     color: var(--text);
     font-weight: 400;
+    text-align: center;
   }
 
-  .weather-card-location span {
-    font-size: 0.74rem;
+  .weather-country-text {
+    font-size: 0.72rem;
     color: var(--text3);
-    font-weight: 700;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
-  .weather-city-search {
-    position: relative;
-    min-width: 180px;
-  }
-
-  .weather-city-input {
-    width: 100%;
-    min-height: 34px;
-    padding: 0.35rem 0.7rem;
-    border-radius: 12px;
-    border: 1px solid rgba(var(--accent-rgb), 0.15);
-    background: rgba(var(--accent-rgb), 0.04);
-    color: var(--text);
-    font-size: 0.78rem;
-    font-weight: 500;
-    outline: none;
-    transition: border-color 0.15s ease, background 0.15s ease;
-  }
-
-  .weather-city-input::placeholder {
-    color: var(--text3);
-    opacity: 0.7;
-  }
-
-  .weather-city-input:focus {
-    border-color: var(--accent);
-    background: rgba(var(--accent-rgb), 0.08);
-  }
-
-  .weather-city-dropdown {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    right: 0;
-    z-index: 10;
-    max-height: 200px;
-    overflow-y: auto;
-    border-radius: 12px;
-    border: 1px solid var(--border2);
-    background: var(--bg2);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-
-  .weather-city-option {
-    padding: 0.45rem 0.75rem;
-    font-size: 0.8rem;
-    color: var(--text2);
-    cursor: pointer;
-    transition: background 0.1s ease, color 0.1s ease;
-  }
-
-  .weather-city-option:hover,
-  .weather-city-option.is-focused {
-    background: rgba(var(--accent-rgb), 0.1);
-    color: var(--accent);
-  }
-
-  .weather-card-core {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 0.8rem;
-    align-items: center;
-  }
-
-  .weather-card-main {
-    min-width: 0;
+  .weather-body {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
-  }
-
-  .weather-temp-row {
-    display: flex;
     align-items: center;
-    gap: 0.8rem;
-  }
-
-  .weather-temp {
-    font-family: 'DM Serif Display', serif;
-    font-size: 2.5rem;
-    line-height: 0.86;
-    color: var(--text);
-    letter-spacing: -0.05em;
-  }
-
-  .weather-summary {
-    display: flex;
-    flex-direction: column;
-    gap: 0.22rem;
-  }
-
-  .weather-summary strong {
-    font-size: 0.9rem;
-    line-height: 1.2;
-    color: var(--text);
-  }
-
-  .weather-summary span {
-    font-size: 0.78rem;
-    color: var(--text2);
-  }
-
-  .weather-chip-row,
-  .weather-meta-strip {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
-
-  .weather-chip-row span,
-  .weather-meta-strip span {
-    display: inline-flex;
-    align-items: center;
-    min-height: 24px;
-    padding: 0 9px;
-    border-radius: 999px;
-    background: rgba(var(--accent-rgb), 0.05);
-    border: 1px solid rgba(var(--accent-rgb), 0.1);
-    font-size: 0.68rem;
-    font-weight: 700;
-    color: var(--text2);
+    gap: 0.5rem;
   }
 
   .weather-icon-shell {
-    width: 64px;
-    height: 64px;
-    border-radius: 18px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1162,32 +883,58 @@ const homeCss = `
   }
 
   .weather-icon {
-    width: 60px;
-    height: 60px;
+    width: 72px;
+    height: 72px;
     object-fit: contain;
-    filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.08));
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
   }
 
   .weather-fallback-icon {
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
     fill: none;
     stroke: var(--accent);
     stroke-width: 1.8;
   }
 
-  .weather-inline-note {
-    font-size: 0.74rem;
-    line-height: 1.5;
+  .weather-temp-main {
+    display: flex;
+    align-items: baseline;
+  }
+
+  .weather-temp-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 3.2rem;
+    line-height: 1;
+    color: var(--text);
+    letter-spacing: -0.04em;
+  }
+
+  .weather-chips-mini {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .weather-chip-mini {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+    background: var(--bg3);
+    font-size: 0.72rem;
+    font-weight: 600;
     color: var(--text2);
-    padding: 0.6rem 0.7rem;
-    border-radius: 12px;
-    border: 1px solid rgba(var(--accent-rgb), 0.1);
-    background: rgba(var(--accent-rgb), 0.05);
+  }
+
+  .weather-chip-mini svg {
+    color: var(--text3);
+    opacity: 0.7;
   }
 
   .weather-empty-state {
-    min-height: 92px;
+    min-height: 80px;
     border-radius: 16px;
     border: 1px dashed var(--border2);
     background: var(--bg3);
@@ -1195,7 +942,7 @@ const homeCss = `
     align-items: center;
     justify-content: center;
     flex-direction: column;
-    gap: 0.55rem;
+    gap: 0.4rem;
     padding: 1rem;
     text-align: center;
   }
@@ -1203,7 +950,7 @@ const homeCss = `
   .weather-empty-copy {
     font-size: 0.82rem;
     line-height: 1.55;
-    color: var(--text2);
+    color: var(--text3);
     max-width: 32ch;
   }
 
@@ -1478,34 +1225,27 @@ const homeCss = `
 
   @media (max-width: 767px) {
     .weather-card {
-      padding: 0.82rem 0.85rem;
+      padding: 1rem 0.85rem;
       border-radius: 18px;
-      gap: 0.7rem;
+      gap: 0.5rem;
     }
 
-    .weather-card-top {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .weather-city-search {
-      min-width: unset;
-      width: 100%;
+    .weather-location-text {
+      font-size: 1rem;
     }
 
     .weather-icon-shell {
-      width: 58px;
-      height: 58px;
-      border-radius: 16px;
+      width: 64px;
+      height: 64px;
     }
 
     .weather-icon {
-      width: 54px;
-      height: 54px;
+      width: 64px;
+      height: 64px;
     }
 
-    .weather-temp {
-      font-size: 2.15rem;
+    .weather-temp-value {
+      font-size: 2.8rem;
     }
 
     .enem-card {
@@ -1543,14 +1283,17 @@ const homeCss = `
   }
 
   @media (max-width: 480px) {
-    .weather-card-core {
-      grid-template-columns: 1fr;
-      justify-items: start;
+    .weather-temp-value {
+      font-size: 2.5rem;
     }
 
-    .weather-temp-row {
-      align-items: flex-start;
-      gap: 0.65rem;
+    .weather-chips-mini {
+      gap: 0.5rem;
+    }
+
+    .weather-chip-mini {
+      padding: 0.25rem 0.55rem;
+      font-size: 0.68rem;
     }
 
     .enem-card {
@@ -1817,32 +1560,32 @@ const homeCss = `
     background: var(--accent);
     border: 1px solid var(--accent);
   }
-  .pv-stat--lime .pv-stat-icon { background: rgba(255, 255, 255, 0.25); }
-  .pv-stat--lime .pv-stat-icon svg { stroke: #0f0f0f; }
-  .pv-stat--lime .pv-stat-delta { background: rgba(255, 255, 255, 0.25); color: #0f0f0f; }
+  .pv-stat--lime .pv-stat-icon { background: rgba(0, 0, 0, 0.12); }
+  .pv-stat--lime .pv-stat-icon svg { stroke: var(--text); }
+  .pv-stat--lime .pv-stat-delta { background: rgba(0, 0, 0, 0.1); color: var(--text); }
   .pv-stat--lime .pv-stat-value,
   .pv-stat--lime .pv-stat-value span,
-  .pv-stat--lime .pv-stat-label { color: #0f0f0f; }
-  .pv-stat--lime .pv-stat-value span { opacity: 0.78; }
-  .pv-stat--lime .pv-bar { background: rgba(15, 15, 15, 0.14); }
-  .pv-stat--lime .pv-bar-fill { background: #0f0f0f; }
+  .pv-stat--lime .pv-stat-label { color: var(--text); }
+  .pv-stat--lime .pv-stat-value span { opacity: 0.7; }
+  .pv-stat--lime .pv-bar { background: rgba(0, 0, 0, 0.1); }
+  .pv-stat--lime .pv-bar-fill { background: var(--text); }
 
   .pv-stat-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
 
   .pv-stat-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
   .pv-stat--dark .pv-stat-icon { background: var(--accent-dim); }
   .pv-stat--dark .pv-stat-icon svg { stroke: var(--accent); }
-  .pv-stat--lime .pv-stat-icon { background: rgba(255, 255, 255, 0.25); }
-  .pv-stat--lime .pv-stat-icon svg { stroke: #0f0f0f; }
+  .pv-stat--lime .pv-stat-icon { background: rgba(0, 0, 0, 0.12); }
+  .pv-stat--lime .pv-stat-icon svg { stroke: var(--text); }
   .pv-stat-icon svg { width: 18px; height: 18px; fill: none; stroke-width: 1.7; }
 
   .pv-stat-delta { font-size: 0.65rem; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
   .pv-stat--dark .pv-stat-delta { background: var(--accent-dim); color: var(--accent); }
-  .pv-stat--lime .pv-stat-delta { background: rgba(255, 255, 255, 0.25); color: #0f0f0f; }
+  .pv-stat--lime .pv-stat-delta { background: rgba(0, 0, 0, 0.1); color: var(--text); }
 
   .pv-stat-value { font-family: 'DM Serif Display', serif; font-size: 2rem; line-height: 1; margin-bottom: 3px; }
   .pv-stat--dark .pv-stat-value { color: var(--text); }
-  .pv-stat--lime .pv-stat-value { color: #0f0f0f; }
+  .pv-stat--lime .pv-stat-value { color: var(--text); }
   .pv-stat-value span { font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 400; opacity: 0.5; }
 
   html.layout-compact .pv-stat-value {
@@ -1851,14 +1594,14 @@ const homeCss = `
 
   .pv-stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
   .pv-stat--dark .pv-stat-label { color: var(--text2); }
-  .pv-stat--lime .pv-stat-label { color: rgba(15, 15, 15, 0.7); }
+  .pv-stat--lime .pv-stat-label { color: var(--text); }
 
   .pv-bar { height: 3px; border-radius: 3px; overflow: hidden; }
   .pv-stat--dark .pv-bar { background: var(--border); }
-  .pv-stat--lime .pv-bar { background: rgba(15, 15, 15, 0.15); }
+  .pv-stat--lime .pv-bar { background: rgba(0, 0, 0, 0.1); }
   .pv-bar-fill { height: 100%; border-radius: 3px; }
   .pv-stat--dark .pv-bar-fill { background: var(--accent); }
-  .pv-stat--lime .pv-bar-fill { background: #0f0f0f; }
+  .pv-stat--lime .pv-bar-fill { background: var(--text); }
 
   @media (max-width: 767px) {
     .pv-stat-top {
@@ -1948,12 +1691,12 @@ const homeCss = `
     background: var(--accent);
     border: 1px solid var(--accent);
   }
-  .pv-feature--lime .pv-feature-title { color: #0f0f0f; }
-  .pv-feature--lime .pv-feature-desc { color: rgba(15, 15, 15, 0.75); }
-  .pv-feature--lime .pv-pill { background: rgba(15, 15, 15, 0.15); color: #0f0f0f; }
-  .pv-feature--lime .pv-feature-btn { background: #0f0f0f; color: var(--accent); }
-  .pv-feature--lime .pv-feature-icon svg { stroke: #0f0f0f; }
-  .pv-feature--lime .pv-feature-icon { background: rgba(15, 15, 15, 0.08); }
+  .pv-feature--lime .pv-feature-title { color: var(--text); }
+  .pv-feature--lime .pv-feature-desc { color: var(--text2); }
+  .pv-feature--lime .pv-pill { background: rgba(0, 0, 0, 0.1); color: var(--text); }
+  .pv-feature--lime .pv-feature-btn { background: var(--text); color: var(--accent); }
+  .pv-feature--lime .pv-feature-icon svg { stroke: var(--text); }
+  .pv-feature--lime .pv-feature-icon { background: rgba(0, 0, 0, 0.08); }
 
   .pv-feature-content { display: flex; flex-direction: column; gap: 7px; position: relative; z-index: 2; }
 
