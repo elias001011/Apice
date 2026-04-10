@@ -172,6 +172,15 @@ const LandingPage = () => {
         </div>
       </main>
 
+      {/* ══════════════ CTA STRIP ══════════════ */}
+      <div className="lp-cta-strip">
+        <span>+5.000 alunos já estão estudando com IA</span>
+        <button className="lp-btn-primary" onClick={() => window.location.href = '/cadastro'}>
+          Criar conta grátis
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+
       {/* ══════════════ DEMO INTERATIVA (Lead Magnets) ══════════════ */}
       <section id="demo" className="lp-demo-tools">
         <div className="lp-section-header">
@@ -220,9 +229,9 @@ const LandingPage = () => {
                       <span className="lp-radar-mini-area">{tema.area}</span>
                       <span className="lp-radar-mini-prob">{tema.prob}%</span>
                     </div>
-                    <strong className={i >= 1 ? 'lp-blur-text' : ''}>{tema.titulo}</strong>
+                    <strong className="lp-blur-text">{tema.titulo}</strong>
                     <div className="lp-radar-mini-bar">
-                      <div className="lp-radar-mini-fill" style={{ width: `${tema.prob}%` }}></div>
+                      <div className="lp-radar-mini-fill lp-blur-bar" style={{ width: `${tema.prob}%` }}></div>
                     </div>
                   </div>
                 ))}
@@ -290,7 +299,7 @@ const LandingPage = () => {
                 <div className="lp-corrector-preview">
                   <div className="lp-corrector-score-main">
                     <div className="lp-corrector-score-circle">
-                      <span>{correctorResult.score}</span>
+                      <span className="lp-blur-text">{correctorResult.score}</span>
                       <small>/1000</small>
                     </div>
                     <p className="lp-corrector-meta">{correctorResult.wordCount} palavras • {correctorResult.lineCount} linhas</p>
@@ -298,17 +307,17 @@ const LandingPage = () => {
                   <div className="lp-corrector-competencies-blur">
                     {correctorResult.competencies.map((c, i) => (
                       <div className="lp-corrector-comp-row" key={i}>
-                        <span className={i > 1 ? 'lp-blur-text' : ''}>{c.name}</span>
+                        <span>{c.name}</span>
                         <div className="lp-corrector-comp-bar">
-                          <div className={`lp-corrector-comp-fill${i > 1 ? ' lp-blur-bar' : ''}`} style={{ width: `${(c.score / 200) * 100}%` }}></div>
+                          <div className="lp-corrector-comp-fill lp-blur-bar" style={{ width: `${(c.score / 200) * 100}%` }}></div>
                         </div>
-                        <span className={`lp-corrector-comp-val${i > 1 ? ' lp-blur-text' : ''}`}>{c.score}/200</span>
+                        <span className="lp-blur-text">{c.score}/200</span>
                       </div>
                     ))}
                   </div>
                 </div>
                 <div className="lp-tool-gate">
-                  <p><strong>Quer feedback detalhado por competência e sugestões de melhoria?</strong></p>
+                  <p><strong>Quer ver sua nota e feedback detalhado por competência?</strong></p>
                   <button className="lp-btn-primary" onClick={() => window.location.href = '/cadastro'}>
                     Ver correção completa grátis
                   </button>
@@ -363,6 +372,15 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
+
+      {/* ══════════════ CTA MID ══════════════ */}
+      <div className="lp-cta-strip">
+        <span>Comece com 7 dias de teste grátis, sem compromisso</span>
+        <button className="lp-btn-primary" onClick={() => window.location.href = '/cadastro'}>
+          Começar agora
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
 
       {/* ══════════════ PARA QUEM É ══════════════ */}
       <section className="lp-for-who">
@@ -424,6 +442,15 @@ const LandingPage = () => {
           <div className="lp-impact-card"><strong className="lp-impact-number">98%</strong><span>Satisfação</span></div>
         </div>
       </section>
+
+      {/* ══════════════ CTA SOCIAL ══════════════ */}
+      <div className="lp-cta-strip">
+        <span>Junte-se a quem já alcançou a aprovação</span>
+        <button className="lp-btn-primary" onClick={() => window.location.href = '/cadastro'}>
+          Quero minha vaga
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
 
       {/* ══════════════ PREÇOS ══════════════ */}
       <section id="pricing" className="lp-pricing">
