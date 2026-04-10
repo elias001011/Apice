@@ -250,10 +250,9 @@ export function ThemeProvider({ children }) {
   }, [theme, accent, fontSize, fontFamily, layoutMode, resolvedContainerSize, animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled])
 
   useEffect(() => {
-    if (visualEffects === 'gradients' && !cardGradientsEnabled) {
-      setCardGradientsEnabled(true)
-    }
-
+    // NOTA: Removemos o auto-toggle que forçava cardGradientsEnabled baseado em visualEffects.
+    // Agora o usuário controla gradientes nos cards independentemente dos efeitos visuais.
+    // Apenas garantimos que se efeitos visuais NÃO forem gradientes, gradientes nos cards ficam off.
     if (visualEffects !== 'gradients' && cardGradientsEnabled) {
       setCardGradientsEnabled(false)
     }

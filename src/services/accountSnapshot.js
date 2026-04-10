@@ -356,31 +356,10 @@ export function applyAccountSnapshot(snapshot) {
   }
 
   if (snapshot.preferences && typeof snapshot.preferences === 'object') {
-    const preferences = snapshot.preferences
-    if (Object.prototype.hasOwnProperty.call(preferences, 'theme')) {
-      localStorage.setItem(THEME_KEY, String(preferences.theme ?? 'light'))
-    }
-    if (Object.prototype.hasOwnProperty.call(preferences, 'accent')) {
-      localStorage.setItem(ACCENT_KEY, String(preferences.accent ?? 'lime'))
-    }
-    if (Object.prototype.hasOwnProperty.call(preferences, 'fontSize')) {
-      localStorage.setItem(FONT_SIZE_KEY, String(preferences.fontSize ?? 'md'))
-    }
-    if (Object.prototype.hasOwnProperty.call(preferences, 'fontFamily')) {
-      localStorage.setItem(FONT_FAMILY_KEY, String(preferences.fontFamily ?? 'dm-sans'))
-    }
-    if (Object.prototype.hasOwnProperty.call(preferences, 'layoutMode')) {
-      localStorage.setItem(LAYOUT_MODE_KEY, String(preferences.layoutMode ?? 'comfortable'))
-    }
-    if (Object.prototype.hasOwnProperty.call(preferences, 'containerSize')) {
-      localStorage.setItem(CONTAINER_SIZE_KEY, String(preferences.containerSize ?? 'sm'))
-    }
-    if (Object.prototype.hasOwnProperty.call(preferences, 'animationsEnabled')) {
-      localStorage.setItem(ANIMATIONS_ENABLED_KEY, String(Boolean(preferences.animationsEnabled)))
-    }
-    if (Object.prototype.hasOwnProperty.call(preferences, 'cardHoverEffects')) {
-      localStorage.setItem(CARD_HOVER_ENABLED_KEY, String(Boolean(preferences.cardHoverEffects)))
-    }
+    // NOTA: Preferências de aparência (tema, fonte, efeitos) são SALVAS LOCALMENTE
+    // e NÃO devem ser sobrescritas pela nuvem. O cloud pull NÃO restaura aparência.
+    // Este bloco existe apenas para compatibilidade com snapshots antigos.
+    // Não fazemos nada aqui — o localStorage local prevalece.
   }
 
   if (Object.prototype.hasOwnProperty.call(snapshot, 'usage')) {
