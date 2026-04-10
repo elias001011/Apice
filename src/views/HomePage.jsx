@@ -106,6 +106,7 @@ export function HomePage() {
   const [weatherError, setWeatherError] = useState('')
   const [professorMessage, setProfessorMessage] = useState('')
   const [professorMessageError, setProfessorMessageError] = useState('')
+  const professorTextareaRef = useRef(null)
   const enemLabel = getEnemYearLabel()
   const [dailyQuote] = useState(() => frases[getDailyQuoteIndex()])
 
@@ -301,6 +302,17 @@ export function HomePage() {
     navigate('/professor', { state: { handoff } })
   }
 
+  function handleProfessorInput(event) {
+    setProfessorMessage(event.target.value)
+    if (professorMessageError) setProfessorMessageError('')
+    // Auto-resize
+    const el = professorTextareaRef.current
+    if (el) {
+      el.style.height = 'auto'
+      el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+    }
+  }
+
   const weatherCard = weatherCardEnabled ? (
     <section className={`weather-card anim anim-d2${weatherLoading ? ' is-loading' : ''}`}>
       <div className="weather-header">
@@ -331,14 +343,16 @@ export function HomePage() {
 
           <div className="weather-chips-mini">
             <div className="weather-chip-mini">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M12 2v10M12 18h.01" />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 19V5" />
+                <path d="M5 12l7-7 7 7" />
               </svg>
               <span>Máx {weatherData.maxima}°</span>
             </div>
             <div className="weather-chip-mini">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M12 22V12M12 6h.01" />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 5v14" />
+                <path d="M19 12l-7 7-7-7" />
               </svg>
               <span>Mín {weatherData.minima}°</span>
             </div>
@@ -606,12 +620,10 @@ export function HomePage() {
                 <label className="prof-widget-input-shell">
                   <span className="sr-only">Mensagem para o professor</span>
                   <textarea
+                    ref={professorTextareaRef}
                     className="prof-widget-input"
                     value={professorMessage}
-                    onChange={(event) => {
-                      setProfessorMessage(event.target.value)
-                      if (professorMessageError) setProfessorMessageError('')
-                    }}
+                    onChange={handleProfessorInput}
                     placeholder="Ex: como montar uma tese mais forte para a redação?"
                     rows={3}
                     aria-label="Mensagem para o professor"
@@ -778,7 +790,7 @@ const homeCss = `
   .prof-widget-input {
     width: 100%;
     min-height: 86px;
-    resize: vertical;
+    resize: none;
     border-radius: 16px;
     border: 1px solid rgba(var(--accent-rgb), 0.12);
     background: rgba(var(--accent-rgb), 0.04);
@@ -838,6 +850,13 @@ const homeCss = `
     gap: 0.6rem;
     position: relative;
     overflow: visible;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+
+  html[data-card-hover="on"] .weather-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    border-color: var(--accent);
   }
 
   .weather-header {
@@ -929,8 +948,9 @@ const homeCss = `
   }
 
   .weather-chip-mini svg {
-    color: var(--text3);
-    opacity: 0.7;
+    color: var(--text2);
+    opacity: 1;
+    flex-shrink: 0;
   }
 
   .weather-empty-state {

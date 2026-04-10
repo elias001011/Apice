@@ -207,6 +207,17 @@
   border-bottom-color: var(--accent);
 }
 
+.dynamic-input.readonly-theme {
+  cursor: default;
+  opacity: 0.85;
+  border-bottom-color: var(--accent);
+  border-bottom-style: dashed;
+}
+
+.dynamic-input.readonly-theme:hover {
+  opacity: 1;
+}
+
 .mode-pill-btn {
   padding: 6px 16px;
   border-radius: 99px;

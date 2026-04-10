@@ -276,10 +276,6 @@ export function AparenciaPage() {
                 <span className="toggle-knob" />
               </button>
             </div>
-
-            <div className="card-footer-tip">
-              Essas preferências acompanham sua conta e são reaplicadas na nuvem.
-            </div>
           </div>
 
           {/* ── TAMANHO DO CONTEÚDO (DESKTOP) ── */}
