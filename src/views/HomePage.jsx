@@ -594,11 +594,7 @@ export function HomePage() {
             </div>
           </div>
 
-          {weatherCard}
-
-          {enemCard}
-
-          {/* Stats */}
+          {/* Stats - logo após o hero */}
           <div className="stats-grid anim anim-d2">
             <div className="pv-stat pv-stat--dark">
               <div className="pv-stat-top">
@@ -641,6 +637,10 @@ export function HomePage() {
               </div>
             </div>
           </div>
+
+          {weatherCard}
+
+          {enemCard}
 
         </div>
 
@@ -727,7 +727,6 @@ export function HomePage() {
                       <path d="M5 12h14M12 5l7 7-7 7" />
                     </svg>
                   </button>
-                  <div className="prof-widget-hint">Abre o Professor já com sua dúvida preenchida.</div>
                 </div>
                 {professorMessageError && <div className="prof-widget-error">{professorMessageError}</div>}
               </div>
@@ -795,23 +794,23 @@ const homeCss = `
   .home-grid-right {
     display: flex;
     flex-direction: column;
-    gap: 1.15rem;
+    gap: 0.85rem;
     min-width: 0;
   }
 
   html.layout-compact .home-grid-left,
   html.layout-compact .home-grid-right {
-    gap: 0.9rem;
+    gap: 0.7rem;
   }
 
   .home-grid {
     display: flex;
     flex-direction: column;
-    gap: 1.15rem;
+    gap: 0.85rem;
   }
 
   html.layout-compact .home-grid {
-    gap: 0.9rem;
+    gap: 0.7rem;
   }
 
   /* Grid principal */
@@ -1954,19 +1953,18 @@ const homeCss = `
   .pv-feature--lime .pv-pill { background: rgba(15, 15, 15, 0.15); color: #0f0f0f; }
   .pv-feature--lime .pv-feature-btn { background: #0f0f0f; color: var(--accent); }
   .pv-feature--lime .pv-feature-icon svg { stroke: #0f0f0f; }
+  .pv-feature--lime .pv-feature-icon { background: rgba(15, 15, 15, 0.08); }
 
   .pv-feature-content { display: flex; flex-direction: column; gap: 7px; position: relative; z-index: 2; }
 
   .pv-feature-title { font-family: 'DM Serif Display', serif; font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.3px; }
   .pv-feature--dark .pv-feature-title { color: var(--text); }
-  .pv-feature--lime .pv-feature-title { color: var(--text); }
   html.layout-compact .pv-feature-title {
     font-size: 1.32rem;
   }
 
   .pv-feature-desc { font-size: 0.85rem; line-height: 1.6; }
   .pv-feature--dark .pv-feature-desc { color: var(--text2); }
-  .pv-feature--lime .pv-feature-desc { color: var(--text2); }
 
   html.layout-compact .pv-feature-desc {
     font-size: 0.8rem;
@@ -1975,8 +1973,6 @@ const homeCss = `
 
   .pv-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: 500; letter-spacing: 0.3px; width: fit-content; }
   .pv-feature--dark .pv-pill { background: var(--accent-dim); border: 1px solid var(--accent-dim2); color: var(--accent); }
-  .pv-feature--lime .pv-pill { background: rgba(var(--accent-rgb), 0.1); border: 1px solid rgba(var(--accent-rgb), 0.12); color: var(--text); }
-  html[data-theme="dark"] .pv-feature--lime .pv-pill { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.06); color: var(--text); }
 
   html.layout-compact .pv-pill,
   html.layout-compact .pv-feature-btn {

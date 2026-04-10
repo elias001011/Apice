@@ -449,7 +449,7 @@ body,
   border-radius: 20px;
   box-shadow: var(--floating-shadow);
   padding: 10px;
-  z-index: 1060;
+  z-index: 2000;
   overflow: hidden;
 }
 
@@ -900,6 +900,11 @@ html[data-animations="off"] #radar-results .atualizado {
   transition: border-color 0.2s;
 }
 
+html[data-fx="gradients"][data-card-gradients="on"] .card {
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.03), transparent 58%), var(--bg2);
+  border-color: rgba(var(--accent-rgb), 0.08);
+}
+
 html[data-card-hover="on"] .card:hover {
   border-color: rgba(var(--accent-rgb), 0.15);
 }
@@ -1175,7 +1180,7 @@ html[data-card-hover="on"] .card:hover {
     right: 0.75rem;
     left: auto;
     width: min(250px, calc(100vw - 1.5rem));
-    z-index: 1200;
+    z-index: 2000;
   }
 
   .tab-item--secondary {
