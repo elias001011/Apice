@@ -181,14 +181,14 @@ html[data-fx="blur"] {
     linear-gradient(115deg, rgba(255, 255, 255, 0.1), transparent 42%),
     repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 14px),
     radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.14) 1px, transparent 0);
-  --scene-texture-opacity: 0.06;
-  --glass-surface: rgba(255, 255, 255, 0.28);
-  --glass-surface-strong: rgba(255, 255, 255, 0.38);
-  --glass-border: rgba(255, 255, 255, 0.3);
-  --glass-border-strong: rgba(255, 255, 255, 0.42);
+  --scene-texture-opacity: 0.12;
+  --glass-surface: rgba(255, 255, 255, 0.18);
+  --glass-surface-strong: rgba(255, 255, 255, 0.28);
+  --glass-border: rgba(255, 255, 255, 0.24);
+  --glass-border-strong: rgba(255, 255, 255, 0.34);
   --bg2-glass: var(--glass-surface);
-  --glass-blur: 42px;
-  --overlay-blur: 30px;
+  --glass-blur: 32px;
+  --overlay-blur: 20px;
   --nav-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.03)), var(--glass-surface-strong);
   --tab-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03)), var(--glass-surface-strong);
   --footer-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02)), var(--glass-surface-strong);
@@ -197,15 +197,15 @@ html[data-fx="blur"] {
   --tab-shadow: 0 -18px 44px rgba(8, 9, 4, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   --footer-shadow: 0 -18px 44px rgba(8, 9, 4, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   --chrome-blur: var(--glass-blur);
-  --floating-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)), var(--glass-surface-strong);
+  --floating-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04)), var(--glass-surface);
   --floating-border: var(--glass-border);
   --floating-shadow: 0 24px 64px rgba(8, 9, 4, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.22);
-  --floating-blur: calc(var(--glass-blur) * 1.05);
-  --modal-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.06)), var(--glass-surface-strong);
+  --floating-blur: calc(var(--glass-blur) * 0.92);
+  --modal-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06)), var(--glass-surface-strong);
   --modal-border: var(--glass-border-strong);
   --modal-shadow: 0 30px 74px rgba(8, 9, 4, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.28);
   --modal-blur: var(--glass-blur);
-  --overlay-surface: rgba(12, 12, 12, 0.5);
+  --overlay-surface: rgba(12, 12, 12, 0.42);
 }
 
 html[data-theme="dark"][data-fx="blur"] {
@@ -217,18 +217,18 @@ html[data-theme="dark"][data-fx="blur"] {
     linear-gradient(115deg, rgba(255, 255, 255, 0.04), transparent 42%),
     repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 14px),
     radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.1) 1px, transparent 0);
-  --scene-texture-opacity: 0.08;
-  --glass-surface: rgba(18, 18, 18, 0.34);
-  --glass-surface-strong: rgba(18, 18, 18, 0.44);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-border-strong: rgba(255, 255, 255, 0.18);
+  --scene-texture-opacity: 0.14;
+  --glass-surface: rgba(18, 18, 18, 0.24);
+  --glass-surface-strong: rgba(18, 18, 18, 0.32);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-strong: rgba(255, 255, 255, 0.14);
   --bg2-glass: var(--glass-surface);
   --nav-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008)), var(--glass-surface-strong);
   --tab-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.006)), var(--glass-surface-strong);
   --footer-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.006)), var(--glass-surface-strong);
-  --floating-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)), var(--glass-surface-strong);
-  --modal-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.018)), var(--glass-surface-strong);
-  --overlay-surface: rgba(0, 0, 0, 0.56);
+  --floating-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)), var(--glass-surface);
+  --modal-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)), var(--glass-surface-strong);
+  --overlay-surface: rgba(0, 0, 0, 0.44);
   --nav-shadow: 0 18px 44px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   --tab-shadow: 0 -18px 44px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   --footer-shadow: 0 -18px 44px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -1582,11 +1582,6 @@ html[data-fx="none"] :is(
   .meu-plano-card,
   .avatar-card,
   .backup-card,
-  .quota-banner,
-  .upgrade-card,
-  .onboarding-card,
-  .mode-toggle-pill,
-  .planos-status-chip,
   .planos-hero,
   .pricing-card,
   .planos-change-card,
@@ -1755,27 +1750,22 @@ html[data-fx="gradients"] :is(
   .meu-plano-card,
   .avatar-card,
   .backup-card,
-  .quota-banner,
-  .upgrade-card,
-  .onboarding-card,
-  .mode-toggle-pill,
-  .planos-status-chip,
   .planos-hero,
   .pricing-card,
   .planos-change-card,
   .faq-item
 ) {
-  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.008), transparent 70%), var(--bg2) !important;
-  border-color: rgba(var(--accent-rgb), 0.06) !important;
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.018), transparent 72%), var(--bg2) !important;
+  border-color: rgba(var(--accent-rgb), 0.08) !important;
   box-shadow: var(--surface-shadow-sm) !important;
 }
 
 html[data-fx="gradients"] .pv-feature--lime {
   background:
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.06), transparent 30%),
-    linear-gradient(145deg, rgba(var(--accent-rgb), 0.05), rgba(var(--accent-rgb), 0.022)) !important;
-  border-color: rgba(var(--accent-rgb), 0.1) !important;
-  box-shadow: 0 12px 24px rgba(8, 9, 4, 0.06) !important;
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.18), transparent 28%),
+    linear-gradient(145deg, rgba(var(--accent-rgb), 0.3), rgba(var(--accent-rgb), 0.14)) !important;
+  border-color: rgba(var(--accent-rgb), 0.2) !important;
+  box-shadow: 0 20px 42px rgba(8, 9, 4, 0.12) !important;
 }
 
 html[data-fx="blur"] :is(
@@ -1823,11 +1813,6 @@ html[data-fx="blur"] :is(
   .meu-plano-card,
   .avatar-card,
   .backup-card,
-  .quota-banner,
-  .upgrade-card,
-  .onboarding-card,
-  .mode-toggle-pill,
-  .planos-status-chip,
   .planos-hero,
   .pricing-card,
   .planos-change-card,
@@ -1842,11 +1827,11 @@ html[data-fx="blur"] :is(
 
 html[data-fx="blur"] .pv-feature--lime {
   background:
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.08), transparent 30%),
-    linear-gradient(145deg, rgba(var(--accent-rgb), 0.05), rgba(var(--accent-rgb), 0.02)),
-    var(--floating-surface) !important;
-  border-color: rgba(var(--accent-rgb), 0.1) !important;
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.14), transparent 28%),
+    linear-gradient(145deg, rgba(var(--accent-rgb), 0.2), rgba(var(--accent-rgb), 0.08)),
+    var(--bg2-glass) !important;
+  border-color: rgba(var(--accent-rgb), 0.16) !important;
   backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
   -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
-  box-shadow: 0 14px 30px rgba(8, 9, 4, 0.1) !important;
+  box-shadow: var(--floating-shadow) !important;
 }
