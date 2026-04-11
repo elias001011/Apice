@@ -3,7 +3,7 @@ import './landing.css';
 
 // Assets
 import imageHero from '../../assets/hero.png';
-import imageConquistas from '../../assets/iPhone-14-Plus-dev--apice-ai.netlify.app.webp';
+import imageConquistas from '../../assets/Captura de tela 2026-04-11 165237.png';
 
 const RADAR_TEMAS = [
   { titulo: 'Inteligência Artificial e ética no Brasil', prob: 94, area: 'Tecnologia' },
