@@ -1,9 +1,37 @@
+/**
+ * Gerenciamento do estado de billing (pagamento/teste grátis)
+ * 
+ * COMO FUNCIONA:
+ * - Estado salvo no localStorage na chave 'apice:billing-state:v1'
+ * - 3 status possíveis: 'free' (gratuito), 'trial' (teste grátis), 'paid' (pago)
+ * - Teste grátis: 7 dias únicos por conta (não pode repetir)
+ * - Quando trial expira, status volta automaticamente pra 'free'
+ * 
+ * FLUXO DO TESTE GRÁTIS:
+ * 1. Usuário nunca usou trial → canStartTrial() = true
+ * 2. Clica "Começar teste grátis" → handleCheckout(plan, isTrial=true)
+ * 3. Backend aplica cupom 100% e retorna URL do AbacatePay
+ * 4. Frontend salva billingState e redireciona pro checkout
+ * 5. Usuário completa checkout (valor R$ 0,00) no AbacatePay
+ * 6. Ao retornar, frontend verifica e chama startTrial()
+ * 7. status='trial', trialEndsAt = agora + 7 dias
+ * 8. Quando trialEndsAt passar → status volta pra 'free'
+ * 
+ * FLUXO DE PAGAMENTO:
+ * 1. Usuário clica "Assinar agora" → handleCheckout(plan, isTrial=false)
+ * 2. Backend cria checkout sem cupom (valor normal)
+ * 3. Usuário paga no AbacatePay
+ * 4. Ao retornar, frontend verifica e chama markPlanPaid()
+ * 5. status='paid', paidAt = agora
+ */
+
 const BILLING_STATE_KEY = 'apice:billing-state:v1'
 const LEGACY_PLAN_TIER_KEY = 'apice:plan:tier'
 const BILLING_STATE_UPDATED_EVENT = 'apice:billing-state-updated'
 const ACCOUNT_STATE_UPDATED_EVENT = 'apice:account-state-updated'
 const USAGE_UPDATED_EVENT = 'apice:free-plan-usage-updated'
 
+/** Duração do teste grátis em dias */
 export const TRIAL_DAYS = 7
 
 const VALID_STATUSES = new Set(['free', 'trial', 'paid'])
@@ -177,11 +205,13 @@ export function getCurrentPlanTier() {
   return getCurrentBillingStatus() === 'free' ? 'free' : 'paid'
 }
 
+/** Retorna true se a conta já usou o teste grátis (independente de status atual) */
 export function hasUsedTrial() {
   const state = getBillingState()
   return Boolean(state.trialUsedAt || state.trialStartedAt || state.trialEndsAt)
 }
 
+/** Retorna true se o teste grátis está ativo agora (status=trial E não expirou) */
 export function isTrialActive() {
   const state = getBillingState()
   if (state.status !== 'trial') return false
@@ -190,6 +220,7 @@ export function isTrialActive() {
   return Boolean(trialEndsAtDate && Number.isFinite(trialEndsAtDate.getTime()) && trialEndsAtDate.getTime() > Date.now())
 }
 
+/** Retorna true se a conta pode iniciar um novo teste grátis (nunca usou E status=free) */
 export function canStartTrial() {
   const state = getBillingState()
   return state.status === 'free' && !hasUsedTrial()
@@ -254,6 +285,11 @@ export function setBillingStatus(status, { planKey = '', checkoutId = '', extern
   return next
 }
 
+/**
+ * Inicia o teste grátis de 7 dias
+ * Só funciona se a conta nunca usou trial e estiver no status 'free'
+ * Se já tiver trial ativo, apenas mantém o existente
+ */
 export function startTrial({ planKey = '', checkoutId = '', externalId = '' } = {}) {
   const current = getBillingState()
 
@@ -287,6 +323,10 @@ export function startTrial({ planKey = '', checkoutId = '', externalId = '' } = 
   })
 }
 
+/**
+ * Marca o plano como pago (após confirmação do pagamento)
+ * Mantém as datas de trial para histórico, mas limpa status de trial
+ */
 export function markPlanPaid({ planKey = '', checkoutId = '', externalId = '', subscriptionId = '', paidAt = nowIso() } = {}) {
   const current = getBillingState()
 

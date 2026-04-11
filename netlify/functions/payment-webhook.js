@@ -1,9 +1,34 @@
 import process from 'node:process'
 
 /**
- * Webhook handler for AbacatePay.
- * Listens for payment and subscription events to update user plan status.
+ * Webhook para eventos de pagamento do AbacatePay
+ * 
+ * COMO FUNCIONA:
+ * 1. AbacatePay envia POST para /.netlify/functions/payment-webhook quando há evento de pagamento
+ * 2. Webhook verifica se é evento de sucesso (subscription.paid, billing.paid, subscription.created)
+ * 3. Se for sucesso, atualiza metadata do usuário no Netlify Identity via Admin API
+ * 4. Metadata atualizada: planTier='pro', subscriptionActive=true, planStatus='paid'
+ * 
+ * VARIÁVEIS DE AMBIENTE NECESSÁRIAS:
+ * - ABACATE_PAY: Chave de API do AbacatePay (já usada no checkout)
+ * - NETLIFY_AUTH_TOKEN: Token admin do Netlify (para atualizar usuários)
+ * - SITE_ID: ID do site no Netlify
+ * 
+ * EVENTOS SUPORTADOS:
+ * - subscription.paid: Assinatura paga (V2 subscriptions - se ativar no futuro)
+ * - billing.paid: Pagamento confirmado (V1 billing one-time - atual)
+ * - subscription.created: Assinatura criada (V2 - se ativar no futuro)
+ * 
+ * IMPORTANTE:
+ * - O webhook roda em background, independente do frontend
+ * - O frontend também verifica status via GET quando usuário retorna do pagamento
+ * - Os dois sistemas se complementam: webhook garante atualização mesmo se usuário fechar navegador
  */
+
+function safeText(value) {
+  return String(value ?? '').trim()
+}
+
 export async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
@@ -11,40 +36,40 @@ export async function handler(req) {
 
   try {
     const body = await req.json().catch(() => ({}))
-    const event = body?.event // e.g., "subscription.paid", "billing.paid"
-    const data = body?.metadata || body?.data?.metadata || {}
-    const userId = data.userId
-    const planKey = data.planKey
+    const event = body?.event || ''
+    const metadata = body?.metadata || body?.data?.metadata || {}
+    const userId = safeText(metadata.userId)
+    const planKey = safeText(metadata.planKey) || 'monthly'
 
-    console.log(`[payment-webhook] Received event: ${event}`, { userId, planKey })
+    console.log(`[payment-webhook] Evento recebido: ${event}`, { userId, planKey })
 
     if (!userId) {
-      console.warn('[payment-webhook] No userId found in metadata.')
-      return new Response(JSON.stringify({ success: true, message: 'No action taken: missing userId' }), { status: 200 })
+      console.warn('[payment-webhook] userId não encontrado no metadata. Dados:', JSON.stringify(metadata))
+      return new Response(JSON.stringify({ success: true, message: 'Ignorado: userId não encontrado' }), { status: 200 })
     }
 
-    // Only process successful payment events
+    // Só processa eventos de pagamento confirmado
     const isSuccessEvent = ['subscription.paid', 'billing.paid', 'subscription.created'].includes(event)
     if (!isSuccessEvent) {
-      return new Response(JSON.stringify({ success: true, message: 'Event ignored' }), { status: 200 })
+      console.log(`[payment-webhook] Evento '${event}' ignorado (não é pagamento confirmado)`)
+      return new Response(JSON.stringify({ success: true, message: `Evento '${event}' ignorado` }), { status: 200 })
     }
 
-    // Logic to update Netlify Identity metadata
-    // We need NETLIFY_AUTH_TOKEN to talk to the Admin API
+    // Verifica variáveis de ambiente necessárias
     const netlifyToken = process.env.NETLIFY_AUTH_TOKEN
     const siteId = process.env.SITE_ID
 
     if (!netlifyToken || !siteId) {
-      console.error('[payment-webhook] NETLIFY_AUTH_TOKEN or SITE_ID is not configured.')
-      return new Response(JSON.stringify({ error: 'Server configuration error' }), { status: 500 })
+      console.error('[payment-webhook] NETLIFY_AUTH_TOKEN ou SITE_ID não configurados')
+      return new Response(JSON.stringify({ error: 'Erro de configuração do servidor' }), { status: 500 })
     }
 
-    // Update user metadata via Netlify API
-    // Endpoint: PATCH /sites/{site_id}/identity/users/{user_id}
+    // Atualiza metadata do usuário via Netlify Admin API
+    // Endpoint: PUT /api/v1/sites/{site_id}/identity/users/{user_id}
     const updateUrl = `https://api.netlify.com/api/v1/sites/${siteId}/identity/users/${userId}`
-    
+
     const updateResponse = await fetch(updateUrl, {
-      method: 'PUT', // Netlify Identity API uses PUT for user updates
+      method: 'PUT',
       headers: {
         Authorization: `Bearer ${netlifyToken}`,
         'Content-Type': 'application/json',
@@ -52,35 +77,35 @@ export async function handler(req) {
       body: JSON.stringify({
         app_metadata: {
           planTier: 'pro',
-          planKey: planKey || 'monthly',
+          planKey,
           subscriptionActive: true,
         },
         user_metadata: {
           hasUsedTrial: true,
           planStatus: 'paid',
-        }
+        },
       }),
     })
 
     if (!updateResponse.ok) {
       const errorText = await updateResponse.text()
-      console.error(`[payment-webhook] Failed to update user ${userId}:`, errorText)
+      console.error(`[payment-webhook] Falha ao atualizar usuário ${userId}:`, errorText)
       throw new Error(`Netlify API error: ${updateResponse.status}`)
     }
 
-    console.log(`[payment-webhook] Successfully updated user ${userId} to PRO.`)
+    console.log(`[payment-webhook] Usuário ${userId} atualizado para PRO com sucesso.`)
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: `User ${userId} upgraded to PRO` 
-    }), { 
+    return new Response(JSON.stringify({
+      success: true,
+      message: `Usuário ${userId} atualizado para PRO`,
+    }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     })
 
   } catch (error) {
-    console.error('[payment-webhook] Error processing webhook:', error)
-    return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 })
+    console.error('[payment-webhook] Erro ao processar webhook:', error)
+    return new Response(JSON.stringify({ error: 'Erro interno do servidor' }), { status: 500 })
   }
 }
 
