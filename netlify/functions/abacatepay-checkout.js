@@ -215,16 +215,76 @@ async function getUserTrialStatusFromNetlify(userId) {
   }
 }
 
-async function createCustomerIfMissing(customerName, userEmail, customerCellphone, customerTaxId) {
+async function createCustomer(userId, customerName, userEmail, customerCellphone, customerTaxId) {
   /**
-   * Cria customer no AbacatePay se não existir
-   * Necessário porque a API V1 exige customer criado antes de billing
+   * Cria customer NOVO no AbacatePay para CADA usuário
+   * NÃO busca customer existente — isso causava vazamento de dados entre usuários
+   * Cada user tem seu próprio customer, isolado por userId
    */
   const apiKey = getApiKey()
-  if (!apiKey) return null
+  if (!apiKey) {
+    console.error('[abacatepay] API key não configurada, não é possível criar customer')
+    return null
+  }
+
+  // Dados mínimos para criar customer
+  const name = customerName || userEmail || `Usuario ${userId.substring(0, 8)}`
+  const email = userEmail || `${userId}@apice.internal`
+
+  console.log('[abacatepay] Criando customer para userId:', userId, '| name:', name, '| email:', email)
 
   try {
-    // Primeiro tenta listar customers com mesmo email/taxId
+    const createUrl = `${ABACATE_API_BASE}/v1/customer/create`
+    const createResponse = await fetch(createUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name,
+        email,
+        cellphone: customerCellphone || '',
+        taxId: customerTaxId || '',
+        metadata: {
+          app: 'apice',
+          userId,
+          source: 'checkout-auto-create',
+          createdAt: new Date().toISOString(),
+        },
+      }),
+    })
+
+    if (!createResponse.ok) {
+      const errorText = await createResponse.text()
+      console.error('[abacatepay] Falha ao criar customer:', errorText)
+
+      // Se falhar porque customer já existe (email duplicado), tenta listar e usar o primeiro
+      // Mas isso é raro porque usamos email único por userId
+      if (createResponse.status === 400 || createResponse.status === 409) {
+        console.warn('[abacatepay] Customer creation failed, trying list endpoint as fallback')
+        return await findOrCreateFallback(email, name, customerCellphone, customerTaxId, userId)
+      }
+
+      return null
+    }
+
+    const result = await createResponse.json()
+    const customerId = result?.data?.id
+    console.log('[abacatepay] Customer criado com sucesso:', customerId)
+    return customerId
+  } catch (error) {
+    console.error('[abacatepay] Erro ao criar customer:', error.message)
+    return null
+  }
+}
+
+async function findOrCreateFallback(email, name, cellphone, taxId, userId) {
+  /**
+   * Fallback: se criação falhar, busca na lista e tenta criar com email único
+   */
+  const apiKey = getApiKey()
+  try {
     const listUrl = `${ABACATE_API_BASE}/v1/customer/list`
     const listResponse = await fetch(listUrl, {
       headers: {
@@ -237,23 +297,19 @@ async function createCustomerIfMissing(customerName, userEmail, customerCellphon
       const listResult = await listResponse.json()
       const customers = listResult?.data || []
 
-      // Busca customer existente pelo email ou taxId
-      if (customerTaxId) {
-        const existingByTaxId = customers.find(c => c?.taxId === customerTaxId)
-        if (existingByTaxId) return existingByTaxId.id
-      }
-      if (userEmail) {
-        const existingByEmail = customers.find(c => c?.email === userEmail)
-        if (existingByEmail) return existingByEmail.id
+      // Busca customer pelo userId no metadata (nosso identificador único)
+      const existingByUserId = customers.find(c => c?.metadata?.userId === userId)
+      if (existingByUserId) {
+        console.log('[abacatepay] Customer encontrado por userId:', existingByUserId.id)
+        return existingByUserId.id
       }
     }
   } catch (error) {
-    console.warn('[abacatepay] Falha ao listar customers existentes:', error.message)
+    console.warn('[abacatepay] Fallback list failed:', error.message)
   }
 
-  // Cria novo customer se não encontrou
-  if (!customerName && !userEmail) return null
-
+  // Tenta criar com email único baseado no userId
+  const uniqueEmail = `user-${userId}@apice.internal`
   try {
     const createUrl = `${ABACATE_API_BASE}/v1/customer/create`
     const createResponse = await fetch(createUrl, {
@@ -263,31 +319,28 @@ async function createCustomerIfMissing(customerName, userEmail, customerCellphon
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        name: customerName || userEmail || 'Cliente Ápice',
-        email: userEmail || '',
-        cellphone: customerCellphone || '',
-        taxId: customerTaxId || '',
+        name: name || `Usuario ${userId.substring(0, 8)}`,
+        email: uniqueEmail,
+        cellphone: cellphone || '',
+        taxId: taxId || '',
         metadata: {
           app: 'apice',
-          source: 'checkout-creation',
+          userId,
+          source: 'checkout-fallback-create',
         },
       }),
     })
 
-    if (!createResponse.ok) {
-      const errorText = await createResponse.text()
-      console.error('[abacatepay] Falha ao criar customer:', errorText)
-      return null
+    if (createResponse.ok) {
+      const result = await createResponse.json()
+      console.log('[abacatepay] Customer criado via fallback:', result?.data?.id)
+      return result?.data?.id
     }
-
-    const result = await createResponse.json()
-    const customerId = result?.data?.id
-    console.log('[abacatepay] Customer criado:', customerId)
-    return customerId
   } catch (error) {
-    console.error('[abacatepay] Erro ao criar customer:', error.message)
-    return null
+    console.error('[abacatepay] Fallback create failed:', error.message)
   }
+
+  return null
 }
 
 async function createCheckout(req, authUser, headers) {
@@ -321,8 +374,8 @@ async function createCheckout(req, authUser, headers) {
 
   console.log('[abacatepay] userId:', userId, '| userEmail:', userEmail)
 
-  // Cria customer no AbacatePay se necessário
-  const customerId = await createCustomerIfMissing(customerName, userEmail, customerCellphone, customerTaxId)
+  // Cria customer NOVO no AbacatePay para ESTE usuário (nunca reutiliza de outro)
+  const customerId = await createCustomer(userId, customerName, userEmail, customerCellphone, customerTaxId)
 
   // BLINDAGEM DO TRIAL: Verifica no Netlify Identity se já usou trial
   // Isso previne que usuários burlem limpando localStorage
