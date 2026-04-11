@@ -46,14 +46,22 @@ export function AuthProvider({ children }) {
     setPendingOnboardingLogin(false)
   }, [])
 
-  // Register the user ID getter so authFetch can identify the user
-  // (No JWT — we use X-User-Id header instead because legacy user_metadata
-  // inflated JWT tokens and caused 500 errors on Netlify API Gateway)
+  // Register the JWT getter so authFetch can send Authorization: Bearer header.
+  // Previously we sent X-User-Id (forjável) because user_metadata inflated JWTs.
+  // Now that apice_state was moved to Blobs, JWTs are light again (~300 chars).
   useEffect(() => {
     registerAuthTokenGetter(async () => {
       const currentUser = auth.currentUser()
       if (!currentUser) return ''
-      return currentUser.id || ''
+      try {
+        // GoTrue .jwt() refreshes the token if expired and returns the JWT string
+        const token = await currentUser.jwt()
+        return token || ''
+      } catch (err) {
+        console.warn('[AuthProvider] Falha ao obter JWT:', err.message)
+        // Fallback: return userId so authFetch can still send X-User-Id
+        return currentUser.id ? `__userid__${currentUser.id}` : ''
+      }
     })
     return () => registerAuthTokenGetter(null)
   }, [])

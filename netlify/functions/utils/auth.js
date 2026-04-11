@@ -158,8 +158,8 @@ export function unauthorizedResponse(corsHeaders = {}) {
 
 /**
  * Extract userId from X-User-Id header.
- * This is now the primary auth mechanism because legacy user_metadata
- * inflated JWT tokens causing 500 errors on Netlify API Gateway.
+ * This is the FALLBACK auth mechanism — kept for backward compatibility
+ * during transition period. Will be removed in a future version.
  */
 function extractUserIdFromHeader(req) {
   if (typeof req?.headers?.get === 'function') {
@@ -172,28 +172,30 @@ function extractUserIdFromHeader(req) {
  * Require authentication — convenience wrapper.
  * Returns the auth context or a 401 Response.
  *
- * Primary auth: X-User-Id header (set by authFetch.js from gotrue.user localStorage)
- * Fallback: Bearer JWT (for accounts without legacy bloat)
+ * Primary auth: Bearer JWT (extracts userId, email, fullName from token payload)
+ * Fallback: X-User-Id header (forjável — deprecated, para período de transição)
  *
  * Usage:
  *   const auth = requireAuth(req, headers)
  *   if (auth instanceof Response) return auth  // 401
  *   // auth.user.id is the authenticated user
+ *   // auth.user.email and auth.user.fullName are available from JWT
  */
 export function requireAuth(req, corsHeaders = {}) {
-  // Primary: accept X-User-Id header (no JWT involved)
+  // Primary: try Bearer JWT (secure — extracts email/fullName from token)
+  const auth = authenticateRequest(req)
+  if (auth) return auth
+
+  // Fallback: accept X-User-Id header (forjável — período de transição)
   const userId = extractUserIdFromHeader(req)
   if (userId) {
+    console.warn(`[auth] Usando X-User-Id fallback (forjável). userId: ${userId}. Migre o frontend para enviar JWT.`)
     return {
       user: { id: userId, email: '', fullName: '', roles: [], metadata: {}, appMetadata: {} },
       token: '',
       payload: { sub: userId },
     }
   }
-
-  // Fallback: try standard JWT auth
-  const auth = authenticateRequest(req)
-  if (auth) return auth
 
   return unauthorizedResponse(corsHeaders)
 }

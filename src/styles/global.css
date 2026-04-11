@@ -128,7 +128,7 @@ html[data-fx="gradients"] {
     radial-gradient(circle at 88% 0%, rgba(var(--accent-rgb), 0.04), transparent 20rem),
     radial-gradient(circle at 50% 76%, rgba(var(--accent-rgb), 0.03), transparent 24rem);
   --scene-opacity: 1;
-  --nav-surface: linear-gradient(180deg, var(--bg2) 0%, rgba(var(--accent-rgb), 0.06) 40%, var(--bg2) 100%);
+  --nav-surface: var(--bg2);
   --tab-surface: var(--bg2);
   --footer-surface: var(--bg2);
   --chrome-border: var(--border);
@@ -337,6 +337,12 @@ body,
   z-index: 1000;
   display: flex;
   align-items: center;
+}
+
+/* Gradiente sutil direto na nav — não via custom property intermediária
+   porque linear-gradient() dentro de var() pode falhar na cadeia de resolução */
+html[data-fx="gradients"] .nav {
+  background: linear-gradient(180deg, var(--bg2) 0%, rgba(var(--accent-rgb), 0.06) 40%, var(--bg2) 100%);
 }
 
 .nav-inner {

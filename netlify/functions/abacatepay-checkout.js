@@ -118,9 +118,12 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
 
   // Aplica cupom de 100% desconto para teste grátis
   // O cupom "FREE TEST" deve existir no Dashboard AbacatePay com 100% off
+  // CAMPO CORRETO: "coupons" (array) + "allowCoupons" (bool), NÃO "couponCode"
+  // Ref: https://www.abacatepay.com/llms.txt — documentação oficial da AbacatePay
   if (isTrial) {
-    payload.couponCode = TRIAL_COUPON_CODE
-    console.log('[abacatepay] Cupom de trial aplicado:', TRIAL_COUPON_CODE)
+    payload.allowCoupons = true
+    payload.coupons = [TRIAL_COUPON_CODE]
+    console.log('[abacatepay] Cupom de trial aplicado:', TRIAL_COUPON_CODE, '| allowCoupons: true')
   }
 
   console.log('[abacatepay] Payload final (resumido):', JSON.stringify({
@@ -130,7 +133,8 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
     hasCustomer: !!payload.customer,
     customerName: payload.customer?.name,
     customerEmail: payload.customer?.email,
-    hasCouponCode: !!payload.couponCode,
+    hasCoupons: !!payload.coupons?.length,
+    allowCoupons: !!payload.allowCoupons,
     metadata: payload.metadata,
   }))
 
