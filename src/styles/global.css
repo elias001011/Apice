@@ -342,7 +342,7 @@ body,
 /* Gradiente sutil direto na nav — não via custom property intermediária
    porque linear-gradient() dentro de var() pode falhar na cadeia de resolução */
 html[data-fx="gradients"] .nav {
-  background: linear-gradient(180deg, var(--bg2) 0%, rgba(var(--accent-rgb), 0.06) 40%, var(--bg2) 100%);
+  background: linear-gradient(180deg, var(--bg2) 0%, color-mix(in srgb, var(--accent) 3%, var(--bg2)) 50%, var(--bg2) 100%);
 }
 
 .nav-inner {
