@@ -4,6 +4,11 @@
  * Substitui o apice_state no user_metadata (que inflava o JWT e causava 500).
  * Agora o estado fica num store separado, acessível via endpoints dedicados.
  *
+ * REGRAS DE SINCRONIZAÇÃO:
+ * - Pull: nuvem complementa local (não sobrescreve)
+ * - Push: envia snapshot completo da conta (sem aparência)
+ * - Aparência NUNCA é sincronizada (sempre local)
+ *
  * Uso:
  *   - No login: cloudSync.pull() → aplica dados da nuvem no localStorage
  *   - No logout: cloudSync.clearLocal() → limpa localStorage
@@ -20,7 +25,6 @@ const CLOUD_SYNC_KEY = 'apice:cloud-sync:last-pull:v1'
  * Usa o token JWT como indicador de sessão ativa.
  */
 async function _getCurrentUser() {
-  // Import dinâmico para evitar circular dependency
   try {
     const GoTrue = (await import('gotrue-js')).default
     const auth = new GoTrue({
@@ -35,7 +39,8 @@ async function _getCurrentUser() {
 
 /**
  * Busca o estado salvo na nuvem e aplica no localStorage.
- * Chama no login para restaurar preferências, cota, etc.
+ * MERGE INTELIGENTE: nuvem complementa local, não sobrescreve.
+ * Aparência NUNCA é restaurada da nuvem.
  */
 export async function pullStateFromCloud() {
   try {
@@ -55,7 +60,8 @@ export async function pullStateFromCloud() {
       return false
     }
 
-    // Aplica o estado da nuvem no localStorage
+    // Aplica o estado da nuvem com MERGE INTELIGENTE
+    // applyAccountSnapshot agora preserva dados locais
     applyAccountSnapshot(data.state)
 
     // Marca timestamp do último pull
@@ -63,7 +69,7 @@ export async function pullStateFromCloud() {
       localStorage.setItem(CLOUD_SYNC_KEY, new Date().toISOString())
     }
 
-    console.log('[cloudSync] Estado restaurado da nuvem')
+    console.log('[cloudSync] Estado restaurado da nuvem (merge inteligente)')
     return true
   } catch (error) {
     console.error('[cloudSync] Erro ao carregar estado:', error.message)
@@ -73,11 +79,13 @@ export async function pullStateFromCloud() {
 
 /**
  * Salva o estado atual do localStorage na nuvem.
- * Usa o user_metadata mínimo (sem apice_state) para montar o snapshot.
+ * Snapshot inclui: conquistas, perfil, histórico (índices), cota, billing,
+ * radar, clima, etc. NÃO inclui aparência (tema, fonte, efeitos).
  */
 export async function pushStateToCloud(user) {
   try {
     // Monta o snapshot com dados mínimos do user + tudo do localStorage
+    // buildAccountSnapshot já exclui aparência automaticamente
     const snapshot = buildAccountSnapshot(user || { user_metadata: {}, email: '' })
 
     const res = await authFetch('/.netlify/functions/salvar-estado', {

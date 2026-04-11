@@ -162,55 +162,48 @@ async function abacateFetch(path, { method = 'GET', body } = {}) {
   return payload
 }
 
-async function getUserTrialStatusFromNetlify(userId) {
+async function getUserTrialStatusFromCloud(userId) {
   /**
-   * Busca o status de trial do usuário direto no Netlify Identity (fonte confiável)
+   * Busca o status de trial do usuário no blob da nuvem (Netlify Blobs)
    * Isso previne que usuários burlem o trial limpando localStorage
-   * 
-   * REQUER: NETLIFY_AUTH_TOKEN + SITE_ID (reservado pelo Netlify)
-   * Sem essas vars, retorna false (fallback: confia no localStorage do frontend)
+   *
+   * REQUER: @netlify/blobs (disponível em produção e netlify dev)
+   * Sem blob store, retorna false (fallback: confia no localStorage do frontend)
    */
-  const netlifyToken = process.env.NETLIFY_AUTH_TOKEN
-  const siteId = process.env.SITE_ID // SITE_ID é reservado pelo Netlify, já existe
-
-  if (!netlifyToken || !siteId || !userId) {
-    if (!netlifyToken) {
-      console.warn('[abacatepay] NETLIFY_AUTH_TOKEN não configurada. Trial cloud validation desabilitada.')
-    }
-    return { hasUsedTrial: false }
-  }
+  if (!userId) return { hasUsedTrial: false }
 
   try {
-    const listUrl = `https://api.netlify.com/api/v1/sites/${siteId}/identity/users`
-    const response = await fetch(listUrl, {
-      headers: {
-        Authorization: `Bearer ${netlifyToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
+    const { getStore } = await import('@netlify/blobs')
+    const store = await getStore({ name: 'user-state', consistency: 'strong' })
 
-    if (!response.ok) {
-      console.warn('[abacatepay] Falha ao buscar usuários no Netlify Identity')
+    if (!store) {
+      console.warn('[abacatepay] Blob store não disponível. Trial cloud validation desabilitada.')
       return { hasUsedTrial: false }
     }
 
-    const users = await response.json()
-    const user = Array.isArray(users) ? users.find(u => u?.id === userId) : null
+    const blobKey = `user-state:${userId}`
+    const userData = await store.get(blobKey, { type: 'json' })
 
-    if (!user) {
+    if (!userData || typeof userData !== 'object') {
       return { hasUsedTrial: false }
     }
 
+    // Verifica se já usou trial pelo estado de billing
+    const billing = userData.billing || {}
     const hasUsedTrial = Boolean(
-      user?.user_metadata?.hasUsedTrial ||
-      user?.app_metadata?.hasUsedTrial ||
-      user?.user_metadata?.trialStartedAt ||
-      user?.app_metadata?.trialStartedAt
+      userData.trialUsedAt ||
+      userData.trialStartedAt ||
+      userData.trialEndsAt ||
+      billing.trialUsedAt ||
+      billing.trialStartedAt ||
+      billing.trialEndsAt ||
+      userData.planStatus === 'trial' ||
+      billing.status === 'trial'
     )
 
     return { hasUsedTrial }
   } catch (error) {
-    console.warn('[abacatepay] Erro ao verificar trial no Netlify Identity:', error.message)
+    console.warn('[abacatepay] Erro ao verificar trial no blob:', error.message)
     return { hasUsedTrial: false }
   }
 }
@@ -377,11 +370,11 @@ async function createCheckout(req, authUser, headers) {
   // Cria customer NOVO no AbacatePay para ESTE usuário (nunca reutiliza de outro)
   const customerId = await createCustomer(userId, customerName, userEmail, customerCellphone, customerTaxId)
 
-  // BLINDAGEM DO TRIAL: Verifica no Netlify Identity se já usou trial
+  // BLINDAGEM DO TRIAL: Verifica no blob da nuvem se já usou trial
   // Isso previne que usuários burlem limpando localStorage
   let hasUsedTrialCloud = false
   if (isTrial) {
-    const cloudStatus = await getUserTrialStatusFromNetlify(userId)
+    const cloudStatus = await getUserTrialStatusFromCloud(userId)
     hasUsedTrialCloud = cloudStatus.hasUsedTrial
 
     if (hasUsedTrialCloud) {

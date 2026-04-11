@@ -2,31 +2,78 @@ import process from 'node:process'
 
 /**
  * Webhook para eventos de pagamento do AbacatePay
- * 
+ *
  * COMO FUNCIONA:
  * 1. AbacatePay envia POST para /.netlify/functions/payment-webhook quando há evento de pagamento
  * 2. Webhook verifica se é evento de sucesso (subscription.paid, billing.paid, subscription.created)
- * 3. Se for sucesso, atualiza metadata do usuário no Netlify Identity via Admin API
- * 4. Metadata atualizada: planTier='pro', subscriptionActive=true, planStatus='paid'
- * 
+ * 3. Se for sucesso, atualiza o blob do usuário no Netlify Blobs com o status de billing
+ * 4. NÃO atualiza mais user_metadata (isso causava JWT inchado e erros 500)
+ *
  * VARIÁVEIS DE AMBIENTE NECESSÁRIAS:
- * - ABACATE_PAY: Chave de API do AbacatePay (já usada no checkout)
- * - NETLIFY_AUTH_TOKEN: Token admin do Netlify (para atualizar usuários)
- * - SITE_ID: ID do site no Netlify
- * 
+ * - ABACATE_PAY: Chave de API do AbacatePay
+ *
  * EVENTOS SUPORTADOS:
- * - subscription.paid: Assinatura paga (V2 subscriptions - se ativar no futuro)
- * - billing.paid: Pagamento confirmado (V1 billing one-time - atual)
- * - subscription.created: Assinatura criada (V2 - se ativar no futuro)
- * 
- * IMPORTANTE:
- * - O webhook roda em background, independente do frontend
- * - O frontend também verifica status via GET quando usuário retorna do pagamento
- * - Os dois sistemas se complementam: webhook garante atualização mesmo se usuário fechar navegador
+ * - subscription.paid: Assinatura paga
+ * - billing.paid: Pagamento confirmado
+ * - subscription.created: Assinatura criada
  */
+
+const BLOB_STORE_NAME = 'user-state'
 
 function safeText(value) {
   return String(value ?? '').trim()
+}
+
+async function getStore() {
+  try {
+    const { getStore: getStoreFn } = await import('@netlify/blobs')
+    return getStoreFn({ name: BLOB_STORE_NAME, consistency: 'strong' })
+  } catch {
+    return null
+  }
+}
+
+async function updateBillingInBlob(userId, planKey, billingUpdate) {
+  /**
+   * Atualiza o status de billing no blob do usuário
+   * Lê o blob atual → merge com billing update → salva
+   */
+  const store = await getStore()
+  if (!store) {
+    console.warn('[payment-webhook] Blob store não disponível. Billing não será atualizado na nuvem.')
+    return false
+  }
+
+  try {
+    const blobKey = `user-state:${userId}`
+    const existingData = await store.get(blobKey, { type: 'json' })
+
+    const currentState = existingData && typeof existingData === 'object' ? existingData : {}
+
+    // Merge com atualização de billing
+    const updatedState = {
+      ...currentState,
+      billing: {
+        ...(currentState.billing || {}),
+        ...billingUpdate,
+        updatedAt: new Date().toISOString(),
+      },
+      planStatus: 'paid',
+      planTier: 'paid',
+      planKey: planKey || currentState.planKey || 'monthly',
+      savedAt: new Date().toISOString(),
+    }
+
+    await store.set(blobKey, JSON.stringify(updatedState), {
+      contentType: 'application/json',
+    })
+
+    console.log(`[payment-webhook] Billing atualizado no blob para userId: ${userId}`)
+    return true
+  } catch (error) {
+    console.error('[payment-webhook] Erro ao atualizar blob:', error.message)
+    return false
+  }
 }
 
 export async function handler(req) {
@@ -55,55 +102,22 @@ export async function handler(req) {
       return new Response(JSON.stringify({ success: true, message: `Evento '${event}' ignorado` }), { status: 200 })
     }
 
-    // Verifica variáveis de ambiente necessárias
-    // SITE_ID é reservado pelo Netlify (já existe)
-    // NETLIFY_AUTH_TOKEN precisa ser configurada manualmente
-    const netlifyToken = process.env.NETLIFY_AUTH_TOKEN
-    const siteId = process.env.SITE_ID
-
-    if (!netlifyToken || !siteId) {
-      console.warn('[payment-webhook] NETLIFY_AUTH_TOKEN não configurada. Webhook não pode atualizar Netlify Identity.')
-      console.warn('[payment-webhook] O frontend ainda verificará pagamento via GET checkout.')
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'Webhook recebido, mas cloud sync desabilitado (NETLIFY_AUTH_TOKEN não configurada)',
-      }), { status: 200 })
+    // Atualiza billing no Netlify Blobs (NÃO atualiza user_metadata)
+    const billingUpdate = {
+      status: 'paid',
+      planKey,
+      paidAt: new Date().toISOString(),
+      subscriptionActive: true,
     }
 
-    // Atualiza metadata do usuário via Netlify Admin API
-    // Endpoint: PUT /api/v1/sites/{site_id}/identity/users/{user_id}
-    const updateUrl = `https://api.netlify.com/api/v1/sites/${siteId}/identity/users/${userId}`
+    const blobUpdated = await updateBillingInBlob(userId, planKey, billingUpdate)
 
-    const updateResponse = await fetch(updateUrl, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${netlifyToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        app_metadata: {
-          planTier: 'pro',
-          planKey,
-          subscriptionActive: true,
-        },
-        user_metadata: {
-          hasUsedTrial: true,
-          planStatus: 'paid',
-        },
-      }),
-    })
-
-    if (!updateResponse.ok) {
-      const errorText = await updateResponse.text()
-      console.error(`[payment-webhook] Falha ao atualizar usuário ${userId}:`, errorText)
-      throw new Error(`Netlify API error: ${updateResponse.status}`)
-    }
-
-    console.log(`[payment-webhook] Usuário ${userId} atualizado para PRO com sucesso.`)
+    console.log(`[payment-webhook] Usuário ${userId} marcado como PRO. Blob atualizado: ${blobUpdated}`)
 
     return new Response(JSON.stringify({
       success: true,
       message: `Usuário ${userId} atualizado para PRO`,
+      blobUpdated,
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },

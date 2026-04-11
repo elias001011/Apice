@@ -4,22 +4,23 @@ import { buildCheckoutCorsHeaders } from './utils/cors.js'
 
 /**
  * Endpoint para cancelar assinatura/cobrança no AbacatePay
- * 
+ *
  * COMO FUNCIONA:
  * - Usuário autenticado pode solicitar cancelamento
  * - Backend tenta cancelar no AbacatePay via API
- * - Atualiza metadata do usuário no Netlify Identity para 'free'
- * 
+ * - Atualiza blob do usuário no Netlify Blobs para 'free'
+ * - NÃO atualiza user_metadata (evita JWT inchado)
+ *
  * IMPORTANTE:
  * - AbacatePay V1 é 'billing one-time' (pagamento único por período)
  * - Não tem 'cancelar' no sentido tradicional, mas podemos:
  *   1. Invalidar checkout pendente (se não pago ainda)
- *   2. Marcar usuário como 'free' no Netlify Identity
+ *   2. Marcar usuário como 'free' no blob
  *   3. Registrar solicitação de cancelamento/reembolso
- * - Para V2 (subscriptions), usar endpoint de cancelamento de assinatura
  */
 
 const ABACATE_API_BASE = 'https://api.abacatepay.com'
+const BLOB_STORE_NAME = 'user-state'
 
 function getApiKey() {
   const key = String(process.env.ABACATE_PAY ?? '').trim()
@@ -31,6 +32,15 @@ function getApiKey() {
 
 function safeText(value) {
   return String(value ?? '').trim()
+}
+
+async function getStore() {
+  try {
+    const { getStore: getStoreFn } = await import('@netlify/blobs')
+    return getStoreFn({ name: BLOB_STORE_NAME, consistency: 'strong' })
+  } catch {
+    return null
+  }
 }
 
 async function cancelAbacateBilling(checkoutId, externalId) {
@@ -75,7 +85,6 @@ async function cancelAbacateBilling(checkoutId, externalId) {
   const status = String(billing?.status ?? '').toUpperCase()
 
   // Se já está pago, não podemos cancelar via API V1
-  // Apenas registrar solicitação
   if (['PAID', 'ACTIVE', 'CONFIRMED'].includes(status)) {
     console.warn('[cancel-subscription] Cobrança já está paga. Status:', status)
     return {
@@ -87,9 +96,7 @@ async function cancelAbacateBilling(checkoutId, externalId) {
     }
   }
 
-  // Se está pendente, podemos tentar cancelar
-  // V1 não tem endpoint de cancelamento, então apenas logamos
-  // O ideal é migrar pra V2 que tem endpoint de cancelamento
+  // Se está pendente, apenas logamos (V1 não tem cancelamento via API)
   console.warn('[cancel-subscription] AbacatePay V1 não suporta cancelamento via API.')
   console.warn('[cancel-subscription] Billing ID:', billing.id, 'Status:', status)
 
@@ -103,52 +110,47 @@ async function cancelAbacateBilling(checkoutId, externalId) {
   }
 }
 
-async function downgradeUserToFree(userId) {
+async function downgradeUserToFreeInBlob(userId) {
   /**
-   * Atualiza metadata do usuário no Netlify Identity para 'free'
-   * REQUER: NETLIFY_AUTH_TOKEN
-   * Sem essa var, loga warning mas não falha (frontend ainda atualiza localStorage)
+   * Atualiza blob do usuário para 'free' no Netlify Blobs
+   * NÃO atualiza user_metadata (evita JWT inchado)
    */
-  const netlifyToken = process.env.NETLIFY_AUTH_TOKEN
-  const siteId = process.env.SITE_ID // SITE_ID é reservado pelo Netlify
-
-  if (!netlifyToken || !siteId) {
-    console.warn('[cancel-subscription] NETLIFY_AUTH_TOKEN não configurada. Downgrade cloud desabilitado.')
+  const store = await getStore()
+  if (!store) {
+    console.warn('[cancel-subscription] Blob store não disponível. Downgrade cloud desabilitado.')
     return false
   }
 
   try {
-    const updateUrl = `https://api.netlify.com/api/v1/sites/${siteId}/identity/users/${userId}`
+    const blobKey = `user-state:${userId}`
+    const existingData = await store.get(blobKey, { type: 'json' })
 
-    const updateResponse = await fetch(updateUrl, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${netlifyToken}`,
-        'Content-Type': 'application/json',
+    const currentState = existingData && typeof existingData === 'object' ? existingData : {}
+
+    const updatedState = {
+      ...currentState,
+      billing: {
+        ...(currentState.billing || {}),
+        status: 'free',
+        planKey: '',
+        subscriptionActive: false,
+        cancelledAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       },
-      body: JSON.stringify({
-        app_metadata: {
-          planTier: 'free',
-          planKey: '',
-          subscriptionActive: false,
-        },
-        user_metadata: {
-          planStatus: 'free',
-          subscriptionCancelledAt: new Date().toISOString(),
-        },
-      }),
-    })
-
-    if (!updateResponse.ok) {
-      const errorText = await updateResponse.text()
-      console.error('[cancel-subscription] Falha ao atualizar usuário:', errorText)
-      return false
+      planStatus: 'free',
+      planTier: 'free',
+      planKey: '',
+      savedAt: new Date().toISOString(),
     }
 
-    console.log(`[cancel-subscription] Usuário ${userId} downgraded para FREE.`)
+    await store.set(blobKey, JSON.stringify(updatedState), {
+      contentType: 'application/json',
+    })
+
+    console.log(`[cancel-subscription] Usuário ${userId} downgraded para FREE no blob.`)
     return true
   } catch (error) {
-    console.error('[cancel-subscription] Erro ao downgradar usuário:', error.message)
+    console.error('[cancel-subscription] Erro ao downgradar usuário no blob:', error.message)
     return false
   }
 }
@@ -172,8 +174,8 @@ async function handleCancel(req, authUser, headers) {
     // 1. Tenta cancelar no AbacatePay
     const abacateResult = await cancelAbacateBilling(checkoutId, externalId)
 
-    // 2. Downgrade do usuário para free (pode falhar graceful se não tiver NETLIFY_AUTH_TOKEN)
-    const userDowngraded = await downgradeUserToFree(userId)
+    // 2. Downgrade do usuário para free no blob
+    const userDowngraded = await downgradeUserToFreeInBlob(userId)
 
     return new Response(JSON.stringify({
       success: true,

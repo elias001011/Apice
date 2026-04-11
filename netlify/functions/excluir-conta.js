@@ -1,6 +1,15 @@
 import { authenticateRequest } from './utils/auth.js'
 import { buildCorsHeaders } from './utils/cors.js'
 
+/**
+ * Exclui conta do usuário no Netlify Identity
+ *
+ * CRÍTICO: Deleta o blob `user-state:{userId}` ANTES de deletar a conta no Identity
+ * Isso evita dados órfãos no Netlify Blobs
+ */
+
+const BLOB_STORE_NAME = 'user-state'
+
 function errorResponse(message, status = 400, corsHeaders = {}) {
   return new Response(JSON.stringify({ error: message }), {
     status,
@@ -83,6 +92,30 @@ function getUserId(user) {
   return String(user?.sub ?? user?.id ?? '').trim()
 }
 
+async function deleteBlob(userId) {
+  /**
+   * Deleta o blob do usuário ANTES de deletar a conta no Identity
+   */
+  try {
+    const { getStore } = await import('@netlify/blobs')
+    const store = await getStore({ name: BLOB_STORE_NAME, consistency: 'strong' })
+
+    if (!store) {
+      console.warn('[excluir-conta] Blob store não disponível. Blob não será deletado.')
+      return false
+    }
+
+    const blobKey = `user-state:${userId}`
+    await store.delete(blobKey)
+
+    console.log(`[excluir-conta] Blob deletado para userId: ${userId}`)
+    return true
+  } catch (error) {
+    console.error('[excluir-conta] Erro ao deletar blob:', error.message)
+    return false
+  }
+}
+
 async function deleteIdentityUser(identity, userIds) {
   let lastStatus = 500
   let lastDetails = ''
@@ -144,6 +177,14 @@ export default async function handler(req, context = {}) {
   }
 
   try {
+    // 1. CRÍTICO: Deleta blob ANTES de deletar a conta no Identity
+    for (const userID of userIDs) {
+      if (userID) {
+        await deleteBlob(userID)
+      }
+    }
+
+    // 2. Deleta conta no Netlify Identity
     const result = await deleteIdentityUser(identity, userIDs)
 
     if (!result.ok) {

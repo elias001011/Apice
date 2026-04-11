@@ -289,6 +289,50 @@ export function compactCloudEssayHistoryEntry(item) {
   }
 }
 
+/**
+ * Versão EXPANDIDA para nuvem: inclui TODOS os índices de feedback
+ * (competências, errosPt, pontoForte, atencao, principalMelhorar)
+ * SEM a redação completa e SEM preview
+ */
+export function compactCloudEssayHistoryEntryFull(item) {
+  if (!item || typeof item !== 'object') return null
+
+  const feedback = item.feedback && typeof item.feedback === 'object'
+    ? {
+        notaTotal: Number.isFinite(Number(item.feedback.notaTotal))
+          ? Number(item.feedback.notaTotal)
+          : (Number.isFinite(Number(item.nota)) ? Number(item.nota) : 0),
+        competencias: Array.isArray(item.feedback.competencias)
+          ? item.feedback.competencias.map((c) => ({
+              nome: String(c?.nome ?? '').trim(),
+              nota: Number.isFinite(Number(c?.nota)) ? Number(c.nota) : 0,
+            }))
+          : [],
+        errosPt: Array.isArray(item.feedback.errosPt)
+          ? item.feedback.errosPt.slice(0, 10).map((e) => ({
+              errado: String(e?.errado ?? '').trim(),
+              corrigido: String(e?.corrigido ?? '').trim(),
+              motivo: String(e?.motivo ?? '').trim(),
+            }))
+          : [],
+        pontoForte: String(item.feedback.pontoForte ?? '').trim(),
+        atencao: String(item.feedback.atencao ?? '').trim(),
+        principalMelhorar: String(item.feedback.principalMelhorar ?? '').trim(),
+      }
+    : {
+        notaTotal: Number.isFinite(Number(item.nota)) ? Number(item.nota) : 0,
+      }
+
+  return {
+    id: item.id ?? Date.now(),
+    data: typeof item.data === 'string' ? item.data : new Date().toISOString(),
+    tema: typeof item.tema === 'string' ? item.tema : '',
+    nota: feedback.notaTotal,
+    feedback,
+    // SEM redacao, SEM preview
+  }
+}
+
 export function buildCloudEssayHistorySnapshot(history = loadEssayHistory(MAX_CLOUD_ESSAY_HISTORY_ENTRIES)) {
   const items = Array.isArray(history) ? history : []
   return items
