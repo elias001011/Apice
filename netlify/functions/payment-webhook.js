@@ -56,12 +56,18 @@ export async function handler(req) {
     }
 
     // Verifica variáveis de ambiente necessárias
+    // SITE_ID é reservado pelo Netlify (já existe)
+    // NETLIFY_AUTH_TOKEN precisa ser configurada manualmente
     const netlifyToken = process.env.NETLIFY_AUTH_TOKEN
     const siteId = process.env.SITE_ID
 
     if (!netlifyToken || !siteId) {
-      console.error('[payment-webhook] NETLIFY_AUTH_TOKEN ou SITE_ID não configurados')
-      return new Response(JSON.stringify({ error: 'Erro de configuração do servidor' }), { status: 500 })
+      console.warn('[payment-webhook] NETLIFY_AUTH_TOKEN não configurada. Webhook não pode atualizar Netlify Identity.')
+      console.warn('[payment-webhook] O frontend ainda verificará pagamento via GET checkout.')
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Webhook recebido, mas cloud sync desabilitado (NETLIFY_AUTH_TOKEN não configurada)',
+      }), { status: 200 })
     }
 
     // Atualiza metadata do usuário via Netlify Admin API

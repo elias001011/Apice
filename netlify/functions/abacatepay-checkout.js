@@ -163,12 +163,18 @@ async function abacateFetch(path, { method = 'GET', body } = {}) {
 async function getUserTrialStatusFromNetlify(userId) {
   /**
    * Busca o status de trial do usuário direto no Netlify Identity (fonte confiável)
-   * Isso previne que usuários burlem o trial limpando o localStorage
+   * Isso previne que usuários burlem o trial limpando localStorage
+   * 
+   * REQUER: NETLIFY_AUTH_TOKEN + SITE_ID (reservado pelo Netlify)
+   * Sem essas vars, retorna false (fallback: confia no localStorage do frontend)
    */
   const netlifyToken = process.env.NETLIFY_AUTH_TOKEN
-  const siteId = process.env.SITE_ID
+  const siteId = process.env.SITE_ID // SITE_ID é reservado pelo Netlify, já existe
 
   if (!netlifyToken || !siteId || !userId) {
+    if (!netlifyToken) {
+      console.warn('[abacatepay] NETLIFY_AUTH_TOKEN não configurada. Trial cloud validation desabilitada.')
+    }
     return { hasUsedTrial: false }
   }
 

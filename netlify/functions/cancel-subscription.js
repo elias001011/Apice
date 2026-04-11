@@ -20,7 +20,6 @@ import { buildCheckoutCorsHeaders } from './utils/cors.js'
  */
 
 const ABACATE_API_BASE = 'https://api.abacatepay.com'
-const NETLIFY_IDENTITY_API = 'https://api.netlify.com/api/v1'
 
 function getApiKey() {
   const key = String(process.env.ABACATE_PAY ?? '').trim()
@@ -107,42 +106,51 @@ async function cancelAbacateBilling(checkoutId, externalId) {
 async function downgradeUserToFree(userId) {
   /**
    * Atualiza metadata do usuário no Netlify Identity para 'free'
+   * REQUER: NETLIFY_AUTH_TOKEN
+   * Sem essa var, loga warning mas não falha (frontend ainda atualiza localStorage)
    */
   const netlifyToken = process.env.NETLIFY_AUTH_TOKEN
-  const siteId = process.env.SITE_ID
+  const siteId = process.env.SITE_ID // SITE_ID é reservado pelo Netlify
 
   if (!netlifyToken || !siteId) {
-    throw new Error('NETLIFY_AUTH_TOKEN ou SITE_ID não configurados')
+    console.warn('[cancel-subscription] NETLIFY_AUTH_TOKEN não configurada. Downgrade cloud desabilitado.')
+    return false
   }
 
-  const updateUrl = `${NETLIFY_IDENTITY_API}/sites/${siteId}/identity/users/${userId}`
+  try {
+    const updateUrl = `https://api.netlify.com/api/v1/sites/${siteId}/identity/users/${userId}`
 
-  const updateResponse = await fetch(updateUrl, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${netlifyToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      app_metadata: {
-        planTier: 'free',
-        planKey: '',
-        subscriptionActive: false,
+    const updateResponse = await fetch(updateUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${netlifyToken}`,
+        'Content-Type': 'application/json',
       },
-      user_metadata: {
-        planStatus: 'free',
-        subscriptionCancelledAt: new Date().toISOString(),
-      },
-    }),
-  })
+      body: JSON.stringify({
+        app_metadata: {
+          planTier: 'free',
+          planKey: '',
+          subscriptionActive: false,
+        },
+        user_metadata: {
+          planStatus: 'free',
+          subscriptionCancelledAt: new Date().toISOString(),
+        },
+      }),
+    })
 
-  if (!updateResponse.ok) {
-    const errorText = await updateResponse.text()
-    console.error('[cancel-subscription] Falha ao atualizar usuário:', errorText)
-    throw new Error(`Falha ao atualizar Netlify Identity: ${updateResponse.status}`)
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text()
+      console.error('[cancel-subscription] Falha ao atualizar usuário:', errorText)
+      return false
+    }
+
+    console.log(`[cancel-subscription] Usuário ${userId} downgraded para FREE.`)
+    return true
+  } catch (error) {
+    console.error('[cancel-subscription] Erro ao downgradar usuário:', error.message)
+    return false
   }
-
-  console.log(`[cancel-subscription] Usuário ${userId} downgraded para FREE.`)
 }
 
 async function handleCancel(req, authUser, headers) {
@@ -164,8 +172,8 @@ async function handleCancel(req, authUser, headers) {
     // 1. Tenta cancelar no AbacatePay
     const abacateResult = await cancelAbacateBilling(checkoutId, externalId)
 
-    // 2. Downgrade do usuário para free (independente do status no AbacatePay)
-    await downgradeUserToFree(userId)
+    // 2. Downgrade do usuário para free (pode falhar graceful se não tiver NETLIFY_AUTH_TOKEN)
+    const userDowngraded = await downgradeUserToFree(userId)
 
     return new Response(JSON.stringify({
       success: true,
@@ -173,7 +181,8 @@ async function handleCancel(req, authUser, headers) {
       message: abacateResult.message,
       requiresManualRefund: abacateResult.requiresManualRefund || false,
       billingStatus: abacateResult.billingStatus,
-      userDowngraded: true,
+      userDowngraded,
+      cloudSyncEnabled: userDowngraded,
     }), {
       status: 200,
       headers,
