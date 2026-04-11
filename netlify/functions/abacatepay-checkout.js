@@ -214,19 +214,24 @@ async function getUserTrialStatusFromNetlify(userId) {
 }
 
 async function createCheckout(req, authUser, headers) {
-  const body = await req.json().catch(() => ({}))
+  let body = {}
+  try {
+    body = await req.json()
+    console.log('[abacatepay] Body recebido:', JSON.stringify(body))
+  } catch (error) {
+    console.error('[abacatepay] Erro ao parsear body:', error.message)
+  }
+
   const planKey = safeText(body?.planKey)
   const isTrial = Boolean(body?.isTrial)
-  const plan = getPricingPlanByKey(planKey)
 
-  // userId é SEMPRE derivado do JWT (nunca do body) - prevenção de spoofing
-  const userId = safeText(authUser?.id)
-  const userEmail = safeText(authUser?.email || body?.userEmail || body?.email)
-  const customerName = safeText(authUser?.fullName || body?.customerName || body?.fullName)
-  const customerCellphone = safeText(body?.customerCellphone ?? body?.phone ?? body?.cellphone)
-  const customerTaxId = safeText(body?.customerTaxId ?? body?.taxId ?? body?.cpf ?? body?.cnpj)
+  console.log('[abacatepay] planKey:', planKey, '| isTrial:', isTrial)
+
+  const plan = getPricingPlanByKey(planKey)
+  console.log('[abacatepay] Plan encontrado:', plan?.key || 'NÃO ENCONTRADO')
 
   if (!plan || !plan.productId) {
+    console.error('[abacatepay] Plan não encontrado para planKey:', planKey)
     return new Response(JSON.stringify({ error: 'planKey inválido. Use: monthly, semiannual ou annual.' }), { status: 400, headers })
   }
 
