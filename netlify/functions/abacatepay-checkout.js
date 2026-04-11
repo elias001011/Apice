@@ -14,20 +14,19 @@ import { buildCheckoutCorsHeaders } from './utils/cors.js'
  * 5. Após pagar, AbacatePay redireciona de volta para completionUrl
  * 6. Frontend verifica status via GET /.netlify/functions/abacatepay-checkout
  * 7. Se pago, frontend atualiza billingState via markPlanPaid()
- * 8. Simultaneamente, webhook (payment-webhook.js) atualiza Netlify Identity
+ * 8. Simultaneamente, webhook (payment-webhook.js) atualiza blobs
  *
  * TESTE GRÁTIS (7 dias):
  * - Funciona via cupom de 100% desconto chamado "FREE TEST" no dashboard AbacatePay
- * - Quando isTrial=true, o cupom é aplicado no checkout
+ * - Quando isTrial=true, o cupom é aplicado no checkout (campo couponCode)
  * - Usuário vai pro AbacatePay, vê valor R$ 0,00 e completa sem pagar
  * - Só pode ser usado UMA vez por conta (controlado pelo backend + localStorage)
  *
  * SEGURANÇA DE DADOS DO CLIENTE:
- * - Dados do cliente (nome, email, CPF, celular) vão APENAS no metadata da cobrança
- * - NÃO enviamos campo 'customer' separado pra evitar que AbacatePay reutilize dados
- *   de outros customers com mesmo CPF/email (bug conhecido do AbacatePay V1)
+ * - Dados do cliente (nome, email, CPF, celular) vão no objeto 'customer' inline do checkout
+ * - AbacatePay cria customer automaticamente para cada checkout - dados NÃO vazam entre usuários
+ * - NÃO criamos customer separado antes (isso causava reutilização de customers existentes)
  * - O userId NUNCA vem do body (sempre do JWT) pra evitar spoofing
- * - Metadata é isolado por checkout - dados não vazam entre usuários
  */
 
 const ABACATE_API_BASE = 'https://api.abacatepay.com'
@@ -77,9 +76,18 @@ function getCheckoutPlanKey(checkout) {
   return safeText(checkout?.metadata?.planKey || '')
 }
 
-function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, userEmail, customerName, customerCellphone, customerTaxId, customerId, timestamp, isTrial }) {
+function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, userEmail, customerName, customerCellphone, customerTaxId, timestamp, isTrial }) {
   // Preço em centavos (AbacatePay V1 espera valor inteiro em centavos)
   const priceInCents = Math.max(0, Math.round(Number(plan.totalPrice) * 100))
+
+  // Monta dados do customer inline (AbacatePay cria automaticamente se não existir)
+  // Isso evita vazamento de dados entre usuários - cada checkout tem seu próprio customer
+  const customerPayload = {
+    name: customerName || userEmail || `Usuario ${userId.substring(0, 8)}`,
+    email: userEmail || `${userId}@apice.internal`,
+    cellphone: customerCellphone || '',
+    taxId: customerTaxId || '',
+  }
 
   const payload = {
     frequency: 'ONE_TIME',
@@ -96,19 +104,14 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
     returnUrl: returnUrl.toString(),
     completionUrl: completionUrl.toString(),
     externalId,
+    customer: customerPayload,
     metadata: {
       app: 'apice',
       planKey: plan.key,
       planLabel: plan.label,
       trialDays: plan.trialDays,
       isTrial: isTrial || false,
-      // Dados do cliente no metadata (isolado por checkout, não vaza entre usuários)
       userId,
-      userEmail,
-      customerName,
-      customerCellphone,
-      customerTaxId,
-      customerId,
       createdAt: timestamp,
     },
   }
@@ -116,15 +119,20 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
   // Aplica cupom de 100% desconto para teste grátis
   // O cupom "FREE TEST" deve existir no Dashboard AbacatePay com 100% off
   if (isTrial) {
-    payload.coupons = [TRIAL_COUPON_CODE]
+    payload.couponCode = TRIAL_COUPON_CODE
+    console.log('[abacatepay] Cupom de trial aplicado:', TRIAL_COUPON_CODE)
   }
 
-  // Inclui customerId como campo top-level (conforme doc AbacatePay)
-  // NÃO é { customer: { id } }, é { customerId: "cust_..." }
-  // Cada user tem seu próprio customer ID - dados não vazam entre usuários
-  if (customerId) {
-    payload.customerId = customerId
-  }
+  console.log('[abacatepay] Payload final (resumido):', JSON.stringify({
+    externalId: payload.externalId,
+    frequency: payload.frequency,
+    productCount: payload.products.length,
+    hasCustomer: !!payload.customer,
+    customerName: payload.customer?.name,
+    customerEmail: payload.customer?.email,
+    hasCouponCode: !!payload.couponCode,
+    metadata: payload.metadata,
+  }))
 
   return payload
 }
@@ -208,134 +216,6 @@ async function getUserTrialStatusFromCloud(userId) {
   }
 }
 
-async function createCustomer(userId, customerName, userEmail, customerCellphone, customerTaxId) {
-  /**
-   * Cria customer NOVO no AbacatePay para CADA usuário
-   * NÃO busca customer existente — isso causava vazamento de dados entre usuários
-   * Cada user tem seu próprio customer, isolado por userId
-   */
-  const apiKey = getApiKey()
-  if (!apiKey) {
-    console.error('[abacatepay] API key não configurada, não é possível criar customer')
-    return null
-  }
-
-  // Dados mínimos para criar customer
-  const name = customerName || userEmail || `Usuario ${userId.substring(0, 8)}`
-  const email = userEmail || `${userId}@apice.internal`
-
-  console.log('[abacatepay] Criando customer para userId:', userId, '| name:', name, '| email:', email)
-
-  try {
-    const createUrl = `${ABACATE_API_BASE}/v1/customer/create`
-    const createResponse = await fetch(createUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name,
-        email,
-        cellphone: customerCellphone || '',
-        taxId: customerTaxId || '',
-        metadata: {
-          app: 'apice',
-          userId,
-          source: 'checkout-auto-create',
-          createdAt: new Date().toISOString(),
-        },
-      }),
-    })
-
-    if (!createResponse.ok) {
-      const errorText = await createResponse.text()
-      console.error('[abacatepay] Falha ao criar customer:', errorText)
-
-      // Se falhar porque customer já existe (email duplicado), tenta listar e usar o primeiro
-      // Mas isso é raro porque usamos email único por userId
-      if (createResponse.status === 400 || createResponse.status === 409) {
-        console.warn('[abacatepay] Customer creation failed, trying list endpoint as fallback')
-        return await findOrCreateFallback(email, name, customerCellphone, customerTaxId, userId)
-      }
-
-      return null
-    }
-
-    const result = await createResponse.json()
-    const customerId = result?.data?.id
-    console.log('[abacatepay] Customer criado com sucesso:', customerId)
-    return customerId
-  } catch (error) {
-    console.error('[abacatepay] Erro ao criar customer:', error.message)
-    return null
-  }
-}
-
-async function findOrCreateFallback(email, name, cellphone, taxId, userId) {
-  /**
-   * Fallback: se criação falhar, busca na lista e tenta criar com email único
-   */
-  const apiKey = getApiKey()
-  try {
-    const listUrl = `${ABACATE_API_BASE}/v1/customer/list`
-    const listResponse = await fetch(listUrl, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (listResponse.ok) {
-      const listResult = await listResponse.json()
-      const customers = listResult?.data || []
-
-      // Busca customer pelo userId no metadata (nosso identificador único)
-      const existingByUserId = customers.find(c => c?.metadata?.userId === userId)
-      if (existingByUserId) {
-        console.log('[abacatepay] Customer encontrado por userId:', existingByUserId.id)
-        return existingByUserId.id
-      }
-    }
-  } catch (error) {
-    console.warn('[abacatepay] Fallback list failed:', error.message)
-  }
-
-  // Tenta criar com email único baseado no userId
-  const uniqueEmail = `user-${userId}@apice.internal`
-  try {
-    const createUrl = `${ABACATE_API_BASE}/v1/customer/create`
-    const createResponse = await fetch(createUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name: name || `Usuario ${userId.substring(0, 8)}`,
-        email: uniqueEmail,
-        cellphone: cellphone || '',
-        taxId: taxId || '',
-        metadata: {
-          app: 'apice',
-          userId,
-          source: 'checkout-fallback-create',
-        },
-      }),
-    })
-
-    if (createResponse.ok) {
-      const result = await createResponse.json()
-      console.log('[abacatepay] Customer criado via fallback:', result?.data?.id)
-      return result?.data?.id
-    }
-  } catch (error) {
-    console.error('[abacatepay] Fallback create failed:', error.message)
-  }
-
-  return null
-}
-
 async function createCheckout(req, authUser, headers) {
   let body = {}
   try {
@@ -366,9 +246,6 @@ async function createCheckout(req, authUser, headers) {
   const customerTaxId = safeText(body?.customerTaxId ?? body?.taxId ?? body?.cpf ?? body?.cnpj)
 
   console.log('[abacatepay] userId:', userId, '| userEmail:', userEmail)
-
-  // Cria customer NOVO no AbacatePay para ESTE usuário (nunca reutiliza de outro)
-  const customerId = await createCustomer(userId, customerName, userEmail, customerCellphone, customerTaxId)
 
   // BLINDAGEM DO TRIAL: Verifica no blob da nuvem se já usou trial
   // Isso previne que usuários burlem limpando localStorage
@@ -416,7 +293,6 @@ async function createCheckout(req, authUser, headers) {
           customerName,
           customerCellphone,
           customerTaxId,
-          customerId,
           timestamp,
           isTrial,
         }),
