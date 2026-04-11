@@ -327,7 +327,6 @@
 }
 .lp-gamification-image {
   width: 100%;
-  max-width: 380px;
   height: auto;
   border-radius: var(--lp-r);
   border: 1px solid var(--lp-border);
@@ -336,6 +335,8 @@
   display: block;
   animation: lp-float 6s ease-in-out infinite;
 }
+.lp-gamification-img--desktop { max-width: 380px; }
+.lp-gamification-img--mobile { max-width: 260px; display: none; }
 .lp-gamification-glow {
   position: absolute;
   width: 240px;
@@ -468,6 +469,8 @@
   .lp-gamification-showcase { grid-template-columns: 1fr; }
   .lp-gamification-image-wrap { border-right: none; border-bottom: 1px solid var(--lp-border); padding: 1.5rem; }
   .lp-gamification-features { padding: 2rem 1.5rem; }
+  .lp-gamification-img--desktop { display: none; }
+  .lp-gamification-img--mobile { display: block; }
 
   .lp-corrector-comp-row { grid-template-columns: 1fr; gap: 0.25rem; }
   .lp-corrector-comp-val { text-align: left; }

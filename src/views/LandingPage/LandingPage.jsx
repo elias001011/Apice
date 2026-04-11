@@ -3,7 +3,8 @@ import './landing.css';
 
 // Assets
 import imageHero from '../../assets/hero.png';
-import imageConquistas from '../../assets/Captura de tela 2026-04-11 165237.png';
+import imageConquistasDesktop from '../../assets/Captura de tela 2026-04-11 165237.png';
+import imageConquistasMobile from '../../assets/iPhone-14-Plus-dev--apice-ai.netlify.app.webp';
 
 const RADAR_TEMAS = [
   { titulo: 'Inteligência Artificial e ética no Brasil', prob: 94, area: 'Tecnologia' },
@@ -205,7 +206,8 @@ const LandingPage = () => {
         </div>
         <div className={`lp-gamification-showcase${v3 ? ' anim-scale' : ' anim-hidden'}`}>
           <div className="lp-gamification-image-wrap">
-            <img src={imageConquistas} alt="Conquistas do Ápice" className="lp-gamification-image" />
+            <img src={imageConquistasDesktop} alt="Conquistas do Ápice" className="lp-gamification-image lp-gamification-img--desktop" />
+            <img src={imageConquistasMobile} alt="Conquistas do Ápice" className="lp-gamification-image lp-gamification-img--mobile" />
             <div className="lp-gamification-glow"></div>
           </div>
           <div className="lp-gamification-features">
