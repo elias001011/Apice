@@ -223,6 +223,8 @@ export function PlanosPage() {
       // We call the real checkout even for trials now
       const trialRequested = trialAvailable
 
+      console.log('[planos] trialAvailable:', trialAvailable, '| trialAlreadyUsed:', trialAlreadyUsed, '| billingState.status:', billingState.status, '| isTrial:', trialRequested)
+
       const response = await authFetch('/.netlify/functions/abacatepay-checkout', {
         method: 'POST',
         body: JSON.stringify({
