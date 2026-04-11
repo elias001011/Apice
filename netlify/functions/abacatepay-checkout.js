@@ -235,6 +235,15 @@ async function createCheckout(req, authUser, headers) {
     return new Response(JSON.stringify({ error: 'planKey inválido. Use: monthly, semiannual ou annual.' }), { status: 400, headers })
   }
 
+  // userId é SEMPRE derivado do JWT (nunca do body) - prevenção de spoofing
+  const userId = safeText(authUser?.id)
+  const userEmail = safeText(authUser?.email || body?.userEmail || body?.email)
+  const customerName = safeText(authUser?.fullName || body?.customerName || body?.fullName)
+  const customerCellphone = safeText(body?.customerCellphone ?? body?.phone ?? body?.cellphone)
+  const customerTaxId = safeText(body?.customerTaxId ?? body?.taxId ?? body?.cpf ?? body?.cnpj)
+
+  console.log('[abacatepay] userId:', userId, '| userEmail:', userEmail)
+
   // BLINDAGEM DO TRIAL: Verifica no Netlify Identity se já usou trial
   // Isso previne que usuários burlem limpando localStorage
   let hasUsedTrialCloud = false
