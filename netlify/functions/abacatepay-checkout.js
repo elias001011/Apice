@@ -119,22 +119,11 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
     payload.coupons = [TRIAL_COUPON_CODE]
   }
 
-  // Inclui customer field com ID válido (criado/busca antes)
-  // Isso resolve o erro "Customer not found" do AbacatePay
+  // Inclui customerId como campo top-level (conforme doc AbacatePay)
+  // NÃO é { customer: { id } }, é { customerId: "cust_..." }
   // Cada user tem seu próprio customer ID - dados não vazam entre usuários
   if (customerId) {
-    payload.customer = {
-      id: customerId,
-    }
-  } else if (customerName || userEmail) {
-    // Fallback: se não conseguiu criar customer, envia dados inline
-    // (menos ideal, mas permite checkout funcionar)
-    payload.customer = {
-      name: customerName || userEmail || 'Cliente Ápice',
-      email: userEmail || '',
-      cellphone: customerCellphone || '',
-      taxId: customerTaxId || '',
-    }
+    payload.customerId = customerId
   }
 
   return payload
