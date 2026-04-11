@@ -273,11 +273,6 @@ const LandingPage = () => {
             </div>
           ))}
         </div>
-        <div className="lp-impact-numbers">
-          {[{ n: '10.847', l: 'Redações corrigidas' }, { n: '5.230', l: 'Alunos ativos' }, { n: '28.500', l: 'Simulados gerados' }, { n: '98%', l: 'Satisfação' }].map((item, i) => (
-            <div className={`lp-impact-card${v5 ? ' anim-in' : ' anim-hidden'}`} style={{ animationDelay: `${0.25 + i * 0.1}s` }} key={i}><strong className="lp-impact-number">{item.n}</strong><span>{item.l}</span></div>
-          ))}
-        </div>
       </section>
 
       {/* ═══ CTA SOCIAL ═══ */}

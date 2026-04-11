@@ -382,11 +382,6 @@
 .lp-testimonial-info span { font-size: 0.75rem; color: var(--lp-dim); }
 .lp-testimonial-stars { display: flex; gap: 0.1rem; color: #ffbd2e; }
 .lp-testimonial-card > p { font-size: 0.85rem; color: var(--lp-muted); line-height: 1.55; font-style: italic; }
-.lp-impact-numbers { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; }
-.lp-impact-card { background: var(--lp-card); border: 1.5px solid var(--lp-border); border-radius: var(--lp-r-lg); padding: 1.25rem; text-align: center; display: flex; flex-direction: column; gap: 0.2rem; transition: border-color 0.3s, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-.lp-impact-card:hover { border-color: var(--lp-border-h); transform: translateY(-3px); }
-.lp-impact-number { font-size: 1.8rem; font-weight: 900; color: #c8f060; letter-spacing: -0.03em; }
-.lp-impact-card span { font-size: 0.78rem; color: var(--lp-dim); }
 
 /* ═══ PRICING ═══ */
 .lp-pricing { max-width: 1100px; margin: 0 auto; padding: 3.5rem 1.5rem; }
