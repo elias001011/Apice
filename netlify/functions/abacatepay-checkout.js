@@ -77,7 +77,7 @@ function getCheckoutPlanKey(checkout) {
   return safeText(checkout?.metadata?.planKey || '')
 }
 
-function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, userEmail, customerName, customerCellphone, customerTaxId, timestamp, isTrial }) {
+function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, userEmail, customerName, customerCellphone, customerTaxId, customerId, timestamp, isTrial }) {
   // Preço em centavos (AbacatePay V1 espera valor inteiro em centavos)
   const priceInCents = Math.max(0, Math.round(Number(plan.totalPrice) * 100))
 
@@ -108,6 +108,7 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
       customerName,
       customerCellphone,
       customerTaxId,
+      customerId,
       createdAt: timestamp,
     },
   }
@@ -118,11 +119,23 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
     payload.coupons = [TRIAL_COUPON_CODE]
   }
 
-  // IMPORTANTE: NÃO enviamos campo 'customer' separado.
-  // O AbacatePay V1 tem um bug onde reutiliza dados de customers existentes
-  // com mesmo CPF/email, mostrando dados de OUTROS usuários no checkout.
-  // Dados do cliente ficam apenas no metadata (isolado por checkout).
-  // Se precisar de customer separado no futuro, usar API v2 (subscriptions).
+  // Inclui customer field com ID válido (criado/busca antes)
+  // Isso resolve o erro "Customer not found" do AbacatePay
+  // Cada user tem seu próprio customer ID - dados não vazam entre usuários
+  if (customerId) {
+    payload.customer = {
+      id: customerId,
+    }
+  } else if (customerName || userEmail) {
+    // Fallback: se não conseguiu criar customer, envia dados inline
+    // (menos ideal, mas permite checkout funcionar)
+    payload.customer = {
+      name: customerName || userEmail || 'Cliente Ápice',
+      email: userEmail || '',
+      cellphone: customerCellphone || '',
+      taxId: customerTaxId || '',
+    }
+  }
 
   return payload
 }
@@ -213,6 +226,81 @@ async function getUserTrialStatusFromNetlify(userId) {
   }
 }
 
+async function createCustomerIfMissing(customerName, userEmail, customerCellphone, customerTaxId) {
+  /**
+   * Cria customer no AbacatePay se não existir
+   * Necessário porque a API V1 exige customer criado antes de billing
+   */
+  const apiKey = getApiKey()
+  if (!apiKey) return null
+
+  try {
+    // Primeiro tenta listar customers com mesmo email/taxId
+    const listUrl = `${ABACATE_API_BASE}/v1/customer/list`
+    const listResponse = await fetch(listUrl, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (listResponse.ok) {
+      const listResult = await listResponse.json()
+      const customers = listResult?.data || []
+
+      // Busca customer existente pelo email ou taxId
+      if (customerTaxId) {
+        const existingByTaxId = customers.find(c => c?.taxId === customerTaxId)
+        if (existingByTaxId) return existingByTaxId.id
+      }
+      if (userEmail) {
+        const existingByEmail = customers.find(c => c?.email === userEmail)
+        if (existingByEmail) return existingByEmail.id
+      }
+    }
+  } catch (error) {
+    console.warn('[abacatepay] Falha ao listar customers existentes:', error.message)
+  }
+
+  // Cria novo customer se não encontrou
+  if (!customerName && !userEmail) return null
+
+  try {
+    const createUrl = `${ABACATE_API_BASE}/v1/customer/create`
+    const createResponse = await fetch(createUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: customerName || userEmail || 'Cliente Ápice',
+        email: userEmail || '',
+        cellphone: customerCellphone || '',
+        taxId: customerTaxId || '',
+        metadata: {
+          app: 'apice',
+          source: 'checkout-creation',
+        },
+      }),
+    })
+
+    if (!createResponse.ok) {
+      const errorText = await createResponse.text()
+      console.error('[abacatepay] Falha ao criar customer:', errorText)
+      return null
+    }
+
+    const result = await createResponse.json()
+    const customerId = result?.data?.id
+    console.log('[abacatepay] Customer criado:', customerId)
+    return customerId
+  } catch (error) {
+    console.error('[abacatepay] Erro ao criar customer:', error.message)
+    return null
+  }
+}
+
 async function createCheckout(req, authUser, headers) {
   let body = {}
   try {
@@ -243,6 +331,9 @@ async function createCheckout(req, authUser, headers) {
   const customerTaxId = safeText(body?.customerTaxId ?? body?.taxId ?? body?.cpf ?? body?.cnpj)
 
   console.log('[abacatepay] userId:', userId, '| userEmail:', userEmail)
+
+  // Cria customer no AbacatePay se necessário
+  const customerId = await createCustomerIfMissing(customerName, userEmail, customerCellphone, customerTaxId)
 
   // BLINDAGEM DO TRIAL: Verifica no Netlify Identity se já usou trial
   // Isso previne que usuários burlem limpando localStorage
@@ -290,6 +381,7 @@ async function createCheckout(req, authUser, headers) {
           customerName,
           customerCellphone,
           customerTaxId,
+          customerId,
           timestamp,
           isTrial,
         }),
