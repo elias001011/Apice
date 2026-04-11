@@ -200,7 +200,7 @@ async function handleCancel(req, authUser, headers) {
   }
 }
 
-export default async function handler(req) {
+export default async function handler(req, context) {
   const headers = buildCheckoutCorsHeaders(req)
 
   if (req.method === 'OPTIONS') {
@@ -212,7 +212,7 @@ export default async function handler(req) {
   }
 
   // Requer autenticação
-  const auth = requireAuth(req, headers)
+  const auth = requireAuth(req, context, headers)
   if (auth instanceof Response) return auth
 
   return await handleCancel(req, auth.user, headers)

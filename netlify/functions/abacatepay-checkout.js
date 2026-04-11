@@ -380,7 +380,7 @@ async function verifyCheckout(req, headers) {
   }
 }
 
-export default async function handler(req) {
+export default async function handler(req, context) {
   const headers = buildCheckoutCorsHeaders(req)
 
   // Pre-flight CORS check
@@ -390,7 +390,7 @@ export default async function handler(req) {
 
   // POST = criar checkout (requer autenticação)
   if (req.method === 'POST') {
-    const auth = requireAuth(req, headers)
+    const auth = requireAuth(req, context, headers)
     if (auth instanceof Response) return auth
 
     try {

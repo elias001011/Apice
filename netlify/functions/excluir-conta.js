@@ -157,7 +157,7 @@ export default async function handler(req, context = {}) {
   }
 
   // ── Primary auth: JWT from Authorization header ─────────────────────
-  const jwtAuth = authenticateRequest(req)
+  const jwtAuth = authenticateRequest(req, context)
 
   // ── Fallback: Netlify clientContext (legacy path) ───────────────────
   const clientContext = decodeNetlifyClientContext(context)

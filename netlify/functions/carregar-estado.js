@@ -18,7 +18,7 @@ const getStore = async () => {
   }
 }
 
-export default async function handler(req) {
+export default async function handler(req, context) {
   const headers = buildCorsHeaders(req)
 
   if (req.method === 'OPTIONS') {
@@ -30,7 +30,7 @@ export default async function handler(req) {
   }
 
   // ── Authentication ──────────────────────────────────────────────────────
-  const auth = requireAuth(req, headers)
+  const auth = requireAuth(req, context, headers)
   if (auth instanceof Response) return auth
 
   try {
