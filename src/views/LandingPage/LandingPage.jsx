@@ -126,6 +126,9 @@ const LandingPage = () => {
   return (
     <div className={`lp-container${darkMode ? ' lp-dark' : ' lp-light'}`}>
 
+      {/* ══════════════ GRID BACKGROUND ══════════════ */}
+      <div className="lp-grid-bg" aria-hidden="true"></div>
+
       {/* ══════════════ THEME TOGGLE ══════════════ */}
       <button
         className="lp-theme-toggle"

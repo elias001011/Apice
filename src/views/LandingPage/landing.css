@@ -8,10 +8,14 @@
 /* ═══ THEME VARIABLES ═══ */
 .lp-container {
   min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
   font-family: 'DM Sans', sans-serif;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.4s ease, color 0.4s ease;
+  background: var(--lp-bg);
+  color: var(--lp-text);
 }
 
 /* Dark mode (default) */
@@ -81,13 +85,28 @@
   --lp-r-xl: 30px;
 }
 
-.lp-container {
-  background: var(--lp-bg);
-  color: var(--lp-text);
-  min-height: 100vh;
-  font-family: 'DM Sans', sans-serif;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
+/* ═══ GRID BACKGROUND ═══ */
+.lp-grid-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100vh;
+  max-height: 720px;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(200, 240, 96, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200, 240, 96, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.08) 40%, transparent 75%);
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.08) 40%, transparent 75%);
+}
+
+.lp-light .lp-grid-bg {
+  background-image:
+    linear-gradient(rgba(200, 240, 96, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200, 240, 96, 0.12) 1px, transparent 1px);
 }
 
 /* ═══ HEADER ═══ */
