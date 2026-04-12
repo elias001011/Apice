@@ -1,5 +1,6 @@
 import { correctEssay } from '../ai/ai.js'
 import { requireAuth } from './utils/auth.js'
+import { requireAiQuota } from './utils/serverQuota.js'
 import { buildCorsHeaders } from './utils/cors.js'
 import {
   INPUT_LIMITS,
@@ -21,6 +22,10 @@ export default async function handler(req, context) {
   // ── Authentication ──────────────────────────────────────────────────────
   const auth = requireAuth(req, context, headers)
   if (auth instanceof Response) return auth
+
+  // ── Server-side AI Quota Check ──────────────────────────────────────────
+  const quota = await requireAiQuota(auth.user.id, headers)
+  if (quota instanceof Response) return quota
 
   try {
     const body = await req.json().catch(() => ({}))

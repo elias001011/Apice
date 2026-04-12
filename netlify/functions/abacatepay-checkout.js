@@ -322,7 +322,6 @@ async function createCheckout(req, authUser, headers) {
       billingLabel: plan.billingLabel,
       trialDays: plan.trialDays,
       isTrial,
-      checkout,
     }), {
       status: 200,
       headers,
@@ -359,11 +358,17 @@ async function verifyCheckout(req, headers) {
       return new Response(JSON.stringify({ error: 'Checkout não encontrado' }), { status: 404, headers })
     }
 
+    // SECURITY FIX: Return ONLY the status fields needed by the frontend.
+    // Do NOT expose the full checkout object (which may contain customer PII,
+    // internal IDs, pricing details, etc.).
+    const status = getCheckoutStatus(checkout)
+    const planKey = getCheckoutPlanKey(checkout) || ''
+
     return new Response(JSON.stringify({
       success: true,
-      checkout,
-      paid: ['PAID', 'ACTIVE'].includes(getCheckoutStatus(checkout)),
-      planKey: getCheckoutPlanKey(checkout) || checkout?.externalId || externalId || '',
+      paid: ['PAID', 'ACTIVE'].includes(status),
+      status,
+      planKey,
       externalId: checkout.externalId || externalId || '',
     }), {
       status: 200,

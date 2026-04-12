@@ -1,82 +1,56 @@
 /**
  * Authenticated fetch wrapper for Netlify Functions.
  *
- * AUTENTICAÇÃO (em ordem de prioridade):
- * 1. Authorization: Bearer <JWT> — método principal (seguro, não-forjável)
- * 2. X-User-Id header — fallback se JWT não disponível (forjável, período de transição)
- *
+ * AUTENTICAÇÃO: Authorization: Bearer <JWT> — método único (seguro, não-forjável).
  * O JWT é obtido via GoTrue .jwt() que faz refresh automático se expirado.
- * O backend (auth.js) prioriza JWT e faz fallback para X-User-Id com warning.
  *
- * HISTÓRICO: Antes usávamos apenas X-User-Id porque o user_metadata legado
- * inflava o JWT e causava 500 no API Gateway. Após migração para Blobs,
- * o JWT ficou leve (~300 chars) e pode ser usado normalmente.
+ * O backend (auth.js) exige JWT verificado pelo Netlify Identity (produção)
+ * ou validação estrutural opt-in (desenvolvimento local).
+ *
+ * X-User-Id foi REMOVIDO por ser forjável — qualquer cliente podia se passar por outro.
  */
 
 let _getAuthToken = null
 
 /**
- * Register a function that returns the current auth token.
- * Returns JWT string or '__userid__<id>' prefix for fallback.
+ * Register a function that returns the current JWT.
  * Called once from AuthProvider during initialization.
  *
- * @param {() => Promise<string>} tokenGetter - async function returning JWT or prefixed userId
+ * @param {() => Promise<string>} tokenGetter - async function returning JWT string
  */
 export function registerAuthTokenGetter(tokenGetter) {
   _getAuthToken = typeof tokenGetter === 'function' ? tokenGetter : null
 }
 
 /**
- * Get auth credentials from the registered getter, or from localStorage as fallback.
- * Returns { jwt, userId } — at least one will be non-empty if authenticated.
+ * Get the JWT from the registered getter.
+ * Returns empty string if unavailable.
  */
-async function getAuthCredentials() {
-  let token = ''
-
+async function getJwtToken() {
   if (_getAuthToken) {
     try {
-      token = await _getAuthToken()
+      const token = await _getAuthToken()
+      if (token && !token.startsWith('__userid__')) {
+        return token
+      }
     } catch {
-      // ignore, fallback to localStorage
+      // ignore
     }
   }
-
-  // If getter returned a JWT (not a __userid__ prefix)
-  if (token && !token.startsWith('__userid__')) {
-    return { jwt: token, userId: '' }
-  }
-
-  // If getter returned a __userid__ prefix fallback
-  if (token && token.startsWith('__userid__')) {
-    return { jwt: '', userId: token.replace('__userid__', '') }
-  }
-
-  // Last resort: read userId directly from localStorage
-  try {
-    const raw = typeof window !== 'undefined' ? localStorage.getItem('gotrue.user') : null
-    if (raw) {
-      const data = JSON.parse(raw)
-      return { jwt: '', userId: data?.id || '' }
-    }
-  } catch {
-    // ignore
-  }
-
-  return { jwt: '', userId: '' }
+  return ''
 }
 
 /**
  * Perform an authenticated fetch to a Netlify Function endpoint.
  *
- * Sends Authorization: Bearer <JWT> as primary auth.
- * Falls back to X-User-Id header if JWT is unavailable.
+ * Sends Authorization: Bearer <JWT> as the only auth mechanism.
  *
  * @param {string} url - The function URL (e.g. '/.netlify/functions/corrigir-redacao')
  * @param {object} options - Standard fetch options.
  * @returns {Promise<Response>}
  */
 export async function authFetch(url, options = {}) {
-  const { jwt, userId } = await getAuthCredentials()
+  const jwt = await getJwtToken()
 
   const headers = {
     'Content-Type': 'application/json',
@@ -85,12 +59,8 @@ export async function authFetch(url, options = {}) {
 
   if (jwt) {
     headers['Authorization'] = `Bearer ${jwt}`
-  } else if (userId) {
-    // Fallback: X-User-Id (forjável — será removido em versão futura)
-    headers['X-User-Id'] = userId
-    console.warn(`[authFetch] Usando X-User-Id fallback para ${url} (JWT indisponível)`)
   } else {
-    console.warn(`[authFetch] Nenhuma credencial disponível para ${url}`)
+    console.warn(`[authFetch] JWT indisponível para ${url}. O backend rejeitará a requisição.`)
   }
 
   const response = await fetch(url, {
@@ -98,12 +68,11 @@ export async function authFetch(url, options = {}) {
     headers,
   })
 
-  // Log auth/server errors for debugging
   if (response.status === 401) {
     console.error(
       `[authFetch] 401 em ${url}. ` +
-      `Auth: ${jwt ? 'JWT' : userId ? 'X-User-Id' : '(nenhum)'}. ` +
-      `Storage: ${Boolean(typeof window !== 'undefined' && localStorage?.getItem('gotrue.user'))}`
+      `Auth: ${jwt ? 'JWT' : '(nenhum)'}. ` +
+      `Faça logout e login novamente para renovar o token.`
     )
   } else if (response.status === 500 || response.status === 502) {
     console.warn(`[authFetch] ${response.status} em ${url}. Server error.`)

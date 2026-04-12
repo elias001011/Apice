@@ -1,24 +1,92 @@
 import process from 'node:process'
+import { createHmac, timingSafeEqual } from 'node:crypto'
+import { Buffer } from 'node:buffer'
 
 /**
  * Webhook para eventos de pagamento do AbacatePay
  *
  * COMO FUNCIONA:
  * 1. AbacatePay envia POST para /.netlify/functions/payment-webhook quando há evento de pagamento
- * 2. Webhook verifica se é evento de sucesso (subscription.paid, billing.paid, subscription.created)
- * 3. Se for sucesso, atualiza o blob do usuário no Netlify Blobs com o status de billing
- * 4. NÃO atualiza mais user_metadata (isso causava JWT inchado e erros 500)
+ * 2. Webhook VERIFICA A ASSINATURA HMAC usando o webhook secret
+ * 3. Se assinatura válida, processa evento de sucesso (subscription.paid, billing.paid, subscription.created)
+ * 4. Atualiza o blob do usuário no Netlify Blobs com o status de billing
  *
  * VARIÁVEIS DE AMBIENTE NECESSÁRIAS:
  * - ABACATE_PAY: Chave de API do AbacatePay
+ * - WEBHOOK_SECRET: Segredo compartilhado para verificar assinaturas HMAC
  *
  * EVENTOS SUPORTADOS:
  * - subscription.paid: Assinatura paga
  * - billing.paid: Pagamento confirmado
  * - subscription.created: Assinatura criada
+ *
+ * SEGURANÇA:
+ * - Assinatura HMAC-SHA256 verificada em tempo constante (timingSafeEqual)
+ * - Rejeição de payloads não autenticados com 401
+ * - Idempotência: re-processar o mesmo evento é seguro (merge no blob existente)
  */
 
 const BLOB_STORE_NAME = 'user-state'
+
+/**
+ * Get the webhook secret from environment.
+ * Must be set to a strong random string (e.g. openssl rand -hex 32).
+ */
+function getWebhookSecret() {
+  const secret = String(process.env.WEBHOOK_SECRET ?? '').trim()
+  if (!secret) {
+    console.error('[payment-webhook] WEBHOOK_SECRET não está configurada. Rejeitando webhook por segurança.')
+  }
+  return secret
+}
+
+/**
+ * Verify the HMAC signature of the webhook payload.
+ *
+ * Expects the signature in the `x-abacatepay-signature` header (or fallback headers).
+ * The signature is HMAC-SHA256 of the raw request body using the webhook secret.
+ *
+ * @param {string} rawBody - The raw request body
+ * @param {string} signature - The signature from the request header
+ * @param {string} secret - The shared webhook secret
+ * @returns {boolean} - True if the signature is valid
+ */
+function verifyHmacSignature(rawBody, signature, secret) {
+  if (!rawBody || !signature || !secret) return false
+
+  const expectedSig = createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex')
+
+  // Use timing-safe comparison to prevent timing attacks
+  const sigBuf = Buffer.from(signature, 'utf8')
+  const expectedBuf = Buffer.from(expectedSig, 'utf8')
+
+  if (sigBuf.length !== expectedBuf.length) return false
+
+  return timingSafeEqual(sigBuf, expectedBuf)
+}
+
+/**
+ * Extract the signature from known header names.
+ */
+function extractSignature(req) {
+  const headers = req.headers
+  if (typeof headers?.get !== 'function') return ''
+
+  // Common header names for webhook signatures
+  const candidates = [
+    'x-abacatepay-signature',
+    'x-abacatepay-signature-256',
+    'x-signature',
+    'x-webhook-signature',
+    'x-hub-signature-256',
+  ]
+
+  for (const name of candidates) {
+    const val = headers.get(name)
+    if (val) return String(val).trim()
+  }
+  return ''
+}
 
 function safeText(value) {
   return String(value ?? '').trim()
@@ -82,13 +150,41 @@ export async function handler(req) {
   }
 
   try {
-    const body = await req.json().catch(() => ({}))
+    // ── Signature Verification ──────────────────────────────────────────
+    const webhookSecret = getWebhookSecret()
+    if (!webhookSecret) {
+      // No secret configured — reject to prevent unauthenticated writes
+      return new Response(JSON.stringify({
+        error: 'Webhook secret not configured. Rejeitando por segurança.',
+      }), { status: 503 })
+    }
+
+    // Read raw body for signature verification
+    const rawBody = await req.text()
+    const signature = extractSignature(req)
+
+    if (!signature) {
+      console.warn('[payment-webhook] Assinatura ausente no header. Requisição rejeitada.')
+      return new Response(JSON.stringify({
+        error: 'Assinatura do webhook ausente. Rejeitando requisição não autenticada.',
+      }), { status: 401 })
+    }
+
+    if (!verifyHmacSignature(rawBody, signature, webhookSecret)) {
+      console.warn('[payment-webhook] Assinatura INVÁLIDA. Requisição rejeitada.')
+      return new Response(JSON.stringify({
+        error: 'Assinatura do webhook inválida. Requisição rejeitada.',
+      }), { status: 401 })
+    }
+
+    // Signature valid — parse JSON from the verified raw body
+    const body = JSON.parse(rawBody)
     const event = body?.event || ''
     const metadata = body?.metadata || body?.data?.metadata || {}
     const userId = safeText(metadata.userId)
     const planKey = safeText(metadata.planKey) || 'monthly'
 
-    console.log(`[payment-webhook] Evento recebido: ${event}`, { userId, planKey })
+    console.log(`[payment-webhook] Evento VERIFICADO: ${event}`, { userId, planKey })
 
     if (!userId) {
       console.warn('[payment-webhook] userId não encontrado no metadata. Dados:', JSON.stringify(metadata))

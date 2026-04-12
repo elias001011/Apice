@@ -114,9 +114,9 @@ export function PlanosPage() {
           const planKey = data.planKey || params.get('plan') || billingState.planKey || 'monthly'
           markPlanPaid({
             planKey,
-            checkoutId: data.checkout?.id || checkoutId,
+            checkoutId: checkoutId,
             externalId: data.externalId || externalId,
-            subscriptionId: data.checkout?.id || '',
+            subscriptionId: checkoutId,
             paidAt: new Date().toISOString(),
           })
           setFlash({
@@ -244,8 +244,8 @@ export function PlanosPage() {
         throw new Error(getAbacatePayErrorMessage(data, 'Não foi possível criar o checkout.'))
       }
 
-      const checkoutUrl = data.checkoutUrl || data.checkout?.url || data.url || ''
-      const checkoutId = data.checkoutId || data.checkout?.id || data.id || ''
+      const checkoutUrl = data.checkoutUrl || data.url || ''
+      const checkoutId = data.checkoutId || data.id || ''
       if (!checkoutUrl) {
         throw new Error(getAbacatePayErrorMessage(data, 'A AbacatePay não retornou a URL de checkout.'))
       }

@@ -47,8 +47,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   // Register the JWT getter so authFetch can send Authorization: Bearer header.
-  // Previously we sent X-User-Id (forjável) because user_metadata inflated JWTs.
-  // Now that apice_state was moved to Blobs, JWTs are light again (~300 chars).
+  // Only JWT is accepted — X-User-Id was removed for security reasons.
   useEffect(() => {
     registerAuthTokenGetter(async () => {
       const currentUser = auth.currentUser()
@@ -58,9 +57,8 @@ export function AuthProvider({ children }) {
         const token = await currentUser.jwt()
         return token || ''
       } catch (err) {
-        console.warn('[AuthProvider] Falha ao obter JWT:', err.message)
-        // Fallback: return userId so authFetch can still send X-User-Id
-        return currentUser.id ? `__userid__${currentUser.id}` : ''
+        console.error('[AuthProvider] Falha ao obter JWT. Sem fallback — o backend rejeitará requisições sem token válido.', err.message)
+        return ''
       }
     })
     return () => registerAuthTokenGetter(null)

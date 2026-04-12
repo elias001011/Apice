@@ -1,5 +1,6 @@
 import { generateTextDirect } from '../ai/ai.js'
 import { requireAuth } from './utils/auth.js'
+import { requireAiQuota } from './utils/serverQuota.js'
 import { buildCorsHeaders } from './utils/cors.js'
 import {
   INPUT_LIMITS,
@@ -26,7 +27,13 @@ export default async function handler(req, context) {
     return auth
   }
 
-  console.log(`[chamar-ia] Auth OK. userId: ${auth.user.id}, email: ${auth.user.email}`)
+  // ── Server-side AI Quota Check ──────────────────────────────────────────
+  const quota = await requireAiQuota(auth.user.id, headers)
+  if (quota instanceof Response) {
+    return quota  // 429 Quota exceeded
+  }
+
+  console.log(`[chamar-ia] Auth OK. userId: ${auth.user.id}, email: ${auth.user.email}, quota: ${quota.used}/${quota.limit}`)
 
   try {
     const body = await req.json().catch(() => ({}))
