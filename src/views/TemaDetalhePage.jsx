@@ -287,7 +287,7 @@ export function TemaDetalhePage() {
       material,
       redacao: '',
       isRigido: false,
-      themeMode: 'manual',
+      themeMode: 'dynamic', // Tema pré-definido (readonly) - não pode ser editado pelo usuário
     })
     navigate('/corretor')
   }

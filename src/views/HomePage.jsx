@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { usePwaInstall } from '../pwa/usePwaInstall.js'
@@ -29,10 +29,8 @@ import {
 import {
   loadWeatherCardEnabled,
   loadWeatherLocation,
-  saveWeatherLocation,
   subscribeWeatherCardEnabled,
   subscribeWeatherLocation,
-  filterCitySuggestions,
 } from '../services/weatherPreferences.js'
 import { saveProfessorHandoff } from '../services/professorHandoff.js'
 import frases from '../data/frases.json'
@@ -101,17 +99,14 @@ export function HomePage() {
   const [weatherCardEnabled, setWeatherCardEnabled] = useState(() => loadWeatherCardEnabled())
   const [weatherLocation, setWeatherLocation] = useState(() => loadWeatherLocation())
   const [weatherData, setWeatherData] = useState(() => {
-    const location = loadWeatherLocation()
     const cached = getLastClimaResult()
-    return isClimaResultFresh(cached, location) ? cached : null
+    return isClimaResultFresh(cached, loadWeatherLocation()) ? cached : null
   })
   const [weatherLoading, setWeatherLoading] = useState(false)
   const [weatherError, setWeatherError] = useState('')
-  const [citySearchQuery, setCitySearchQuery] = useState('')
-  const [citySearchOpen, setCitySearchOpen] = useState(false)
-  const [citySearchFocused, setCitySearchFocused] = useState(-1)
   const [professorMessage, setProfessorMessage] = useState('')
   const [professorMessageError, setProfessorMessageError] = useState('')
+  const professorTextareaRef = useRef(null)
   const enemLabel = getEnemYearLabel()
   const [dailyQuote] = useState(() => frases[getDailyQuoteIndex()])
 
@@ -287,51 +282,6 @@ export function HomePage() {
   const weatherCountry = weatherData?.pais || ''
   const hasWeatherData = Boolean(weatherData)
 
-  // Busca inteligente de cidades
-  const citySuggestions = filterCitySuggestions(citySearchQuery)
-  const showSuggestions = citySearchOpen && citySearchQuery.trim().length > 0
-
-  function handleCitySearchFocus() {
-    setCitySearchOpen(true)
-    setCitySearchFocused(-1)
-  }
-
-  function handleCitySearchBlur() {
-    // Fecha o dropdown após um delay para permitir clique nas sugestões
-    setTimeout(() => {
-      setCitySearchOpen(false)
-      setCitySearchFocused(-1)
-    }, 150)
-  }
-
-  function handleCitySelect(city) {
-    setWeatherLocation(city)
-    saveWeatherLocation(city)
-    setCitySearchQuery('')
-    setCitySearchOpen(false)
-    setCitySearchFocused(-1)
-  }
-
-  function handleCitySearchKeyDown(e) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setCitySearchFocused(prev => Math.min(prev + 1, citySuggestions.length - 1))
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setCitySearchFocused(prev => Math.max(prev - 1, 0))
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      if (citySearchFocused >= 0 && citySuggestions[citySearchFocused]) {
-        handleCitySelect(citySuggestions[citySearchFocused])
-      } else if (citySuggestions.length > 0) {
-        handleCitySelect(citySuggestions[0])
-      }
-    } else if (e.key === 'Escape') {
-      setCitySearchOpen(false)
-      setCitySearchFocused(-1)
-    }
-  }
-
   function handleProfessorWidgetSubmit(event) {
     event.preventDefault()
 
@@ -352,106 +302,101 @@ export function HomePage() {
     navigate('/professor', { state: { handoff } })
   }
 
+  function handleProfessorInput(event) {
+    setProfessorMessage(event.target.value)
+    if (professorMessageError) setProfessorMessageError('')
+    // Auto-resize
+    const el = professorTextareaRef.current
+    if (el) {
+      el.style.height = 'auto'
+      el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+    }
+  }
+
   const weatherCard = weatherCardEnabled ? (
     <section className={`weather-card anim anim-d2${weatherLoading ? ' is-loading' : ''}`}>
-      <div className="weather-card-top">
-        <div>
-          <div className="weather-card-kicker">Clima agora</div>
-          <div className="weather-card-location">
-            <strong>{weatherHeaderLocation}</strong>
-            {weatherCountry && <span>{weatherCountry}</span>}
-          </div>
-        </div>
-        <div className="weather-city-search">
-          <input
-            type="text"
-            className="weather-city-input"
-            placeholder="Buscar cidade..."
-            value={citySearchQuery}
-            onChange={e => setCitySearchQuery(e.target.value)}
-            onFocus={handleCitySearchFocus}
-            onBlur={handleCitySearchBlur}
-            onKeyDown={handleCitySearchKeyDown}
-            aria-label="Buscar cidade para ver o clima"
-            aria-expanded={showSuggestions}
-            aria-haspopup="listbox"
-          />
-          {showSuggestions && citySuggestions.length > 0 && (
-            <ul className="weather-city-dropdown" role="listbox">
-              {citySuggestions.map((city, idx) => (
-                <li
-                  key={city}
-                  role="option"
-                  aria-selected={idx === citySearchFocused}
-                  className={`weather-city-option${idx === citySearchFocused ? ' is-focused' : ''}`}
-                  onClick={() => handleCitySelect(city)}
-                  onMouseEnter={() => setCitySearchFocused(idx)}
-                >
-                  {city}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+      <div className="weather-header">
+        <span className="weather-location-text">{weatherHeaderLocation}</span>
+        {weatherCountry && <span className="weather-country-text">{weatherCountry}</span>}
       </div>
 
       {hasWeatherData ? (
         <>
-          <div className="weather-card-core">
-            <div className="weather-icon-shell" aria-hidden="true">
-              {weatherData.icone ? (
-                <img
-                  src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
-                  alt=""
-                  className="weather-icon"
-                />
-              ) : (
-                <svg viewBox="0 0 24 24" className="weather-fallback-icon">
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-                </svg>
-              )}
-            </div>
-
-            <div className="weather-card-main">
-              <div className="weather-temp-row">
-                <div className="weather-temp">{weatherData.temperatura}°</div>
-                <div className="weather-summary">
-                  <strong>{weatherDescription}</strong>
-                  <span>Sensação {weatherData.sensacao}°C</span>
+          <div className="weather-grid">
+            {/* Esquerda: clima */}
+            <div className="weather-left">
+              <div className="weather-body">
+                <div className="weather-row">
+                  <div className="weather-icon-shell" aria-hidden="true">
+                    {weatherData.icone ? (
+                      <img
+                        src={`https://openweathermap.org/img/wn/${weatherData.icone}@2x.png`}
+                        alt=""
+                        className="weather-icon"
+                      />
+                    ) : (
+                      <svg viewBox="0 0 24 24" className="weather-fallback-icon">
+                        <circle cx="12" cy="12" r="4" />
+                        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="weather-temp-value">{weatherData.temperatura}°</div>
+                </div>
+                <div className="weather-chips-row">
+                  <span className="weather-chip">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
+                    </svg>
+                    {weatherData.maxima}°
+                  </span>
+                  <span className="weather-chip">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 5v14" /><path d="M19 12l-7 7-7-7" />
+                    </svg>
+                    {weatherData.minima}°
+                  </span>
                 </div>
               </div>
+            </div>
 
-              <div className="weather-chip-row">
-                <span>Máx {weatherData.maxima}°</span>
-                <span>Mín {weatherData.minima}°</span>
-                <span>Umidade {weatherData.umidade}%</span>
-                <span>Vento {weatherData.vento} km/h</span>
-              </div>
+            {/* Direita: qualidade do ar */}
+            <div className="weather-right">
+              <div className="air-quality-label">Qualidade do ar</div>
+              {weatherData.qualidadeAr ? (
+                <div className="air-quality-badge" style={{ borderColor: weatherData.qualidadeAr.color }}>
+                  <span className="air-quality-dot" style={{ backgroundColor: weatherData.qualidadeAr.color }} />
+                  <span className="air-quality-value" style={{ color: weatherData.qualidadeAr.color }}>
+                    {weatherData.qualidadeAr.label}
+                  </span>
+                </div>
+              ) : (
+                <div className="air-quality-badge air-quality-unavailable">
+                  <span className="air-quality-value">N/A</span>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="weather-meta-strip">
-            <span>Visib. {weatherData.visibilidadeKm ?? '--'} km</span>
-            <span>Pressão {weatherData.pressao ?? '--'} hPa</span>
-            <span>Nuvens {weatherData.nuvens ?? '--'}%</span>
-            <span>Atualizado {weatherUpdatedAt}</span>
-          </div>
-
-          {weatherError && (
-            <div className="weather-inline-note">
-              Mostrando o último resultado salvo. {weatherError}
+          {weatherData.alertas && weatherData.alertas.length > 0 && (
+            <div className="weather-alert">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <div>
+                <strong>Alerta meteorológico</strong>
+                <span>{weatherData.alertas[0].description || 'Condições climáticas adversas na região.'}</span>
+              </div>
             </div>
           )}
         </>
       ) : (
         <div className="weather-empty-state">
           <div className="weather-empty-copy">
-            {weatherLoading ? 'Buscando o clima da sua região...' : 'Ainda não conseguimos carregar o clima da sua região.'}
+            {weatherLoading ? 'Buscando o clima...' : 'Não foi possível carregar o clima.'}
           </div>
-          {!weatherLoading && weatherError && (
-            <div className="weather-inline-note">{weatherError}</div>
-          )}
         </div>
       )}
     </section>
@@ -594,11 +539,7 @@ export function HomePage() {
             </div>
           </div>
 
-          {weatherCard}
-
-          {enemCard}
-
-          {/* Stats */}
+          {/* Stats - logo após o hero */}
           <div className="stats-grid anim anim-d2">
             <div className="pv-stat pv-stat--dark">
               <div className="pv-stat-top">
@@ -641,6 +582,10 @@ export function HomePage() {
               </div>
             </div>
           </div>
+
+          {weatherCard}
+
+          {enemCard}
 
         </div>
 
@@ -709,12 +654,10 @@ export function HomePage() {
                 <label className="prof-widget-input-shell">
                   <span className="sr-only">Mensagem para o professor</span>
                   <textarea
+                    ref={professorTextareaRef}
                     className="prof-widget-input"
                     value={professorMessage}
-                    onChange={(event) => {
-                      setProfessorMessage(event.target.value)
-                      if (professorMessageError) setProfessorMessageError('')
-                    }}
+                    onChange={handleProfessorInput}
                     placeholder="Ex: como montar uma tese mais forte para a redação?"
                     rows={3}
                     aria-label="Mensagem para o professor"
@@ -727,7 +670,6 @@ export function HomePage() {
                       <path d="M5 12h14M12 5l7 7-7 7" />
                     </svg>
                   </button>
-                  <div className="prof-widget-hint">Abre o Professor já com sua dúvida preenchida.</div>
                 </div>
                 {professorMessageError && <div className="prof-widget-error">{professorMessageError}</div>}
               </div>
@@ -795,23 +737,23 @@ const homeCss = `
   .home-grid-right {
     display: flex;
     flex-direction: column;
-    gap: 1.15rem;
+    gap: 0.7rem;
     min-width: 0;
   }
 
   html.layout-compact .home-grid-left,
   html.layout-compact .home-grid-right {
-    gap: 0.9rem;
+    gap: 0.6rem;
   }
 
   .home-grid {
     display: flex;
     flex-direction: column;
-    gap: 1.15rem;
+    gap: 0.7rem;
   }
 
   html.layout-compact .home-grid {
-    gap: 0.9rem;
+    gap: 0.6rem;
   }
 
   /* Grid principal */
@@ -843,94 +785,19 @@ const homeCss = `
     padding: 1rem 1.05rem;
   }
 
-  html[data-fx="gradients"] .features-stack .pv-feature--quote {
-    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.015), transparent 60%), var(--bg3);
-  }
-
-  .features-stack .pv-feature--quote:hover {
-    transform: none;
-    box-shadow: none;
-  }
-
   .home-radar-card {
     width: 100%;
     align-self: stretch;
     margin-top: 0;
-    min-height: 172px;
-    box-shadow: 0 12px 26px rgba(8, 9, 4, 0.045);
+    min-height: 165px;
   }
 
   html.layout-compact .home-radar-card {
-    min-height: 156px;
+    min-height: 150px;
   }
 
   .home-radar-card .pv-feature-content {
     gap: 10px;
-  }
-
-  html[data-fx="gradients"] .home-radar-card {
-    background:
-      radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 28%),
-      linear-gradient(145deg, rgba(var(--accent-rgb), 0.05), rgba(var(--accent-rgb), 0.022)),
-      var(--bg2) !important;
-    border-color: rgba(var(--accent-rgb), 0.1) !important;
-  }
-
-  html[data-fx="blur"] .home-radar-card {
-    background:
-      radial-gradient(circle at top right, rgba(255, 255, 255, 0.12), transparent 24%),
-      linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
-      rgba(var(--accent-rgb), 0.9) !important;
-    border-color: rgba(var(--accent-rgb), 0.22) !important;
-    box-shadow: 0 18px 42px rgba(8, 9, 4, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
-  }
-
-  html[data-fx="blur"] .home-radar-card .pv-feature-title,
-  html[data-fx="blur"] .home-radar-card .pv-feature-desc,
-  html[data-fx="blur"] .home-radar-card .pv-pill {
-    color: #0f0f0f !important;
-  }
-
-  html[data-fx="blur"] .home-radar-card .pv-pill {
-    background: rgba(15, 15, 15, 0.1) !important;
-    border-color: rgba(15, 15, 15, 0.08) !important;
-  }
-
-  html[data-fx="blur"] .home-radar-card .pv-feature-icon {
-    background: rgba(15, 15, 15, 0.12) !important;
-  }
-
-  html[data-fx="blur"] .home-radar-card .pv-feature-icon svg {
-    stroke: #0f0f0f !important;
-  }
-
-  html[data-fx="none"] .home-radar-card {
-    background: var(--bg2) !important;
-    border-color: var(--border) !important;
-    box-shadow: none !important;
-  }
-
-  html[data-fx="none"] .home-radar-card .pv-feature-icon {
-    background: var(--bg3) !important;
-    border: 1px solid var(--border) !important;
-    box-shadow: none !important;
-  }
-
-  html[data-fx="none"] .home-radar-card .pv-feature-icon svg {
-    stroke: var(--accent) !important;
-  }
-
-  html[data-fx="none"] .home-radar-card .pv-pill {
-    background: var(--bg3) !important;
-    border-color: var(--border) !important;
-    color: var(--text2) !important;
-  }
-
-  html[data-fx="none"] .home-radar-card .pv-feature-btn {
-    background: var(--bg3) !important;
-    color: var(--text) !important;
-    border: 1px solid var(--border) !important;
-    box-shadow: none !important;
   }
 
   form.home-professor-card.pv-feature {
@@ -942,8 +809,6 @@ const homeCss = `
   }
 
   form.home-professor-card.pv-feature:hover {
-    transform: none;
-    box-shadow: 0 16px 38px rgba(8, 9, 4, 0.06);
     border-color: rgba(var(--accent-rgb), 0.08);
   }
 
@@ -959,7 +824,7 @@ const homeCss = `
   .prof-widget-input {
     width: 100%;
     min-height: 86px;
-    resize: vertical;
+    resize: none;
     border-radius: 16px;
     border: 1px solid rgba(var(--accent-rgb), 0.12);
     background: rgba(var(--accent-rgb), 0.04);
@@ -979,13 +844,6 @@ const homeCss = `
   .prof-widget-input:focus {
     border-color: var(--accent);
     background: rgba(var(--accent-rgb), 0.08);
-    box-shadow: 0 0 0 3px var(--accent-dim);
-  }
-
-  html[data-fx="blur"] .prof-widget-input {
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(calc(var(--glass-blur) * 0.42));
-    -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.42));
   }
 
   .prof-widget-actions {
@@ -1016,261 +874,122 @@ const homeCss = `
 
   .weather-card {
     width: 100%;
-    padding: 0.9rem 0.95rem;
+    padding: 1rem 1.25rem;
     border-radius: 20px;
-    border: 1px solid rgba(var(--accent-rgb), 0.08);
-    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.02), transparent 62%), var(--bg2);
-    box-shadow: 0 14px 30px rgba(8, 9, 4, 0.05);
+    border: 1px solid var(--border);
+    background: var(--bg2);
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
     position: relative;
-    overflow: hidden;
+    overflow: visible;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
 
-  html[data-fx="blur"] .weather-card {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)),
-      var(--bg2-glass);
-    border-color: rgba(255, 255, 255, 0.22);
-    backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
-    -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
-    box-shadow: 0 18px 44px rgba(8, 9, 4, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  html[data-card-hover="on"] .weather-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    border-color: var(--accent);
   }
 
-  html[data-theme="dark"][data-fx="blur"] .weather-card {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008)),
-      var(--bg2-glass);
-    border-color: rgba(255, 255, 255, 0.1);
+  .weather-header {
+    text-align: center;
   }
 
-  html[data-theme="dark"] .weather-card {
-    border-color: rgba(var(--accent-rgb), 0.12);
-  }
-
-  html[data-fx="none"] .weather-card {
-    background: var(--bg2) !important;
-    border-color: var(--border) !important;
-    box-shadow: none !important;
-  }
-
-  html[data-fx="none"] .weather-card .weather-icon-shell {
-    background: var(--bg3) !important;
-    border-color: var(--border) !important;
-    box-shadow: none !important;
-  }
-
-  html[data-fx="none"] .weather-card .weather-icon {
-    filter: none !important;
-  }
-
-  html[data-fx="none"] .weather-card .weather-chip-row span,
-  html[data-fx="none"] .weather-card .weather-meta-strip span {
-    background: var(--bg3) !important;
-    border-color: var(--border) !important;
-    color: var(--text2) !important;
-  }
-
-  html[data-fx="none"] .weather-card .weather-city-input {
-    background: var(--bg3) !important;
-    border-color: var(--border) !important;
-    box-shadow: none !important;
-  }
-
-  html[data-fx="none"] .weather-card .weather-city-input:focus {
-    background: var(--bg3) !important;
-    border-color: var(--border2) !important;
-  }
-
-  html[data-fx="none"] .weather-card .weather-city-dropdown {
-    background: var(--bg2) !important;
-    border-color: var(--border) !important;
-    box-shadow: none !important;
-  }
-
-  html[data-fx="none"] .weather-card .weather-city-option:hover,
-  html[data-fx="none"] .weather-card .weather-city-option.is-focused {
-    background: var(--bg3) !important;
-    color: var(--text) !important;
-  }
-
-  html[data-fx="none"] .weather-card .weather-inline-note {
-    background: var(--bg3) !important;
-    border-color: var(--border) !important;
-  }
-
-  .weather-card-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-  }
-
-  .weather-card-kicker {
-    font-size: 0.64rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--text3);
-    margin-bottom: 0.2rem;
-  }
-
-  .weather-card-location {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    align-items: baseline;
-  }
-
-  .weather-card-location strong {
+  .weather-location-text {
     font-family: 'DM Serif Display', serif;
-    font-size: 1.05rem;
-    line-height: 1;
+    font-size: 1rem;
     color: var(--text);
     font-weight: 400;
   }
 
-  .weather-card-location span {
-    font-size: 0.74rem;
-    color: var(--text3);
-    font-weight: 700;
-  }
-
-  .weather-city-search {
-    position: relative;
-    min-width: 180px;
-  }
-
-  .weather-city-input {
-    width: 100%;
-    min-height: 34px;
-    padding: 0.35rem 0.7rem;
-    border-radius: 12px;
-    border: 1px solid rgba(var(--accent-rgb), 0.15);
-    background: rgba(var(--accent-rgb), 0.04);
-    color: var(--text);
-    font-size: 0.78rem;
-    font-weight: 500;
-    outline: none;
-    transition: border-color 0.15s ease, background 0.15s ease;
-  }
-
-  .weather-city-input::placeholder {
-    color: var(--text3);
-    opacity: 0.7;
-  }
-
-  .weather-city-input:focus {
-    border-color: var(--accent);
-    background: rgba(var(--accent-rgb), 0.08);
-  }
-
-  .weather-city-dropdown {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    right: 0;
-    z-index: 10;
-    max-height: 200px;
-    overflow-y: auto;
-    border-radius: 12px;
-    border: 1px solid var(--border2);
-    background: var(--bg2);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-
-  .weather-city-option {
-    padding: 0.45rem 0.75rem;
-    font-size: 0.8rem;
-    color: var(--text2);
-    cursor: pointer;
-    transition: background 0.1s ease, color 0.1s ease;
-  }
-
-  .weather-city-option:hover,
-  .weather-city-option.is-focused {
-    background: rgba(var(--accent-rgb), 0.1);
-    color: var(--accent);
-  }
-
-  .weather-card-core {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 0.8rem;
-    align-items: center;
-  }
-
-  .weather-card-main {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-  }
-
-  .weather-temp-row {
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-  }
-
-  .weather-temp {
-    font-family: 'DM Serif Display', serif;
-    font-size: 2.5rem;
-    line-height: 0.86;
-    color: var(--text);
-    letter-spacing: -0.05em;
-  }
-
-  .weather-summary {
-    display: flex;
-    flex-direction: column;
-    gap: 0.22rem;
-  }
-
-  .weather-summary strong {
-    font-size: 0.9rem;
-    line-height: 1.2;
-    color: var(--text);
-  }
-
-  .weather-summary span {
-    font-size: 0.78rem;
-    color: var(--text2);
-  }
-
-  .weather-chip-row,
-  .weather-meta-strip {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
-
-  .weather-chip-row span,
-  .weather-meta-strip span {
-    display: inline-flex;
-    align-items: center;
-    min-height: 24px;
-    padding: 0 9px;
-    border-radius: 999px;
-    background: rgba(var(--accent-rgb), 0.05);
-    border: 1px solid rgba(var(--accent-rgb), 0.1);
+  .weather-country-text {
     font-size: 0.68rem;
+    color: var(--text3);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-left: 0.35rem;
+  }
+
+  .weather-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    align-items: center;
+  }
+
+  .weather-left {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0;
+  }
+
+  .weather-right {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    border-left: 1px solid var(--border);
+  }
+
+  .air-quality-label {
+    font-size: 0.62rem;
     font-weight: 700;
-    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text3);
+  }
+
+  .air-quality-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 999px;
+    border: 1.5px solid;
+    background: var(--bg3);
+    min-width: 80px;
+    justify-content: center;
+  }
+
+  .air-quality-badge.air-quality-unavailable {
+    border-color: var(--border);
+  }
+
+  .air-quality-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .air-quality-value {
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .weather-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    width: 100%;
+  }
+
+  .weather-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
   }
 
   .weather-icon-shell {
-    width: 64px;
-    height: 64px;
-    border-radius: 18px;
-    background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.62), rgba(var(--accent-rgb), 0.12));
-    border: 1px solid rgba(var(--accent-rgb), 0.12);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 12px 24px rgba(var(--accent-rgb), 0.12);
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1278,10 +997,10 @@ const homeCss = `
   }
 
   .weather-icon {
-    width: 60px;
-    height: 60px;
+    width: 56px;
+    height: 56px;
     object-fit: contain;
-    filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.08));
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.06));
   }
 
   .weather-fallback-icon {
@@ -1292,18 +1011,77 @@ const homeCss = `
     stroke-width: 1.8;
   }
 
-  .weather-inline-note {
-    font-size: 0.74rem;
-    line-height: 1.5;
+  .weather-temp-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2.6rem;
+    line-height: 1;
+    color: var(--text);
+    letter-spacing: -0.03em;
+  }
+
+  .weather-chips-row {
+    display: flex;
+    gap: 0.45rem;
+    align-items: center;
+  }
+
+  .weather-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: var(--bg3);
+    font-size: 0.68rem;
+    font-weight: 600;
     color: var(--text2);
-    padding: 0.6rem 0.7rem;
+    white-space: nowrap;
+  }
+
+  .weather-chip svg {
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+
+  .weather-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.65rem 0.75rem;
     border-radius: 12px;
-    border: 1px solid rgba(var(--accent-rgb), 0.1);
-    background: rgba(var(--accent-rgb), 0.05);
+    background: rgba(225, 68, 68, 0.1);
+    border: 1px solid rgba(225, 68, 68, 0.25);
+    width: 100%;
+  }
+
+  .weather-alert svg {
+    color: var(--red);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .weather-alert div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .weather-alert strong {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--red);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .weather-alert span {
+    font-size: 0.7rem;
+    color: var(--text2);
+    line-height: 1.4;
   }
 
   .weather-empty-state {
-    min-height: 92px;
+    min-height: 80px;
     border-radius: 16px;
     border: 1px dashed var(--border2);
     background: var(--bg3);
@@ -1311,7 +1089,7 @@ const homeCss = `
     align-items: center;
     justify-content: center;
     flex-direction: column;
-    gap: 0.55rem;
+    gap: 0.4rem;
     padding: 1rem;
     text-align: center;
   }
@@ -1319,7 +1097,7 @@ const homeCss = `
   .weather-empty-copy {
     font-size: 0.82rem;
     line-height: 1.55;
-    color: var(--text2);
+    color: var(--text3);
     max-width: 32ch;
   }
 
@@ -1328,28 +1106,26 @@ const homeCss = `
     max-width: none;
     padding: 1rem 1.05rem;
     border-radius: 22px;
-    border: 1px solid rgba(var(--accent-rgb), 0.08);
-    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2);
+    border: 1px solid var(--border);
+    background: var(--bg2);
     display: flex;
     flex-direction: column;
     gap: 0.85rem;
     align-self: stretch;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 16px 38px rgba(8, 9, 4, 0.06);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+
+  html[data-card-hover="on"] .enem-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    border-color: var(--accent);
   }
 
   html.layout-compact .enem-card {
     padding: 0.9rem 0.95rem;
     border-radius: 20px;
-  }
-
-  html[data-fx="gradients"] .enem-card {
-    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.015), transparent 58%), var(--bg2);
-  }
-
-  html[data-fx="gradients"] .weather-card {
-    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.04), transparent 70%), var(--bg2);
   }
 
   .enem-card-header,
@@ -1557,7 +1333,6 @@ const homeCss = `
   }
 
   .enem-today-state {
-    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.08), transparent 70%), var(--bg2);
     border-color: var(--accent-dim2);
   }
 
@@ -1604,34 +1379,22 @@ const homeCss = `
 
   @media (max-width: 767px) {
     .weather-card {
-      padding: 0.82rem 0.85rem;
+      padding: 0.9rem 1.1rem;
       border-radius: 18px;
-      gap: 0.7rem;
-    }
-
-    .weather-card-top {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .weather-city-search {
-      min-width: unset;
-      width: 100%;
     }
 
     .weather-icon-shell {
-      width: 58px;
-      height: 58px;
-      border-radius: 16px;
+      width: 64px;
+      height: 64px;
     }
 
     .weather-icon {
-      width: 54px;
-      height: 54px;
+      width: 64px;
+      height: 64px;
     }
 
-    .weather-temp {
-      font-size: 2.15rem;
+    .weather-temp-value {
+      font-size: 2.2rem;
     }
 
     .enem-card {
@@ -1669,14 +1432,31 @@ const homeCss = `
   }
 
   @media (max-width: 480px) {
-    .weather-card-core {
-      grid-template-columns: 1fr;
-      justify-items: start;
+    .weather-body {
+      gap: 0.75rem;
     }
 
-    .weather-temp-row {
-      align-items: flex-start;
-      gap: 0.65rem;
+    .weather-icon-shell {
+      width: 56px;
+      height: 56px;
+    }
+
+    .weather-icon {
+      width: 56px;
+      height: 56px;
+    }
+
+    .weather-temp-value {
+      font-size: 1.9rem;
+    }
+
+    .weather-chips-row {
+      gap: 0.35rem;
+    }
+
+    .weather-chip {
+      padding: 0.12rem 0.4rem;
+      font-size: 0.64rem;
     }
 
     .enem-card {
@@ -1721,12 +1501,12 @@ const homeCss = `
     font-size: 0.72rem;
   }
 
-  /* Hero */
+  /* Hero - Minimalista 2D */
   .hero {
-    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2);
-    border: 1px solid rgba(var(--accent-rgb), 0.08);
-    border-radius: 24px;
-    padding: 1.75rem 1.5rem;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem 1.25rem;
     margin-bottom: 0;
     display: grid;
     grid-template-columns: 1fr;
@@ -1734,41 +1514,19 @@ const homeCss = `
     gap: 0.9rem;
     position: relative;
     overflow: hidden;
-    min-height: 180px;
-    box-shadow: 0 16px 38px rgba(8, 9, 4, 0.06);
+    min-height: 160px;
   }
 
   html.layout-compact .hero {
     padding: 1.2rem 1.15rem;
-    border-radius: 20px;
-    min-height: 156px;
-  }
-
-  html[data-fx="gradients"] .hero {
-    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.02), transparent 58%), var(--bg2);
-  }
-
-  html[data-fx="blur"] .hero {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)),
-      var(--bg2-glass);
-    border-color: rgba(255, 255, 255, 0.24);
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-    box-shadow: 0 18px 44px rgba(8, 9, 4, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  }
-
-  html[data-theme="dark"][data-fx="blur"] .hero {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
-      var(--bg2-glass);
-    border-color: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    min-height: 140px;
   }
 
   @media (max-width: 767px) {
     .hero {
       padding: 1.25rem 1.25rem;
-      min-height: 150px;
+      min-height: 140px;
     }
   }
 
@@ -1830,7 +1588,7 @@ const homeCss = `
     align-items: center;
     gap: 6px;
     padding: 9px 18px;
-    background: linear-gradient(145deg, var(--accent), var(--accent2));
+    background: var(--accent);
     color: #0f0f0f;
     border-radius: 10px;
     font-size: 0.85rem;
@@ -1839,10 +1597,9 @@ const homeCss = `
     border: none;
     cursor: pointer;
     font-family: inherit;
-    box-shadow: 0 14px 28px rgba(var(--accent-rgb), 0.2);
-    transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+    transition: background 0.2s, transform 0.1s;
   }
-  .hero-cta:hover { background: linear-gradient(145deg, var(--accent2), var(--accent)); }
+  .hero-cta:hover { background: var(--accent2); }
   .hero-cta:active { transform: scale(0.97); }
 
   .hero-cta:disabled {
@@ -1895,11 +1652,10 @@ const homeCss = `
   }
 
   .performance-block {
-    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg3);
-    border: 1px solid rgba(var(--accent-rgb), 0.08);
+    background: var(--bg3);
+    border: 1px solid var(--border);
     border-radius: 16px;
     padding: 0.85rem 0.95rem;
-    box-shadow: 0 12px 28px rgba(8, 9, 4, 0.04);
   }
 
   .performance-label {
@@ -1935,8 +1691,8 @@ const homeCss = `
     border-color: var(--border2);
   }
 
-  .pv-stat { 
-    border-radius: 20px; 
+  .pv-stat {
+    border-radius: 16px;
     padding: 1.15rem;
     position: relative;
     overflow: hidden;
@@ -1944,83 +1700,57 @@ const homeCss = `
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    border: 1px solid rgba(var(--accent-rgb), 0.08);
-    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2);
-    box-shadow: 0 16px 38px rgba(8, 9, 4, 0.06);
-    transition: transform 0.25s ease, border-color 0.2s, box-shadow 0.25s;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+
+  html[data-card-hover="on"] .pv-stat:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    border-color: var(--accent);
   }
 
   html.layout-compact .pv-stat {
     padding: 0.95rem;
     min-height: 108px;
-    border-radius: 18px;
+    border-radius: 12px;
   }
-  .pv-stat:hover { 
-    transform: translateY(-3px);
-    box-shadow: 0 22px 48px rgba(8, 9, 4, 0.1);
+
+  html[data-card-hover="on"] .pv-stat:hover {
+    border-color: rgba(var(--accent-rgb), 0.15);
   }
-  .pv-stat--dark { background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2); }
-  .pv-stat--dark:hover { border-color: rgba(var(--accent-rgb), 0.18); }
+
+  .pv-stat--dark { background: var(--bg2); }
+  .pv-stat--dark .pv-stat-icon { background: var(--accent-dim); }
+  .pv-stat--dark .pv-stat-icon svg { stroke: var(--accent); }
+
   .pv-stat--lime {
-    background:
-      radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.25), transparent 40%),
-      linear-gradient(145deg, rgba(var(--accent-rgb), 0.25), rgba(var(--accent-rgb), 0.15));
-    border: 1px solid rgba(var(--accent-rgb), 0.25);
+    background: var(--accent);
+    border: 1px solid var(--accent);
   }
-  .pv-stat--lime:hover { border-color: rgba(var(--accent-rgb), 0.35); }
-
-  html[data-fx="blur"] .pv-stat--lime {
-    background:
-      radial-gradient(circle at top right, rgba(255, 255, 255, 0.14), transparent 30%),
-      linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
-      rgba(var(--accent-rgb), 0.9);
-    border-color: rgba(var(--accent-rgb), 0.22);
-    box-shadow: 0 18px 42px rgba(8, 9, 4, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  }
-
-  html[data-fx="blur"] .pv-stat--lime .pv-stat-icon {
-    background: rgba(15, 15, 15, 0.12);
-  }
-
-  html[data-fx="blur"] .pv-stat--lime .pv-stat-icon svg {
-    stroke: #0f0f0f;
-  }
-
-  html[data-fx="blur"] .pv-stat--lime .pv-stat-delta {
-    background: rgba(15, 15, 15, 0.1);
-    color: #0f0f0f;
-  }
-
-  html[data-fx="blur"] .pv-stat--lime .pv-stat-value,
-  html[data-fx="blur"] .pv-stat--lime .pv-stat-value span,
-  html[data-fx="blur"] .pv-stat--lime .pv-stat-label {
-    color: #0f0f0f;
-  }
-
-  html[data-fx="blur"] .pv-stat--lime .pv-stat-value span {
-    opacity: 0.78;
-  }
-
-  html[data-fx="blur"] .pv-stat--lime .pv-bar {
-    background: rgba(15, 15, 15, 0.14);
-  }
-
-  html[data-fx="blur"] .pv-stat--lime .pv-bar-fill {
-    background: #0f0f0f;
-  }
+  .pv-stat--lime .pv-stat-icon { background: rgba(0, 0, 0, 0.15); }
+  .pv-stat--lime .pv-stat-icon svg { stroke: #0f0f0f; }
+  .pv-stat--lime .pv-stat-delta { background: rgba(0, 0, 0, 0.12); color: #0f0f0f; }
+  .pv-stat--lime .pv-stat-value,
+  .pv-stat--lime .pv-stat-value span,
+  .pv-stat--lime .pv-stat-label { color: #0f0f0f; }
+  .pv-stat--lime .pv-stat-value span { opacity: 0.7; }
+  .pv-stat--lime .pv-bar { background: rgba(0, 0, 0, 0.12); }
+  .pv-stat--lime .pv-bar-fill { background: #0f0f0f; }
 
   .pv-stat-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
 
   .pv-stat-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
   .pv-stat--dark .pv-stat-icon { background: var(--accent-dim); }
   .pv-stat--dark .pv-stat-icon svg { stroke: var(--accent); }
-  .pv-stat--lime .pv-stat-icon { background: rgba(255, 255, 255, 0.25); }
+  .pv-stat--lime .pv-stat-icon { background: rgba(0, 0, 0, 0.15); }
   .pv-stat--lime .pv-stat-icon svg { stroke: #0f0f0f; }
   .pv-stat-icon svg { width: 18px; height: 18px; fill: none; stroke-width: 1.7; }
 
   .pv-stat-delta { font-size: 0.65rem; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
   .pv-stat--dark .pv-stat-delta { background: var(--accent-dim); color: var(--accent); }
-  .pv-stat--lime .pv-stat-delta { background: rgba(255, 255, 255, 0.25); color: #0f0f0f; }
+  .pv-stat--lime .pv-stat-delta { background: rgba(0, 0, 0, 0.12); color: #0f0f0f; }
 
   .pv-stat-value { font-family: 'DM Serif Display', serif; font-size: 2rem; line-height: 1; margin-bottom: 3px; }
   .pv-stat--dark .pv-stat-value { color: var(--text); }
@@ -2033,11 +1763,11 @@ const homeCss = `
 
   .pv-stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
   .pv-stat--dark .pv-stat-label { color: var(--text2); }
-  .pv-stat--lime .pv-stat-label { color: rgba(15, 15, 15, 0.7); }
+  .pv-stat--lime .pv-stat-label { color: #0f0f0f; }
 
   .pv-bar { height: 3px; border-radius: 3px; overflow: hidden; }
   .pv-stat--dark .pv-bar { background: var(--border); }
-  .pv-stat--lime .pv-bar { background: rgba(15, 15, 15, 0.15); }
+  .pv-stat--lime .pv-bar { background: rgba(0, 0, 0, 0.12); }
   .pv-bar-fill { height: 100%; border-radius: 3px; }
   .pv-stat--dark .pv-bar-fill { background: var(--accent); }
   .pv-stat--lime .pv-bar-fill { background: #0f0f0f; }
@@ -2100,91 +1830,55 @@ const homeCss = `
   }
 
   .pv-feature {
-    border-radius: 24px;
-    padding: 1.4rem 1.4rem 1.15rem;
+    border-radius: 16px;
+    padding: 1.25rem 1.25rem 1rem;
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 1rem;
     align-items: start;
     text-decoration: none;
-    min-height: 182px;
+    min-height: 170px;
     position: relative;
     overflow: hidden;
-    border: 1px solid rgba(var(--accent-rgb), 0.08);
-    box-shadow: 0 16px 38px rgba(8, 9, 4, 0.06);
-    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.2s ease;
+    border: 1px solid var(--border);
+    transition: border-color 0.2s;
+    background: var(--bg2);
   }
 
   html.layout-compact .pv-feature {
     padding: 1.1rem 1.1rem 0.95rem;
-    min-height: 164px;
-    border-radius: 20px;
+    min-height: 155px;
+    border-radius: 12px;
   }
 
-  .pv-feature:hover { 
-    transform: translateY(-3px); 
-    box-shadow: 0 22px 46px rgba(8, 9, 4, 0.1); 
-    border-color: rgba(var(--accent-rgb), 0.18);
+  html[data-card-hover="on"] .pv-feature:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    border-color: var(--accent);
   }
-  .pv-feature--dark { background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2); }
+
+  .pv-feature--dark { background: var(--bg2); }
   .pv-feature--lime {
-    background:
-      radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.15), transparent 40%),
-      linear-gradient(145deg, rgba(var(--accent-rgb), 0.12), rgba(var(--accent-rgb), 0.06)),
-      var(--bg2);
-    border: 1px solid rgba(var(--accent-rgb), 0.2);
+    background: var(--accent);
+    border: 1px solid var(--accent);
   }
+  .pv-feature--lime .pv-feature-title { color: #0f0f0f; }
+  .pv-feature--lime .pv-feature-desc { color: #333; }
+  .pv-feature--lime .pv-pill { background: rgba(0, 0, 0, 0.12); color: #0f0f0f; }
+  .pv-feature--lime .pv-feature-btn { background: #0f0f0f; color: var(--accent); }
+  .pv-feature--lime .pv-feature-icon svg { stroke: #0f0f0f; }
+  .pv-feature--lime .pv-feature-icon { background: rgba(0, 0, 0, 0.1); }
 
-  html[data-theme="dark"] .pv-feature--lime {
-    background:
-      radial-gradient(circle at top right, rgba(255, 255, 255, 0.08), transparent 40%),
-      linear-gradient(145deg, rgba(var(--accent-rgb), 0.12), rgba(var(--accent-rgb), 0.05)),
-      var(--bg2);
-    border-color: rgba(var(--accent-rgb), 0.18);
-  }
   .pv-feature-content { display: flex; flex-direction: column; gap: 7px; position: relative; z-index: 2; }
-
-  html[data-fx="gradients"] .pv-feature--dark {
-    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.015), transparent 58%), var(--bg2);
-  }
-
-  html[data-fx="blur"] .pv-feature--dark {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
-      var(--bg2-glass);
-    border-color: rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-    box-shadow: 0 16px 40px rgba(8, 9, 4, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.14);
-  }
-
-  html[data-theme="dark"][data-fx="blur"] .pv-feature--dark {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008)),
-      var(--bg2-glass);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  html[data-fx="blur"] .pv-feature--lime {
-    background:
-      radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.12), transparent 35%),
-      linear-gradient(145deg, rgba(var(--accent-rgb), 0.08), rgba(var(--accent-rgb), 0.04)),
-      var(--bg2-glass);
-    border-color: rgba(var(--accent-rgb), 0.2);
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  }
 
   .pv-feature-title { font-family: 'DM Serif Display', serif; font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.3px; }
   .pv-feature--dark .pv-feature-title { color: var(--text); }
-  .pv-feature--lime .pv-feature-title { color: var(--text); }
   html.layout-compact .pv-feature-title {
     font-size: 1.32rem;
   }
 
   .pv-feature-desc { font-size: 0.85rem; line-height: 1.6; }
   .pv-feature--dark .pv-feature-desc { color: var(--text2); }
-  .pv-feature--lime .pv-feature-desc { color: var(--text2); }
 
   html.layout-compact .pv-feature-desc {
     font-size: 0.8rem;
@@ -2193,8 +1887,6 @@ const homeCss = `
 
   .pv-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: 500; letter-spacing: 0.3px; width: fit-content; }
   .pv-feature--dark .pv-pill { background: var(--accent-dim); border: 1px solid var(--accent-dim2); color: var(--accent); }
-  .pv-feature--lime .pv-pill { background: rgba(var(--accent-rgb), 0.1); border: 1px solid rgba(var(--accent-rgb), 0.12); color: var(--text); }
-  html[data-theme="dark"] .pv-feature--lime .pv-pill { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.06); color: var(--text); }
 
   html.layout-compact .pv-pill,
   html.layout-compact .pv-feature-btn {
@@ -2220,27 +1912,23 @@ const homeCss = `
   .pv-feature-btn:active { transform: scale(0.97); }
   .pv-feature--dark .pv-feature-btn { background: var(--accent); color: #0f0f0f; }
   .pv-feature--dark .pv-feature-btn:hover { background: var(--accent2); }
-  .pv-feature--lime .pv-feature-btn { background: var(--bg3); color: var(--text); border: 1px solid rgba(var(--accent-rgb), 0.12); }
-  .pv-feature--lime .pv-feature-btn:hover { background: var(--bg2); }
+  .pv-feature--lime .pv-feature-btn { background: #0f0f0f; color: var(--accent); }
+  .pv-feature--lime .pv-feature-btn:hover { background: #333; }
 
   .pv-feature-icon { width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; z-index: 2; }
   .pv-feature--dark .pv-feature-icon { background: var(--accent-dim); }
   .pv-feature--dark .pv-feature-icon svg { stroke: var(--accent); }
-  .pv-feature--lime .pv-feature-icon { background: rgba(var(--accent-rgb), 0.08); }
-  .pv-feature--lime .pv-feature-icon svg { stroke: var(--accent); }
+  .pv-feature--lime .pv-feature-icon { background: rgba(0, 0, 0, 0.1); }
+  .pv-feature--lime .pv-feature-icon svg { stroke: #0f0f0f; }
   .pv-feature-icon svg { width: 26px; height: 26px; fill: none; stroke-width: 1.5; }
   .performance-card {
-    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 30%), var(--bg2);
-    border: 1px solid rgba(var(--accent-rgb), 0.08);
+    background: var(--bg2);
+    border: 1px solid var(--border);
     padding: 1.35rem 1.5rem;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 16px 38px rgba(8, 9, 4, 0.06);
   }
 
-  html[data-fx="gradients"] .performance-card {
-    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.015), transparent 58%), var(--bg2);
-  }
   .performance-summary {
     font-size: 0.95rem;
     line-height: 1.6;
@@ -2267,13 +1955,11 @@ const homeCss = `
     border-color: var(--border2);
   }
 
-  html[data-fx="gradients"] .performance-block--positive {
-    background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.12), transparent 88%), var(--bg3);
+  .performance-block--positive {
     border-color: rgba(var(--accent-rgb), 0.16);
   }
 
-  html[data-fx="gradients"] .performance-block--negative {
-    background: linear-gradient(145deg, rgba(225, 68, 68, 0.09), transparent 88%), var(--bg3);
+  .performance-block--negative {
     border-color: rgba(225, 68, 68, 0.16);
   }
 
@@ -2328,71 +2014,6 @@ const homeCss = `
     background: rgba(225, 68, 68, 0.06);
     color: var(--red);
     border-color: rgba(225, 68, 68, 0.12);
-  }
-
-  html[data-fx="none"] .hero,
-  html[data-fx="none"] .enem-card,
-  html[data-fx="none"] .performance-card,
-  html[data-fx="none"] .features-stack .pv-feature--quote,
-  html[data-fx="none"] .pv-feature--dark,
-  html[data-fx="none"] .weather-card {
-    background: var(--bg2);
-  }
-
-  html[data-fx="none"] .pv-feature--lime {
-    background: var(--bg2) !important;
-    border-color: var(--border) !important;
-    box-shadow: none !important;
-  }
-
-  html[data-fx="none"] .pv-feature--lime .pv-feature-icon {
-    background: var(--bg3) !important;
-    border: 1px solid var(--border) !important;
-    box-shadow: none !important;
-  }
-
-  html[data-fx="none"] .pv-feature--lime .pv-pill {
-    background: var(--bg3) !important;
-    border-color: var(--border) !important;
-    color: var(--text2) !important;
-  }
-
-  html[data-fx="none"] .pv-feature--lime .pv-feature-btn {
-    background: var(--bg3) !important;
-    border-color: var(--border) !important;
-    box-shadow: none !important;
-  }
-
-  html[data-fx="none"] .pv-stat--dark,
-  html[data-fx="none"] .performance-block {
-    background: var(--bg3);
-  }
-
-  html[data-fx="none"] .pv-stat--lime {
-    background: var(--bg2) !important;
-    border-color: var(--border) !important;
-    box-shadow: none !important;
-  }
-
-  html[data-fx="none"] .pv-stat--lime .pv-stat-icon {
-    background: var(--bg3) !important;
-  }
-
-  html[data-fx="none"] .pv-stat--lime .pv-stat-delta {
-    background: var(--bg3) !important;
-    color: var(--text2) !important;
-  }
-
-  html[data-fx="none"] .pv-stat--lime .pv-stat-value {
-    color: var(--text) !important;
-  }
-
-  html[data-fx="none"] .pv-stat--lime .pv-stat-label {
-    color: var(--text3) !important;
-  }
-
-  html[data-fx="none"] .pv-stat--lime .pv-bar {
-    background: var(--border) !important;
   }
 
   .pwa-home-btn {

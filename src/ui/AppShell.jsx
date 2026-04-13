@@ -102,13 +102,32 @@ export function AppShell() {
                 {mobileMoreOpen && (
                   <div className="nav-more-menu" role="menu" aria-label="Mais opções">
                     <NavLink
+                      to="/professor"
+                      className={({ isActive }) => `nav-more-link${isActive ? ' active' : ''}`}
+                      role="menuitem"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setMobileMoreOpen(false)
+                        requestAnimationFrame(() => navigate('/professor'))
+                      }}
+                    >
+                      <span className="nav-more-link-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                        </svg>
+                      </span>
+                      <span className="nav-more-link-text">
+                        <strong>Professor IA</strong>
+                        <span>Tire dúvidas com IA.</span>
+                      </span>
+                    </NavLink>
+                    <NavLink
                       to="/conquistas"
                       className={({ isActive }) => `nav-more-link${isActive ? ' active' : ''}`}
                       role="menuitem"
                       onClick={(e) => {
                         e.preventDefault()
                         setMobileMoreOpen(false)
-                        // Pequeno delay para garantir que o menu fecha antes de navegar
                         requestAnimationFrame(() => navigate('/conquistas'))
                       }}
                     >
@@ -170,7 +189,6 @@ export function AppShell() {
 
         <nav className="bottom-tab" aria-label="Navegação principal">
           <TabLink to="/home" label="Início" icon="home" />
-          <TabLink to="/professor" label="Professor" icon="professor" />
           <TabLink to="/corretor" label="Corretor" icon="edit" />
           <TabLink to="/radar" label="Radar" icon="radar" />
           <TabLink to="/perfil" label="Perfil" icon="user" />

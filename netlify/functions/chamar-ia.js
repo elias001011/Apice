@@ -8,7 +8,7 @@ import {
   validationErrorResponse,
 } from './utils/validate.js'
 
-export default async function handler(req) {
+export default async function handler(req, context) {
   const headers = buildCorsHeaders(req)
 
   if (req.method === 'OPTIONS') {
@@ -20,7 +20,7 @@ export default async function handler(req) {
   }
 
   // ── Authentication ──────────────────────────────────────────────────────
-  const auth = requireAuth(req, headers)
+  const auth = requireAuth(req, context, headers)
   if (auth instanceof Response) {
     console.warn('[chamar-ia] Requisição não autenticada (401). Verifique se o usuário está logado e o JWT está válido.')
     return auth

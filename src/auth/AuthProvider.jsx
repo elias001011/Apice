@@ -46,14 +46,22 @@ export function AuthProvider({ children }) {
     setPendingOnboardingLogin(false)
   }, [])
 
-  // Register the user ID getter so authFetch can identify the user
-  // (No JWT — we use X-User-Id header instead because legacy user_metadata
-  // inflated JWT tokens and caused 500 errors on Netlify API Gateway)
+  // Register the JWT getter so authFetch can send Authorization: Bearer header.
+  // Previously we sent X-User-Id (forjável) because user_metadata inflated JWTs.
+  // Now that apice_state was moved to Blobs, JWTs are light again (~300 chars).
   useEffect(() => {
     registerAuthTokenGetter(async () => {
       const currentUser = auth.currentUser()
       if (!currentUser) return ''
-      return currentUser.id || ''
+      try {
+        // GoTrue .jwt() refreshes the token if expired and returns the JWT string
+        const token = await currentUser.jwt()
+        return token || ''
+      } catch (err) {
+        console.warn('[AuthProvider] Falha ao obter JWT:', err.message)
+        // Fallback: return userId so authFetch can still send X-User-Id
+        return currentUser.id ? `__userid__${currentUser.id}` : ''
+      }
     })
     return () => registerAuthTokenGetter(null)
   }, [])
@@ -124,44 +132,42 @@ export function AuthProvider({ children }) {
   // ── Cloud Sync via Netlify Blobs (NÃO via user_metadata/JWT) ────────────
 
   // No login, restaura estado da nuvem e aplica no localStorage
+  // IMPORTANTE: Só fazer pull da nuvem no primeiro login, não a cada reload
+  // para não destruir dados do localStorage que ainda não foram syncados
   useEffect(() => {
     if (!user) return
+
+    // Verifica se já fizemos cloud pull nesta sessão (previne duplicação em reloads)
+    const cloudPullKey = 'apice:cloud-session:has-pulled'
+    const hasPulled = typeof window !== 'undefined'
+      && window.sessionStorage
+      && window.sessionStorage.getItem(cloudPullKey) === '1'
+
+    if (hasPulled) {
+      console.log('[AuthProvider] Cloud pull já feito nesta sessão, pulando (dados locais preservados)')
+      return
+    }
+
     let cancelled = false
 
     const restoreCloudState = async () => {
       try {
-        // ANTES de puxar da nuvem, limpar dados locais residuais de sessões anteriores.
-        // Isso previne que dados de uma conta antiga apareçam na conta atual.
-        if (typeof window !== 'undefined' && window.localStorage) {
-          const appKeys = []
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i)
-            if (key && key.startsWith('apice:')) {
-              appKeys.push(key)
-            }
-          }
-          if (appKeys.length > 0) {
-            appKeys.forEach(key => {
-              try { localStorage.removeItem(key) } catch {
-                // Falha silenciosa
-              }
-            })
-            console.log(`[AuthProvider] ${appKeys.length} chaves locais limpas antes do cloud pull (previne dados cruzados)`)
-          }
-        }
-
         // Puxa estado da nuvem e aplica no localStorage
         const pulled = await pullStateFromCloud()
 
         if (!cancelled && pulled) {
           console.log('[AuthProvider] Estado restaurado da nuvem com sucesso')
         } else if (!cancelled && !pulled) {
-          // Pull falhou (possivelmente 401/auth expirada) — dados locais podem estar stale
-          console.warn('[AuthProvider] Falha ao restaurar estado da nuvem. Conta iniciada sem dados na nuvem.')
+          console.warn('[AuthProvider] Falha ao restaurar estado da nuvem. Dados locais preservados.')
         }
       } catch (err) {
         if (!cancelled) {
           console.error('[AuthProvider] Erro inesperado no cloud restore:', err.message)
+        }
+      } finally {
+        // Marca que já fizemos pull nesta sessão (mesmo se falhou)
+        if (typeof window !== 'undefined' && window.sessionStorage && !cancelled) {
+          try { window.sessionStorage.setItem(cloudPullKey, '1') } catch {}
         }
       }
     }
@@ -276,6 +282,10 @@ export function AuthProvider({ children }) {
     // Limpeza total do localStorage
     if (typeof window !== 'undefined' && window.localStorage) {
       Object.keys(localStorage).forEach(key => localStorage.removeItem(key))
+    }
+    // Limpa flag de cloud pull para permitir pull limpo no próximo login
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      try { window.sessionStorage.removeItem('apice:cloud-session:has-pulled') } catch {}
     }
     clearLocalCloudSync()
     syncLockRef.current = false

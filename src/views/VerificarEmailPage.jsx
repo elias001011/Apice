@@ -1,23 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '../auth/useAuth.js'
-
-const RESEND_COOLDOWN = 120 // 2 minutos em segundos
 
 export function VerificarEmailPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { resendConfirmation } = useAuth()
 
   // Pega o email passado pelo CadastroPage via state
   const email = location.state?.email || ''
-
-  const [countdown, setCountdown] = useState(RESEND_COOLDOWN)
-  const [canResend, setCanResend] = useState(false)
-  const [resending, setResending] = useState(false)
-  const [resendMsg, setResendMsg] = useState('')
-  const [resendError, setResendError] = useState('')
-  const intervalRef = useRef(null)
 
   // Se não vier email na rota, redireciona para cadastro
   useEffect(() => {
@@ -25,59 +14,6 @@ export function VerificarEmailPage() {
       navigate('/cadastro', { replace: true })
     }
   }, [email, navigate])
-
-  // Contador regressivo
-  useEffect(() => {
-    intervalRef.current = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(intervalRef.current)
-          setCanResend(true)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(intervalRef.current)
-  }, [])
-
-  const handleResend = async () => {
-    if (!canResend || resending) return
-    setResending(true)
-    setResendMsg('')
-    setResendError('')
-    try {
-      await resendConfirmation(email)
-      setResendMsg('E-mail de confirmação reenviado com sucesso!')
-      setCanResend(false)
-      setCountdown(RESEND_COOLDOWN)
-      // Reinicia contador
-      clearInterval(intervalRef.current)
-      intervalRef.current = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(intervalRef.current)
-            setCanResend(true)
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
-    } catch (err) {
-      console.error('Resend error:', err)
-      setResendError(
-        err?.message || 'Não foi possível reenviar. Tente novamente mais tarde.',
-      )
-    } finally {
-      setResending(false)
-    }
-  }
-
-  const formatTime = (secs) => {
-    const m = Math.floor(secs / 60).toString().padStart(2, '0')
-    const s = (secs % 60).toString().padStart(2, '0')
-    return `${m}:${s}`
-  }
 
   return (
     <>
@@ -111,33 +47,17 @@ export function VerificarEmailPage() {
               Abra o e-mail e clique no link para ativar sua conta. Após confirmar, você será redirecionado automaticamente.
             </p>
 
-            <div className="verif-divider" />
-
-            {/* Feedback de reenvio */}
-            {resendMsg && <div className="verif-feedback success" role="status" aria-live="polite">{resendMsg}</div>}
-            {resendError && <div className="verif-feedback error" role="alert" aria-live="assertive">{resendError}</div>}
-
-            {/* Botão de reenvio */}
-            <div className="verif-resend-area">
-              {canResend ? (
-                <button
-                  className="btn-primary verif-btn"
-                  onClick={handleResend}
-                  disabled={resending}
-                >
-                  {resending ? 'Reenviando...' : 'Reenviar e-mail de confirmação'}
-                </button>
-              ) : (
-                <div className="verif-countdown-wrap">
-                  <span className="verif-countdown-label">Reenviar em</span>
-                  <span className="verif-countdown-timer">{formatTime(countdown)}</span>
-                </div>
-              )}
+            <div className="verif-spam-notice">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <div>
+                <strong>Não recebeu o e-mail?</strong>
+                <span>Verifique a caixa de spam ou lixo eletrônico. O link de confirmação tem validade de 24 horas.</span>
+              </div>
             </div>
-
-            <p className="verif-hint">
-              Não recebeu? Verifique a pasta de spam ou lixo eletrônico.
-            </p>
           </div>
 
           <div className="verif-footer anim anim-d3">
@@ -267,66 +187,39 @@ const verifCss = `
     word-break: break-all;
   }
 
-  .verif-divider {
-    height: 1px;
-    background: var(--border);
-    margin: 1.75rem 0;
+  .verif-spam-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem 1.15rem;
+    margin-top: 1.25rem;
+    border-radius: 16px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
   }
 
-  .verif-feedback {
-    padding: 10px 14px;
-    border-radius: 12px;
-    font-size: 0.82rem;
-    margin-bottom: 1rem;
-    text-align: center;
-  }
-
-  .verif-feedback.success {
-    background: rgba(var(--accent-rgb), 0.1);
+  .verif-spam-notice svg {
+    flex-shrink: 0;
     color: var(--accent);
-    border: 1px solid rgba(var(--accent-rgb), 0.25);
+    margin-top: 2px;
   }
 
-  .verif-feedback.error {
-    background: rgba(234, 67, 53, 0.1);
-    color: #ea4335;
-    border: 1px solid rgba(234, 67, 53, 0.2);
-  }
-
-  .verif-resend-area {
+  .verif-spam-notice div {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
+    gap: 0.3rem;
   }
 
-  .verif-btn {
-    width: 100%;
-  }
-
-  .verif-countdown-wrap {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.25rem;
-    background: var(--bg3, rgba(255,255,255,0.04));
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    width: 100%;
-    justify-content: center;
-  }
-
-  .verif-countdown-label {
+  .verif-spam-notice strong {
     font-size: 0.85rem;
-    color: var(--text2);
+    font-weight: 600;
+    color: var(--text);
   }
 
-  .verif-countdown-timer {
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--text);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.05em;
+  .verif-spam-notice span {
+    font-size: 0.78rem;
+    color: var(--text2);
+    line-height: 1.5;
   }
 
   .verif-hint {

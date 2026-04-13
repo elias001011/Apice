@@ -284,22 +284,6 @@
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1);
 }
 
-html[data-fx="blur"] .prof-mindmap-canvas-wrap {
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.14), transparent 34%),
-    var(--floating-surface);
-  border-color: var(--floating-border);
-  box-shadow: var(--floating-shadow);
-  backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
-}
-
-html[data-theme="dark"][data-fx="blur"] .prof-mindmap-canvas-wrap {
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.05), transparent 34%),
-    var(--floating-surface);
-}
-
 .prof-mindmap-toolbar {
   display: flex;
   align-items: center;
@@ -309,21 +293,6 @@ html[data-theme="dark"][data-fx="blur"] .prof-mindmap-canvas-wrap {
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.62);
   backdrop-filter: blur(10px);
-}
-
-html[data-fx="blur"] .prof-mindmap-toolbar {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
-    var(--floating-surface);
-  border-bottom-color: var(--floating-border);
-  backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
-}
-
-html[data-theme="dark"][data-fx="blur"] .prof-mindmap-toolbar {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)),
-    var(--floating-surface);
 }
 
 .prof-mindmap-toolbar-copy {
@@ -481,21 +450,6 @@ html[data-theme="dark"][data-fx="blur"] .prof-mindmap-toolbar {
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(8px);
-}
-
-html[data-fx="blur"] .prof-mindmap-preview-header {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
-    var(--floating-surface);
-  border-bottom-color: var(--floating-border);
-  backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate));
-}
-
-html[data-theme="dark"][data-fx="blur"] .prof-mindmap-preview-header {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)),
-    var(--floating-surface);
 }
 
 .prof-mindmap-preview-copy {
@@ -717,30 +671,6 @@ html[data-theme="dark"][data-fx="blur"] .prof-mindmap-preview-header {
   backdrop-filter: blur(10px);
 }
 
-html[data-fx="blur"] .prof-mindmap-stage-footer span {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
-    var(--floating-surface);
-  border-color: var(--floating-border);
-  backdrop-filter: blur(calc(var(--floating-blur) * 0.7)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(calc(var(--floating-blur) * 0.7)) saturate(var(--glass-saturate));
-}
-
-html[data-theme="dark"][data-fx="blur"] .prof-mindmap-stage-footer span {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)),
-    var(--floating-surface);
-}
-
-html[data-fx="none"] .prof-mindmap-action,
-html[data-fx="none"] .prof-mindmap-toolbar,
-html[data-fx="none"] .prof-mindmap-preview-header,
-html[data-fx="none"] .prof-mindmap-node,
-html[data-fx="none"] .prof-mindmap-stage-footer span {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
 .prof-mindmap-error {
   display: flex;
   align-items: center;
@@ -782,21 +712,6 @@ html[data-fx="none"] .prof-mindmap-stage-footer span {
   text-align: center;
   color: var(--text3);
   font-size: 0.9rem;
-}
-
-html[data-fx="blur"] .prof-map-empty-state {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)),
-    var(--floating-surface);
-  border-style: solid;
-  border-color: var(--floating-border);
-  box-shadow: var(--floating-shadow);
-}
-
-html[data-theme="dark"][data-fx="blur"] .prof-map-empty-state {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
-    var(--floating-surface);
 }
 
 .prof-messages-wall {

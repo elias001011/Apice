@@ -136,8 +136,6 @@ const upgradeModalCss = `
     position: fixed;
     inset: 0;
     background: var(--overlay-surface);
-    backdrop-filter: blur(var(--overlay-blur));
-    -webkit-backdrop-filter: blur(var(--overlay-blur));
     z-index: 9999;
     display: flex;
     align-items: center;
@@ -159,10 +157,7 @@ const upgradeModalCss = `
     max-width: 440px;
     overflow: hidden;
     box-shadow: var(--modal-shadow);
-    backdrop-filter: blur(var(--modal-blur)) saturate(var(--glass-saturate));
-    -webkit-backdrop-filter: blur(var(--modal-blur)) saturate(var(--glass-saturate));
     position: relative;
-    isolation: isolate;
   }
 
   .upgrade-header {
@@ -174,16 +169,8 @@ const upgradeModalCss = `
     border-bottom: 1px solid var(--border);
   }
 
-  html[data-fx="none"] .upgrade-header {
-    background: var(--bg3);
-  }
-
-  html[data-fx="blur"] .upgrade-header {
-    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.1), rgba(255, 255, 255, 0.03));
-  }
-
-  html[data-theme="dark"][data-fx="blur"] .upgrade-header {
-    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.12), rgba(255, 255, 255, 0.02));
+  html[data-fx="gradients"] .upgrade-header {
+    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.1), transparent);
   }
 
   .upgrade-icon-ring {
@@ -195,11 +182,6 @@ const upgradeModalCss = `
     align-items: center;
     justify-content: center;
     box-shadow: 0 8px 20px rgba(var(--accent-rgb), 0.24);
-  }
-
-  html[data-fx="none"] .upgrade-overlay {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
   }
 
   html[data-fx="none"] .upgrade-card {

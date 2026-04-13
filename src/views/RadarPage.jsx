@@ -427,8 +427,8 @@ const radarCss = `
   }
 
   .radar-hero {
-    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2);
-    border: 1px solid rgba(var(--accent-rgb), 0.08);
+    background: var(--bg2);
+    border: 1px solid var(--border);
     border-radius: 24px;
     padding: 1.25rem;
     margin-bottom: 12px;
@@ -436,6 +436,11 @@ const radarCss = `
     align-items: center;
     gap: 1rem;
     box-shadow: 0 16px 38px rgba(8, 9, 4, 0.06);
+  }
+
+  html[data-card-gradients="on"] .radar-hero {
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2);
+    border-color: rgba(var(--accent-rgb), 0.08);
   }
 
   .radar-icon-wrap {
@@ -492,8 +497,8 @@ const radarCss = `
   }
 
   .tema-card {
-    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2);
-    border: 1px solid rgba(var(--accent-rgb), 0.08);
+    background: var(--bg2);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 1.1rem 1.25rem;
     margin-bottom: 0;
@@ -505,6 +510,11 @@ const radarCss = `
     transition: border-color 0.2s, transform 0.25s, background-color 0.2s, box-shadow 0.25s;
   }
 
+  html[data-card-gradients="on"] .tema-card {
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2);
+    border-color: rgba(var(--accent-rgb), 0.08);
+  }
+
   .tema-card:hover {
     border-color: rgba(var(--accent-rgb), 0.18);
     transform: translateY(-3px);
@@ -513,6 +523,9 @@ const radarCss = `
 
   .tema-card.hot {
     border-color: rgba(var(--accent-rgb), 0.18);
+  }
+
+  html[data-card-gradients="on"] .tema-card.hot {
     background:
       radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.14), transparent 34%),
       linear-gradient(180deg, rgba(var(--accent-rgb), 0.06), transparent 42%),
@@ -521,6 +534,9 @@ const radarCss = `
 
   .tema-card.saved {
     border-color: rgba(var(--accent-rgb), 0.2);
+  }
+
+  html[data-card-gradients="on"] .tema-card.saved {
     background:
       radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.12), transparent 34%),
       linear-gradient(180deg, rgba(var(--accent-rgb), 0.05), transparent 42%),
@@ -646,8 +662,8 @@ const radarCss = `
   .tema-save-btn {
     width: 38px;
     height: 38px;
-    border: 1px solid rgba(var(--accent-rgb), 0.08);
-    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 40%), var(--bg3);
+    border: 1px solid var(--border);
+    background: var(--bg3);
     color: var(--text2);
     border-radius: 999px;
     padding: 0;
@@ -661,6 +677,11 @@ const radarCss = `
     justify-content: center;
     flex-shrink: 0;
     box-shadow: 0 10px 22px rgba(8, 9, 4, 0.05);
+  }
+
+  html[data-card-gradients="on"] .tema-save-btn {
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 40%), var(--bg3);
+    border-color: rgba(var(--accent-rgb), 0.08);
   }
 
   .tema-save-btn:hover {

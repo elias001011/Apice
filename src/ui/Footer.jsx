@@ -8,6 +8,8 @@ const WHATSAPP_URL = 'https://wa.me/555496040904'
 const INSTAGRAM_ELIAS = 'https://instagram.com/elias_jrnunes'
 const INSTAGRAM_PEDRO = 'https://instagram.com/pedro.mkds'
 const PROJECT_GITHUB = 'https://github.com/elias001011/Apice'
+const FEEDBACK_EMAIL = 'elias.juriatti@outlook.com'
+const BUG_REPORT_EMAIL = 'elias.juriatti@outlook.com'
 
 function EmailIcon() {
   return (
@@ -131,6 +133,32 @@ export function Footer() {
         </div>
 
         <div className="footer-col">
+          <h4 className="footer-title">Feedback</h4>
+          <ul className="footer-contact">
+            <li className="footer-contact-item">
+              <span className="footer-contact-icon" aria-hidden="true">
+                <EmailIcon />
+              </span>
+              <div className="footer-contact-content">
+                <span className="footer-contact-label">Enviar feedback</span>
+                <a href={`mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent('Feedback - Ápice')}`}>Sugestões e elogios</a>
+              </div>
+            </li>
+            <li className="footer-contact-item">
+              <span className="footer-contact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z" />
+                </svg>
+              </span>
+              <div className="footer-contact-content">
+                <span className="footer-contact-label">Relatar bug</span>
+                <a href={`mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent('Relatar bug - Ápice')}&body=${encodeURIComponent('Descreva o bug encontrado:\n\nPassos para reproduzir:\n1. \n2. \n3. \n\nComportamento esperado:\n\nComportamento observado:\n\nDispositivo/navegador:\n')}`}>Reportar problema</a>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div className="footer-col">
           <h4 className="footer-title">Legal</h4>
           <div className="footer-legal-actions">
             <a href={POLICY_URL} target="_blank" rel="noreferrer" className="footer-legal-link">
@@ -155,13 +183,10 @@ const footerCss = `
     background: var(--footer-surface);
     border-top: 1px solid var(--chrome-border);
     box-shadow: var(--footer-shadow);
-    backdrop-filter: blur(var(--chrome-blur)) saturate(var(--glass-saturate));
-    -webkit-backdrop-filter: blur(var(--chrome-blur)) saturate(var(--glass-saturate));
     padding: 3rem 1.5rem 1.5rem;
     margin-top: 2rem;
     position: relative;
     overflow: hidden;
-    isolation: isolate;
   }
 
   @media (min-width: 768px) {
@@ -174,7 +199,7 @@ const footerCss = `
     max-width: 1200px;
     margin: 0 auto;
     display: grid;
-    grid-template-columns: 1.5fr 1fr 1.5fr 1fr;
+    grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr;
     gap: 1.6rem;
     position: relative;
     z-index: 1;
@@ -182,7 +207,7 @@ const footerCss = `
 
   @media (max-width: 900px) {
     .footer-container {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
     }
   }
 

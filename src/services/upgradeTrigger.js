@@ -1,3 +1,18 @@
+/**
+ * Gatilhos de upgrade e configuração de planos
+ * 
+ * COMO FUNCIONA:
+ * - 3 gatilhos de upgrade: cota bloqueada, convite suave, feature premium
+ * - Cota gratuita: 5 usos/dia | Cota paga: 10 usos/dia
+ * - Teste grátis: 7 dias únicos na primeira ativação
+ * - Planos: Mensal (R$19,90), Semestral (R$89,40), Anual (R$142,80)
+ * 
+ * PRODUCT IDs (AbacatePay V1):
+ * - Cada produto deve existir no dashboard AbacatePay com mesmo ID
+ * - V1 é 'billing one-time' (pagamento único por período)
+ * - V2 é 'subscriptions' (recorrência automática) - não usado atualmente
+ */
+
 import {
   AI_DAILY_LIMIT,
   PAID_AI_DAILY_LIMIT,
@@ -14,10 +29,11 @@ import {
 const PREMIUM_FEATURES = {}
 
 // ── Threshold do gatilho suave ───────────────────────────────────────────────
+// Após X usos de uma feature, mostra convite suave pra assinar
 export const SOFT_TRIGGER_THRESHOLDS = {
-  essayCorrection: 3,
-  radarSearch: 4,
-  themeDynamic: 2,
+  essayCorrection: 3,   // Após 3 correções de redação
+  radarSearch: 4,       // Após 4 buscas no Radar
+  themeDynamic: 2,      // Após 2 temas dinâmicos
 }
 
 function isPaidAccess() {
@@ -141,10 +157,7 @@ export function getUpgradeModalContent(reason, featureLabel = '') {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Benefícios e tabela de comparação
-// ═══════════════════════════════════════════════════════════════════════════════
-
+// ── Benefícios do plano pago ─────────────────────────────────────────────────
 export const PAID_PLAN_BENEFITS = [
   { icon: '🔟', label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia` },
   { icon: '🎁', label: '7 dias de teste grátis na primeira ativação' },
@@ -156,6 +169,7 @@ export const PAID_PLAN_BENEFITS = [
 
 export const PREMIUM_BENEFITS = PAID_PLAN_BENEFITS
 
+// ── Features do plano gratuito (para comparação) ─────────────────────────────
 export const FREE_PLAN_FEATURES = [
   { label: `${AI_DAILY_LIMIT} solicitações de IA por dia`, included: true },
   { label: 'Corretor com critérios INEP', included: true },
@@ -167,6 +181,7 @@ export const FREE_PLAN_FEATURES = [
   { label: 'Teste grátis de 7 dias', included: false },
 ]
 
+// ── Features do plano pago (para comparação) ─────────────────────────────────
 export const PAID_PLAN_FEATURES = [
   { label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia`, included: true },
   { label: 'Teste grátis de 7 dias na primeira ativação', included: true },
@@ -178,6 +193,10 @@ export const PAID_PLAN_FEATURES = [
 
 export const PREMIUM_PLAN_FEATURES = PAID_PLAN_FEATURES
 
+// ── Definição dos planos de preço ────────────────────────────────────────────
+// Cada plano deve ter um productId que existe no dashboard AbacatePay
+// totalPrice é o valor total cobrado no período
+// pricePerMonth é apenas informativo (totalPrice / meses no período)
 export const PRICING_PLANS = [
   {
     key: 'monthly',

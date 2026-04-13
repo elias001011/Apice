@@ -87,7 +87,7 @@ function isTokenExpired(payload) {
  * Returns { user, token } on success, or null if unauthenticated.
  * NEVER throws — callers get null and can decide to return 401.
  */
-export function authenticateRequest(req) {
+export function authenticateRequest(req, context = {}) {
   try {
     const token = extractBearerToken(req)
     if (!token) {
@@ -95,6 +95,49 @@ export function authenticateRequest(req) {
       return null
     }
 
+    // Camada 1: Criptografia OOTB via Netlify clientContext (Produção)
+    // Se context.clientContext.user existe, o Netlify Identity já validou criptograficamente o JWT
+    let userContext = context?.clientContext?.user
+    
+    // Fallback: tentar decodificar de context?.clientContext?.custom?.netlify
+    if (!userContext && context?.clientContext?.custom?.netlify) {
+        try {
+            const decoded = JSON.parse(Buffer.from(context.clientContext.custom.netlify, 'base64').toString('utf-8'))
+            if (decoded?.user) {
+                userContext = decoded.user
+            }
+        } catch(e) {
+            console.warn('[auth] Erro ao decodificar custom.netlify fallback', e.message)
+        }
+    }
+
+    if (userContext) {
+      const userId = String(userContext.sub ?? userContext.id ?? '').trim()
+      console.log(`[auth] Auth via Netlify Identity (Seguro). userId: ${userId}, email: ${userContext.email}`)
+      
+      return {
+        user: {
+          id: userId,
+          email: String(userContext.email ?? '').trim(),
+          fullName: String(
+            userContext.user_metadata?.full_name
+            ?? userContext.user_metadata?.name
+            ?? '',
+          ).trim(),
+          roles: Array.isArray(userContext.app_metadata?.roles)
+            ? userContext.app_metadata.roles
+            : [],
+          metadata: userContext.user_metadata || {},
+          appMetadata: userContext.app_metadata || {},
+        },
+        token,
+        payload: userContext,
+      }
+    }
+
+    // Camada 2: Fallback estrutural (Ambiente de desenvolvimento)
+    console.warn('[auth] Contexto criptográfico Netlify ausente. Fazendo fallback para validação estrutural do JWT.')
+    
     const payload = decodeJwtPayload(token)
     if (!payload) {
       console.error('[auth] Token JWT malformado ou inválido. Token preview:', token.substring(0, 30) + '...')
@@ -103,17 +146,17 @@ export function authenticateRequest(req) {
 
     if (isTokenExpired(payload)) {
       const expiredAt = new Date(payload.exp * 1000).toISOString()
-      console.error(`[auth] Token JWT expirado em ${expiredAt}. sub: ${payload.sub || '(sem sub)'}, email: ${payload.email || '(sem email)'}`)
+      console.error(`[auth] Token JWT expirado em ${expiredAt}. sub: ${payload.sub || '(sem sub)'}`)
       return null
     }
 
     const userId = String(payload.sub ?? payload.id ?? '').trim()
     if (!userId) {
-      console.error('[auth] Token JWT sem userId (sub/id). Payload:', JSON.stringify({ sub: payload.sub, id: payload.id, email: payload.email }))
+      console.error('[auth] Token JWT sem userId (sub/id).')
       return null
     }
 
-    console.log(`[auth] Auth OK. userId: ${userId}, email: ${payload.email || '(sem email)'}, roles: ${JSON.stringify(payload.app_metadata?.roles || [])}`)
+    console.log(`[auth] Auth estrutural OK. userId: ${userId}, email: ${payload.email}`)
 
     return {
       user: {
@@ -134,7 +177,6 @@ export function authenticateRequest(req) {
       payload,
     }
   } catch (error) {
-    // Safety net — never crash the function
     console.error('[auth] Erro inesperado ao autenticar:', error.message, error.stack?.split('\n').slice(0, 3).join(' | '))
     return null
   }
@@ -158,8 +200,8 @@ export function unauthorizedResponse(corsHeaders = {}) {
 
 /**
  * Extract userId from X-User-Id header.
- * This is now the primary auth mechanism because legacy user_metadata
- * inflated JWT tokens causing 500 errors on Netlify API Gateway.
+ * This is the FALLBACK auth mechanism — kept for backward compatibility
+ * during transition period. Will be removed in a future version.
  */
 function extractUserIdFromHeader(req) {
   if (typeof req?.headers?.get === 'function') {
@@ -172,28 +214,30 @@ function extractUserIdFromHeader(req) {
  * Require authentication — convenience wrapper.
  * Returns the auth context or a 401 Response.
  *
- * Primary auth: X-User-Id header (set by authFetch.js from gotrue.user localStorage)
- * Fallback: Bearer JWT (for accounts without legacy bloat)
+ * Primary auth: Bearer JWT (extracts userId, email, fullName from token payload)
+ * Fallback: X-User-Id header (forjável — deprecated, para período de transição)
  *
  * Usage:
  *   const auth = requireAuth(req, headers)
  *   if (auth instanceof Response) return auth  // 401
  *   // auth.user.id is the authenticated user
+ *   // auth.user.email and auth.user.fullName are available from JWT
  */
-export function requireAuth(req, corsHeaders = {}) {
-  // Primary: accept X-User-Id header (no JWT involved)
+export function requireAuth(req, context = {}, corsHeaders = {}) {
+  // Primary: try Bearer JWT (secure — extracts email/fullName from token)
+  const auth = authenticateRequest(req, context)
+  if (auth) return auth
+
+  // Fallback: accept X-User-Id header (forjável — período de transição)
   const userId = extractUserIdFromHeader(req)
   if (userId) {
+    console.warn(`[auth] Usando X-User-Id fallback (forjável). userId: ${userId}. Migre o frontend para enviar JWT.`)
     return {
       user: { id: userId, email: '', fullName: '', roles: [], metadata: {}, appMetadata: {} },
       token: '',
       payload: { sub: userId },
     }
   }
-
-  // Fallback: try standard JWT auth
-  const auth = authenticateRequest(req)
-  if (auth) return auth
 
   return unauthorizedResponse(corsHeaders)
 }

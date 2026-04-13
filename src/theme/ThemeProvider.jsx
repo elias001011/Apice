@@ -15,7 +15,7 @@ const MOBILE_LAYOUT_QUERY = '(max-width: 767px)'
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
 const VALID_CONTAINER_SIZES = new Set(['sm', 'md', 'lg'])
-const VALID_VISUAL_EFFECTS = new Set(['none', 'gradients', 'blur'])
+const VALID_VISUAL_EFFECTS = new Set(['none', 'gradients'])
 
 function readSaved(key, defaultVal) {
   try {
@@ -178,7 +178,7 @@ function applyUiPreferencesToDom(animationsEnabled, cardHoverEffects, visualEffe
   html.setAttribute('data-animations', animationsEnabled ? 'on' : 'off')
   html.setAttribute('data-card-hover', cardHoverEffects ? 'on' : 'off')
   html.setAttribute('data-fx', safeVisualEffects)
-  html.setAttribute('data-card-gradients', safeVisualEffects === 'gradients' ? 'on' : 'off')
+  html.setAttribute('data-card-gradients', cardGradientsEnabled ? 'on' : 'off')
 }
 
 function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
@@ -250,10 +250,9 @@ export function ThemeProvider({ children }) {
   }, [theme, accent, fontSize, fontFamily, layoutMode, resolvedContainerSize, animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled])
 
   useEffect(() => {
-    if (visualEffects === 'gradients' && !cardGradientsEnabled) {
-      setCardGradientsEnabled(true)
-    }
-
+    // NOTA: Removemos o auto-toggle que forçava cardGradientsEnabled baseado em visualEffects.
+    // Agora o usuário controla gradientes nos cards independentemente dos efeitos visuais.
+    // Apenas garantimos que se efeitos visuais NÃO forem gradientes, gradientes nos cards ficam off.
     if (visualEffects !== 'gradients' && cardGradientsEnabled) {
       setCardGradientsEnabled(false)
     }

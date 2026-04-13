@@ -340,13 +340,19 @@ export function CorretorPage() {
           <div className="dashboard-column-main">
             <div className="card anim anim-d2">
               <div className="card-title">Tema Selecionado</div>
-              {/* Este input continua editável porque, às vezes, você quer ajustar o tema depois da geração. */}
-              <input 
-                type="text" 
-                className="input-field dynamic-input"
+              <input
+                type="text"
+                className={`input-field dynamic-input${temaModo === 'dynamic' ? ' readonly-theme' : ''}`}
                 value={tema}
-                onChange={(e) => setTema(e.target.value)}
+                onChange={(e) => {
+                  // Só permite edição manual quando o tema NÃO foi gerado pela IA
+                  if (temaModo !== 'dynamic') {
+                    setTema(e.target.value)
+                  }
+                }}
+                readOnly={temaModo === 'dynamic'}
                 placeholder="Ex: O impacto da tecnologia na educação..."
+                title={temaModo === 'dynamic' ? 'Tema pré-definido pela IA — não pode ser alterado para manter a coerência da correção.' : ''}
               />
               {material && (
                 <div className="material-box">

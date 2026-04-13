@@ -223,6 +223,8 @@ export function PlanosPage() {
       // We call the real checkout even for trials now
       const trialRequested = trialAvailable
 
+      console.log('[planos] trialAvailable:', trialAvailable, '| trialAlreadyUsed:', trialAlreadyUsed, '| billingState.status:', billingState.status, '| isTrial:', trialRequested)
+
       const response = await authFetch('/.netlify/functions/abacatepay-checkout', {
         method: 'POST',
         body: JSON.stringify({
@@ -264,6 +266,65 @@ export function PlanosPage() {
       setFlash({
         tone: 'error',
         text: error?.message || 'Não foi possível abrir o checkout agora.',
+      })
+    } finally {
+      setBusyPlanKey('')
+    }
+  }
+
+  const handleCancelSubscription = async () => {
+    if (!user) {
+      navigate('/login')
+      return
+    }
+
+    if (!confirm('Tem certeza que deseja cancelar sua assinatura? Seu acesso ao plano pago continuará até o fim do período já pago. Após isso, sua conta voltará para o plano gratuito.')) {
+      return
+    }
+
+    setBusyPlanKey('cancel')
+    setFlash(null)
+
+    try {
+      const response = await authFetch('/.netlify/functions/cancel-subscription', {
+        method: 'POST',
+        body: JSON.stringify({
+          checkoutId: billingState.checkoutId || '',
+          externalId: billingState.externalId || '',
+        }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Não foi possível cancelar a assinatura.')
+      }
+
+      // Atualiza estado local
+      if (data.userDowngraded) {
+        // Limpa billing state para free
+        localStorage.removeItem('apice:billing-state:v1')
+        localStorage.removeItem('apice:plan:tier')
+        window.dispatchEvent(new CustomEvent('apice:billing-state-updated'))
+        window.dispatchEvent(new CustomEvent('apice:account-state-updated'))
+        window.dispatchEvent(new CustomEvent('apice:free-plan-usage-updated'))
+
+        setFlash({
+          tone: data.requiresManualRefund ? 'warning' : 'success',
+          text: data.requiresManualRefund
+            ? 'Assinatura cancelada. Como o pagamento já foi processado, solicite reembolso pelo email suporte@apice.com. Seu acesso continua até o fim do período.'
+            : 'Assinatura cancelada com sucesso. Sua conta voltará ao plano gratuito.',
+        })
+      } else {
+        setFlash({
+          tone: 'warning',
+          text: data?.message || 'Não foi possível processar o cancelamento.',
+        })
+      }
+    } catch (error) {
+      setFlash({
+        tone: 'error',
+        text: error?.message || 'Não foi possível cancelar a assinatura.',
       })
     } finally {
       setBusyPlanKey('')
@@ -378,6 +439,58 @@ export function PlanosPage() {
           {verifying && (
             <div className="planos-flash info">
               Verificando o status do checkout da AbacatePay...
+            </div>
+          )}
+
+          {/* Seção de gerenciamento de assinatura ativa */}
+          {(billingState.status === 'paid' || trialCurrentlyActive) && (
+            <div className="planos-management-strip">
+              <div className="management-card">
+                <div className="management-label">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                  </svg>
+                  Gerenciar assinatura
+                </div>
+                <div className="management-details">
+                  <div className="management-row">
+                    <span className="management-key">Plano:</span>
+                    <span className="management-value">{activePlan?.label || billingState.planKey || 'N/A'}</span>
+                  </div>
+                  <div className="management-row">
+                    <span className="management-key">Status:</span>
+                    <span className="management-value" data-status={billingState.status}>
+                      {trialCurrentlyActive ? 'Teste grátis ativo' : 'Pago'}
+                    </span>
+                  </div>
+                  {trialCurrentlyActive && trialEndLabel && (
+                    <div className="management-row">
+                      <span className="management-key">Teste até:</span>
+                      <span className="management-value">{trialEndLabel}</span>
+                    </div>
+                  )}
+                  {billingState.checkoutId && (
+                    <div className="management-row">
+                      <span className="management-key">Checkout ID:</span>
+                      <span className="management-value mono">{billingState.checkoutId}</span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={handleCancelSubscription}
+                  disabled={busyPlanKey === 'cancel'}
+                >
+                  {busyPlanKey === 'cancel' ? 'Cancelando...' : 'Cancelar assinatura'}
+                </button>
+                <div className="management-hint">
+                  {billingState.status === 'paid'
+                    ? 'O cancelamento impede renovações futuras. Seu acesso continua ativo até o fim do período já pago.'
+                    : 'Cancelar o teste grátis encerra o acesso imediato ao plano pago. Sua conta voltará ao plano gratuito.'}
+                </div>
+              </div>
             </div>
           )}
         </section>
@@ -678,6 +791,107 @@ const planosCss = `
     background: rgba(225, 68, 68, 0.09);
     border-color: rgba(225, 68, 68, 0.22);
     color: var(--red);
+  }
+
+  /* Seção de gerenciamento de assinatura */
+  .planos-management-strip {
+    margin-top: 1rem;
+  }
+
+  .management-card {
+    background: rgba(var(--accent-rgb), 0.04);
+    border: 1.5px solid var(--border);
+    border-radius: 22px;
+    padding: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  .management-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .management-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .management-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.88rem;
+  }
+
+  .management-key {
+    color: var(--text3);
+    font-weight: 500;
+  }
+
+  .management-value {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .management-value.mono {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.78rem;
+    color: var(--text2);
+  }
+
+  .management-value.badge-paid,
+  .management-value[data-status="paid"] {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+  }
+
+  .management-value.badge-trial,
+  .management-value[data-status="trial"] {
+    background: rgba(255, 176, 32, 0.15);
+    color: var(--amber);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+  }
+
+  .btn-cancel {
+    margin-top: 0.4rem;
+    padding: 0.7rem 1.2rem;
+    background: transparent;
+    border: 1.5px solid rgba(225, 68, 68, 0.3);
+    color: var(--red);
+    border-radius: 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    align-self: flex-start;
+  }
+
+  .btn-cancel:hover:not(:disabled) {
+    background: rgba(225, 68, 68, 0.08);
+    border-color: rgba(225, 68, 68, 0.5);
+  }
+
+  .btn-cancel:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .management-hint {
+    font-size: 0.8rem;
+    color: var(--text3);
+    line-height: 1.5;
   }
 
   .planos-section,
