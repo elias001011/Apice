@@ -690,7 +690,6 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, theme
     const { generateCalibrationPrompt } = require('../../src/services/essayCalibrationService.js')
     calibrationSection = generateCalibrationPrompt()
   } catch {
-    // Fallback se não conseguir importar
     calibrationSection = `
 ### PADRÕES DE REDAÇÕES NOTA 1000 (Baseado em análise de 2.100 redações corrigidas):
 - Domínio excepcional da norma culta com construções sintáticas complexas
@@ -705,13 +704,36 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, theme
   const modo = isRigido ? 'Rígido Técnico (Critério INEP)' : 'Padrão Pedagógico'
   const materialTexto = flattenMaterialForPrompt(material)
 
+  // Diferenciação real entre modo rígido e padrão
+  const rigorInstrucoes = isRigido ? `
+### MODO RÍGIDO ATIVADO — NÃO "PASSE PANO":
+1. ERROS DE CONCORDÂNCIA: Mesmo que sejam "pequenos", identifique e desconte pontos. Ex: "as coisa" não é aceitável.
+2. PONTUAÇÃO IMPRECISA: Vírgula antes de "e" com sujeito diferente é erro. Não ignore.
+3. REPETÓRIO GENÉRICO: Citar "segundo filósofos" sem nome específico = repertório impróprio. Exija nomes, dados, leis.
+4. COESÃO FRACA: "E também", "além disso" usado demais = vício. Cobrar variedade de conectivos.
+5. PROPOSTA DE INTERVENÇÃO: "O governo deve fazer campanhas" é genérico demais. Exija: qual governo? qual campanha? como? onde? quando?
+6. PARÁGRAFOS MAL ESTRUTURADOS: Sem tópico frasal claro, sem progressão, com repetição = penalize C3.
+7. CÓPIA PARCIAL: Mesmo que seja só 2-3 frases do material de apoio, identifique e penalize.
+8. FUGA PARCIAL AO TEMA: Se o texto toca no tema mas não explora o recorte específico, penalize C2.
+9. ERROS DE REGÊNCIA: "O filme que assisti" (falta "a"), "aspirar o cargo" (errado, é "ao") = identifique TODOS.
+10. NÃO SEJA "BONZINHO": Se a redação tem problemas, aponte com clareza. Nota baixa é justa quando merecida.
+` : `
+### MODO PADRÃO PEDAGÓGICO:
+1. Identifique erros, mas considere o contexto geral da redação.
+2. Valorize acertos e avanços em relação a padrões anteriores.
+3. Para redações medianas, seja encorajador mas aponte melhorias necessárias.
+4. Para redações boas, aponte refinamentos possíveis sem ser excessivamente crítico.
+`
+
   const lines = [
     'Você é o "Corretor Ápice", um especialista sênior na grade oficial do ENEM (INEP).',
-    'Sua missão é fornecer uma avaliação técnica, rigorosa e transformadora para o aluno.',
+    'Sua missão é fornecer uma avaliação técnica e transformadora para o aluno.',
     '',
     `Configuração da Sessão:`,
     `- Modo de correção: ${modo}.`,
     `- Tema Central: ${tema || 'Livre/NÃO INFORMADO (identifique pelo texto).'}`,
+    '',
+    rigorInstrucoes,
     '',
     calibrationSection,
     '',
@@ -723,12 +745,11 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, theme
     '- COMPETÊNCIA V: Proposta de intervenção. Exija os 5 elementos: Agente, Ação, Meio/Modo, Efeito e Detalhamento.',
     '',
     '### REGRAS CRÍTICAS DE CORREÇÃO:',
-    '1. MÉRITO DIRETO: Na chave "descricao" de cada competência, vá direto ao ponto. Use 1-2 frases curtas focando no que falta ou no que sobra.',
-    '2. ANÁLISE DENSA: Use as chaves "pontoForte", "atencao" e "principalMelhorar" para ser extremamente detalhista, técnico e pedagógico.',
+    '1. MÉRITO DIRETO: Na chave "descricao" de cada competência, vá direto ao ponto. Use 1-2 frases curtas e técnicas.',
+    '2. ANÁLISE DENSA: Use as chaves "pontoForte", "atencao" e "principalMelhorar" para ser detalhista e pedagógico.',
     '3. RIGOR TÉCNICO: Se houver cópia literal do material de apoio, zere a produtividade do repertório (C2) e puna C3.',
     '4. FUGA AO TEMA: Se o texto ignorar o recorte central, a nota total deve ser zero.',
     '5. ESCALA REAL: Use apenas as notas 0, 40, 80, 120, 160, 200 por competência. Se estiver em dúvida, opte pela nota inferior.',
-    '6. PERSONA: Não use introduções cordiais. Seja um avaliador técnico focado em resultados.',
     '',
     'Formato de Resposta (JSON estrito):',
     '{',
@@ -763,27 +784,27 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, theme
 }
 
 function dampenEssayCompetenceScore(score) {
-  // Ajuste leve para compensar otimismo da IA
-  // Mantém notas altas para redações boas, penaliza só erros graves
+  // Ajuste leve para compensar otimismo natural da IA
+  // Não é punição, é alinhamento com padrão humano
   const value = Number(score) || 0
 
-  if (value >= 195) return value - 4   // 196-200 → -4 (quase nada)
-  if (value >= 180) return value - 6   // 180-194 → -6
-  if (value >= 160) return value - 8   // 160-179 → -8
-  if (value >= 140) return value - 6   // 140-159 → -6
-  if (value >= 120) return value - 4   // 120-139 → -4
-  if (value >= 80) return value - 2    // 80-119 → -2
-  return value                         // Abaixo de 80 → sem ajuste
+  if (value >= 195) return value - 3
+  if (value >= 180) return value - 4
+  if (value >= 160) return value - 5
+  if (value >= 140) return value - 4
+  if (value >= 120) return value - 3
+  if (value >= 80) return value - 2
+  return value
 }
 
 function dampenEssayTotalScore(score) {
   const value = Number(score) || 0
 
-  if (value >= 950) return value - 20  // 950-1000 → -20
-  if (value >= 850) return value - 15  // 850-949 → -15
-  if (value >= 750) return value - 10  // 750-849 → -10
-  if (value >= 600) return value - 5   // 600-749 → -5
-  return value                         // Abaixo de 600 → sem ajuste
+  if (value >= 950) return value - 15
+  if (value >= 850) return value - 10
+  if (value >= 750) return value - 8
+  if (value >= 600) return value - 5
+  return value
 }
 
 function calibrateEssayFeedbackScore(result, context = {}) {
