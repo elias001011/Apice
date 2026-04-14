@@ -1,4 +1,4 @@
-const CACHE_NAME = 'apice-pwa-v1.4'
+const CACHE_NAME = 'apice-pwa-v1.5'
 const PRECACHE_URLS = [
   '/',
   '/index.html',

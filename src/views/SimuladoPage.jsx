@@ -1,61 +1,107 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { gerarSimulado, salvarProgressoSimulado, carregarProgressoSimulado, limparProgressoSimulado } from '../services/simuladoService.js'
+import { getDisciplinasByArea, getAreasDisponiveis } from '../services/enemApiService.js'
 import { useAppBusy } from '../ui/AppBusyContext.jsx'
 import '../styles/simulado.css'
 
-const AREAS = [
-  { id: 'Linguagens', title: 'Linguagens e Códigos', icon: 'L', description: 'Gramática, interpretação textual e linguagens artísticas' },
-  { id: 'Humanas', title: 'Ciências Humanas', icon: 'H', description: 'História, geografia, filosofia e sociologia' },
-  { id: 'Natureza', title: 'Ciências da Natureza', icon: 'N', description: 'Física, química e biologia integradas' },
-  { id: 'Matematica', title: 'Matemática', icon: 'M', description: 'Matemática básica e avançada aplicada' }
-]
+const AREAS = getAreasDisponiveis()
 
 export function SimuladoPage() {
   const { beginBusy, endBusy } = useAppBusy()
-  const [step, setStep] = useState('setup')
-  const [selectedArea, setSelectedArea] = useState(null)
+  const [step, setStep] = useState('setup') // setup, loading, exam, result
   const [examData, setExamData] = useState(null)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [answers, setAnswers] = useState({})
   const [showFeedback, setShowFeedback] = useState(false)
   const [error, setError] = useState(null)
   const [questionStartTime, setQuestionStartTime] = useState(null)
+  
+  // Configuração do simulado
+  const [selectedArea, setSelectedArea] = useState(null)
+  const [selectedDisciplinas, setSelectedDisciplinas] = useState([])
+  const [quantidade, setQuantidade] = useState(20)
 
+  // Carrega progresso salvo ao entrar
   useEffect(() => {
     const saved = carregarProgressoSimulado()
-    if (saved && saved.examData && saved.step === 'exam') {
+    if (saved?.examData && saved.step === 'exam') {
       const shouldRestore = window.confirm('Você tem um simulado em andamento. Deseja continuar de onde parou?')
       if (shouldRestore) {
         setExamData(saved.examData)
         setSelectedArea(saved.selectedArea)
+        setSelectedDisciplinas(saved.selectedDisciplinas || [])
         setCurrentQuestionIndex(saved.currentQuestionIndex || 0)
         setAnswers(saved.answers || {})
+        setQuantidade(saved.quantidade || 20)
         setStep('exam')
       }
     }
   }, [])
 
+  // Salva progresso a cada mudança durante o simulado
   useEffect(() => {
     if (step === 'exam' && examData) {
       salvarProgressoSimulado({
         step: 'exam',
         examData,
         selectedArea,
+        selectedDisciplinas,
         currentQuestionIndex,
         answers,
+        quantidade,
       })
     }
-  }, [step, examData, currentQuestionIndex, answers, selectedArea])
+  }, [step, examData, currentQuestionIndex, answers, selectedArea, selectedDisciplinas, quantidade])
 
-  const handleStartExam = async (area) => {
-    setSelectedArea(area)
+  // Quando muda área, reseta disciplinas selecionadas
+  const handleAreaChange = (areaId) => {
+    setSelectedArea(areaId)
+    setSelectedDisciplinas([])
+  }
+
+  // Toggle disciplina
+  const toggleDisciplina = (discId) => {
+    setSelectedDisciplinas(prev => 
+      prev.includes(discId) 
+        ? prev.filter(d => d !== discId)
+        : [...prev, discId]
+    )
+  }
+
+  // Seleciona todas as disciplinas da área
+  const selectAllDisciplinas = () => {
+    if (!selectedArea) return
+    const disc = getDisciplinasByArea(selectedArea)
+    setSelectedDisciplinas(disc.map(d => d.id))
+  }
+
+  // Inicia o simulado
+  const handleStartExam = async () => {
+    if (!selectedArea) {
+      setError('Selecione uma área do conhecimento.')
+      return
+    }
+    if (selectedDisciplinas.length === 0) {
+      setError('Selecione pelo menos uma disciplina.')
+      return
+    }
+    if (quantidade < 10 || quantidade > 200) {
+      setError('A quantidade de questões deve ser entre 10 e 200.')
+      return
+    }
+
     setStep('loading')
     beginBusy()
     setError(null)
 
     try {
-      const data = await gerarSimulado({ area: area.id, quantidade: 5 })
+      const data = await gerarSimulado({
+        area: selectedArea,
+        disciplinas: selectedDisciplinas,
+        quantidade,
+        fonte: 'mista', // API + IA
+      })
       
       if (!data?.questoes || !Array.isArray(data.questoes) || data.questoes.length === 0) {
         throw new Error('Não foi possível gerar questões. Tente novamente.')
@@ -101,9 +147,11 @@ export function SimuladoPage() {
     setStep('setup')
     setExamData(null)
     setSelectedArea(null)
+    setSelectedDisciplinas([])
     setCurrentQuestionIndex(0)
     setAnswers({})
     setShowFeedback(false)
+    setQuantidade(20)
     limparProgressoSimulado()
   }
 
@@ -115,35 +163,127 @@ export function SimuladoPage() {
     return score
   }
 
+  const disciplinasDaArea = selectedArea ? getDisciplinasByArea(selectedArea) : []
+
+  // TELA DE SETUP
   if (step === 'setup') {
     return (
       <div className="simulado-container">
         <div className="simulado-header anim anim-d1">
           <h1 className="simulado-title">Simulados Ápice</h1>
           <p className="simulado-subtitle">
-            Escolha uma área do conhecimento para começar seu treinamento intensivo com questões geradas por IA.
+            Configure seu simulado personalizado com questões reais do ENEM e geração por IA.
           </p>
         </div>
 
-        <div className="simulado-setup">
-          {AREAS.map((area, index) => (
-            <div
-              key={area.id}
-              className="setup-card anim anim-d1"
-              style={{ animationDelay: `${index * 0.1}s` }}
-              onClick={() => handleStartExam(area)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && handleStartExam(area)}
-            >
-              <div className="setup-icon">{area.icon}</div>
-              <h3>{area.title}</h3>
-              <p>{area.description}</p>
+        <div className="simulado-setup anim anim-d2">
+          {/* 1. Seleção de Área */}
+          <div className="setup-section">
+            <h2 className="setup-section-title">1. Escolha a Área do Conhecimento</h2>
+            <div className="area-grid">
+              {AREAS.map(area => (
+                <button
+                  key={area.id}
+                  type="button"
+                  className={`area-card ${selectedArea === area.id ? 'selected' : ''}`}
+                  onClick={() => handleAreaChange(area.id)}
+                >
+                  <div className="area-icon">{area.id[0]}</div>
+                  <h3>{area.label}</h3>
+                  <p>{area.disciplinas.length} disciplinas disponíveis</p>
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
+
+          {/* 2. Seleção de Disciplinas */}
+          {selectedArea && (
+            <div className="setup-section anim anim-d3">
+              <div className="setup-section-header">
+                <div>
+                  <h2 className="setup-section-title">2. Selecione as Disciplinas</h2>
+                  <p className="setup-section-copy">
+                    Escolha uma ou mais matérias para o seu simulado.
+                  </p>
+                </div>
+                <button type="button" className="btn-select-all" onClick={selectAllDisciplinas}>
+                  Selecionar Todas
+                </button>
+              </div>
+              <div className="disciplinas-grid">
+                {disciplinasDaArea.map(disc => (
+                  <button
+                    key={disc.id}
+                    type="button"
+                    className={`disciplina-card ${selectedDisciplinas.includes(disc.id) ? 'selected' : ''}`}
+                    onClick={() => toggleDisciplina(disc.id)}
+                  >
+                    <div className="disciplina-check">
+                      {selectedDisciplinas.includes(disc.id) ? '✓' : '○'}
+                    </div>
+                    <span>{disc.label}</span>
+                  </button>
+                ))}
+              </div>
+              {selectedDisciplinas.length > 0 && (
+                <p className="selected-count">
+                  {selectedDisciplinas.length} disciplina(s) selecionada(s)
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* 3. Quantidade de Questões */}
+          {selectedDisciplinas.length > 0 && (
+            <div className="setup-section anim anim-d4">
+              <h2 className="setup-section-title">3. Quantidade de Questões</h2>
+              <div className="quantidade-config">
+                <div className="quantidade-slider">
+                  <input
+                    type="range"
+                    min="10"
+                    max="200"
+                    step="5"
+                    value={quantidade}
+                    onChange={(e) => setQuantidade(Number(e.target.value))}
+                    className="slider"
+                  />
+                  <div className="quantidade-display">
+                    <span className="quantidade-numero">{quantidade}</span>
+                    <span className="quantidade-label">questões</span>
+                  </div>
+                </div>
+                <div className="quantidade-presets">
+                  {[10, 20, 45, 90, 180].map(q => (
+                    <button
+                      key={q}
+                      type="button"
+                      className={`preset-btn ${quantidade === q ? 'active' : ''}`}
+                      onClick={() => setQuantidade(q)}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+                <p className="quantidade-info">
+                  As questões serão divididas igualmente entre as {selectedDisciplinas.length} disciplina(s) selecionada(s).
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Botão Iniciar */}
+          {selectedDisciplinas.length > 0 && quantidade >= 10 && (
+            <div className="setup-section anim anim-d5" style={{ textAlign: 'center' }}>
+              <button type="button" className="btn-start-simulado" onClick={handleStartExam}>
+                🚀 Iniciar Simulado
+              </button>
+            </div>
+          )}
         </div>
+
         {error && (
-          <div className="card" style={{ marginTop: '2rem', borderColor: 'var(--red)' }}>
+          <div className="card anim anim-d1" style={{ marginTop: '2rem', borderColor: 'var(--red)' }}>
             <p style={{ color: 'var(--red)', margin: 0, textAlign: 'center' }}>{error}</p>
           </div>
         )}
@@ -151,6 +291,7 @@ export function SimuladoPage() {
     )
   }
 
+  // TELA DE LOADING
   if (step === 'loading') {
     return (
       <div className="simulado-container">
@@ -158,23 +299,23 @@ export function SimuladoPage() {
           <div className="spinner"></div>
           <h2 className="simulado-title">Preparando Simulado...</h2>
           <p className="simulado-subtitle">
-            Nossa IA está selecionando e gerando as melhores questões de {selectedArea?.title} para você.
+            Buscando questões reais da ENEM API e gerando questões complementares com IA...
           </p>
         </div>
       </div>
     )
   }
 
+  // TELA DO SIMULADO
   if (step === 'exam' && examData) {
     const currentQuestion = examData.questoes[currentQuestionIndex]
     const selectedAnswer = answers[currentQuestion.id]
     const progress = ((currentQuestionIndex + 1) / examData.questoes.length) * 100
-    const timeSpent = questionStartTime ? Math.round((Date.now() - questionStartTime) / 1000) : 0
 
     return (
       <div className="simulado-container">
         <div className="simulado-nav anim anim-d1">
-          <div className="timer">ENEM LAB — {selectedArea.title}</div>
+          <div className="timer">{examData.area}</div>
           <div className="progress-bar-bg">
             <div className="progress-bar-fill" style={{ width: `${progress}%` }}></div>
           </div>
@@ -185,7 +326,7 @@ export function SimuladoPage() {
 
         <div className="question-card anim anim-d2">
           <div className="question-meta">
-            <span>{selectedArea.title}</span>
+            <span>{currentQuestion.disciplina || examData.area}</span>
             <span>Questão {currentQuestionIndex + 1}</span>
           </div>
 
@@ -260,6 +401,7 @@ export function SimuladoPage() {
     )
   }
 
+  // TELA DE RESULTADO
   if (step === 'result' && examData) {
     const total = examData.questoes.length
     const correct = calculateScore()
@@ -273,7 +415,7 @@ export function SimuladoPage() {
             Resultado do Simulado
           </div>
           <h1 className="simulado-title" style={{ marginBottom: '2rem' }}>
-            {selectedArea.title}
+            {examData.area}
           </h1>
           
           <div className="result-score">
@@ -286,6 +428,19 @@ export function SimuladoPage() {
           <p style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--accent)', marginBottom: '2rem' }}>
             Desempenho: {performance}
           </p>
+
+          {examData.estatisticas && (
+            <div className="result-stats">
+              <div className="stat-item">
+                <span className="stat-value">{examData.estatisticas.reais}</span>
+                <span className="stat-label">Questões Reais (ENEM)</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-value">{examData.estatisticas.ia}</span>
+                <span className="stat-label">Questões Geradas por IA</span>
+              </div>
+            </div>
+          )}
 
           <div className="result-actions">
             <button type="button" className="btn-primary" onClick={handleNewExam}>
