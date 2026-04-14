@@ -26,11 +26,13 @@ export default async function handler(req, context) {
     const body = await req.json().catch(() => ({}))
     const area = String(body?.area ?? 'Linguagens').trim()
     const quantidade = Number(body?.quantidade ?? 5)
+    const disciplinas = Array.isArray(body?.disciplinas) ? body.disciplinas : []
     const responsePreference = body?.responsePreference ?? null
 
     // ── Input Validation ────────────────────────────────────────────────
     const checks = [
       validateStringLength('area', area, 100),
+      ...(disciplinas.map(d => validateStringLength('disciplina', d, 50))),
       ...(responsePreference ? [validateStringLength('responsePreference', responsePreference, INPUT_LIMITS.responsePreference)] : []),
     ]
 
@@ -41,6 +43,7 @@ export default async function handler(req, context) {
     const result = await generateExam({
       area,
       quantidade,
+      disciplinas,
       responsePreference,
     })
 

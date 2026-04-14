@@ -684,6 +684,23 @@ function buildFallbackThemeSystemPrompt(responsePreference) {
 }
 
 function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, themeHint, qualityHint, responsePreference }) {
+  // Importa exemplos de calibração baseados em redações reais (UOL dataset)
+  let calibrationSection = ''
+  try {
+    const { generateCalibrationPrompt } = require('../../src/services/essayCalibrationService.js')
+    calibrationSection = generateCalibrationPrompt()
+  } catch {
+    // Fallback se não conseguir importar
+    calibrationSection = `
+### PADRÕES DE REDAÇÕES NOTA 1000 (Baseado em análise de 2.100 redações corrigidas):
+- Domínio excepcional da norma culta com construções sintáticas complexas
+- Repertório sociocultural produtivo com dados oficiais e legislação
+- Projeto de texto coeso com progressão argumentativa clara
+- Coesão sofisticada com conectivos inter e intraparágrafos bem articulados
+- Proposta de intervenção completa com 5 elementos detalhados (agente, ação, meio/modo, efeito, detalhamento)
+`
+  }
+
   // Prompt da correção Profissional Ápice.
   const modo = isRigido ? 'Rígido Técnico (Critério INEP)' : 'Padrão Pedagógico'
   const materialTexto = flattenMaterialForPrompt(material)
@@ -696,6 +713,8 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, theme
     `- Modo de correção: ${modo}.`,
     `- Tema Central: ${tema || 'Livre/NÃO INFORMADO (identifique pelo texto).'}`,
     '',
+    calibrationSection,
+    '',
     '### MATRIZ DE REFERÊNCIA (Critérios INEP):',
     '- COMPETÊNCIA I: Domínio da modalidade escrita formal. Avalie concordância, regência, pontuação e escolha lexical.',
     '- COMPETÊNCIA II: Compreender a proposta e aplicar conceitos de várias áreas (Repertório). Exija repertório Legitimado, Pertinente e Produtivo.',
@@ -704,7 +723,7 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, theme
     '- COMPETÊNCIA V: Proposta de intervenção. Exija os 5 elementos: Agente, Ação, Meio/Modo, Efeito e Detalhamento.',
     '',
     '### REGRAS CRÍTICAS DE CORREÇÃO:',
-    '1. MÉRITO DIRETO: Na chave "descricao" de cada competência, vá direto ao ponto. Use 1-2 frases curtas focando no que falta ou no que sobra (ex: "Uso de vírgulas impecável; falta de repertório sociológico produtivo.").',
+    '1. MÉRITO DIRETO: Na chave "descricao" de cada competência, vá direto ao ponto. Use 1-2 frases curtas focando no que falta ou no que sobra.',
     '2. ANÁLISE DENSA: Use as chaves "pontoForte", "atencao" e "principalMelhorar" para ser extremamente detalhista, técnico e pedagógico.',
     '3. RIGOR TÉCNICO: Se houver cópia literal do material de apoio, zere a produtividade do repertório (C2) e puna C3.',
     '4. FUGA AO TEMA: Se o texto ignorar o recorte central, a nota total deve ser zero.',
@@ -2126,7 +2145,7 @@ export function summarizeMaterial(material) {
   return flattenMaterialForPrompt(material)
 }
 
-function buildExamSystemPrompt(area, quantidade, responsePreference) {
+function buildExamSystemPrompt(area, quantidade, disciplinas, responsePreference) {
   const areaDescriptions = {
     'Linguagens': 'linguagens, códigos e suas tecnologias, incluindo gramática, interpretação textual, literatura e artes',
     'Humanas': 'ciências humanas e suas tecnologias, abrangendo história, geografia, filosofia, sociologia e atualidades',
@@ -2134,11 +2153,36 @@ function buildExamSystemPrompt(area, quantidade, responsePreference) {
     'Matematica': 'matemática e suas tecnologias, cobrindo matemática básica, álgebra, geometria, estatística e probabilidade'
   }
 
+  const disciplinaDescriptions = {
+    'portugues': 'língua portuguesa: gramática, interpretação textual, linguística',
+    'literatura': 'literatura brasileira e portuguesa: movimentos literários, obras e autores',
+    'artes': 'artes: história da arte, movimentos artísticos, análise de obras',
+    'educacao-fisica': 'educação física: esportes, saúde, corpo e sociedade',
+    'ingles': 'língua inglesa: interpretação de textos em inglês',
+    'espanhol': 'língua espanhola: interpretação de textos em espanhol',
+    'historia': 'história: Brasil e mundo, períodos e eventos históricos',
+    'geografia': 'geografia: física, humana, política e econômica',
+    'filosofia': 'filosofia: ética, política, epistemologia, história da filosofia',
+    'sociologia': 'sociologia: sociedade, cultura, desigualdade, movimentos sociais',
+    'biologia': 'biologia: ecologia, genética, evolução, fisiologia',
+    'quimica': 'química: orgânica, inorgânica, físico-química, ambiental',
+    'fisica': 'física: mecânica, termodinâmica, óptica, eletricidade, ondulatória',
+    'matematica': 'matemática: álgebra, geometria, estatística, trigonometria',
+  }
+
   const areaDescription = areaDescriptions[area] || 'conhecimentos gerais do ENEM'
+  
+  let disciplinaSection = ''
+  if (disciplinas && disciplinas.length > 0) {
+    const disciplinasDesc = disciplinas
+      .map(d => disciplinaDescriptions[d] || d)
+      .join(', ')
+    disciplinaSection = `\n\n### DISCIPLINAS ESPECÍFICAS SOLICITADAS:\n${disciplinasDesc}`
+  }
 
   const lines = [
     `Você é um especialista em elaboração de questões para o ENEM (Exame Nacional do Ensino Médio).`,
-    `Sua tarefa é gerar ${quantidade} questões inéditas, bem estruturadas e desafiadoras sobre: ${areaDescription}.`,
+    `Sua tarefa é gerar ${quantidade} questões inéditas, bem estruturadas e desafiadoras sobre: ${areaDescription}.${disciplinaSection}`,
     '',
     '### REGRAS OBRIGATÓRIAS PARA CADA QUESTÃO:',
     '1. TEXTO BASE: Use um contexto realista, dados, citações ou situação-problema relevante (2-5 linhas).',
@@ -2183,12 +2227,12 @@ function buildExamSystemPrompt(area, quantidade, responsePreference) {
   return lines.join('\n')
 }
 
-export async function generateExam({ area, quantidade = 5, responsePreference }) {
-  const systemPrompt = buildExamSystemPrompt(area, quantidade, responsePreference)
+export async function generateExam({ area, quantidade = 5, disciplinas = [], responsePreference }) {
+  const systemPrompt = buildExamSystemPrompt(area, quantidade, disciplinas, responsePreference)
   const userMessages = [
     {
       role: 'user',
-      content: `Gere um simulado de ${area} com ${quantidade} questões nível ENEM.`,
+      content: `Gere um simulado de ${area} com ${quantidade} questões nível ENEM${disciplinas.length > 0 ? ' focado em: ' + disciplinas.join(', ') : ''}.`,
     },
   ]
 
@@ -2233,6 +2277,7 @@ export async function generateExam({ area, quantidade = 5, responsePreference })
       ...result,
       questoes,
       area: result.area || area,
+      disciplinas,
       quantidade: questoes.length,
       geradoEm: new Date().toISOString(),
     }
@@ -2256,6 +2301,7 @@ export async function generateExam({ area, quantidade = 5, responsePreference })
         ...result,
         questoes,
         area: result.area || area,
+        disciplinas,
         quantidade: questoes.length,
         geradoEm: new Date().toISOString(),
       }
