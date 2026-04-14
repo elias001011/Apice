@@ -14,6 +14,7 @@ import { ResultadoRedacaoPage } from './views/ResultadoRedacaoPage.jsx'
 import { NotificacoesPage } from './views/NotificacoesPage.jsx'
 import { AparenciaPage } from './views/AparenciaPage.jsx'
 import { PlanosPage } from './views/PlanosPage.jsx'
+import { SimuladoPage } from './views/SimuladoPage.jsx'
 import { ProfessorPage } from './views/ProfessorPage.jsx'
 import { EditarPerfilPage } from './views/EditarPerfilPage.jsx'
 import { SobrePage } from './views/SobrePage.jsx'
@@ -68,6 +69,7 @@ export default function App() {
         <Route path="/corretor" element={<CorretorPage />} />
         <Route path="/professor" element={<ProfessorPage />} />
         <Route path="/radar" element={<RadarPage />} />
+        <Route path="/simulado" element={<SimuladoPage />} />
         <Route path="/conquistas" element={<ConquistasPage />} />
         <Route path="/perfil" element={<PerfilPage />} />
         <Route path="/editar-perfil" element={<EditarPerfilPage />} />

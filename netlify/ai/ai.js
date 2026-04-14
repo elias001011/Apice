@@ -684,66 +684,59 @@ function buildFallbackThemeSystemPrompt(responsePreference) {
 }
 
 function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, themeHint, qualityHint, responsePreference }) {
-  // Prompt da correção.
-  // O material de apoio aqui é contexto da prova, não repertório autoral do aluno.
-  const modo = isRigido ? 'Rígido (muito criterioso)' : 'Padrão (conservador)'
+  // Prompt da correção Profissional Ápice.
+  const modo = isRigido ? 'Rígido Técnico (Critério INEP)' : 'Padrão Pedagógico'
   const materialTexto = flattenMaterialForPrompt(material)
 
   const lines = [
-    `Modo de correção: ${modo}.`,
-    `Tema da redação: ${tema || 'Não informado.'}`,
+    'Você é o "Corretor Ápice", um especialista sênior na grade oficial do ENEM (INEP).',
+    'Sua missão é fornecer uma avaliação técnica, rigorosa e transformadora para o aluno.',
     '',
-    'Regras de correção:',
-    '- Corrija conforme a matriz do ENEM.',
-    '- Na propriedade "descricao" de cada competência, exiba o MÉRITO DIRETAMENTE e seja MEGA CONCISO (ex: "Apresenta boa coesão, mas falha no uso de crase."). Nunca escreva introduções como "A redação demonstra...". O espaço lá é apertado, use 1 ou 2 frases curtas.',
-    '- Compense essa ausência de detalhes escrevendo análises SUPER DENSAS, extensas e ricas nas chaves "pontoForte", "atencao" e "principalMelhorar". Abuse do espaço ali para aprofundar a correção.',
-    '- Nessas análises, seja direto e honesto com o estudante. Se houver fuga de tema, repertório fraco ou argumento vazio, diga isso sem suavizar.',
-    '- O material de apoio abaixo é apenas contexto de prova. Ele não conta como repertório autoral se o aluno apenas copiar, parafrasear ou repetir seus dados.',
-    '- Se houver cópia literal ou quase literal do material, puna fortemente C2, C3 e, se necessário, C5.',
-    '- Se a redação fugir totalmente do tema, a nota de todas as competências deve ser 0 e a análise precisa deixar isso explícito.',
-    '- Se a redação só tocar o tema no início e depois mudar de assunto, trate isso como fuga parcial e seja severo.',
-    '- Se a aderência ao tema for fraca, C2, C3 e C5 devem cair bastante mesmo que o texto pareça bem escrito.',
-    '- Se a redação usar o material de apoio sem elaboração própria, não premie como se fosse repertório externo.',
-    '- Use a escala ENEM real: cada competência vai de 0 a 200 e a notaTotal vai de 0 a 1000. Nunca responda em escala 0 a 10.',
-    '- Seja conservador: 200 em qualquer competência deve ser raro, 180+ só quando o critério estiver praticamente impecável.',
-    '- Se houver dúvida entre duas faixas, escolha a mais baixa.',
-    '- Não infle nota por texto longo, bonito ou genérico; qualidade real vale mais do que volume.',
-    '- Em redações boas, mas comuns, a faixa média é mais realista do que notas muito altas.',
-    '- C5 só merece nota alta quando a proposta tiver agente, ação, meio, finalidade e detalhamento claros.',
-    '- C2 e C3 devem ser duras com repertório fraco, tese vaga ou argumento genérico.',
-    '- Responda somente com JSON válido no formato abaixo.',
+    `Configuração da Sessão:`,
+    `- Modo de correção: ${modo}.`,
+    `- Tema Central: ${tema || 'Livre/NÃO INFORMADO (identifique pelo texto).'}`,
     '',
-    'Formato de resposta:',
+    '### MATRIZ DE REFERÊNCIA (Critérios INEP):',
+    '- COMPETÊNCIA I: Domínio da modalidade escrita formal. Avalie concordância, regência, pontuação e escolha lexical.',
+    '- COMPETÊNCIA II: Compreender a proposta e aplicar conceitos de várias áreas (Repertório). Exija repertório Legitimado, Pertinente e Produtivo.',
+    '- COMPETÊNCIA III: Selecionar, relacionar, organizar e interpretar informações em defesa de um ponto de vista (Projeto de Texto).',
+    '- COMPETÊNCIA IV: Conhecimento dos mecanismos linguísticos (Coesão). Avalie conectivos inter e intraparágrafos.',
+    '- COMPETÊNCIA V: Proposta de intervenção. Exija os 5 elementos: Agente, Ação, Meio/Modo, Efeito e Detalhamento.',
+    '',
+    '### REGRAS CRÍTICAS DE CORREÇÃO:',
+    '1. MÉRITO DIRETO: Na chave "descricao" de cada competência, vá direto ao ponto. Use 1-2 frases curtas focando no que falta ou no que sobra (ex: "Uso de vírgulas impecável; falta de repertório sociológico produtivo.").',
+    '2. ANÁLISE DENSA: Use as chaves "pontoForte", "atencao" e "principalMelhorar" para ser extremamente detalhista, técnico e pedagógico.',
+    '3. RIGOR TÉCNICO: Se houver cópia literal do material de apoio, zere a produtividade do repertório (C2) e puna C3.',
+    '4. FUGA AO TEMA: Se o texto ignorar o recorte central, a nota total deve ser zero.',
+    '5. ESCALA REAL: Use apenas as notas 0, 40, 80, 120, 160, 200 por competência. Se estiver em dúvida, opte pela nota inferior.',
+    '6. PERSONA: Não use introduções cordiais. Seja um avaliador técnico focado em resultados.',
+    '',
+    'Formato de Resposta (JSON estrito):',
     '{',
     '  "notaTotal": 0,',
     '  "competencias": [',
-    '    { "nome": "C1 — Norma culta", "nota": 0, "descricao": "..." },',
-    '    { "nome": "C2 — Tema e repertório", "nota": 0, "descricao": "..." },',
-    '    { "nome": "C3 — Organização da tese", "nota": 0, "descricao": "..." },',
-    '    { "nome": "C4 — Coesão textual", "nota": 0, "descricao": "..." },',
-    '    { "nome": "C5 — Proposta de intervenção", "nota": 0, "descricao": "..." }',
+    '    { "nome": "C1 — Norma Culta", "nota": 0, "descricao": "..." },',
+    '    { "nome": "C2 — Repertório e Tema", "nota": 0, "descricao": "..." },',
+    '    { "nome": "C3 — Organização e Projeto", "nota": 0, "descricao": "..." },',
+    '    { "nome": "C4 — Coesão e Conectivos", "nota": 0, "descricao": "..." },',
+    '    { "nome": "C5 — Proposta de Intervenção", "nota": 0, "descricao": "..." }',
     '  ],',
-    '  "pontoForte": "...",',
-    '  "atencao": "...",',
-    '  "principalMelhorar": "...",',
+    '  "pontoForte": "Análise técnica do que foi excelente...",',
+    '  "atencao": "Pontos de vulnerabilidade que podem tirar pontos...",',
+    '  "principalMelhorar": "Plano de ação imediato para alcançar o 1000...",',
     '  "errosPt": [',
-    '    { "errado": "...", "corrigido": "...", "motivo": "..." }',
+    '    { "errado": "...", "corrigido": "...", "motivo": "Explicação gramatical curta" }',
     '  ]',
     '}',
     '',
-    'Material de apoio estruturado:',
+    '### CONTEXTO FACTUAL (Material de Apoio):',
     materialTexto,
     '',
-    'Heurística local de cópia:',
-    `- ${copyHint.summary}`,
-    `- Overlap lexical estimado: ${copyHint.overlapScore}`,
-    copyHint.copiedPhrases.length > 0
-      ? `- Trechos repetidos detectados: ${copyHint.copiedPhrases.join(' | ')}`
-      : '- Trechos repetidos detectados: nenhum trecho longo detectado.',
-    '',
-    'Heurística local de aderência ao tema:',
-    `- ${themeHint?.summary || 'Sem avaliação local de tema.'}`,
-    `- ${qualityHint?.summary || 'Sem avaliação local de escrita.'}`,
+    '### ALERTAS DA HEURÍSTICA LOCAL:',
+    `- Risco de Cópia: ${copyHint.summary} (Overlap: ${copyHint.overlapScore})`,
+    copyHint.copiedPhrases.length > 0 ? `- Trechos repetidos: ${copyHint.copiedPhrases.join(' | ')}` : '',
+    `- Aderência ao Tema: ${themeHint?.summary || 'N/A'}`,
+    `- Qualidade da Escrita: ${qualityHint?.summary || 'N/A'}`,
   ]
 
   appendResponsePreference(lines, responsePreference)
@@ -2131,4 +2124,144 @@ export function summarizeMaterial(material) {
   // Helper de compatibilidade para a UI.
   // Se a tela quiser converter material estruturado para texto simples, usa este método.
   return flattenMaterialForPrompt(material)
+}
+
+function buildExamSystemPrompt(area, quantidade, responsePreference) {
+  const areaDescriptions = {
+    'Linguagens': 'linguagens, códigos e suas tecnologias, incluindo gramática, interpretação textual, literatura e artes',
+    'Humanas': 'ciências humanas e suas tecnologias, abrangendo história, geografia, filosofia, sociologia e atualidades',
+    'Natureza': 'ciências da natureza e suas tecnologias, englobando física, química e biologia com abordagem interdisciplinar',
+    'Matematica': 'matemática e suas tecnologias, cobrindo matemática básica, álgebra, geometria, estatística e probabilidade'
+  }
+
+  const areaDescription = areaDescriptions[area] || 'conhecimentos gerais do ENEM'
+
+  const lines = [
+    `Você é um especialista em elaboração de questões para o ENEM (Exame Nacional do Ensino Médio).`,
+    `Sua tarefa é gerar ${quantidade} questões inéditas, bem estruturadas e desafiadoras sobre: ${areaDescription}.`,
+    '',
+    '### REGRAS OBRIGATÓRIAS PARA CADA QUESTÃO:',
+    '1. TEXTO BASE: Use um contexto realista, dados, citações ou situação-problema relevante (2-5 linhas).',
+    '2. ENUNCIADO: Claro, objetivo e alinhado às competências do ENEM.',
+    '3. ALTERNATIVAS: Exatamente 5 opções (A, B, C, D, E), sendo apenas UMA correta.',
+    '4. DISTRATORES: As alternativas incorretas devem ser plausíveis, representando erros comuns ou raciocínios incompletos.',
+    '5. CORRETA: Deve ser claramente a melhor resposta, sem ambiguidades.',
+    '6. EXPLICAÇÃO: Detalhada, técnica e pedagógica (3-5 linhas), explicando por que a correta é correta e por que as outras são incorretas.',
+    '',
+    '### FORMATO DE RESPOSTA (JSON ESTRITO):',
+    'Retorne APENAS JSON válido neste formato exato:',
+    '{',
+    '  "area": "nome da área",',
+    '  "quantidade": número,',
+    '  "questoes": [',
+    '    {',
+    '      "id": "uuid-v4-unico",',
+    '      "textoBase": "texto de apoio contextualizado",',
+    '      "enunciado": "pergunta direta e clara",',
+    '      "alternativas": {',
+    '        "A": "texto da alternativa A",',
+    '        "B": "texto da alternativa B",',
+    '        "C": "texto da alternativa C",',
+    '        "D": "texto da alternativa D",',
+    '        "E": "texto da alternativa E"',
+    '      },',
+    '      "correta": "A ou B ou C ou D ou E",',
+    '      "explicacao": "explicação técnica detalhada"',
+    '    }',
+    '  ]',
+    '}',
+    '',
+    '### IMPORTANTE:',
+    '- Use IDs únicos no formato UUID para cada questão.',
+    '- As alternativas devem ser concisas (1-3 linhas cada).',
+    '- A explicação deve ser completa e educativa.',
+    '- Não repita padrões de questões dentro do mesmo simulado.',
+    '- Mantenha o nível de dificuldade adequado ao ENEM.',
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
+}
+
+export async function generateExam({ area, quantidade = 5, responsePreference }) {
+  const systemPrompt = buildExamSystemPrompt(area, quantidade, responsePreference)
+  const userMessages = [
+    {
+      role: 'user',
+      content: `Gere um simulado de ${area} com ${quantidade} questões nível ENEM.`,
+    },
+  ]
+
+  try {
+    const result = await runDirectTextProvider({
+      provider: 'groq',
+      systemPrompt,
+      userMessages,
+      modelVariant: 'primary',
+    })
+
+    // Validação e limpeza do resultado
+    if (!result?.questoes || !Array.isArray(result.questoes)) {
+      console.error('[AI][exam] Invalid response structure:', result)
+      throw new Error('Estrutura de resposta inválida')
+    }
+
+    // Garante que cada questão tem ID único
+    const questoes = result.questoes.map((q, index) => {
+      if (!q.id || typeof q.id !== 'string') {
+        q.id = `q-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`
+      }
+      
+      // Validação básica dos campos obrigatórios
+      if (!q.enunciado || !q.alternativas || !q.correta || !q.explicacao) {
+        throw new Error(`Questão ${index + 1} incompleta`)
+      }
+      
+      // Garante que correta é uma letra válida
+      const correta = String(q.correta).toUpperCase().trim()
+      if (!['A', 'B', 'C', 'D', 'E'].includes(correta)) {
+        throw new Error(`Questão ${index + 1}: alternativa correta inválida (${q.correta})`)
+      }
+      
+      return {
+        ...q,
+        correta,
+      }
+    })
+
+    return {
+      ...result,
+      questoes,
+      area: result.area || area,
+      quantidade: questoes.length,
+      geradoEm: new Date().toISOString(),
+    }
+  } catch (error) {
+    console.error('[AI][exam] Primary failed, falling back:', error?.message || error)
+    
+    try {
+      const result = await runPipeline('text', { systemPrompt, userMessages })
+      
+      if (!result?.questoes || !Array.isArray(result.questoes)) {
+        throw new Error('Fallback também retornou estrutura inválida')
+      }
+      
+      const questoes = result.questoes.map((q, index) => ({
+        ...q,
+        id: q.id || `q-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
+        correta: String(q.correta).toUpperCase().trim(),
+      }))
+      
+      return {
+        ...result,
+        questoes,
+        area: result.area || area,
+        quantidade: questoes.length,
+        geradoEm: new Date().toISOString(),
+      }
+    } catch (fallbackError) {
+      console.error('[AI][exam] All providers failed:', fallbackError?.message || fallbackError)
+      throw new Error('Não foi possível gerar o simulado. Tente novamente em instantes.')
+    }
+  }
 }
