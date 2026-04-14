@@ -763,27 +763,27 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, theme
 }
 
 function dampenEssayCompetenceScore(score) {
+  // Ajuste leve para compensar otimismo da IA
+  // Mantém notas altas para redações boas, penaliza só erros graves
   const value = Number(score) || 0
 
-  if (value >= 190) return value - 14
-  if (value >= 175) return value - 12
-  if (value >= 160) return value - 10
-  if (value >= 145) return value - 8
-  if (value >= 120) return value - 5
-  if (value >= 90) return value - 3
-  return value
+  if (value >= 195) return value - 4   // 196-200 → -4 (quase nada)
+  if (value >= 180) return value - 6   // 180-194 → -6
+  if (value >= 160) return value - 8   // 160-179 → -8
+  if (value >= 140) return value - 6   // 140-159 → -6
+  if (value >= 120) return value - 4   // 120-139 → -4
+  if (value >= 80) return value - 2    // 80-119 → -2
+  return value                         // Abaixo de 80 → sem ajuste
 }
 
 function dampenEssayTotalScore(score) {
   const value = Number(score) || 0
 
-  if (value >= 900) return value - 55
-  if (value >= 800) return value - 45
-  if (value >= 700) return value - 35
-  if (value >= 600) return value - 25
-  if (value >= 450) return value - 15
-  if (value >= 300) return value - 8
-  return value
+  if (value >= 950) return value - 20  // 950-1000 → -20
+  if (value >= 850) return value - 15  // 850-949 → -15
+  if (value >= 750) return value - 10  // 750-849 → -10
+  if (value >= 600) return value - 5   // 600-749 → -5
+  return value                         // Abaixo de 600 → sem ajuste
 }
 
 function calibrateEssayFeedbackScore(result, context = {}) {
@@ -816,22 +816,23 @@ function calibrateEssayFeedbackScore(result, context = {}) {
     }
   }
 
-  const topicPenalty = themeHint.fitScore < 0.15
-    ? 0.42
-    : themeHint.fitScore < 0.25
-      ? 0.65
-      : themeHint.fitScore < 0.35
-        ? 0.85
-        : 1
+  // Penalidades mais justas e proporcionais
+  const topicPenalty = themeHint.fitScore < 0.10
+    ? 0.70  // Só penaliza forte se realmente fora do tema
+    : themeHint.fitScore < 0.20
+      ? 0.85  // Penalidade moderada
+      : themeHint.fitScore < 0.30
+        ? 0.92  // Penalidade leve
+        : 1     // Sem penalidade
 
   const overallMultiplier = clampNumber(
-    (0.65 + (themeHint.fitScore * 0.2) + (qualityHint.richnessScore * 0.15)) * topicPenalty,
-    0.5,
+    (0.82 + (themeHint.fitScore * 0.12) + (qualityHint.richnessScore * 0.06)) * topicPenalty,
+    0.7,  // Mínimo mais justo (era 0.5)
     1,
   )
-  const topicMultiplier = clampNumber((0.7 + (themeHint.fitScore * 0.3)) * topicPenalty, 0.45, 1)
-  const supportMultiplier = clampNumber((0.85 + (themeHint.fitScore * 0.15)) * topicPenalty, 0.55, 1)
-  const coesaoMultiplier = clampNumber(0.9 + (qualityHint.richnessScore * 0.1), 0.85, 1)
+  const topicMultiplier = clampNumber((0.85 + (themeHint.fitScore * 0.15)) * topicPenalty, 0.7, 1)
+  const supportMultiplier = clampNumber((0.90 + (themeHint.fitScore * 0.10)) * topicPenalty, 0.75, 1)
+  const coesaoMultiplier = clampNumber(0.92 + (qualityHint.richnessScore * 0.08), 0.90, 1)
 
   const adjustedCompetencias = ensureArray(normalized.competencias).map((competencia) => {
     const baseScore = clampNumber(
