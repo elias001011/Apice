@@ -642,6 +642,29 @@ export function HomePage() {
               </div>
             </Link>
 
+            <Link to="/simulado" className="pv-feature pv-feature--dark anim anim-d4 home-simulado-card">
+              <div className="pv-feature-content">
+                <div className="pv-feature-title">Simulado ENEM</div>
+                <div className="pv-feature-desc">
+                  Monte sua prova personalizada e treine com questões reais no ritmo do ENEM.
+                </div>
+                <div className="pv-pill">Questões reais • Cronometrado</div>
+                <div className="pv-feature-btn">
+                  Abrir simulado
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+              <div className="pv-feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                  <path d="M2 17l10 5 10-5" />
+                  <path d="M2 12l10 5 10-5" />
+                </svg>
+              </div>
+            </Link>
+
             <form
               className="pv-feature pv-feature--dark pv-feature--professor anim anim-d4 home-professor-card"
               onSubmit={handleProfessorWidgetSubmit}

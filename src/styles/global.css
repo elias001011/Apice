@@ -151,7 +151,6 @@ html[data-fx="blur"] {
     radial-gradient(circle at 88% 0%, rgba(var(--accent-rgb), 0.04), transparent 20rem),
     radial-gradient(circle at 50% 76%, rgba(var(--accent-rgb), 0.03), transparent 24rem);
   --scene-opacity: 1;
-<<<<<<< HEAD
   --scene-texture:
     linear-gradient(115deg, rgba(255, 255, 255, 0.1), transparent 42%),
     repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 14px),
@@ -1392,7 +1391,6 @@ html[data-card-hover="on"] .card:hover {
   z-index: 1;
 }
 
-<<<<<<< HEAD
 /* FX CONSISTENCY
    Aplica a mesma leitura visual em todo o app para que none / gradients / blur
    não virem experiências híbridas entre páginas. */
@@ -1449,7 +1447,8 @@ html[data-fx="none"] :is(
 ) {
   background: var(--bg2) !important;
   background-image: none !important;
-=======
+}
+
 /* ── FX CONSISTENCY - Minimalista padronizado ── */
 /* Todos os modos usam a mesma base limpa. Gradients adiciona só fundo do app. */
 
@@ -1459,7 +1458,6 @@ html[data-card-hover="off"] .pv-feature:hover,
 html[data-card-hover="off"] .intro-card-option:hover,
 html[data-card-hover="off"] .tema-card:hover,
 html[data-card-hover="off"] .redacao-item:hover {
->>>>>>> origin/dev
   border-color: var(--border) !important;
   box-shadow: none !important;
 }
@@ -1468,7 +1466,6 @@ html[data-animations="off"] .card:hover,
 html[data-animations="off"] .pv-feature:hover {
   transform: none !important;
 }
-<<<<<<< HEAD
 
 html[data-fx="none"] :is(
   .btn-primary:active,
@@ -1657,5 +1654,3 @@ html[data-fx="blur"] .pv-feature--lime {
   -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
   box-shadow: var(--floating-shadow) !important;
 }
-=======
->>>>>>> origin/dev

@@ -61,10 +61,8 @@ export default function App() {
       <Route path="/confirmar-email" element={<ConfirmarEmailPage />} />
       <Route path="/verificar-email" element={<VerificarEmailPage />} />
       
-      {/* ⚠️ LANDING PAGE BRANCH ONLY - DO NOT MERGE TO DEV ⚠️ */}
       <Route path="/landing" element={<LandingPage />} />
-      {/* ----------------------------------------------------- */}
-      
+
       <Route element={
         <AuthWrapper>
           <AppShell />

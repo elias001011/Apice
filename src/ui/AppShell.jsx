@@ -147,6 +147,24 @@ export function AppShell() {
                         <span>Atalho da jornada de evolução.</span>
                       </span>
                     </NavLink>
+                    <NavLink
+                      to="/simulado"
+                      className={({ isActive }) => `nav-more-link${isActive ? ' active' : ''}`}
+                      role="menuitem"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setMobileMoreOpen(false)
+                        requestAnimationFrame(() => navigate('/simulado'))
+                      }}
+                    >
+                      <span className="nav-more-link-icon" aria-hidden="true">
+                        {iconSvg('simulado')}
+                      </span>
+                      <span className="nav-more-link-text">
+                        <strong>Simulados</strong>
+                        <span>Treine com questões reais e cronômetro.</span>
+                      </span>
+                    </NavLink>
                   </div>
                 )}
               </div>
