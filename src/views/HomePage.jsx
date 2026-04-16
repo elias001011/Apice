@@ -614,7 +614,7 @@ export function HomePage() {
               </div>
             </Link>
 
-            <Link to="/radar" className="pv-feature pv-feature--lime anim anim-d4 home-radar-card">
+            <Link to="/radar" className="pv-feature pv-feature--dark anim anim-d4 home-radar-card">
               <div className="pv-feature-content">
                 <div className="pv-feature-title">Radar 1000</div>
                 <div className="pv-feature-desc">
