@@ -27,6 +27,8 @@ import {
 import {
   getBillingStatusLabel,
   TRIAL_DAYS,
+  WELCOME_PREMIUM_DAYS,
+  isWelcomePremiumActive,
 } from '../services/billingState.js'
 import { usePwaInstall } from '../pwa/usePwaInstall.js'
 import { useTheme } from '../theme/ThemeProvider.jsx'
@@ -819,12 +821,13 @@ export function PerfilPage() {
   }
   const billingStatus = getCurrentBillingStatus()
   const billingStatusLabel = getBillingStatusLabel(billingStatus)
+  const welcomePremiumActive = isWelcomePremiumActive()
 
   const quotaHelpMessage = [
     'Cada vez que o app precisa gerar um resultado novo com IA, 1 uso é consumido.',
     '',
     'Conta gratuita: 5 usos por dia.',
-    `Conta paga ou teste grátis ativo: ${PAID_AI_DAILY_LIMIT} usos por dia.`,
+    `Conta paga, teste grátis ativo ou premium temporário: ${PAID_AI_DAILY_LIMIT} usos por dia.`,
     '',
     'Cada um destes pontos conta como 1 uso quando você:',
     '- gera um tema dinâmico',
@@ -838,6 +841,7 @@ export function PerfilPage() {
     'A contagem zera automaticamente na virada do dia no seu navegador.',
     '',
     `O teste grátis dura ${TRIAL_DAYS} dias e só pode ser usado uma vez por conta.`,
+    `Contas novas criadas nesta atualização recebem premium temporário por ${WELCOME_PREMIUM_DAYS} dias.`,
     'Se você mudar de conta, o cache daquela conta muda junto. Se o detalhe do radar ou outro resultado não estiver salvo nessa conta, o app precisa gerar de novo e isso volta a consumir cota.',
   ].join('\n')
 
@@ -1185,7 +1189,7 @@ export function PerfilPage() {
             </button>
           </div>
           <div className="profile-badges-row">
-            <div className="profile-plan">{billingStatus === 'free' ? 'Plano gratuito' : billingStatus === 'trial' ? 'Teste grátis' : 'Plano pago'}</div>
+            <div className="profile-plan">{billingStatusLabel}</div>
             <button className="pwa-btn" type="button" onClick={handleInstallPwa} disabled={pwaInstalled}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2v13M7 11l5 5 5-5" />
@@ -1219,9 +1223,9 @@ export function PerfilPage() {
         <div className="meu-plano-left">
           <div className="meu-plano-label">Plano Atual</div>
           <div className="meu-plano-tier">
-            {billingStatus === 'free' ? 'Gratuito' : billingStatus === 'trial' ? 'Teste grátis' : 'Pago'}
+            {billingStatus === 'free' ? 'Gratuito' : welcomePremiumActive ? 'Premium temporário' : billingStatus === 'trial' ? 'Teste grátis' : 'Pago'}
             <span className={`meu-plano-tier-badge ${billingStatus === 'free' ? '' : 'pro'}`}>
-              {billingStatus === 'free' ? 'Free' : billingStatus === 'trial' ? 'Trial' : 'Pago'}
+              {billingStatus === 'free' ? 'Free' : welcomePremiumActive ? `Premium ${WELCOME_PREMIUM_DAYS}d` : billingStatus === 'trial' ? 'Trial' : 'Pago'}
             </span>
           </div>
           {billingStatus === 'free' && (

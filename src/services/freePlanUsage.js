@@ -141,7 +141,9 @@ export function setPlanTier(tier) {
   }
 
   if (normalizedTier === 'trial') {
-    setBillingStatus('trial')
+    setBillingStatus('trial', {
+      trialKind: 'standard',
+    })
     return
   }
 

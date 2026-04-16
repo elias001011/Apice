@@ -12,6 +12,10 @@ import {
   pushStateToCloud,
   clearLocalCloudSync,
 } from '../services/cloudSync.js'
+import {
+  isWelcomePremiumActive,
+  maybeGrantWelcomePremiumForUser,
+} from '../services/billingState.js'
 import { refreshUserSummaryFromHistory } from '../services/userSummary.js'
 
 // Configure GoTrue instance
@@ -233,8 +237,43 @@ export function AuthProvider({ children }) {
     }
   }, [user])
 
+  useEffect(() => {
+    if (!user) return
+
+    let cancelled = false
+
+    const grantWelcomePremium = async () => {
+      try {
+        const result = maybeGrantWelcomePremiumForUser(user)
+        if (cancelled) return
+
+        if (result.applied || isWelcomePremiumActive()) {
+          window.dispatchEvent(new CustomEvent('apice:free-plan-usage-updated'))
+        }
+      } catch (error) {
+        console.error('[AuthProvider] Erro ao avaliar premium temporário:', error?.message || error)
+      }
+    }
+
+    void grantWelcomePremium()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user])
+
   const signup = async (email, password, data) => {
-    return await auth.signup(email, password, data)
+    const response = await auth.signup(email, password, data)
+
+    if (response) {
+      try {
+        maybeGrantWelcomePremiumForUser(response)
+      } catch (error) {
+        console.warn('[AuthProvider] Não foi possível aplicar premium temporário no signup:', error?.message || error)
+      }
+    }
+
+    return response
   }
 
   const confirmAccount = async (token) => {

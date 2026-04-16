@@ -9,9 +9,11 @@ import {
   hasUsedTrial,
   markPlanPaid,
   isTrialActive,
+  isWelcomePremiumActive,
   saveBillingState,
   subscribeBillingState,
   TRIAL_DAYS,
+  WELCOME_PREMIUM_DAYS,
 } from '../services/billingState.js'
 import {
   getFreePlanUsageRows,
@@ -126,7 +128,7 @@ export function PlanosPage() {
         } else {
           setFlash({
             tone: 'info',
-            text: 'O pagamento ainda está pendente. Seu teste grátis continua valendo até a confirmação da assinatura.',
+            text: 'O pagamento ainda está pendente. Seu acesso temporário continua valendo até a confirmação da assinatura.',
           })
         }
       } catch (error) {
@@ -154,6 +156,9 @@ export function PlanosPage() {
   const activePlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
   const trialAlreadyUsed = hasUsedTrial()
   const trialCurrentlyActive = isTrialActive()
+  const welcomePremiumActive = isWelcomePremiumActive(billingState)
+  const activeAccessLabel = welcomePremiumActive ? 'Premium temporário' : 'Teste grátis'
+  const activeAccessLabelLower = activeAccessLabel.toLowerCase()
   const trialEnded = trialAlreadyUsed && !trialCurrentlyActive && billingState.status !== 'paid'
   const statusLabel = getBillingStatusLabel(billingState.status)
   const quotaRow = quotaInfo || getQuotaInfo()
@@ -167,20 +172,27 @@ export function PlanosPage() {
     })
     : ''
   const statusDescription = trialEnded && trialEndLabel
-    ? `Teste grátis encerrado em ${trialEndLabel}`
+    ? `${billingState.trialKind === 'welcome' ? 'Premium temporário' : 'Teste grátis'} encerrado em ${trialEndLabel}`
     : getBillingStatusDescription(billingState.status)
 
   const currentStateText = (() => {
     if (trialCurrentlyActive) {
+      if (welcomePremiumActive) {
+        return activePlan
+          ? `Premium temporário ativo no plano ${activePlan.label}.`
+          : `Premium temporário ativo por ${WELCOME_PREMIUM_DAYS} dias.`
+      }
+
       return activePlan
         ? `Teste grátis ativo no plano ${activePlan.label}.`
         : `Teste grátis ativo por ${TRIAL_DAYS} dias.`
     }
 
     if (trialEnded) {
+      const endedLabel = billingState.trialKind === 'welcome' ? 'premium temporário' : 'teste grátis'
       return trialEndLabel
-        ? `Seu teste grátis terminou em ${trialEndLabel}. Agora você pode assinar qualquer plano para continuar.`
-        : 'Seu teste grátis terminou. Agora você pode assinar qualquer plano para continuar.'
+        ? `Seu ${endedLabel} terminou em ${trialEndLabel}. Agora você pode assinar qualquer plano para continuar.`
+        : `Seu ${endedLabel} terminou. Agora você pode assinar qualquer plano para continuar.`
     }
 
     if (billingState.status === 'paid') {
@@ -190,7 +202,9 @@ export function PlanosPage() {
     }
 
     if (trialAlreadyUsed) {
-      return 'O teste grátis já foi usado nesta conta. A próxima ativação paga começa após o checkout.'
+      return billingState.trialKind === 'welcome'
+        ? 'O premium temporário já foi usado nesta conta. A próxima ativação paga começa após o checkout.'
+        : 'O teste grátis já foi usado nesta conta. A próxima ativação paga começa após o checkout.'
     }
 
     return `Conta gratuita com ${activeLimit} usos de IA por dia.`
@@ -214,8 +228,8 @@ export function PlanosPage() {
         setFlash({
           tone: 'warning',
           text: activeTrialPlan && activeTrialPlan.key !== plan.key
-            ? `Você já está no teste grátis do plano ${activeTrialPlan.label}. Troque de plano só depois do fim do período gratuito${trialEndLabel ? `, em ${trialEndLabel}` : ''}.`
-            : `Seu teste grátis do plano ${plan.label} já está ativo${trialEndLabel ? ` até ${trialEndLabel}` : ''}.`,
+            ? `Você já está no ${activeAccessLabelLower} do plano ${activeTrialPlan.label}. Troque de plano só depois do fim do período ativo${trialEndLabel ? `, em ${trialEndLabel}` : ''}.`
+            : `Seu ${activeAccessLabelLower} do plano ${plan.label} já está ativo${trialEndLabel ? ` até ${trialEndLabel}` : ''}.`,
         })
         return
       }
@@ -257,7 +271,7 @@ export function PlanosPage() {
 
       setFlash({
         tone: 'info',
-        text: `Checkout do plano ${plan.label} aberto. A cobrança da AbacatePay continua sendo a etapa do período pago.`,
+        text: `Checkout do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação do período de acesso.`,
       })
 
       await new Promise((resolve) => window.setTimeout(resolve, 120))
@@ -278,7 +292,13 @@ export function PlanosPage() {
       return
     }
 
-    if (!confirm('Tem certeza que deseja cancelar sua assinatura? Seu acesso ao plano pago continuará até o fim do período já pago. Após isso, sua conta voltará para o plano gratuito.')) {
+    const cancelPrompt = billingState.status === 'paid'
+      ? 'Tem certeza que deseja cancelar sua assinatura? Seu acesso ao plano pago continuará até o fim do período já pago. Após isso, sua conta voltará para o plano gratuito.'
+      : welcomePremiumActive
+        ? 'Tem certeza que deseja encerrar seu premium temporário? Sua conta voltará para o plano gratuito imediatamente.'
+        : 'Tem certeza que deseja encerrar seu teste grátis? Sua conta voltará para o plano gratuito imediatamente.'
+
+    if (!confirm(cancelPrompt)) {
       return
     }
 
@@ -313,7 +333,11 @@ export function PlanosPage() {
           tone: data.requiresManualRefund ? 'warning' : 'success',
           text: data.requiresManualRefund
             ? 'Assinatura cancelada. Como o pagamento já foi processado, solicite reembolso pelo email suporte@apice.com. Seu acesso continua até o fim do período.'
-            : 'Assinatura cancelada com sucesso. Sua conta voltará ao plano gratuito.',
+            : billingState.status === 'paid'
+              ? 'Assinatura cancelada com sucesso. Sua conta voltará ao plano gratuito.'
+              : welcomePremiumActive
+                ? 'Premium temporário encerrado com sucesso. Sua conta voltou ao plano gratuito.'
+                : 'Teste grátis encerrado com sucesso. Sua conta voltou ao plano gratuito.',
         })
       } else {
         setFlash({
@@ -339,11 +363,13 @@ export function PlanosPage() {
     }
 
     if (trialCurrentlyActive && isCurrentPlan) {
-      return 'Teste grátis ativo'
+      return welcomePremiumActive ? 'Premium ativo' : 'Teste grátis ativo'
     }
 
     if (trialCurrentlyActive) {
-      return isCurrentPlan ? 'Teste grátis ativo' : 'Aguardar fim do teste'
+      return isCurrentPlan
+        ? (welcomePremiumActive ? 'Premium ativo' : 'Teste grátis ativo')
+        : (welcomePremiumActive ? 'Aguardar fim do premium' : 'Aguardar fim do teste')
     }
 
     if (billingState.status === 'paid') {
@@ -364,27 +390,30 @@ export function PlanosPage() {
 
     if (trialCurrentlyActive && billingState.planKey === plan.key) {
       return trialEndLabel
-        ? `Seu teste grátis termina em ${trialEndLabel}.`
-        : 'Seu teste grátis está ativo nesta conta.'
+        ? `Seu ${activeAccessLabelLower} termina em ${trialEndLabel}.`
+        : `Seu ${activeAccessLabelLower} está ativo nesta conta.`
     }
 
     if (trialCurrentlyActive) {
       return trialEndLabel
-        ? `Você já está no teste grátis do plano ${billingState.planKey ? getPricingPlanByKey(billingState.planKey).label : 'atual'}. Troque só depois de ${trialEndLabel}.`
-        : 'Você já está no teste grátis nesta conta. Troque de plano só depois do período gratuito.'
+        ? `Você já está no ${activeAccessLabelLower} do plano ${billingState.planKey ? getPricingPlanByKey(billingState.planKey).label : 'atual'}. Troque só depois de ${trialEndLabel}.`
+        : `Você já está no ${activeAccessLabelLower} nesta conta. Troque de plano só depois do período ativo.`
     }
 
     if (trialEnded) {
+      const endedLabel = billingState.trialKind === 'welcome' ? 'premium temporário' : 'teste grátis'
       return trialEndLabel
-        ? `O teste grátis terminou em ${trialEndLabel}. Agora a próxima ativação começa paga.`
-        : 'O teste grátis terminou. Agora a próxima ativação começa paga.'
+        ? `O ${endedLabel} terminou em ${trialEndLabel}. Agora a próxima ativação começa paga.`
+        : `O ${endedLabel} terminou. Agora a próxima ativação começa paga.`
     }
 
     if (trialAlreadyUsed) {
-      return 'O teste grátis já foi usado nesta conta. Os próximos checkouts começam pagos.'
+      return billingState.trialKind === 'welcome'
+        ? 'O premium temporário já foi usado nesta conta. Os próximos checkouts começam pagos.'
+        : 'O teste grátis já foi usado nesta conta. Os próximos checkouts começam pagos.'
     }
 
-    return 'A primeira ativação desta conta libera 7 dias de teste grátis.'
+    return `A primeira ativação manual desta conta libera ${TRIAL_DAYS} dias de teste grátis.`
   }
 
   return (
@@ -400,10 +429,11 @@ export function PlanosPage() {
 
         <section className="planos-hero anim anim-d1">
           <div className="planos-kicker">Planos e cobrança</div>
-          <h1 className="planos-title">Mais folga para a IA, com um teste grátis de verdade</h1>
+          <h1 className="planos-title">Mais folga para a IA, com premium temporário nas contas novas</h1>
           <p className="planos-subtitle">
             A conta gratuita continua com 5 usos de IA por dia. Ao pagar, a cota sobe para 10 usos diários.
-            O teste grátis dura 7 dias e só pode ser ativado uma vez por conta.
+            Contas criadas nesta atualização recebem premium temporário por 30 dias.
+            O teste grátis manual continua com 7 dias e só pode ser ativado uma vez por conta.
           </p>
 
           <div className="planos-status-strip">
@@ -420,9 +450,13 @@ export function PlanosPage() {
               </div>
             </div>
             <div className="planos-status-chip">
-              <div className="planos-status-label">Teste grátis</div>
+              <div className="planos-status-label">Acesso temporário</div>
               <div className="planos-status-value">
-                {trialCurrentlyActive ? 'Ativo' : trialAlreadyUsed ? 'Já usado' : 'Disponível'}
+                {trialCurrentlyActive
+                  ? (welcomePremiumActive ? `Premium ${WELCOME_PREMIUM_DAYS} dias` : `Teste grátis ${TRIAL_DAYS} dias`)
+                  : trialAlreadyUsed
+                    ? 'Já usado'
+                    : 'Disponível'}
               </div>
               <div className="planos-status-copy">
                 {currentStateText}
@@ -461,12 +495,16 @@ export function PlanosPage() {
                   <div className="management-row">
                     <span className="management-key">Status:</span>
                     <span className="management-value" data-status={billingState.status}>
-                      {trialCurrentlyActive ? 'Teste grátis ativo' : 'Pago'}
+                      {billingState.status === 'paid'
+                        ? 'Pago'
+                        : welcomePremiumActive
+                          ? 'Premium temporário ativo'
+                          : 'Teste grátis ativo'}
                     </span>
                   </div>
                   {trialCurrentlyActive && trialEndLabel && (
                     <div className="management-row">
-                      <span className="management-key">Teste até:</span>
+                      <span className="management-key">{welcomePremiumActive ? 'Premium até:' : 'Teste até:'}</span>
                       <span className="management-value">{trialEndLabel}</span>
                     </div>
                   )}
@@ -483,12 +521,14 @@ export function PlanosPage() {
                   onClick={handleCancelSubscription}
                   disabled={busyPlanKey === 'cancel'}
                 >
-                  {busyPlanKey === 'cancel' ? 'Cancelando...' : 'Cancelar assinatura'}
+                  {busyPlanKey === 'cancel' ? 'Cancelando...' : billingState.status === 'paid' ? 'Cancelar assinatura' : 'Encerrar período'}
                 </button>
                 <div className="management-hint">
                   {billingState.status === 'paid'
                     ? 'O cancelamento impede renovações futuras. Seu acesso continua ativo até o fim do período já pago.'
-                    : 'Cancelar o teste grátis encerra o acesso imediato ao plano pago. Sua conta voltará ao plano gratuito.'}
+                    : welcomePremiumActive
+                      ? `Este premium temporário dura ${WELCOME_PREMIUM_DAYS} dias. Encerrar agora volta a conta para gratuito imediatamente.`
+                      : `Este teste grátis dura ${TRIAL_DAYS} dias. Encerrar agora volta a conta para gratuito imediatamente.`}
                 </div>
               </div>
             </div>
@@ -512,8 +552,12 @@ export function PlanosPage() {
               <div className="planos-change-text">Usos de IA por dia. Cada ação nova continua contando como 1 uso.</div>
             </div>
             <div className="planos-change-card">
+              <div className="planos-change-number">{WELCOME_PREMIUM_DAYS} dias</div>
+              <div className="planos-change-text">Premium automático para contas criadas nesta atualização.</div>
+            </div>
+            <div className="planos-change-card">
               <div className="planos-change-number">{TRIAL_DAYS} dias</div>
-              <div className="planos-change-text">Teste grátis único por conta na primeira ativação.</div>
+              <div className="planos-change-text">Teste grátis manual continua disponível na primeira ativação.</div>
             </div>
             <div className="planos-change-card">
               <div className="planos-change-number">1 uso</div>
@@ -531,7 +575,8 @@ export function PlanosPage() {
             <div>
               <div className="section-label">Escolha o período</div>
               <p className="planos-section-copy">
-                Todos os períodos liberam o mesmo uso: 10 solicitações de IA por dia após o teste grátis.
+                Todos os períodos liberam o mesmo uso: 10 solicitações de IA por dia após o período temporário.
+                Contas novas recebem 30 dias de premium temporário e o teste grátis manual continua com 7 dias.
                 A diferença está só no período de cobrança e no valor total.
               </p>
             </div>
@@ -557,7 +602,7 @@ export function PlanosPage() {
                   </div>
 
                   <div className="plan-card-note">
-                    {plan.billingLabel}. Depois do teste grátis, o checkout usa o produto da AbacatePay já cadastrado.
+                    {plan.billingLabel}. Depois do período temporário, o checkout usa o produto da AbacatePay já cadastrado.
                   </div>
 
                   <div className="plan-card-list">
@@ -565,13 +610,19 @@ export function PlanosPage() {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      <span>10 usos de IA por dia após o teste grátis</span>
+                      <span>10 usos de IA por dia após o período temporário</span>
                     </div>
                     <div className="plan-card-item">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      <span>7 dias de teste grátis na primeira ativação</span>
+                      <span>Contas novas ganham 30 dias de premium temporário</span>
+                    </div>
+                    <div className="plan-card-item">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      <span>Teste grátis manual continua com 7 dias na primeira ativação</span>
                     </div>
                     <div className="plan-card-item">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -625,21 +676,22 @@ export function PlanosPage() {
             <div className="faq-item">
               <div className="faq-q">Posso repetir o teste grátis em outro plano?</div>
               <div className="faq-a">
-                Não. O teste grátis de 7 dias é único por conta. Enquanto ele estiver ativo, a troca de plano fica bloqueada.
+                Não. O teste grátis manual de 7 dias é único por conta. Contas novas criadas nesta atualização recebem premium temporário de 30 dias automaticamente.
+                Enquanto qualquer período temporário estiver ativo, a troca de plano fica bloqueada.
                 Quando o período termina, a conta volta para gratuito e o próximo checkout já começa pago.
               </div>
             </div>
             <div className="faq-item">
               <div className="faq-q">O que acontece quando eu troco de conta?</div>
               <div className="faq-a">
-                O consumo, o teste grátis e o status do plano acompanham a conta. Se mudar de login, o outro usuário volta
+                O consumo, o acesso temporário e o status do plano acompanham a conta. Se mudar de login, o outro usuário volta
                 para o histórico e para o consumo dele.
               </div>
             </div>
             <div className="faq-item">
               <div className="faq-q">O que muda entre os períodos mensal, semestral e anual?</div>
               <div className="faq-a">
-                Muda apenas a forma de cobrança e o valor total. A cota diária continua em 10 usos de IA por dia após o teste grátis.
+                Muda apenas a forma de cobrança e o valor total. A cota diária continua em 10 usos de IA por dia após o período temporário.
               </div>
             </div>
           </div>
