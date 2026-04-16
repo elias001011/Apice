@@ -10,6 +10,7 @@
 
 import { requireAuth } from './utils/auth.js'
 import { buildCorsHeaders } from './utils/cors.js'
+import { sanitizeState } from './utils/billingGuard.js'
 
 // Netlify Blobs é automaticamente disponível em produção.
 // Em dev local com 'netlify dev', também funciona.
@@ -60,7 +61,10 @@ export default async function handler(req, context) {
     }
 
     const blobKey = `user-state:${auth.user.id}`
-    await store.set(blobKey, JSON.stringify(state), {
+    const existingRawData = await store.get(blobKey, { type: 'json' })
+    const secureState = sanitizeState(state, existingRawData, auth.user)
+
+    await store.set(blobKey, JSON.stringify(secureState), {
       contentType: 'application/json',
     })
 

@@ -8,6 +8,7 @@
 
 import { requireAuth } from './utils/auth.js'
 import { buildCorsHeaders } from './utils/cors.js'
+import { sanitizeState } from './utils/billingGuard.js'
 
 const getStore = async () => {
   try {
@@ -58,12 +59,14 @@ export default async function handler(req, context) {
       )
     }
 
+    const secureState = sanitizeState(rawData, rawData, auth.user)
+
     console.log(`[carregar-estado] Carregado para ${auth.user.id}`)
 
     return new Response(
       JSON.stringify({
         ok: true,
-        state: rawData,
+        state: secureState,
         loadedAt: new Date().toISOString(),
       }),
       { status: 200, headers }
