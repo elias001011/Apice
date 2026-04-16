@@ -151,29 +151,64 @@ html[data-fx="blur"] {
     radial-gradient(circle at 88% 0%, rgba(var(--accent-rgb), 0.04), transparent 20rem),
     radial-gradient(circle at 50% 76%, rgba(var(--accent-rgb), 0.03), transparent 24rem);
   --scene-opacity: 1;
-  --glass-blur: 0px;
-  --nav-surface: var(--bg2);
-  --tab-surface: var(--bg2);
-  --footer-surface: var(--bg2);
-  --chrome-border: var(--border);
-  --nav-shadow: 0 1px 0 var(--border);
-  --tab-shadow: 0 -1px 0 var(--border);
-  --footer-shadow: 0 -1px 0 var(--border);
-  --chrome-blur: 0px;
-  --floating-surface: var(--bg2);
-  --floating-border: var(--border2);
-  --floating-shadow: 0 4px 12px rgba(8, 9, 4, 0.06);
-  --modal-surface: var(--bg2);
-  --modal-border: var(--border2);
-  --modal-shadow: 0 12px 32px rgba(8, 9, 4, 0.08);
-  --overlay-surface: rgba(5, 5, 5, 0.3);
+<<<<<<< HEAD
+  --scene-texture:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.1), transparent 42%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 14px),
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.14) 1px, transparent 0);
+  --scene-texture-opacity: 0.12;
+  --glass-surface: rgba(255, 255, 255, 0.18);
+  --glass-surface-strong: rgba(255, 255, 255, 0.28);
+  --glass-border: rgba(255, 255, 255, 0.24);
+  --glass-border-strong: rgba(255, 255, 255, 0.34);
+  --bg2-glass: var(--glass-surface);
+  --glass-blur: 32px;
+  --overlay-blur: 20px;
+  --nav-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.03)), var(--glass-surface-strong);
+  --tab-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03)), var(--glass-surface-strong);
+  --footer-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02)), var(--glass-surface-strong);
+  --chrome-border: var(--glass-border-strong);
+  --nav-shadow: 0 18px 44px rgba(8, 9, 4, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --tab-shadow: 0 -18px 44px rgba(8, 9, 4, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  --footer-shadow: 0 -18px 44px rgba(8, 9, 4, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --chrome-blur: var(--glass-blur);
+  --floating-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04)), var(--glass-surface);
+  --floating-border: var(--glass-border);
+  --floating-shadow: 0 24px 64px rgba(8, 9, 4, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  --floating-blur: calc(var(--glass-blur) * 0.92);
+  --modal-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06)), var(--glass-surface-strong);
+  --modal-border: var(--glass-border-strong);
+  --modal-shadow: 0 30px 74px rgba(8, 9, 4, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --modal-blur: var(--glass-blur);
+  --overlay-surface: rgba(12, 12, 12, 0.42);
 }
 
 html[data-theme="dark"][data-fx="blur"] {
   --app-bg:
-    radial-gradient(circle at 12% 8%, rgba(var(--accent-rgb), 0.06), transparent 26rem),
-    radial-gradient(circle at 88% 0%, rgba(var(--accent-rgb), 0.04), transparent 20rem),
-    radial-gradient(circle at 50% 76%, rgba(var(--accent-rgb), 0.03), transparent 24rem);
+    radial-gradient(circle at 12% 8%, rgba(var(--accent-rgb), 0.08), transparent 26rem),
+    radial-gradient(circle at 88% 0%, rgba(var(--accent-rgb), 0.05), transparent 20rem),
+    radial-gradient(circle at 50% 76%, rgba(var(--accent-rgb), 0.04), transparent 24rem);
+  --scene-texture:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.04), transparent 42%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 14px),
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.1) 1px, transparent 0);
+  --scene-texture-opacity: 0.14;
+  --glass-surface: rgba(18, 18, 18, 0.24);
+  --glass-surface-strong: rgba(18, 18, 18, 0.32);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-strong: rgba(255, 255, 255, 0.14);
+  --bg2-glass: var(--glass-surface);
+  --nav-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008)), var(--glass-surface-strong);
+  --tab-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.006)), var(--glass-surface-strong);
+  --footer-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.006)), var(--glass-surface-strong);
+  --floating-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)), var(--glass-surface);
+  --modal-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)), var(--glass-surface-strong);
+  --overlay-surface: rgba(0, 0, 0, 0.44);
+  --nav-shadow: 0 18px 44px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --tab-shadow: 0 -18px 44px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --footer-shadow: 0 -18px 44px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --floating-shadow: 0 24px 64px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --modal-shadow: 0 30px 74px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 html {
@@ -1357,6 +1392,64 @@ html[data-card-hover="on"] .card:hover {
   z-index: 1;
 }
 
+<<<<<<< HEAD
+/* FX CONSISTENCY
+   Aplica a mesma leitura visual em todo o app para que none / gradients / blur
+   não virem experiências híbridas entre páginas. */
+html[data-fx="none"] :is(
+  .card,
+  .hero,
+  .weather-card,
+  .enem-card,
+  .performance-card,
+  .pv-feature--dark,
+  .pv-feature--lime,
+  .pv-feature--quote,
+  .profile-hero,
+  .radar-hero,
+  .tema-card,
+  .score-hero,
+  .comps-card,
+  .feedback-block,
+  .prob-hero,
+  .detail-error,
+  .material-box,
+  .material-card,
+  .criteria-card,
+  .prof-chat-card,
+  .prof-pills-bar,
+  .prof-composer-unified,
+  .prof-mindmap-canvas-wrap,
+  .prof-mindmap-toolbar,
+  .prof-mindmap-preview-shell,
+  .prof-mindmap-preview-paper,
+  .prof-mindmap-node,
+  .prof-mindmap-stage-footer span,
+  .prof-mindmap-action,
+  .prof-mindmap-error,
+  .prof-mindmap-error-action,
+  .intro-card-option,
+  .ap-color-btn,
+  .ap-font-btn,
+  .ap-fx-btn,
+  .ap-layout-btn,
+  .theme-icon-opt,
+  .stat-small,
+  .settings-icon,
+  .weather-settings-card,
+  .ai-pref-card,
+  .quota-card,
+  .meu-plano-card,
+  .avatar-card,
+  .backup-card,
+  .planos-hero,
+  .pricing-card,
+  .planos-change-card,
+  .faq-item
+) {
+  background: var(--bg2) !important;
+  background-image: none !important;
+=======
 /* ── FX CONSISTENCY - Minimalista padronizado ── */
 /* Todos os modos usam a mesma base limpa. Gradients adiciona só fundo do app. */
 
@@ -1366,6 +1459,7 @@ html[data-card-hover="off"] .pv-feature:hover,
 html[data-card-hover="off"] .intro-card-option:hover,
 html[data-card-hover="off"] .tema-card:hover,
 html[data-card-hover="off"] .redacao-item:hover {
+>>>>>>> origin/dev
   border-color: var(--border) !important;
   box-shadow: none !important;
 }
@@ -1374,3 +1468,194 @@ html[data-animations="off"] .card:hover,
 html[data-animations="off"] .pv-feature:hover {
   transform: none !important;
 }
+<<<<<<< HEAD
+
+html[data-fx="none"] :is(
+  .btn-primary:active,
+  .hero-cta:active,
+  .pv-feature-btn:active,
+  .ap-preview-btn:active,
+  .main-submit:active,
+  .main-reset-btn:active
+) {
+  transform: none !important;
+}
+
+html[data-fx="none"] :is(
+  .card:hover,
+  .hero:hover,
+  .weather-card:hover,
+  .enem-card:hover,
+  .performance-card:hover,
+  .pv-feature:hover,
+  .pv-feature--dark:hover,
+  .pv-feature--lime:hover,
+  .pv-feature--quote:hover,
+  .profile-hero:hover,
+  .radar-hero:hover,
+  .tema-card:hover,
+  .score-hero:hover,
+  .comps-card:hover,
+  .feedback-block:hover,
+  .prob-hero:hover,
+  .detail-error:hover,
+  .material-box:hover,
+  .material-card:hover,
+  .criteria-card:hover,
+  .intro-card-option:hover,
+  .ap-color-btn:hover,
+  .ap-font-btn:hover,
+  .ap-fx-btn:hover,
+  .ap-layout-btn:hover,
+  .theme-icon-opt:hover,
+  .stat-small:hover,
+  .settings-icon:hover,
+  .weather-settings-card:hover,
+  .ai-pref-card:hover,
+  .quota-card:hover,
+  .meu-plano-card:hover,
+  .avatar-card:hover,
+  .backup-card:hover,
+  .planos-hero:hover,
+  .pricing-card:hover,
+  .planos-change-card:hover,
+  .planos-status-chip:hover,
+  .faq-item:hover,
+  .performance-block:hover
+) {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+html[data-fx="gradients"] :is(
+  .card,
+  .hero,
+  .weather-card,
+  .enem-card,
+  .performance-card,
+  .pv-feature--dark,
+  .pv-feature--quote,
+  .profile-hero,
+  .radar-hero,
+  .tema-card,
+  .score-hero,
+  .comps-card,
+  .feedback-block,
+  .prob-hero,
+  .detail-error,
+  .material-box,
+  .material-card,
+  .criteria-card,
+  .prof-chat-card,
+  .prof-pills-bar,
+  .prof-composer-unified,
+  .prof-mindmap-canvas-wrap,
+  .prof-mindmap-toolbar,
+  .prof-mindmap-preview-shell,
+  .prof-mindmap-preview-paper,
+  .prof-mindmap-node,
+  .prof-mindmap-stage-footer span,
+  .prof-mindmap-action,
+  .prof-mindmap-error,
+  .prof-mindmap-error-action,
+  .intro-card-option,
+  .ap-color-btn,
+  .ap-font-btn,
+  .ap-fx-btn,
+  .ap-layout-btn,
+  .theme-icon-opt,
+  .stat-small,
+  .settings-icon,
+  .weather-settings-card,
+  .ai-pref-card,
+  .quota-card,
+  .meu-plano-card,
+  .avatar-card,
+  .backup-card,
+  .planos-hero,
+  .pricing-card,
+  .planos-change-card,
+  .faq-item
+) {
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.018), transparent 72%), var(--bg2) !important;
+  border-color: rgba(var(--accent-rgb), 0.08) !important;
+  box-shadow: var(--surface-shadow-sm) !important;
+}
+
+html[data-fx="gradients"] .pv-feature--lime {
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.18), transparent 28%),
+    linear-gradient(145deg, rgba(var(--accent-rgb), 0.3), rgba(var(--accent-rgb), 0.14)) !important;
+  border-color: rgba(var(--accent-rgb), 0.2) !important;
+  box-shadow: 0 20px 42px rgba(8, 9, 4, 0.12) !important;
+}
+
+html[data-fx="blur"] :is(
+  .card,
+  .hero,
+  .weather-card,
+  .enem-card,
+  .performance-card,
+  .pv-feature--dark,
+  .pv-feature--quote,
+  .profile-hero,
+  .radar-hero,
+  .tema-card,
+  .score-hero,
+  .comps-card,
+  .feedback-block,
+  .prob-hero,
+  .detail-error,
+  .material-box,
+  .material-card,
+  .criteria-card,
+  .prof-chat-card,
+  .prof-pills-bar,
+  .prof-composer-unified,
+  .prof-mindmap-canvas-wrap,
+  .prof-mindmap-toolbar,
+  .prof-mindmap-preview-shell,
+  .prof-mindmap-preview-paper,
+  .prof-mindmap-node,
+  .prof-mindmap-stage-footer span,
+  .prof-mindmap-action,
+  .prof-mindmap-error,
+  .prof-mindmap-error-action,
+  .intro-card-option,
+  .ap-color-btn,
+  .ap-font-btn,
+  .ap-fx-btn,
+  .ap-layout-btn,
+  .theme-icon-opt,
+  .stat-small,
+  .settings-icon,
+  .weather-settings-card,
+  .ai-pref-card,
+  .quota-card,
+  .meu-plano-card,
+  .avatar-card,
+  .backup-card,
+  .planos-hero,
+  .pricing-card,
+  .planos-change-card,
+  .faq-item
+) {
+  background: var(--floating-surface) !important;
+  border-color: var(--floating-border) !important;
+  box-shadow: var(--floating-shadow) !important;
+  backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
+}
+
+html[data-fx="blur"] .pv-feature--lime {
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.14), transparent 28%),
+    linear-gradient(145deg, rgba(var(--accent-rgb), 0.2), rgba(var(--accent-rgb), 0.08)),
+    var(--bg2-glass) !important;
+  border-color: rgba(var(--accent-rgb), 0.16) !important;
+  backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
+  box-shadow: var(--floating-shadow) !important;
+}
+=======
+>>>>>>> origin/dev

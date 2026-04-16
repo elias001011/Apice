@@ -22,6 +22,7 @@ import { TemaDetalhePage } from './views/TemaDetalhePage.jsx'
 import { RedefinirSenhaPage } from './views/RedefinirSenhaPage.jsx'
 import { ConfirmarEmailPage } from './views/ConfirmarEmailPage.jsx'
 import { VerificarEmailPage } from './views/VerificarEmailPage.jsx'
+import LandingPage from './views/LandingPage/LandingPage.jsx'
 import { useAuth } from './auth/useAuth.js'
 
 /**
@@ -59,6 +60,10 @@ export default function App() {
       <Route path="/redefinir-senha" element={<RedefinirSenhaPage />} />
       <Route path="/confirmar-email" element={<ConfirmarEmailPage />} />
       <Route path="/verificar-email" element={<VerificarEmailPage />} />
+      
+      {/* ⚠️ LANDING PAGE BRANCH ONLY - DO NOT MERGE TO DEV ⚠️ */}
+      <Route path="/landing" element={<LandingPage />} />
+      {/* ----------------------------------------------------- */}
       
       <Route element={
         <AuthWrapper>
