@@ -1,15 +1,15 @@
 import { searchContext } from '../ai/ai.js'
+import { requireAuth } from './utils/auth.js'
+import { buildCorsHeaders } from './utils/cors.js'
+import {
+  INPUT_LIMITS,
+  validateStringLength,
+  validationErrorResponse,
+} from './utils/validate.js'
 
-const headers = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json',
-}
+export default async function handler(req, context) {
+  const headers = buildCorsHeaders(req)
 
-export default async function handler(req) {
-  // Endpoint separado de busca factual.
-  // Ele existe para que o tema dinâmico possa pedir contexto sem misturar isso com a correção.
   if (req.method === 'OPTIONS') {
     return new Response('', { status: 200, headers })
   }
@@ -18,9 +18,17 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers })
   }
 
+  // ── Authentication ──────────────────────────────────────────────────────
+  const auth = requireAuth(req, context, headers)
+  if (auth instanceof Response) return auth
+
   try {
     const body = await req.json().catch(() => ({}))
     const query = String(body?.query ?? '').trim()
+
+    // ── Input Validation ────────────────────────────────────────────────
+    const check = validateStringLength('query', query, INPUT_LIMITS.query)
+    if (!check.valid) return validationErrorResponse(check.error, headers)
 
     const result = await searchContext(query)
     return new Response(JSON.stringify(result), { status: 200, headers })
@@ -29,7 +37,6 @@ export default async function handler(req) {
     return new Response(
       JSON.stringify({
         error: 'Falha ao buscar contexto',
-        details: error?.message || 'Erro desconhecido',
       }),
       { status: 502, headers },
     )

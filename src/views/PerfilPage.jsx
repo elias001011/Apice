@@ -27,11 +27,28 @@ import {
 import {
   getBillingStatusLabel,
   TRIAL_DAYS,
+  WELCOME_PREMIUM_DAYS,
+  isWelcomePremiumActive,
 } from '../services/billingState.js'
 import { usePwaInstall } from '../pwa/usePwaInstall.js'
 import { useTheme } from '../theme/ThemeProvider.jsx'
 import { ConfirmDialog } from '../ui/ConfirmDialog.jsx'
 import { AvatarVisual } from '../ui/AvatarVisual.jsx'
+import {
+  exportBackup,
+  parseBackupFile,
+  restoreFromBackup,
+  CATEGORIES as BACKUP_CATEGORIES,
+} from '../services/backupService.js'
+import {
+  loadWeatherCardEnabled,
+  loadWeatherLocation,
+  saveWeatherCardEnabled,
+  saveWeatherLocation,
+  subscribeWeatherCardEnabled,
+  subscribeWeatherLocation,
+} from '../services/weatherPreferences.js'
+import { searchCities, formatCityDisplayName } from '../services/citySearchService.js'
 
 const perfilCss = `
   .profile-hero {
@@ -186,6 +203,180 @@ const perfilCss = `
   }
   .settings-name { font-size: 0.95rem; font-weight: 500; }
   .settings-chevron { color: var(--text3); opacity: 0.5; }
+
+  .weather-settings-card {
+    padding: 1.2rem 1.25rem;
+    overflow: visible;
+  }
+
+  .weather-city-search-wrapper {
+    position: relative;
+  }
+
+  .weather-settings-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .weather-settings-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .weather-settings-copy {
+    margin-top: 0.22rem;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--text2);
+    max-width: 42ch;
+  }
+
+  .weather-settings-badge {
+    min-height: 30px;
+    padding: 0 10px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-dim2);
+    color: var(--accent);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .weather-settings-toggle {
+    margin-bottom: 0.95rem;
+    padding: 0.9rem 1rem;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+  }
+
+  .weather-settings-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.8rem;
+    align-items: end;
+  }
+
+  .weather-settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .weather-settings-field span {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+
+  .weather-city-search-wrapper {
+    position: relative;
+  }
+
+  .weather-search-loading {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent);
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: translateY(-50%) rotate(0deg); }
+    to { transform: translateY(-50%) rotate(360deg); }
+  }
+
+  .weather-city-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 100;
+    max-height: 220px;
+    overflow-y: auto;
+    border-radius: 14px;
+    border: 1px solid var(--border2);
+    background: var(--bg2);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .weather-city-option {
+    padding: 0.6rem 0.85rem;
+    font-size: 0.85rem;
+    color: var(--text2);
+    cursor: pointer;
+    transition: background 0.1s ease, color 0.1s ease;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .weather-city-option:last-child {
+    border-bottom: none;
+  }
+
+  .weather-city-option:hover,
+  .weather-city-option.is-focused {
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+
+  .weather-settings-input {
+    width: 100%;
+    min-height: 46px;
+    border-radius: 14px;
+    border: 1.5px solid var(--border2);
+    background: var(--bg3);
+    padding: 0 14px;
+    color: var(--text);
+    font: inherit;
+    outline: none;
+  }
+
+  .weather-settings-input:focus {
+    border-color: var(--accent);
+  }
+
+  .weather-settings-submit {
+    width: auto !important;
+    padding-inline: 18px !important;
+  }
+
+  .weather-settings-foot {
+    margin-top: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .weather-settings-note {
+    font-size: 0.78rem;
+    color: var(--text3);
+    line-height: 1.5;
+    max-width: 44ch;
+  }
+
+  .weather-settings-msg {
+    font-size: 0.76rem;
+    color: var(--accent);
+    font-weight: 600;
+  }
 
   /* AI Pref Card Cleanup */
   .ai-pref-card { padding: 1.5rem; }
@@ -459,6 +650,51 @@ const perfilCss = `
     line-height: 1.5;
   }
 
+  .backup-card { padding: 1.5rem; }
+  .backup-row { display: flex; gap: 12px; margin-top: 1rem; }
+  .backup-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .backup-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .backup-btn svg { opacity: 0.7; }
+
+  .restore-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 1rem;
+    text-align: left;
+  }
+  .restore-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .restore-item:hover { border-color: var(--accent); }
+  .restore-item.active { border-color: var(--accent); background: var(--accent-dim); }
+  .restore-item-info { display: flex; flex-direction: column; gap: 2px; }
+  .restore-item-label { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+  .restore-item-detail { font-size: 0.7rem; color: var(--text3); }
+
   @media (max-width: 768px) {
     .perfil-grid { grid-template-columns: 1fr; }
     .profile-hero { flex-direction: column; text-align: center; padding: 2rem; }
@@ -466,6 +702,10 @@ const perfilCss = `
     .quota-head { flex-direction: column; gap: 12px; }
     .quota-head-right { align-items: flex-start; margin-left: 0; }
     .quota-subtitle { max-width: none; }
+    .weather-settings-top { flex-direction: column; }
+    .weather-settings-form { grid-template-columns: 1fr; }
+    .weather-settings-submit { width: 100% !important; }
+    .weather-settings-foot { flex-direction: column; align-items: flex-start; }
   }
 `
 
@@ -493,7 +733,7 @@ function maskEmail(email) {
   return `${maskPiece(localPart)}@${maskedDomain}${tld}`
 }
 
-const DELETION_CONTACT_EMAIL = 'elias.juratti@outlook.com'
+const DELETION_CONTACT_EMAIL = 'elias.juriatti@outlook.com'
 
 function buildDeletionRequestMailto({ name, email }) {
   const subject = encodeURIComponent('Solicitação de exclusão de conta')
@@ -538,6 +778,19 @@ export function PerfilPage() {
   const [avatarResetDialogOpen, setAvatarResetDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [quotaHelpDialogOpen, setQuotaHelpDialogOpen] = useState(false)
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
+  const [backupStats, setBackupStats] = useState(null)
+  const [selectedBackupCategories, setSelectedBackupCategories] = useState([])
+  const backupFileRef = useRef(null)
+  const [weatherCardEnabled, setWeatherCardEnabled] = useState(() => loadWeatherCardEnabled())
+  const [weatherLocation, setWeatherLocation] = useState(() => loadWeatherLocation())
+  const [weatherMsg, setWeatherMsg] = useState('')
+  const [citySearchQuery, setCitySearchQuery] = useState('')
+  const [citySuggestions, setCitySuggestions] = useState([])
+  const [citySearchLoading, setCitySearchLoading] = useState(false)
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false)
+  const [cityFocused, setCityFocused] = useState(-1)
+  const citySearchRef = useRef(null)
 
   const name = user?.user_metadata?.full_name || 'Usuário'
   const email = user?.email || 'Sem e-mail'
@@ -568,12 +821,13 @@ export function PerfilPage() {
   }
   const billingStatus = getCurrentBillingStatus()
   const billingStatusLabel = getBillingStatusLabel(billingStatus)
+  const welcomePremiumActive = isWelcomePremiumActive()
 
   const quotaHelpMessage = [
     'Cada vez que o app precisa gerar um resultado novo com IA, 1 uso é consumido.',
     '',
     'Conta gratuita: 5 usos por dia.',
-    `Conta paga ou teste grátis ativo: ${PAID_AI_DAILY_LIMIT} usos por dia.`,
+    `Conta paga, teste grátis ativo ou premium temporário: ${PAID_AI_DAILY_LIMIT} usos por dia.`,
     '',
     'Cada um destes pontos conta como 1 uso quando você:',
     '- gera um tema dinâmico',
@@ -587,6 +841,7 @@ export function PerfilPage() {
     'A contagem zera automaticamente na virada do dia no seu navegador.',
     '',
     `O teste grátis dura ${TRIAL_DAYS} dias e só pode ser usado uma vez por conta.`,
+    `Contas novas criadas nesta atualização recebem premium temporário por ${WELCOME_PREMIUM_DAYS} dias.`,
     'Se você mudar de conta, o cache daquela conta muda junto. Se o detalhe do radar ou outro resultado não estiver salvo nessa conta, o app precisa gerar de novo e isso volta a consumir cota.',
   ].join('\n')
 
@@ -665,6 +920,54 @@ export function PerfilPage() {
     window.location.href = buildDeletionRequestMailto({ name, email })
   }
 
+  const handleBackupExport = () => {
+    exportBackup()
+  }
+
+  const handleBackupFileChange = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const content = e.target?.result
+      if (typeof content === 'string') {
+        const stats = parseBackupFile(content)
+        if (stats) {
+          setBackupStats(stats)
+          setSelectedBackupCategories(stats.categories.map(c => c.id))
+          setRestoreDialogOpen(true)
+        } else {
+          alert('Arquivo de backup inválido ou corrompido.')
+        }
+      }
+      if (backupFileRef.current) backupFileRef.current.value = ''
+    }
+    reader.readAsText(file)
+  }
+
+  const handleRestoreConfirm = () => {
+    if (!backupStats) return
+
+    const success = restoreFromBackup(backupStats.rawData, selectedBackupCategories)
+    if (success) {
+      setRestoreDialogOpen(false)
+      setBackupStats(null)
+      // Feedback visual ou reload não é estritamente necessário pois emitimos eventos,
+      // mas o insights precisa recalcular.
+      setInsights(buildEssayInsights(loadEssayHistory()))
+      setUsageRows(getFreePlanUsageRows())
+    } else {
+      alert('Erro ao restaurar backup.')
+    }
+  }
+
+  const toggleBackupCategory = (id) => {
+    setSelectedBackupCategories(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    )
+  }
+
   useEffect(() => {
     isMountedRef.current = true
 
@@ -689,12 +992,20 @@ export function PerfilPage() {
     }
     refreshAvatar()
     const unlistenAvatar = subscribeAvatarSettings(refreshAvatar)
+    const refreshWeatherCardEnabled = () => setWeatherCardEnabled(loadWeatherCardEnabled())
+    refreshWeatherCardEnabled()
+    const unlistenWeatherCardEnabled = subscribeWeatherCardEnabled(refreshWeatherCardEnabled)
+    const refreshWeatherLocation = () => setWeatherLocation(loadWeatherLocation())
+    refreshWeatherLocation()
+    const unlistenWeatherLocation = subscribeWeatherLocation(refreshWeatherLocation)
 
     return () => {
       unlistenUsage()
       unlistenInsights()
       unlistenAiPreference()
       unlistenAvatar()
+      unlistenWeatherCardEnabled()
+      unlistenWeatherLocation()
     }
   }, [])
 
@@ -754,6 +1065,88 @@ export function PerfilPage() {
     }
   }
 
+  // Busca dinâmica de cidades via API
+  useEffect(() => {
+    const query = citySearchQuery.trim()
+    if (query.length < 2) {
+      setCitySuggestions([])
+      setCityDropdownOpen(false)
+      return
+    }
+
+    const timerId = setTimeout(async () => {
+      setCitySearchLoading(true)
+      try {
+        const results = await searchCities(query, 8)
+        setCitySuggestions(results)
+        setCityDropdownOpen(results.length > 0)
+        setCityFocused(-1)
+      } catch (error) {
+        console.error('Erro na busca de cidades:', error)
+        setCitySuggestions([])
+      } finally {
+        setCitySearchLoading(false)
+      }
+    }, 300) // Debounce de 300ms
+
+    return () => clearTimeout(timerId)
+  }, [citySearchQuery])
+
+  const handleCitySelect = (city) => {
+    const displayName = typeof city === 'string' ? city : formatCityDisplayName(city)
+    setWeatherLocation(displayName)
+    setCitySearchQuery(displayName)
+    setCityDropdownOpen(false)
+    setCityFocused(-1)
+    setWeatherMsg('')
+  }
+
+  const handleCitySearchKeyDown = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setCityFocused(prev => Math.min(prev + 1, citySuggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setCityFocused(prev => Math.max(prev - 1, 0))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (cityFocused >= 0 && citySuggestions[cityFocused]) {
+        handleCitySelect(citySuggestions[cityFocused])
+      }
+    } else if (e.key === 'Escape') {
+      setCityDropdownOpen(false)
+      setCityFocused(-1)
+    }
+  }
+
+  // Fecha o dropdown ao clicar fora
+  useEffect(() => {
+    if (!cityDropdownOpen) return undefined
+
+    const handleClickOutside = (event) => {
+      if (citySearchRef.current && !citySearchRef.current.contains(event.target)) {
+        setCityDropdownOpen(false)
+        setCityFocused(-1)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [cityDropdownOpen])
+
+  const handleWeatherLocationSave = (event) => {
+    event.preventDefault()
+    const nextLocation = saveWeatherLocation(weatherLocation)
+    setWeatherLocation(nextLocation)
+    setWeatherMsg('Localização salva. O card da home vai usar essa cidade.')
+  }
+
+  const handleWeatherCardToggle = () => {
+    const nextEnabled = saveWeatherCardEnabled(!weatherCardEnabled)
+    setWeatherCardEnabled(nextEnabled)
+    setWeatherMsg(nextEnabled ? 'Card de clima ativado na home.' : 'Card de clima ocultado na home.')
+  }
+
   return (
     <>
       <style>{perfilCss}</style>
@@ -796,7 +1189,7 @@ export function PerfilPage() {
             </button>
           </div>
           <div className="profile-badges-row">
-            <div className="profile-plan">{billingStatus === 'free' ? 'Plano gratuito' : billingStatus === 'trial' ? 'Teste grátis' : 'Plano pago'}</div>
+            <div className="profile-plan">{billingStatusLabel}</div>
             <button className="pwa-btn" type="button" onClick={handleInstallPwa} disabled={pwaInstalled}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2v13M7 11l5 5 5-5" />
@@ -830,9 +1223,9 @@ export function PerfilPage() {
         <div className="meu-plano-left">
           <div className="meu-plano-label">Plano Atual</div>
           <div className="meu-plano-tier">
-            {billingStatus === 'free' ? 'Gratuito' : billingStatus === 'trial' ? 'Teste grátis' : 'Pago'}
+            {billingStatus === 'free' ? 'Gratuito' : welcomePremiumActive ? 'Premium temporário' : billingStatus === 'trial' ? 'Teste grátis' : 'Pago'}
             <span className={`meu-plano-tier-badge ${billingStatus === 'free' ? '' : 'pro'}`}>
-              {billingStatus === 'free' ? 'Free' : billingStatus === 'trial' ? 'Trial' : 'Pago'}
+              {billingStatus === 'free' ? 'Free' : welcomePremiumActive ? `Premium ${WELCOME_PREMIUM_DAYS}d` : billingStatus === 'trial' ? 'Trial' : 'Pago'}
             </span>
           </div>
           {billingStatus === 'free' && (
@@ -951,6 +1344,106 @@ export function PerfilPage() {
               </div>
             </Link>
           </div>
+
+          <div className="section-label anim anim-d4" id="clima">Clima na Home</div>
+          <form className="card anim anim-d4 weather-settings-card" onSubmit={handleWeatherLocationSave}>
+            <div className="weather-settings-top">
+              <div>
+                <div className="weather-settings-title">Localização do card de clima</div>
+                <div className="weather-settings-copy">
+                  Escolha a cidade usada no card da tela inicial. O clima atual e os indicadores extras da home passam a seguir esse local.
+                </div>
+              </div>
+              <div className="weather-settings-badge">Home</div>
+            </div>
+
+            <div className="toggle-row weather-settings-toggle">
+              <div className="toggle-info">
+                <div className="toggle-label">Mostrar card na home</div>
+                <div className="toggle-sub">
+                  {weatherCardEnabled
+                    ? 'O clima aparece na tela inicial.'
+                    : 'O card de clima fica oculto na tela inicial.'}
+                </div>
+              </div>
+              <button
+                type="button"
+                className={`toggle ${weatherCardEnabled ? 'on' : ''}`}
+                onClick={handleWeatherCardToggle}
+                aria-pressed={weatherCardEnabled}
+                aria-label={weatherCardEnabled ? 'Desativar card de clima' : 'Ativar card de clima'}
+              >
+                <span className="toggle-knob" />
+              </button>
+            </div>
+
+            <div className="weather-settings-form">
+              <div className="weather-settings-field" ref={citySearchRef}>
+                <span>Cidade</span>
+                <div className="weather-city-search-wrapper">
+                  <input
+                    type="text"
+                    className="weather-settings-input"
+                    value={citySearchQuery || weatherLocation}
+                    onChange={(event) => {
+                      setCitySearchQuery(event.target.value)
+                      setWeatherLocation(event.target.value)
+                      setWeatherMsg('')
+                    }}
+                    onFocus={() => {
+                      if (citySuggestions.length > 0 && citySearchQuery.trim().length >= 2) {
+                        setCityDropdownOpen(true)
+                      }
+                    }}
+                    onKeyDown={handleCitySearchKeyDown}
+                    placeholder="Digite para buscar cidade..."
+                    aria-label="Buscar cidade"
+                    aria-expanded={cityDropdownOpen}
+                    aria-haspopup="listbox"
+                    autoComplete="off"
+                  />
+                  {citySearchLoading && (
+                    <div className="weather-search-loading" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" opacity="0.3" />
+                        <path d="M12 2a10 10 0 0 1 10 10" />
+                      </svg>
+                    </div>
+                  )}
+                  {cityDropdownOpen && citySuggestions.length > 0 && (
+                    <ul className="weather-city-dropdown" role="listbox">
+                      {citySuggestions.map((city, idx) => {
+                        const displayName = typeof city === 'string' ? city : formatCityDisplayName(city)
+                        return (
+                          <li
+                            key={displayName}
+                            role="option"
+                            aria-selected={idx === cityFocused}
+                            className={`weather-city-option${idx === cityFocused ? ' is-focused' : ''}`}
+                            onClick={() => handleCitySelect(city)}
+                            onMouseEnter={() => setCityFocused(idx)}
+                          >
+                            {displayName}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              <button type="submit" className="btn-primary weather-settings-submit">
+                Salvar localização
+              </button>
+            </div>
+
+            <div className="weather-settings-foot">
+              <div className="weather-settings-note">
+                Dica: digite o nome da cidade e selecione na lista para resultados mais precisos.
+              </div>
+              {weatherMsg && <div className="weather-settings-msg">{weatherMsg}</div>}
+            </div>
+          </form>
 
         </div>
 
@@ -1128,6 +1621,33 @@ export function PerfilPage() {
             </div>
           </div>
 
+          <div className="section-label anim anim-d4">Backup e Restauração</div>
+          <div className="card anim anim-d4 backup-card" style={{ marginBottom: '1.25rem' }}>
+            <div className="card-title" style={{ marginBottom: '0.5rem' }}>Proteja seus dados</div>
+            <div className="avatar-card-text">
+              Como salvamos apenas o essencial na nuvem, use o backup para transferir seu histórico completo (redações e radar) entre dispositivos.
+            </div>
+            
+            <input 
+              type="file" 
+              ref={backupFileRef} 
+              style={{ display: 'none' }} 
+              accept=".json"
+              onChange={handleBackupFileChange}
+            />
+
+            <div className="backup-row">
+              <button className="backup-btn" onClick={handleBackupExport} title="Salvar tudo em um arquivo">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Salvar Backup
+              </button>
+              <button className="backup-btn" onClick={() => backupFileRef.current?.click()} title="Restaurar de um arquivo">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Restaurar
+              </button>
+            </div>
+          </div>
+
           <button
             className="logout-btn anim anim-d4"
             type="button"
@@ -1198,6 +1718,44 @@ export function PerfilPage() {
         onConfirm={handleRequestAccountDeletionEmail}
         onCancel={() => {
           setDeleteDialogOpen(false)
+        }}
+      />
+      <ConfirmDialog
+        open={restoreDialogOpen}
+        title="Restaurar dados do Ápice?"
+        message={
+          <div className="restore-container">
+            <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text2)' }}>
+              Selecione as categorias que deseja restaurar. <strong>Aviso:</strong> Isso substituirá as informações atuais pelas do backup.
+            </p>
+            <div className="restore-list">
+              {backupStats?.categories.map(cat => (
+                <div 
+                  key={cat.id} 
+                  className={`restore-item ${selectedBackupCategories.includes(cat.id) ? 'active' : ''}`}
+                  onClick={() => toggleBackupCategory(cat.id)}
+                >
+                  <div className="restore-checkbox" style={{ color: selectedBackupCategories.includes(cat.id) ? 'var(--accent)' : 'var(--text3)' }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      {selectedBackupCategories.includes(cat.id) ? <polyline points="20 6 9 17 4 12" /> : <rect x="3" y="3" width="18" height="18" rx="4" />}
+                    </svg>
+                  </div>
+                  <div className="restore-item-info">
+                    <span className="restore-item-label">{cat.label}</span>
+                    {cat.detail && <span className="restore-item-detail">{cat.detail}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        }
+        confirmLabel="Confirmar Restauração"
+        cancelLabel="Cancelar"
+        confirmDisabled={selectedBackupCategories.length === 0}
+        onConfirm={handleRestoreConfirm}
+        onCancel={() => {
+          setRestoreDialogOpen(false)
+          setBackupStats(null)
         }}
       />
     </>

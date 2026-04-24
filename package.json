@@ -1,7 +1,7 @@
 {
   "name": "apice-react",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,11 +11,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@netlify/blobs": "^10.7.4",
     "gotrue-js": "^1.0.1",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^4.2.1",
     "netlify-identity-widget": "^2.0.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-router-dom": "^7.13.1"
+    "react-router-dom": "^7.13.1",
+    "tldraw": "^4.5.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

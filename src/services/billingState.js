@@ -1,10 +1,42 @@
+/**
+ * Gerenciamento do estado de billing (pagamento/teste grátis)
+ * 
+ * COMO FUNCIONA:
+ * - Estado salvo no localStorage na chave 'apice:billing-state:v1'
+ * - 3 status possíveis: 'free' (gratuito), 'trial' (teste grátis), 'paid' (pago)
+ * - Teste grátis: 7 dias únicos por conta (não pode repetir)
+ * - Quando trial expira, status volta automaticamente pra 'free'
+ * 
+ * FLUXO DO TESTE GRÁTIS:
+ * 1. Usuário nunca usou trial → canStartTrial() = true
+ * 2. Clica "Começar teste grátis" → handleCheckout(plan, isTrial=true)
+ * 3. Backend aplica cupom 100% e retorna URL do AbacatePay
+ * 4. Frontend salva billingState e redireciona pro checkout
+ * 5. Usuário completa checkout (valor R$ 0,00) no AbacatePay
+ * 6. Ao retornar, frontend verifica e chama startTrial()
+ * 7. status='trial', trialEndsAt = agora + 7 dias
+ * 8. Quando trialEndsAt passar → status volta pra 'free'
+ * 
+ * FLUXO DE PAGAMENTO:
+ * 1. Usuário clica "Assinar agora" → handleCheckout(plan, isTrial=false)
+ * 2. Backend cria checkout sem cupom (valor normal)
+ * 3. Usuário paga no AbacatePay
+ * 4. Ao retornar, frontend verifica e chama markPlanPaid()
+ * 5. status='paid', paidAt = agora
+ */
+
 const BILLING_STATE_KEY = 'apice:billing-state:v1'
 const LEGACY_PLAN_TIER_KEY = 'apice:plan:tier'
 const BILLING_STATE_UPDATED_EVENT = 'apice:billing-state-updated'
 const ACCOUNT_STATE_UPDATED_EVENT = 'apice:account-state-updated'
 const USAGE_UPDATED_EVENT = 'apice:free-plan-usage-updated'
 
+/** Duração do teste grátis em dias */
 export const TRIAL_DAYS = 7
+/** Duração do premium de boas-vindas em dias */
+export const WELCOME_PREMIUM_DAYS = 30
+/** Contas criadas a partir deste momento recebem o premium temporário */
+export const WELCOME_PREMIUM_CUTOFF_ISO = '2026-04-15T22:55:09-03:00'
 
 const VALID_STATUSES = new Set(['free', 'trial', 'paid'])
 const STATUS_ALIASES = {
@@ -13,6 +45,16 @@ const STATUS_ALIASES = {
   paid: 'paid',
   pro: 'paid',
   premium: 'paid',
+}
+const TRIAL_KIND_ALIASES = {
+  welcome: 'welcome',
+  welcomepremium: 'welcome',
+  welcome_premium: 'welcome',
+  premium: 'welcome',
+  promo: 'welcome',
+  standard: 'standard',
+  trial: 'standard',
+  default: 'standard',
 }
 
 function canUseStorage() {
@@ -50,11 +92,33 @@ function normalizeIsoDate(value) {
   return date.toISOString()
 }
 
+function normalizeTrialKind(value) {
+  const normalized = normalizeText(value).toLowerCase().replace(/[\s-]+/g, '_')
+  return TRIAL_KIND_ALIASES[normalized] || ''
+}
+
+function extractUserCreatedAt(user) {
+  const candidates = [
+    user?.created_at,
+    user?.createdAt,
+    user?.user_metadata?.created_at,
+    user?.user_metadata?.createdAt,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = normalizeIsoDate(candidate)
+    if (normalized) return normalized
+  }
+
+  return ''
+}
+
 function buildDefaultState() {
   const iso = nowIso()
   return {
     status: 'free',
     planKey: '',
+    trialKind: '',
     trialUsedAt: '',
     trialStartedAt: '',
     trialEndsAt: '',
@@ -75,6 +139,7 @@ function normalizeState(rawState) {
 
   const status = normalizeStatus(rawState.status ?? rawState.planStatus ?? rawState.tier)
   const planKey = normalizePlanKey(rawState.planKey ?? rawState.selectedPlan ?? rawState.productKey)
+  const trialKind = normalizeTrialKind(rawState.trialKind ?? rawState.trialType ?? rawState.billingType)
   const trialUsedAt = normalizeIsoDate(rawState.trialUsedAt ?? rawState.trialRedeemedAt ?? rawState.trialStartedAt)
   const trialStartedAt = normalizeIsoDate(rawState.trialStartedAt ?? rawState.trialUsedAt ?? rawState.trialRedeemedAt)
   const trialEndsAt = normalizeIsoDate(rawState.trialEndsAt ?? rawState.trialExpiresAt)
@@ -84,6 +149,7 @@ function normalizeState(rawState) {
     ...base,
     status,
     planKey,
+    trialKind,
     trialUsedAt,
     trialStartedAt,
     trialEndsAt,
@@ -95,10 +161,29 @@ function normalizeState(rawState) {
   }
 
   if (normalized.status === 'trial') {
+    if (!normalized.trialKind) {
+      normalized.trialKind = 'standard'
+    }
+
     const trialEndsAtDate = normalized.trialEndsAt ? new Date(normalized.trialEndsAt) : null
-    if (!trialEndsAtDate || !Number.isFinite(trialEndsAtDate.getTime()) || trialEndsAtDate.getTime() <= Date.now()) {
+    if (!trialEndsAtDate || !Number.isFinite(trialEndsAtDate.getTime())) {
+      const fallbackDays = normalized.trialKind === 'welcome' ? WELCOME_PREMIUM_DAYS : TRIAL_DAYS
+      const trialStartedAtDate = normalized.trialStartedAt ? new Date(normalized.trialStartedAt) : null
+      if (trialStartedAtDate && Number.isFinite(trialStartedAtDate.getTime())) {
+        normalized.trialEndsAt = new Date(
+          trialStartedAtDate.getTime() + (fallbackDays * 24 * 60 * 60 * 1000),
+        ).toISOString()
+      }
+    }
+
+    const resolvedTrialEndsAtDate = normalized.trialEndsAt ? new Date(normalized.trialEndsAt) : null
+    if (!resolvedTrialEndsAtDate || !Number.isFinite(resolvedTrialEndsAtDate.getTime()) || resolvedTrialEndsAtDate.getTime() <= Date.now()) {
       normalized.status = 'free'
     }
+  }
+
+  if (normalized.status === 'free' && !normalized.trialKind && normalized.trialStartedAt) {
+    normalized.trialKind = 'standard'
   }
 
   if (!VALID_STATUSES.has(normalized.status)) {
@@ -177,19 +262,29 @@ export function getCurrentPlanTier() {
   return getCurrentBillingStatus() === 'free' ? 'free' : 'paid'
 }
 
-export function hasUsedTrial() {
-  const state = getBillingState()
-  return Boolean(state.trialUsedAt || state.trialStartedAt || state.trialEndsAt)
-}
-
-export function isTrialActive() {
-  const state = getBillingState()
-  if (state.status !== 'trial') return false
+function isTrialActiveState(state) {
+  if (!state || state.status !== 'trial') return false
 
   const trialEndsAtDate = state.trialEndsAt ? new Date(state.trialEndsAt) : null
   return Boolean(trialEndsAtDate && Number.isFinite(trialEndsAtDate.getTime()) && trialEndsAtDate.getTime() > Date.now())
 }
 
+export function isWelcomePremiumActive(state = getBillingState()) {
+  return Boolean(state && state.status === 'trial' && state.trialKind === 'welcome' && isTrialActiveState(state))
+}
+
+/** Retorna true se a conta já usou o teste grátis (independente de status atual) */
+export function hasUsedTrial() {
+  const state = getBillingState()
+  return Boolean(state.trialUsedAt || state.trialStartedAt || state.trialEndsAt)
+}
+
+/** Retorna true se o teste grátis está ativo agora (status=trial E não expirou) */
+export function isTrialActive() {
+  return isTrialActiveState(getBillingState())
+}
+
+/** Retorna true se a conta pode iniciar um novo teste grátis (nunca usou E status=free) */
 export function canStartTrial() {
   const state = getBillingState()
   return state.status === 'free' && !hasUsedTrial()
@@ -211,14 +306,16 @@ export function saveBillingState(partialState = {}) {
   return next
 }
 
-export function setBillingStatus(status, { planKey = '', checkoutId = '', externalId = '', subscriptionId = '', trialStartedAt = '', trialEndsAt = '', paidAt = '' } = {}) {
+export function setBillingStatus(status, { planKey = '', checkoutId = '', externalId = '', subscriptionId = '', trialStartedAt = '', trialEndsAt = '', paidAt = '', trialKind = '' } = {}) {
   const normalizedStatus = normalizeStatus(status)
   const current = getBillingState()
+  const normalizedTrialKind = normalizeTrialKind(trialKind) || normalizeTrialKind(current.trialKind) || 'standard'
 
   const next = {
     ...current,
     status: normalizedStatus,
     planKey: normalizePlanKey(planKey) || current.planKey,
+    trialKind: current.trialKind || '',
     checkoutId: normalizeText(checkoutId) || current.checkoutId,
     externalId: normalizeText(externalId) || current.externalId,
     subscriptionId: normalizeText(subscriptionId) || current.subscriptionId,
@@ -243,10 +340,12 @@ export function setBillingStatus(status, { planKey = '', checkoutId = '', extern
 
   if (normalizedStatus === 'trial') {
     const startedAt = normalizeIsoDate(trialStartedAt) || current.trialStartedAt || nowIso()
-    const endsAt = normalizeIsoDate(trialEndsAt) || new Date(new Date(startedAt).getTime() + (TRIAL_DAYS * 24 * 60 * 60 * 1000)).toISOString()
+    const durationDays = normalizedTrialKind === 'welcome' ? WELCOME_PREMIUM_DAYS : TRIAL_DAYS
+    const endsAt = normalizeIsoDate(trialEndsAt) || new Date(new Date(startedAt).getTime() + (durationDays * 24 * 60 * 60 * 1000)).toISOString()
     next.trialStartedAt = startedAt
     next.trialEndsAt = endsAt
     next.trialUsedAt = current.trialUsedAt || startedAt
+    next.trialKind = normalizedTrialKind
     next.paidAt = ''
   }
 
@@ -254,6 +353,11 @@ export function setBillingStatus(status, { planKey = '', checkoutId = '', extern
   return next
 }
 
+/**
+ * Inicia o teste grátis de 7 dias
+ * Só funciona se a conta nunca usou trial e estiver no status 'free'
+ * Se já tiver trial ativo, apenas mantém o existente
+ */
 export function startTrial({ planKey = '', checkoutId = '', externalId = '' } = {}) {
   const current = getBillingState()
 
@@ -261,7 +365,7 @@ export function startTrial({ planKey = '', checkoutId = '', externalId = '' } = 
     return current
   }
 
-  if (current.status === 'trial' && isTrialActive()) {
+  if (current.status === 'trial' && isTrialActiveState(current)) {
     return setBillingStatus('trial', {
       planKey: planKey || current.planKey,
       checkoutId: checkoutId || current.checkoutId,
@@ -282,11 +386,92 @@ export function startTrial({ planKey = '', checkoutId = '', externalId = '' } = 
     planKey,
     checkoutId,
     externalId,
+    trialKind: 'standard',
     trialStartedAt: startedAt,
     trialEndsAt: endsAt,
   })
 }
 
+/**
+ * Inicia o premium temporário de boas-vindas por 30 dias.
+ * Usa o mesmo mecanismo de trial para reaproveitar a infraestrutura atual,
+ * mas com labels e duração próprios.
+ */
+export function startWelcomePremium({
+  planKey = '',
+  checkoutId = '',
+  externalId = '',
+  startedAt = '',
+} = {}) {
+  const current = getBillingState()
+
+  if (current.status === 'paid') {
+    return current
+  }
+
+  if (current.status === 'trial' && isTrialActiveState(current)) {
+    return current
+  }
+
+  if (!canStartTrial()) {
+    return current
+  }
+
+  const premiumStartedAt = normalizeIsoDate(startedAt) || nowIso()
+  const premiumEndsAt = new Date(
+    new Date(premiumStartedAt).getTime() + (WELCOME_PREMIUM_DAYS * 24 * 60 * 60 * 1000),
+  ).toISOString()
+
+  return setBillingStatus('trial', {
+    planKey,
+    checkoutId,
+    externalId,
+    trialKind: 'welcome',
+    trialStartedAt: premiumStartedAt,
+    trialEndsAt: premiumEndsAt,
+  })
+}
+
+/**
+ * Concede o premium de boas-vindas para contas criadas a partir da atualização.
+ * Retorna um resumo simples para facilitar logs/telemetria.
+ */
+export function maybeGrantWelcomePremiumForUser(user, options = {}) {
+  const createdAt = extractUserCreatedAt(user)
+  if (!createdAt) {
+    return { applied: false, reason: 'created-at-missing' }
+  }
+
+  const createdAtDate = new Date(createdAt)
+  const launchDate = new Date(WELCOME_PREMIUM_CUTOFF_ISO)
+  if (!Number.isFinite(createdAtDate.getTime()) || !Number.isFinite(launchDate.getTime())) {
+    return { applied: false, reason: 'date-invalid' }
+  }
+
+  if (createdAtDate.getTime() < launchDate.getTime()) {
+    return { applied: false, reason: 'before-launch' }
+  }
+
+  if (!canStartTrial()) {
+    return { applied: false, reason: 'billing-not-available' }
+  }
+
+  const state = startWelcomePremium({
+    ...options,
+    startedAt: createdAt,
+  })
+
+  return {
+    applied: Boolean(state?.status === 'trial' && state?.trialKind === 'welcome'),
+    reason: 'granted',
+    state,
+  }
+}
+
+/**
+ * Marca o plano como pago (após confirmação do pagamento)
+ * Mantém as datas de trial para histórico, mas limpa status de trial
+ */
 export function markPlanPaid({ planKey = '', checkoutId = '', externalId = '', subscriptionId = '', paidAt = nowIso() } = {}) {
   const current = getBillingState()
 
@@ -323,23 +508,35 @@ export function emitBillingStateUpdated() {
 }
 
 export function getBillingStatusLabel(status = getCurrentBillingStatus()) {
+  const state = getBillingState()
   switch (normalizeStatus(status)) {
     case 'trial':
-      return 'Teste grátis'
+      return state.trialKind === 'welcome' ? 'Premium temporário' : 'Teste grátis'
     case 'paid':
-      return 'Pago'
+      return 'Plano pago'
     default:
-      return 'Gratuito'
+      return 'Plano gratuito'
   }
 }
 
 export function getBillingStatusDescription(status = getCurrentBillingStatus()) {
+  const state = getBillingState()
   switch (normalizeStatus(status)) {
     case 'trial':
-      return `Teste grátis de ${TRIAL_DAYS} dias`
+      return state.trialKind === 'welcome'
+        ? `Premium temporário de ${WELCOME_PREMIUM_DAYS} dias`
+        : `Teste grátis de ${TRIAL_DAYS} dias`
     case 'paid':
       return 'Plano pago ativo'
     default:
+      if (state.trialKind === 'welcome' && state.trialEndsAt) {
+        return 'Premium temporário expirado'
+      }
+
+      if (state.trialKind === 'standard' && state.trialEndsAt) {
+        return 'Teste grátis expirado'
+      }
+
       return 'Conta gratuita'
   }
 }

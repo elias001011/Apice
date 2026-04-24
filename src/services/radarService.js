@@ -12,6 +12,7 @@ import {
   consumeFreePlan,
 } from './freePlanUsage.js'
 import { loadAiResponsePreferenceText } from './aiResponsePreferences.js'
+import { authFetch } from './authFetch.js'
 
 const RADAR_SEARCH_ENDPOINT = '/.netlify/functions/gerar-radar'
 const RADAR_DETAIL_ENDPOINT = '/.netlify/functions/gerar-radar-detalhe'
@@ -111,9 +112,8 @@ export async function buscarRadarTemas() {
   }
 
   const responsePreference = loadAiResponsePreferenceText()
-  const response = await fetch(RADAR_SEARCH_ENDPOINT, {
+  const response = await authFetch(RADAR_SEARCH_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...(responsePreference ? { responsePreference } : {}),
     }),
@@ -127,11 +127,12 @@ export async function buscarRadarTemas() {
   const data = await response.json()
   const payload = normalizeRadarThemesPayload(data)
   const searchWindow = buildRadarSearchWindow()
+  const updatedAt = searchWindow.lastSearchAt
 
   const savedSnapshot = saveRadarSnapshot({
     temas: payload.temas,
     resumoPesquisa: payload.resumoPesquisa,
-    atualizadoEm: payload.atualizadoEm || searchWindow.lastSearchAt,
+    atualizadoEm: updatedAt,
     origem: payload.origem || 'ai',
     lastSearchAt: searchWindow.lastSearchAt,
     nextSearchAt: searchWindow.nextSearchAt,
@@ -144,7 +145,7 @@ export async function buscarRadarTemas() {
     ...(savedSnapshot || payload),
     temas: payload.temas,
     resumoPesquisa: payload.resumoPesquisa,
-    atualizadoEm: payload.atualizadoEm || searchWindow.lastSearchAt,
+    atualizadoEm: updatedAt,
     origem: payload.origem || 'ai',
     lastSearchAt: searchWindow.lastSearchAt,
     nextSearchAt: searchWindow.nextSearchAt,
@@ -167,9 +168,8 @@ export async function buscarRadarTemaDetalhe(tema) {
   }
 
   const responsePreference = loadAiResponsePreferenceText()
-  const response = await fetch(RADAR_DETAIL_ENDPOINT, {
+  const response = await authFetch(RADAR_DETAIL_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       tema: normalizedTheme,
       ...(responsePreference ? { responsePreference } : {}),

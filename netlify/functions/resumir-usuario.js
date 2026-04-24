@@ -1,13 +1,16 @@
 import { generateUserSummary } from '../ai/ai.js'
+import { requireAuth } from './utils/auth.js'
+import { buildCorsHeaders } from './utils/cors.js'
+import {
+  INPUT_LIMITS,
+  validateStringLength,
+  validateArrayLength,
+  validationErrorResponse,
+} from './utils/validate.js'
 
-const headers = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json',
-}
+export default async function handler(req, context) {
+  const headers = buildCorsHeaders(req)
 
-export default async function handler(req) {
   if (req.method === 'OPTIONS') {
     return new Response('', { status: 200, headers })
   }
@@ -15,6 +18,10 @@ export default async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers })
   }
+
+  // ── Authentication ──────────────────────────────────────────────────────
+  const auth = requireAuth(req, context, headers)
+  if (auth instanceof Response) return auth
 
   try {
     const body = await req.json().catch(() => ({}))
@@ -24,6 +31,19 @@ export default async function handler(req) {
 
     if (historyIndex.length === 0) {
       return new Response(JSON.stringify({ error: 'historyIndex é obrigatório' }), { status: 400, headers })
+    }
+
+    // ── Input Validation ────────────────────────────────────────────────
+    const checks = [
+      validateArrayLength('historyIndex', historyIndex, INPUT_LIMITS.maxHistoryEntries),
+      ...(responsePreference ? [validateStringLength('responsePreference', responsePreference, INPUT_LIMITS.responsePreference)] : []),
+    ]
+
+    const serializedHistory = JSON.stringify(historyIndex)
+    checks.push(validateStringLength('historyIndex (total)', serializedHistory, INPUT_LIMITS.historyTotal))
+
+    for (const check of checks) {
+      if (!check.valid) return validationErrorResponse(check.error, headers)
     }
 
     const result = await generateUserSummary({
@@ -38,7 +58,6 @@ export default async function handler(req) {
     return new Response(
       JSON.stringify({
         error: 'Falha ao resumir usuário',
-        details: error?.message || 'Erro desconhecido',
       }),
       { status: 502, headers },
     )

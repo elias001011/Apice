@@ -31,3 +31,10 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Qwen settings
+.qwen/
+
+# Lint output
+lint*.json
+lint*.txt

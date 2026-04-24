@@ -1,12 +1,20 @@
-const headers = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json',
-}
+import { authenticateRequest } from './utils/auth.js'
+import { buildCorsHeaders } from './utils/cors.js'
 
-function errorResponse(message, status = 400) {
-  return new Response(JSON.stringify({ error: message }), { status, headers })
+/**
+ * Exclui conta do usuário no Netlify Identity
+ *
+ * CRÍTICO: Deleta o blob `user-state:{userId}` ANTES de deletar a conta no Identity
+ * Isso evita dados órfãos no Netlify Blobs
+ */
+
+const BLOB_STORE_NAME = 'user-state'
+
+function errorResponse(message, status = 400, corsHeaders = {}) {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
 }
 
 function decodeBase64Json(rawValue) {
@@ -84,6 +92,30 @@ function getUserId(user) {
   return String(user?.sub ?? user?.id ?? '').trim()
 }
 
+async function deleteBlob(userId) {
+  /**
+   * Deleta o blob do usuário ANTES de deletar a conta no Identity
+   */
+  try {
+    const { getStore } = await import('@netlify/blobs')
+    const store = await getStore({ name: BLOB_STORE_NAME, consistency: 'strong' })
+
+    if (!store) {
+      console.warn('[excluir-conta] Blob store não disponível. Blob não será deletado.')
+      return false
+    }
+
+    const blobKey = `user-state:${userId}`
+    await store.delete(blobKey)
+
+    console.log(`[excluir-conta] Blob deletado para userId: ${userId}`)
+    return true
+  } catch (error) {
+    console.error('[excluir-conta] Erro ao deletar blob:', error.message)
+    return false
+  }
+}
+
 async function deleteIdentityUser(identity, userIds) {
   let lastStatus = 500
   let lastDetails = ''
@@ -114,37 +146,54 @@ async function deleteIdentityUser(identity, userIds) {
 }
 
 export default async function handler(req, context = {}) {
+  const headers = buildCorsHeaders(req)
+
   if (req.method === 'OPTIONS') {
     return new Response('', { status: 200, headers })
   }
 
   if (req.method !== 'POST') {
-    return errorResponse('Method not allowed', 405)
+    return errorResponse('Method not allowed', 405, headers)
   }
 
+  // ── Primary auth: JWT from Authorization header ─────────────────────
+  const jwtAuth = authenticateRequest(req, context)
+
+  // ── Fallback: Netlify clientContext (legacy path) ───────────────────
   const clientContext = decodeNetlifyClientContext(context)
   const identity = clientContext?.identity
   const user = clientContext?.user
+
+  // Build user IDs from both sources
   const userIDs = [...new Set([
+    jwtAuth?.user?.id || '',
     getUserId(user),
     String(user?.id ?? '').trim(),
     String(user?.sub ?? '').trim(),
   ])].filter(Boolean)
 
   if (!identity?.url || !identity?.token || userIDs.length === 0) {
-    return errorResponse('Usuário não autenticado.', 401)
+    return errorResponse('Usuário não autenticado.', 401, headers)
   }
 
   try {
+    // 1. CRÍTICO: Deleta blob ANTES de deletar a conta no Identity
+    for (const userID of userIDs) {
+      if (userID) {
+        await deleteBlob(userID)
+      }
+    }
+
+    // 2. Deleta conta no Netlify Identity
     const result = await deleteIdentityUser(identity, userIDs)
 
     if (!result.ok) {
-      return errorResponse(result.details || 'Falha ao excluir a conta.', result.status)
+      return errorResponse('Falha ao excluir a conta.', result.status, headers)
     }
 
     return new Response(JSON.stringify({ ok: true }), { status: 200, headers })
   } catch (error) {
     console.error('[excluir-conta] erro:', error)
-    return errorResponse(error?.message || 'Falha ao excluir a conta.', 502)
+    return errorResponse('Falha ao excluir a conta.', 502, headers)
   }
 }

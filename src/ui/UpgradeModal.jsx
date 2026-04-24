@@ -135,7 +135,7 @@ const upgradeModalCss = `
   .upgrade-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.75);
+    background: var(--overlay-surface);
     z-index: 9999;
     display: flex;
     align-items: center;
@@ -144,34 +144,33 @@ const upgradeModalCss = `
     animation: upgradeOverlayIn 0.25s ease-out forwards;
   }
 
-  html[data-fx="blur"] .upgrade-overlay {
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-  }
-
   @keyframes upgradeOverlayIn {
     from { opacity: 0; }
     to { opacity: 1; }
   }
 
   .upgrade-card {
-    background: var(--bg2);
-    border: 1px solid var(--border);
+    background: var(--modal-surface);
+    border: 1px solid var(--modal-border);
     border-radius: 28px;
     width: 100%;
     max-width: 440px;
     overflow: hidden;
-    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(var(--accent-rgb), 0.12);
+    box-shadow: var(--modal-shadow);
     position: relative;
   }
 
   .upgrade-header {
-    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.15), rgba(var(--accent-rgb), 0.04));
+    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.08), rgba(var(--accent-rgb), 0.02));
     padding: 2rem 2rem 1.5rem;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     border-bottom: 1px solid var(--border);
+  }
+
+  html[data-fx="gradients"] .upgrade-header {
+    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.1), transparent);
   }
 
   .upgrade-icon-ring {
@@ -182,7 +181,17 @@ const upgradeModalCss = `
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 8px 24px rgba(var(--accent-rgb), 0.35);
+    box-shadow: 0 8px 20px rgba(var(--accent-rgb), 0.24);
+  }
+
+  html[data-fx="none"] .upgrade-card {
+    box-shadow: none;
+  }
+
+  html[data-fx="none"] .upgrade-icon-ring {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    box-shadow: none;
   }
 
   .upgrade-icon-emoji {
@@ -209,6 +218,16 @@ const upgradeModalCss = `
     background: var(--bg2);
     color: var(--text);
     border-color: var(--border2);
+  }
+
+  html[data-fx="none"] .upgrade-close-btn {
+    background: var(--bg3);
+    box-shadow: none;
+  }
+
+  html[data-fx="none"] .upgrade-close-btn:hover {
+    background: var(--bg2);
+    border-color: var(--border);
   }
 
   .upgrade-body {
@@ -239,6 +258,10 @@ const upgradeModalCss = `
     background: var(--bg3);
     border-radius: 16px;
     border: 1px solid var(--border);
+  }
+
+  html[data-fx="none"] .upgrade-benefits {
+    background: var(--bg3);
   }
 
   .upgrade-benefit-row {
@@ -285,6 +308,19 @@ const upgradeModalCss = `
     box-shadow: 0 10px 28px rgba(var(--accent-rgb), 0.4);
   }
 
+  html[data-fx="none"] .upgrade-cta-btn {
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border);
+    box-shadow: none;
+  }
+
+  html[data-fx="none"] .upgrade-cta-btn:hover {
+    background: var(--bg2);
+    transform: none;
+    box-shadow: none;
+  }
+
   .upgrade-cta-btn:active {
     transform: translateY(0);
   }
@@ -306,6 +342,18 @@ const upgradeModalCss = `
     color: var(--text2);
     border-color: var(--accent);
     background: var(--accent-dim);
+  }
+
+  html[data-fx="none"] .upgrade-dismiss-btn {
+    background: var(--bg3);
+    border-color: var(--border);
+    box-shadow: none;
+  }
+
+  html[data-fx="none"] .upgrade-dismiss-btn:hover {
+    color: var(--text);
+    background: var(--bg2);
+    border-color: var(--border2);
   }
 
   .anim-scale-up {

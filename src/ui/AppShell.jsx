@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { ThemeToggleButton } from './ThemeToggleButton.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { useAppBusy } from './AppBusyContext.jsx'
@@ -13,8 +13,10 @@ import {
 import { Footer } from './Footer.jsx'
 import { ConquistaToast } from './ConquistaToast.jsx'
 import { UpgradeModalProvider } from './UpgradeModal.jsx'
+import { QuotaLimitBanner } from './QuotaLimitBanner.jsx'
 
 export function AppShell() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const { busy } = useAppBusy()
   const { theme, accent } = useTheme()
@@ -64,106 +66,153 @@ export function AppShell() {
 
   return (
     <UpgradeModalProvider>
-      <nav className="nav">
-        <div className="nav-inner">
-          <NavLink to="/home" className="nav-logo">
-            Áp<em>i</em>ce
-          </NavLink>
-          <div className="nav-center">
-            <NavLink to="/home" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Início</NavLink>
-            <NavLink to="/corretor" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Corretor</NavLink>
-            <NavLink to="/professor" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Professor</NavLink>
-            <NavLink to="/radar" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Radar</NavLink>
-            <NavLink to="/conquistas" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Conquistas</NavLink>
-          </div>
-          <div className="nav-right">
-            <ThemeToggleButton />
-            <div className="nav-more-wrap" ref={mobileMoreRef}>
-              <button
-                type="button"
-                className="nav-icon-btn nav-more-btn"
-                aria-label="Mais opções"
-                aria-haspopup="menu"
-                aria-expanded={mobileMoreOpen}
-                title="Mais opções"
-                onClick={() => setMobileMoreOpen((value) => !value)}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="12" cy="5" r="1.75" />
-                  <circle cx="12" cy="12" r="1.75" />
-                  <circle cx="12" cy="19" r="1.75" />
-                </svg>
-              </button>
-              {mobileMoreOpen && (
-                <div className="nav-more-menu" role="menu" aria-label="Mais opções">
-                  <NavLink
-                    to="/conquistas"
-                    className={({ isActive }) => `nav-more-link${isActive ? ' active' : ''}`}
-                    role="menuitem"
-                    onClick={() => setMobileMoreOpen(false)}
-                  >
-                    <span className="nav-more-link-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24">
-                        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-                        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-                        <path d="M4 22h16" />
-                        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
-                        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
-                        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
-                      </svg>
-                    </span>
-                    <span className="nav-more-link-text">
-                      <strong>Conquistas</strong>
-                      <span>Atalho da jornada de evolução.</span>
-                    </span>
-                  </NavLink>
-                </div>
-              )}
-            </div>
-            <NavLink
-              to="/perfil"
-              className="nav-avatar"
-              aria-label={`Perfil · ${avatarAppearance.summary}`}
-              title={avatarAppearance.summary}
-              style={avatarAppearance.palette}
-            >
-              <AvatarVisual
-                key={`${avatarAppearance.mode}|${avatarAppearance.accent}|${avatarAppearance.imageUrl}|${avatarAppearance.updatedAt}`}
-                appearance={avatarAppearance}
-              />
+      <div className="app-shell">
+        <div className="app-scene" aria-hidden="true" />
+
+        <nav className="nav">
+          <div className="nav-inner">
+            <NavLink to="/home" className="nav-logo">
+              Áp<em>i</em>ce
             </NavLink>
-          </div>
-        </div>
-      </nav>
-
-      <main className="main">
-        <Outlet />
-      </main>
-      <Footer />
-      <ConquistaToast />
-
-      {busy && (
-        <div className="app-busy-overlay" role="status" aria-live="polite" aria-busy="true">
-          <div className="app-busy-card">
-            <div className="app-busy-spinner" aria-hidden="true" />
-            <div className="app-busy-label">Processando IA</div>
-            <div className="app-busy-copy">Aguarde um instante enquanto a resposta é preparada.</div>
-            <div className="app-busy-skeleton" aria-hidden="true">
-              <span />
-              <span />
-              <span />
+            <div className="nav-center">
+              <NavLink to="/home" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Início</NavLink>
+              <NavLink to="/corretor" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Corretor</NavLink>
+              <NavLink to="/professor" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Professor</NavLink>
+              <NavLink to="/simulado" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Simulados</NavLink>
+              <NavLink to="/radar" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Radar</NavLink>
+              <NavLink to="/conquistas" className={({ isActive }) => `nav-link-desktop${isActive ? ' active' : ''}`}>Conquistas</NavLink>
+            </div>
+            <div className="nav-right">
+              <ThemeToggleButton />
+              <div className="nav-more-wrap" ref={mobileMoreRef}>
+                <button
+                  type="button"
+                  className="nav-icon-btn nav-more-btn"
+                  aria-label="Mais opções"
+                  aria-haspopup="menu"
+                  aria-expanded={mobileMoreOpen}
+                  title="Mais opções"
+                  onClick={() => setMobileMoreOpen((value) => !value)}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="5" r="1.75" />
+                    <circle cx="12" cy="12" r="1.75" />
+                    <circle cx="12" cy="19" r="1.75" />
+                  </svg>
+                </button>
+                {mobileMoreOpen && (
+                  <div className="nav-more-menu" role="menu" aria-label="Mais opções">
+                    <NavLink
+                      to="/professor"
+                      className={({ isActive }) => `nav-more-link${isActive ? ' active' : ''}`}
+                      role="menuitem"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setMobileMoreOpen(false)
+                        requestAnimationFrame(() => navigate('/professor'))
+                      }}
+                    >
+                      <span className="nav-more-link-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                        </svg>
+                      </span>
+                      <span className="nav-more-link-text">
+                        <strong>Professor IA</strong>
+                        <span>Tire dúvidas com IA.</span>
+                      </span>
+                    </NavLink>
+                    <NavLink
+                      to="/conquistas"
+                      className={({ isActive }) => `nav-more-link${isActive ? ' active' : ''}`}
+                      role="menuitem"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setMobileMoreOpen(false)
+                        requestAnimationFrame(() => navigate('/conquistas'))
+                      }}
+                    >
+                      <span className="nav-more-link-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                          <path d="M4 22h16" />
+                          <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+                          <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+                          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                        </svg>
+                      </span>
+                      <span className="nav-more-link-text">
+                        <strong>Conquistas</strong>
+                        <span>Atalho da jornada de evolução.</span>
+                      </span>
+                    </NavLink>
+                    <NavLink
+                      to="/simulado"
+                      className={({ isActive }) => `nav-more-link${isActive ? ' active' : ''}`}
+                      role="menuitem"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setMobileMoreOpen(false)
+                        requestAnimationFrame(() => navigate('/simulado'))
+                      }}
+                    >
+                      <span className="nav-more-link-icon" aria-hidden="true">
+                        {iconSvg('simulado')}
+                      </span>
+                      <span className="nav-more-link-text">
+                        <strong>Simulados</strong>
+                        <span>Treine com questões reais e cronômetro.</span>
+                      </span>
+                    </NavLink>
+                  </div>
+                )}
+              </div>
+              <NavLink
+                to="/perfil"
+                className="nav-avatar"
+                aria-label={`Perfil · ${avatarAppearance.summary}`}
+                title={avatarAppearance.summary}
+                style={avatarAppearance.palette}
+              >
+                <AvatarVisual
+                  key={`${avatarAppearance.mode}|${avatarAppearance.accent}|${avatarAppearance.imageUrl}|${avatarAppearance.updatedAt}`}
+                  appearance={avatarAppearance}
+                />
+              </NavLink>
             </div>
           </div>
-        </div>
-      )}
+        </nav>
 
-      <nav className="bottom-tab" aria-label="Navegação principal">
-        <TabLink to="/home" label="Início" icon="home" />
-        <TabLink to="/professor" label="Professor" icon="professor" />
-        <TabLink to="/corretor" label="Corretor" icon="edit" />
-        <TabLink to="/radar" label="Radar" icon="radar" />
-        <TabLink to="/perfil" label="Perfil" icon="user" />
-      </nav>
+        <main className="main">
+          <QuotaLimitBanner />
+          <Outlet />
+        </main>
+        <Footer />
+        <ConquistaToast />
+
+        {busy && (
+          <div className="app-busy-overlay" role="status" aria-live="polite" aria-busy="true">
+            <div className="app-busy-card">
+              <div className="app-busy-spinner" aria-hidden="true" />
+              <div className="app-busy-label">Processando IA</div>
+              <div className="app-busy-copy">Aguarde um instante enquanto a resposta é preparada.</div>
+              <div className="app-busy-skeleton" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <nav className="bottom-tab" aria-label="Navegação principal">
+          <TabLink to="/home" label="Início" icon="home" />
+          <TabLink to="/corretor" label="Corretor" icon="edit" />
+          <TabLink to="/radar" label="Radar" icon="radar" />
+          <TabLink to="/perfil" label="Perfil" icon="user" />
+        </nav>
+      </div>
     </UpgradeModalProvider>
   )
 }
@@ -222,6 +271,14 @@ function iconSvg(kind) {
       return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+        </svg>
+      )
+    case 'simulado':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z" />
+          <path d="M2 17l10 5 10-5" />
+          <path d="M2 12l10 5 10-5" />
         </svg>
       )
     default:

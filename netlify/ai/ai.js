@@ -684,66 +684,99 @@ function buildFallbackThemeSystemPrompt(responsePreference) {
 }
 
 function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, themeHint, qualityHint, responsePreference }) {
-  // Prompt da correção.
-  // O material de apoio aqui é contexto da prova, não repertório autoral do aluno.
-  const modo = isRigido ? 'Rígido (muito criterioso)' : 'Padrão (conservador)'
+  // Importa exemplos de calibração baseados em redações reais (UOL dataset)
+  let calibrationSection = ''
+  try {
+    const { generateCalibrationPrompt } = require('../../src/services/essayCalibrationService.js')
+    calibrationSection = generateCalibrationPrompt()
+  } catch {
+    calibrationSection = `
+### PADRÕES DE REDAÇÕES NOTA 1000 (Baseado em análise de 2.100 redações corrigidas):
+- Domínio excepcional da norma culta com construções sintáticas complexas
+- Repertório sociocultural produtivo com dados oficiais e legislação
+- Projeto de texto coeso com progressão argumentativa clara
+- Coesão sofisticada com conectivos inter e intraparágrafos bem articulados
+- Proposta de intervenção completa com 5 elementos detalhados (agente, ação, meio/modo, efeito, detalhamento)
+`
+  }
+
+  // Prompt da correção Profissional Ápice.
+  const modo = isRigido ? 'Rígido Técnico (Critério INEP)' : 'Padrão Pedagógico'
   const materialTexto = flattenMaterialForPrompt(material)
 
+  // Diferenciação real entre modo rígido e padrão
+  const rigorInstrucoes = isRigido ? `
+### MODO RÍGIDO ATIVADO — NÃO "PASSE PANO":
+1. ERROS DE CONCORDÂNCIA: Mesmo que sejam "pequenos", identifique e desconte pontos. Ex: "as coisa" não é aceitável.
+2. PONTUAÇÃO IMPRECISA: Vírgula antes de "e" com sujeito diferente é erro. Não ignore.
+3. REPETÓRIO GENÉRICO: Citar "segundo filósofos" sem nome específico = repertório impróprio. Exija nomes, dados, leis.
+4. COESÃO FRACA: "E também", "além disso" usado demais = vício. Cobrar variedade de conectivos.
+5. PROPOSTA DE INTERVENÇÃO: "O governo deve fazer campanhas" é genérico demais. Exija: qual governo? qual campanha? como? onde? quando?
+6. PARÁGRAFOS MAL ESTRUTURADOS: Sem tópico frasal claro, sem progressão, com repetição = penalize C3.
+7. CÓPIA PARCIAL: Mesmo que seja só 2-3 frases do material de apoio, identifique e penalize.
+8. FUGA PARCIAL AO TEMA: Se o texto toca no tema mas não explora o recorte específico, penalize C2.
+9. ERROS DE REGÊNCIA: "O filme que assisti" (falta "a"), "aspirar o cargo" (errado, é "ao") = identifique TODOS.
+10. NÃO SEJA "BONZINHO": Se a redação tem problemas, aponte com clareza. Nota baixa é justa quando merecida.
+` : `
+### MODO PADRÃO PEDAGÓGICO:
+1. Identifique erros, mas considere o contexto geral da redação.
+2. Valorize acertos e avanços em relação a padrões anteriores.
+3. Para redações medianas, seja encorajador mas aponte melhorias necessárias.
+4. Para redações boas, aponte refinamentos possíveis sem ser excessivamente crítico.
+`
+
   const lines = [
-    `Modo de correção: ${modo}.`,
-    `Tema da redação: ${tema || 'Não informado.'}`,
+    'Você é o "Corretor Ápice", um especialista sênior na grade oficial do ENEM (INEP).',
+    'Sua missão é fornecer uma avaliação técnica e transformadora para o aluno.',
     '',
-    'Regras de correção:',
-    '- Corrija conforme a matriz do ENEM.',
-    '- Na propriedade "descricao" de cada competência, exiba o MÉRITO DIRETAMENTE e seja MEGA CONCISO (ex: "Apresenta boa coesão, mas falha no uso de crase."). Nunca escreva introduções como "A redação demonstra...". O espaço lá é apertado, use 1 ou 2 frases curtas.',
-    '- Compense essa ausência de detalhes escrevendo análises SUPER DENSAS, extensas e ricas nas chaves "pontoForte", "atencao" e "principalMelhorar". Abuse do espaço ali para aprofundar a correção.',
-    '- Nessas análises, seja direto e honesto com o estudante. Se houver fuga de tema, repertório fraco ou argumento vazio, diga isso sem suavizar.',
-    '- O material de apoio abaixo é apenas contexto de prova. Ele não conta como repertório autoral se o aluno apenas copiar, parafrasear ou repetir seus dados.',
-    '- Se houver cópia literal ou quase literal do material, puna fortemente C2, C3 e, se necessário, C5.',
-    '- Se a redação fugir totalmente do tema, a nota de todas as competências deve ser 0 e a análise precisa deixar isso explícito.',
-    '- Se a redação só tocar o tema no início e depois mudar de assunto, trate isso como fuga parcial e seja severo.',
-    '- Se a aderência ao tema for fraca, C2, C3 e C5 devem cair bastante mesmo que o texto pareça bem escrito.',
-    '- Se a redação usar o material de apoio sem elaboração própria, não premie como se fosse repertório externo.',
-    '- Use a escala ENEM real: cada competência vai de 0 a 200 e a notaTotal vai de 0 a 1000. Nunca responda em escala 0 a 10.',
-    '- Seja conservador: 200 em qualquer competência deve ser raro, 180+ só quando o critério estiver praticamente impecável.',
-    '- Se houver dúvida entre duas faixas, escolha a mais baixa.',
-    '- Não infle nota por texto longo, bonito ou genérico; qualidade real vale mais do que volume.',
-    '- Em redações boas, mas comuns, a faixa média é mais realista do que notas muito altas.',
-    '- C5 só merece nota alta quando a proposta tiver agente, ação, meio, finalidade e detalhamento claros.',
-    '- C2 e C3 devem ser duras com repertório fraco, tese vaga ou argumento genérico.',
-    '- Responda somente com JSON válido no formato abaixo.',
+    `Configuração da Sessão:`,
+    `- Modo de correção: ${modo}.`,
+    `- Tema Central: ${tema || 'Livre/NÃO INFORMADO (identifique pelo texto).'}`,
     '',
-    'Formato de resposta:',
+    rigorInstrucoes,
+    '',
+    calibrationSection,
+    '',
+    '### MATRIZ DE REFERÊNCIA (Critérios INEP):',
+    '- COMPETÊNCIA I: Domínio da modalidade escrita formal. Avalie concordância, regência, pontuação e escolha lexical.',
+    '- COMPETÊNCIA II: Compreender a proposta e aplicar conceitos de várias áreas (Repertório). Exija repertório Legitimado, Pertinente e Produtivo.',
+    '- COMPETÊNCIA III: Selecionar, relacionar, organizar e interpretar informações em defesa de um ponto de vista (Projeto de Texto).',
+    '- COMPETÊNCIA IV: Conhecimento dos mecanismos linguísticos (Coesão). Avalie conectivos inter e intraparágrafos.',
+    '- COMPETÊNCIA V: Proposta de intervenção. Exija os 5 elementos: Agente, Ação, Meio/Modo, Efeito e Detalhamento.',
+    '',
+    '### REGRAS CRÍTICAS DE CORREÇÃO:',
+    '1. MÉRITO DIRETO: Na chave "descricao" de cada competência, vá direto ao ponto. Use 1-2 frases curtas e técnicas.',
+    '2. ANÁLISE DENSA: Use as chaves "pontoForte", "atencao" e "principalMelhorar" para ser detalhista e pedagógico.',
+    '3. RIGOR TÉCNICO: Se houver cópia literal do material de apoio, zere a produtividade do repertório (C2) e puna C3.',
+    '4. FUGA AO TEMA: Se o texto ignorar o recorte central, a nota total deve ser zero.',
+    '5. ESCALA REAL: Use apenas as notas 0, 40, 80, 120, 160, 200 por competência. Se estiver em dúvida, opte pela nota inferior.',
+    '',
+    'Formato de Resposta (JSON estrito):',
     '{',
     '  "notaTotal": 0,',
     '  "competencias": [',
-    '    { "nome": "C1 — Norma culta", "nota": 0, "descricao": "..." },',
-    '    { "nome": "C2 — Tema e repertório", "nota": 0, "descricao": "..." },',
-    '    { "nome": "C3 — Organização da tese", "nota": 0, "descricao": "..." },',
-    '    { "nome": "C4 — Coesão textual", "nota": 0, "descricao": "..." },',
-    '    { "nome": "C5 — Proposta de intervenção", "nota": 0, "descricao": "..." }',
+    '    { "nome": "C1 — Norma Culta", "nota": 0, "descricao": "..." },',
+    '    { "nome": "C2 — Repertório e Tema", "nota": 0, "descricao": "..." },',
+    '    { "nome": "C3 — Organização e Projeto", "nota": 0, "descricao": "..." },',
+    '    { "nome": "C4 — Coesão e Conectivos", "nota": 0, "descricao": "..." },',
+    '    { "nome": "C5 — Proposta de Intervenção", "nota": 0, "descricao": "..." }',
     '  ],',
-    '  "pontoForte": "...",',
-    '  "atencao": "...",',
-    '  "principalMelhorar": "...",',
+    '  "pontoForte": "Análise técnica do que foi excelente...",',
+    '  "atencao": "Pontos de vulnerabilidade que podem tirar pontos...",',
+    '  "principalMelhorar": "Plano de ação imediato para alcançar o 1000...",',
     '  "errosPt": [',
-    '    { "errado": "...", "corrigido": "...", "motivo": "..." }',
+    '    { "errado": "...", "corrigido": "...", "motivo": "Explicação gramatical curta" }',
     '  ]',
     '}',
     '',
-    'Material de apoio estruturado:',
+    '### CONTEXTO FACTUAL (Material de Apoio):',
     materialTexto,
     '',
-    'Heurística local de cópia:',
-    `- ${copyHint.summary}`,
-    `- Overlap lexical estimado: ${copyHint.overlapScore}`,
-    copyHint.copiedPhrases.length > 0
-      ? `- Trechos repetidos detectados: ${copyHint.copiedPhrases.join(' | ')}`
-      : '- Trechos repetidos detectados: nenhum trecho longo detectado.',
-    '',
-    'Heurística local de aderência ao tema:',
-    `- ${themeHint?.summary || 'Sem avaliação local de tema.'}`,
-    `- ${qualityHint?.summary || 'Sem avaliação local de escrita.'}`,
+    '### ALERTAS DA HEURÍSTICA LOCAL:',
+    `- Risco de Cópia: ${copyHint.summary} (Overlap: ${copyHint.overlapScore})`,
+    copyHint.copiedPhrases.length > 0 ? `- Trechos repetidos: ${copyHint.copiedPhrases.join(' | ')}` : '',
+    `- Aderência ao Tema: ${themeHint?.summary || 'N/A'}`,
+    `- Qualidade da Escrita: ${qualityHint?.summary || 'N/A'}`,
   ]
 
   appendResponsePreference(lines, responsePreference)
@@ -751,26 +784,26 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, theme
 }
 
 function dampenEssayCompetenceScore(score) {
+  // Ajuste leve para compensar otimismo natural da IA
+  // Não é punição, é alinhamento com padrão humano
   const value = Number(score) || 0
 
-  if (value >= 190) return value - 14
-  if (value >= 175) return value - 12
-  if (value >= 160) return value - 10
-  if (value >= 145) return value - 8
-  if (value >= 120) return value - 5
-  if (value >= 90) return value - 3
+  if (value >= 195) return value - 3
+  if (value >= 180) return value - 4
+  if (value >= 160) return value - 5
+  if (value >= 140) return value - 4
+  if (value >= 120) return value - 3
+  if (value >= 80) return value - 2
   return value
 }
 
 function dampenEssayTotalScore(score) {
   const value = Number(score) || 0
 
-  if (value >= 900) return value - 55
-  if (value >= 800) return value - 45
-  if (value >= 700) return value - 35
-  if (value >= 600) return value - 25
-  if (value >= 450) return value - 15
-  if (value >= 300) return value - 8
+  if (value >= 950) return value - 15
+  if (value >= 850) return value - 10
+  if (value >= 750) return value - 8
+  if (value >= 600) return value - 5
   return value
 }
 
@@ -804,22 +837,23 @@ function calibrateEssayFeedbackScore(result, context = {}) {
     }
   }
 
-  const topicPenalty = themeHint.fitScore < 0.15
-    ? 0.42
-    : themeHint.fitScore < 0.25
-      ? 0.65
-      : themeHint.fitScore < 0.35
-        ? 0.85
-        : 1
+  // Penalidades mais justas e proporcionais
+  const topicPenalty = themeHint.fitScore < 0.10
+    ? 0.70  // Só penaliza forte se realmente fora do tema
+    : themeHint.fitScore < 0.20
+      ? 0.85  // Penalidade moderada
+      : themeHint.fitScore < 0.30
+        ? 0.92  // Penalidade leve
+        : 1     // Sem penalidade
 
   const overallMultiplier = clampNumber(
-    (0.65 + (themeHint.fitScore * 0.2) + (qualityHint.richnessScore * 0.15)) * topicPenalty,
-    0.5,
+    (0.82 + (themeHint.fitScore * 0.12) + (qualityHint.richnessScore * 0.06)) * topicPenalty,
+    0.7,  // Mínimo mais justo (era 0.5)
     1,
   )
-  const topicMultiplier = clampNumber((0.7 + (themeHint.fitScore * 0.3)) * topicPenalty, 0.45, 1)
-  const supportMultiplier = clampNumber((0.85 + (themeHint.fitScore * 0.15)) * topicPenalty, 0.55, 1)
-  const coesaoMultiplier = clampNumber(0.9 + (qualityHint.richnessScore * 0.1), 0.85, 1)
+  const topicMultiplier = clampNumber((0.85 + (themeHint.fitScore * 0.15)) * topicPenalty, 0.7, 1)
+  const supportMultiplier = clampNumber((0.90 + (themeHint.fitScore * 0.10)) * topicPenalty, 0.75, 1)
+  const coesaoMultiplier = clampNumber(0.92 + (qualityHint.richnessScore * 0.08), 0.90, 1)
 
   const adjustedCompetencias = ensureArray(normalized.competencias).map((competencia) => {
     const baseScore = clampNumber(
@@ -2131,4 +2165,171 @@ export function summarizeMaterial(material) {
   // Helper de compatibilidade para a UI.
   // Se a tela quiser converter material estruturado para texto simples, usa este método.
   return flattenMaterialForPrompt(material)
+}
+
+function buildExamSystemPrompt(area, quantidade, disciplinas, responsePreference) {
+  const areaDescriptions = {
+    'Linguagens': 'linguagens, códigos e suas tecnologias, incluindo gramática, interpretação textual, literatura e artes',
+    'Humanas': 'ciências humanas e suas tecnologias, abrangendo história, geografia, filosofia, sociologia e atualidades',
+    'Natureza': 'ciências da natureza e suas tecnologias, englobando física, química e biologia com abordagem interdisciplinar',
+    'Matematica': 'matemática e suas tecnologias, cobrindo matemática básica, álgebra, geometria, estatística e probabilidade'
+  }
+
+  const disciplinaDescriptions = {
+    'portugues': 'língua portuguesa: gramática, interpretação textual, linguística',
+    'literatura': 'literatura brasileira e portuguesa: movimentos literários, obras e autores',
+    'artes': 'artes: história da arte, movimentos artísticos, análise de obras',
+    'educacao-fisica': 'educação física: esportes, saúde, corpo e sociedade',
+    'ingles': 'língua inglesa: interpretação de textos em inglês',
+    'espanhol': 'língua espanhola: interpretação de textos em espanhol',
+    'historia': 'história: Brasil e mundo, períodos e eventos históricos',
+    'geografia': 'geografia: física, humana, política e econômica',
+    'filosofia': 'filosofia: ética, política, epistemologia, história da filosofia',
+    'sociologia': 'sociologia: sociedade, cultura, desigualdade, movimentos sociais',
+    'biologia': 'biologia: ecologia, genética, evolução, fisiologia',
+    'quimica': 'química: orgânica, inorgânica, físico-química, ambiental',
+    'fisica': 'física: mecânica, termodinâmica, óptica, eletricidade, ondulatória',
+    'matematica': 'matemática: álgebra, geometria, estatística, trigonometria',
+  }
+
+  const areaDescription = areaDescriptions[area] || 'conhecimentos gerais do ENEM'
+  
+  let disciplinaSection = ''
+  if (disciplinas && disciplinas.length > 0) {
+    const disciplinasDesc = disciplinas
+      .map(d => disciplinaDescriptions[d] || d)
+      .join(', ')
+    disciplinaSection = `\n\n### DISCIPLINAS ESPECÍFICAS SOLICITADAS:\n${disciplinasDesc}`
+  }
+
+  const lines = [
+    `Você é um especialista em elaboração de questões para o ENEM (Exame Nacional do Ensino Médio).`,
+    `Sua tarefa é gerar ${quantidade} questões inéditas, bem estruturadas e desafiadoras sobre: ${areaDescription}.${disciplinaSection}`,
+    '',
+    '### REGRAS OBRIGATÓRIAS PARA CADA QUESTÃO:',
+    '1. TEXTO BASE: Use um contexto realista, dados, citações ou situação-problema relevante (2-5 linhas).',
+    '2. ENUNCIADO: Claro, objetivo e alinhado às competências do ENEM.',
+    '3. ALTERNATIVAS: Exatamente 5 opções (A, B, C, D, E), sendo apenas UMA correta.',
+    '4. DISTRATORES: As alternativas incorretas devem ser plausíveis, representando erros comuns ou raciocínios incompletos.',
+    '5. CORRETA: Deve ser claramente a melhor resposta, sem ambiguidades.',
+    '6. EXPLICAÇÃO: Detalhada, técnica e pedagógica (3-5 linhas), explicando por que a correta é correta e por que as outras são incorretas.',
+    '',
+    '### FORMATO DE RESPOSTA (JSON ESTRITO):',
+    'Retorne APENAS JSON válido neste formato exato:',
+    '{',
+    '  "area": "nome da área",',
+    '  "quantidade": número,',
+    '  "questoes": [',
+    '    {',
+    '      "id": "uuid-v4-unico",',
+    '      "textoBase": "texto de apoio contextualizado",',
+    '      "enunciado": "pergunta direta e clara",',
+    '      "alternativas": {',
+    '        "A": "texto da alternativa A",',
+    '        "B": "texto da alternativa B",',
+    '        "C": "texto da alternativa C",',
+    '        "D": "texto da alternativa D",',
+    '        "E": "texto da alternativa E"',
+    '      },',
+    '      "correta": "A ou B ou C ou D ou E",',
+    '      "explicacao": "explicação técnica detalhada"',
+    '    }',
+    '  ]',
+    '}',
+    '',
+    '### IMPORTANTE:',
+    '- Use IDs únicos no formato UUID para cada questão.',
+    '- As alternativas devem ser concisas (1-3 linhas cada).',
+    '- A explicação deve ser completa e educativa.',
+    '- Não repita padrões de questões dentro do mesmo simulado.',
+    '- Mantenha o nível de dificuldade adequado ao ENEM.',
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
+}
+
+export async function generateExam({ area, quantidade = 5, disciplinas = [], responsePreference }) {
+  const systemPrompt = buildExamSystemPrompt(area, quantidade, disciplinas, responsePreference)
+  const userMessages = [
+    {
+      role: 'user',
+      content: `Gere um simulado de ${area} com ${quantidade} questões nível ENEM${disciplinas.length > 0 ? ' focado em: ' + disciplinas.join(', ') : ''}.`,
+    },
+  ]
+
+  try {
+    const result = await runDirectTextProvider({
+      provider: 'groq',
+      systemPrompt,
+      userMessages,
+      modelVariant: 'primary',
+    })
+
+    // Validação e limpeza do resultado
+    if (!result?.questoes || !Array.isArray(result.questoes)) {
+      console.error('[AI][exam] Invalid response structure:', result)
+      throw new Error('Estrutura de resposta inválida')
+    }
+
+    // Garante que cada questão tem ID único
+    const questoes = result.questoes.map((q, index) => {
+      if (!q.id || typeof q.id !== 'string') {
+        q.id = `q-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`
+      }
+      
+      // Validação básica dos campos obrigatórios
+      if (!q.enunciado || !q.alternativas || !q.correta || !q.explicacao) {
+        throw new Error(`Questão ${index + 1} incompleta`)
+      }
+      
+      // Garante que correta é uma letra válida
+      const correta = String(q.correta).toUpperCase().trim()
+      if (!['A', 'B', 'C', 'D', 'E'].includes(correta)) {
+        throw new Error(`Questão ${index + 1}: alternativa correta inválida (${q.correta})`)
+      }
+      
+      return {
+        ...q,
+        correta,
+      }
+    })
+
+    return {
+      ...result,
+      questoes,
+      area: result.area || area,
+      disciplinas,
+      quantidade: questoes.length,
+      geradoEm: new Date().toISOString(),
+    }
+  } catch (error) {
+    console.error('[AI][exam] Primary failed, falling back:', error?.message || error)
+    
+    try {
+      const result = await runPipeline('text', { systemPrompt, userMessages })
+      
+      if (!result?.questoes || !Array.isArray(result.questoes)) {
+        throw new Error('Fallback também retornou estrutura inválida')
+      }
+      
+      const questoes = result.questoes.map((q, index) => ({
+        ...q,
+        id: q.id || `q-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
+        correta: String(q.correta).toUpperCase().trim(),
+      }))
+      
+      return {
+        ...result,
+        questoes,
+        area: result.area || area,
+        disciplinas,
+        quantidade: questoes.length,
+        geradoEm: new Date().toISOString(),
+      }
+    } catch (fallbackError) {
+      console.error('[AI][exam] All providers failed:', fallbackError?.message || fallbackError)
+      throw new Error('Não foi possível gerar o simulado. Tente novamente em instantes.')
+    }
+  }
 }

@@ -1,18 +1,27 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/useAuth.js'
 import { savePolicyConsent } from '../services/policyConsent.js'
 
-const ONBOARDING_KEY = 'apice:onboarding-shown'
-
-function readShouldShowOnboarding() {
-  if (typeof window === 'undefined') return false
-  return !localStorage.getItem(ONBOARDING_KEY)
-}
-
 export function OnboardingModal({ onComplete }) {
+  const { onboardingLoginPending, clearOnboardingLoginPrompt } = useAuth()
   const [step, setStep] = useState(1)
-  const [isVisible, setIsVisible] = useState(readShouldShowOnboarding)
+  const [isVisible, setIsVisible] = useState(Boolean(onboardingLoginPending))
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!onboardingLoginPending) return undefined
+
+    setIsVisible(true)
+
+    try {
+      clearOnboardingLoginPrompt()
+    } catch {
+      // ignore
+    }
+
+    return undefined
+  }, [onboardingLoginPending, clearOnboardingLoginPrompt])
 
   if (!isVisible) return null
 
@@ -22,7 +31,7 @@ export function OnboardingModal({ onComplete }) {
 
   const finishOnboarding = (destination) => {
     savePolicyConsent(true)
-    localStorage.setItem(ONBOARDING_KEY, 'true')
+    clearOnboardingLoginPrompt()
     setIsVisible(false)
     if (onComplete) onComplete()
     navigate(destination, { replace: true })
@@ -157,8 +166,7 @@ const onboardingCss = `
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: none;
+    background: var(--overlay-surface);
     z-index: 10000;
     display: flex;
     align-items: center;
@@ -166,19 +174,14 @@ const onboardingCss = `
     padding: 20px;
   }
 
-  html[data-fx="blur"] .onboarding-overlay {
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-  }
-
   .onboarding-card {
-    background: var(--bg2);
-    border: 1px solid var(--border);
+    background: var(--modal-surface);
+    border: 1px solid var(--modal-border);
     border-radius: 28px;
     width: 100%;
     max-width: 480px;
     padding: 2.5rem 2rem;
-    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--modal-shadow);
     position: relative;
   }
 

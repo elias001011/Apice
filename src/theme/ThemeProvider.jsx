@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 
 const STORAGE_KEY_THEME = 'apice:theme'
 const STORAGE_KEY_ACCENT = 'apice:accent'
@@ -15,6 +15,7 @@ const MOBILE_LAYOUT_QUERY = '(max-width: 767px)'
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
 const VALID_CONTAINER_SIZES = new Set(['sm', 'md', 'lg'])
+const VALID_VISUAL_EFFECTS = new Set(['none', 'gradients'])
 
 function readSaved(key, defaultVal) {
   try {
@@ -53,6 +54,10 @@ function getIsMobileLayout() {
 
 function normalizeContainerSize(size) {
   return VALID_CONTAINER_SIZES.has(size) ? size : 'sm'
+}
+
+function normalizeVisualEffects(value) {
+  return VALID_VISUAL_EFFECTS.has(value) ? value : 'gradients'
 }
 
 function attachMediaQueryListener(mediaQuery, handler) {
@@ -125,7 +130,19 @@ function applyFontFamily(fontFamily) {
   }
 }
 
-function updateBrandAssets() {
+function buildBrandFaviconHref(accentColor) {
+  const accent = accentColor || '#b8e84f'
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+      <polyline points="3 17 9 11 13 15 21 7" stroke="${accent}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+      <polyline points="14 7 21 7 21 14" stroke="${accent}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  `
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
+}
+
+function updateBrandAssets(accentColor) {
   if (typeof document === 'undefined') return
 
   let themeMeta = document.querySelector('meta[name="theme-color"]')
@@ -135,6 +152,15 @@ function updateBrandAssets() {
     document.head.appendChild(themeMeta)
   }
   themeMeta.setAttribute('content', '#000000')
+
+  let faviconLink = document.querySelector('link[rel="icon"]')
+  if (!faviconLink) {
+    faviconLink = document.createElement('link')
+    faviconLink.rel = 'icon'
+    document.head.appendChild(faviconLink)
+  }
+  faviconLink.setAttribute('type', 'image/svg+xml')
+  faviconLink.setAttribute('href', buildBrandFaviconHref(accentColor))
 }
 
 function applyLayoutToDom(layoutMode) {
@@ -148,9 +174,10 @@ function applyLayoutToDom(layoutMode) {
 
 function applyUiPreferencesToDom(animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled) {
   const html = document.documentElement
+  const safeVisualEffects = normalizeVisualEffects(visualEffects)
   html.setAttribute('data-animations', animationsEnabled ? 'on' : 'off')
   html.setAttribute('data-card-hover', cardHoverEffects ? 'on' : 'off')
-  html.setAttribute('data-fx', visualEffects || 'gradients')
+  html.setAttribute('data-fx', safeVisualEffects)
   html.setAttribute('data-card-gradients', cardGradientsEnabled ? 'on' : 'off')
 }
 
@@ -173,7 +200,7 @@ function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
   html.style.setProperty('--accent-dim2', colors.dim2)
 
   applyFontFamily(fontFamily || 'dm-sans')
-  updateBrandAssets()
+  updateBrandAssets(colors.base)
 }
 
 function syncThemeFromStorage(
@@ -196,7 +223,7 @@ function syncThemeFromStorage(
   setContainerSize(readSaved(STORAGE_KEY_CONTAINER_SIZE, 'sm'))
   setAnimationsEnabled(readSavedBoolean(STORAGE_KEY_ANIMATIONS, getSystemAnimationsEnabled()))
   setCardHoverEffects(readSavedBoolean(STORAGE_KEY_CARD_HOVER, !getIsMobileLayout()))
-  setVisualEffects(readSaved(STORAGE_KEY_VISUAL_EFFECTS, 'gradients'))
+  setVisualEffects(normalizeVisualEffects(readSaved(STORAGE_KEY_VISUAL_EFFECTS, 'gradients')))
   setCardGradientsEnabled(readSavedBoolean(STORAGE_KEY_CARD_GRADIENTS, false))
 }
 
@@ -211,15 +238,27 @@ export function ThemeProvider({ children }) {
   const [containerSize, setContainerSize] = useState(() => readSaved(STORAGE_KEY_CONTAINER_SIZE, 'sm'))
   const [animationsEnabled, setAnimationsEnabled] = useState(() => readSavedBoolean(STORAGE_KEY_ANIMATIONS, getSystemAnimationsEnabled()))
   const [cardHoverEffects, setCardHoverEffects] = useState(() => readSavedBoolean(STORAGE_KEY_CARD_HOVER, !getIsMobileLayout()))
-  const [visualEffects, setVisualEffects] = useState(() => readSaved(STORAGE_KEY_VISUAL_EFFECTS, 'gradients'))
+  const [visualEffects, setVisualEffects] = useState(() => normalizeVisualEffects(readSaved(STORAGE_KEY_VISUAL_EFFECTS, 'gradients')))
   const [cardGradientsEnabled, setCardGradientsEnabled] = useState(() => readSavedBoolean(STORAGE_KEY_CARD_GRADIENTS, false))
   const [isMobileLayout, setIsMobileLayout] = useState(() => getIsMobileLayout())
   const resolvedContainerSize = isMobileLayout ? 'sm' : normalizeContainerSize(containerSize)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyThemeToDom(theme, accent, fontSize, fontFamily, resolvedContainerSize)
     applyUiPreferencesToDom(animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled)
     applyLayoutToDom(layoutMode)
+  }, [theme, accent, fontSize, fontFamily, layoutMode, resolvedContainerSize, animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled])
+
+  useEffect(() => {
+    // NOTA: Removemos o auto-toggle que forçava cardGradientsEnabled baseado em visualEffects.
+    // Agora o usuário controla gradientes nos cards independentemente dos efeitos visuais.
+    // Apenas garantimos que se efeitos visuais NÃO forem gradientes, gradientes nos cards ficam off.
+    if (visualEffects !== 'gradients' && cardGradientsEnabled) {
+      setCardGradientsEnabled(false)
+    }
+  }, [visualEffects, cardGradientsEnabled])
+
+  useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_THEME, theme)
       localStorage.setItem(STORAGE_KEY_ACCENT, accent)
@@ -229,13 +268,13 @@ export function ThemeProvider({ children }) {
       localStorage.setItem(STORAGE_KEY_CONTAINER_SIZE, containerSize)
       localStorage.setItem(STORAGE_KEY_ANIMATIONS, String(animationsEnabled))
       localStorage.setItem(STORAGE_KEY_CARD_HOVER, String(cardHoverEffects))
-      localStorage.setItem(STORAGE_KEY_VISUAL_EFFECTS, visualEffects)
+      localStorage.setItem(STORAGE_KEY_VISUAL_EFFECTS, normalizeVisualEffects(visualEffects))
       localStorage.setItem(STORAGE_KEY_CARD_GRADIENTS, String(cardGradientsEnabled))
       window.dispatchEvent(new CustomEvent('apice:theme-updated'))
     } catch {
       // ignore
     }
-  }, [theme, accent, fontSize, fontFamily, layoutMode, resolvedContainerSize, containerSize, animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled])
+  }, [theme, accent, fontSize, fontFamily, layoutMode, containerSize, animationsEnabled, cardHoverEffects, visualEffects, cardGradientsEnabled])
 
   useEffect(() => {
     const refresh = () => syncThemeFromStorage(

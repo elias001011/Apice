@@ -262,37 +262,15 @@ function buildMinimalEssayFeedback(feedback, fallbackNota = 0) {
   if (!feedback || typeof feedback !== 'object') {
     return {
       notaTotal: Number.isFinite(Number(fallbackNota)) ? Number(fallbackNota) : 0,
-      competencias: [],
-      pontoForte: '',
-      atencao: '',
-      principalMelhorar: '',
-      errosPt: [],
     }
   }
 
   const normalized = normalizeEssayFeedbackScore(feedback, fallbackNota)
-  const competencias = Array.isArray(normalized?.competencias)
-    ? normalized.competencias.slice(0, 5).map((competencia) => ({
-        nome: String(competencia?.nome ?? '').trim(),
-        nota: Number.isFinite(Number(competencia?.nota)) ? Number(competencia.nota) : 0,
-      }))
-    : []
 
   return {
     notaTotal: Number.isFinite(Number(normalized?.notaTotal))
       ? Number(normalized.notaTotal)
       : (Number.isFinite(Number(fallbackNota)) ? Number(fallbackNota) : 0),
-    competencias,
-    pontoForte: String(feedback.pontoForte ?? '').trim(),
-    atencao: String(feedback.atencao ?? '').trim(),
-    principalMelhorar: String(feedback.principalMelhorar ?? '').trim(),
-    errosPt: Array.isArray(feedback.errosPt)
-      ? feedback.errosPt.slice(0, 5).map((erro) => ({
-          errado: String(erro?.errado ?? '').trim(),
-          corrigido: String(erro?.corrigido ?? '').trim(),
-          motivo: String(erro?.motivo ?? '').trim(),
-        }))
-      : [],
   }
 }
 
@@ -300,23 +278,58 @@ export function compactCloudEssayHistoryEntry(item) {
   if (!item || typeof item !== 'object') return null
 
   const feedback = buildMinimalEssayFeedback(item.feedback, item.nota)
-  const previewSource = typeof item.preview === 'string' && item.preview.trim()
-    ? item.preview
-    : typeof item.redacao === 'string' && item.redacao.trim()
-      ? item.redacao
-      : typeof item.tema === 'string'
-        ? item.tema
-        : ''
+
+  return {
+    id: item.id ?? Date.now(),
+    data: typeof item.data === 'string' ? item.data : new Date().toISOString(),
+    tema: typeof item.tema === 'string' ? item.tema.slice(0, 40) : '',
+    nota: Number.isFinite(Number(feedback?.notaTotal))
+      ? Number(feedback.notaTotal)
+      : (Number.isFinite(Number(item.nota)) ? Number(item.nota) : 0),
+  }
+}
+
+/**
+ * Versão EXPANDIDA para nuvem: inclui TODOS os índices de feedback
+ * (competências, errosPt, pontoForte, atencao, principalMelhorar)
+ * SEM a redação completa e SEM preview
+ */
+export function compactCloudEssayHistoryEntryFull(item) {
+  if (!item || typeof item !== 'object') return null
+
+  const feedback = item.feedback && typeof item.feedback === 'object'
+    ? {
+        notaTotal: Number.isFinite(Number(item.feedback.notaTotal))
+          ? Number(item.feedback.notaTotal)
+          : (Number.isFinite(Number(item.nota)) ? Number(item.nota) : 0),
+        competencias: Array.isArray(item.feedback.competencias)
+          ? item.feedback.competencias.map((c) => ({
+              nome: String(c?.nome ?? '').trim(),
+              nota: Number.isFinite(Number(c?.nota)) ? Number(c.nota) : 0,
+            }))
+          : [],
+        errosPt: Array.isArray(item.feedback.errosPt)
+          ? item.feedback.errosPt.slice(0, 10).map((e) => ({
+              errado: String(e?.errado ?? '').trim(),
+              corrigido: String(e?.corrigido ?? '').trim(),
+              motivo: String(e?.motivo ?? '').trim(),
+            }))
+          : [],
+        pontoForte: String(item.feedback.pontoForte ?? '').trim(),
+        atencao: String(item.feedback.atencao ?? '').trim(),
+        principalMelhorar: String(item.feedback.principalMelhorar ?? '').trim(),
+      }
+    : {
+        notaTotal: Number.isFinite(Number(item.nota)) ? Number(item.nota) : 0,
+      }
 
   return {
     id: item.id ?? Date.now(),
     data: typeof item.data === 'string' ? item.data : new Date().toISOString(),
     tema: typeof item.tema === 'string' ? item.tema : '',
-    preview: String(previewSource).trim().slice(0, 120),
-    nota: Number.isFinite(Number(feedback?.notaTotal))
-      ? Number(feedback.notaTotal)
-      : (Number.isFinite(Number(item.nota)) ? Number(item.nota) : 0),
+    nota: feedback.notaTotal,
     feedback,
+    // SEM redacao, SEM preview
   }
 }
 

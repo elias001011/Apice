@@ -209,8 +209,8 @@ const editCss = `
   }
 
   .form-msg.success {
-    background: rgba(200, 240, 96, 0.1);
-    border: 1px solid rgba(200, 240, 96, 0.22);
+    background: rgba(var(--accent-rgb), 0.1);
+    border: 1px solid rgba(var(--accent-rgb), 0.22);
     color: var(--accent);
   }
 

@@ -12,3 +12,8 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Configuração específica para a branch LandingPage
+[context.LandingPage]
+  command = "npm run build"
+  publish = "dist"

@@ -21,6 +21,9 @@ export const FREE_PLAN_LIMITS = {
   directModelCall: {
     label: 'IA direta',
   },
+  professorChat: {
+    label: 'Professor IA',
+  },
   radarSearch: {
     label: 'Radar: busca',
   },
@@ -138,7 +141,9 @@ export function setPlanTier(tier) {
   }
 
   if (normalizedTier === 'trial') {
-    setBillingStatus('trial')
+    setBillingStatus('trial', {
+      trialKind: 'standard',
+    })
     return
   }
 

@@ -2,15 +2,20 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import GoTrue from 'gotrue-js'
 import { AuthContext } from './authContext.js'
 import {
-  applyAccountSnapshot,
-  buildAccountSnapshot,
-  extractAccountSnapshot,
-} from '../services/accountSnapshot.js'
-import {
   clearVerificationPassword,
   resendVerificationEmail,
   requestAccountDeletion,
 } from '../services/identityAuth.js'
+import { registerAuthTokenGetter } from '../services/authFetch.js'
+import {
+  pullStateFromCloud,
+  pushStateToCloud,
+  clearLocalCloudSync,
+} from '../services/cloudSync.js'
+import {
+  isWelcomePremiumActive,
+  maybeGrantWelcomePremiumForUser,
+} from '../services/billingState.js'
 import { refreshUserSummaryFromHistory } from '../services/userSummary.js'
 
 // Configure GoTrue instance
@@ -34,9 +39,36 @@ function pickSafeUserMetadata(metadata) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => auth.currentUser() || null)
   const [loading, setLoading] = useState(true)
+  const [pendingOnboardingLogin, setPendingOnboardingLogin] = useState(false)
   const syncLockRef = useRef(false)
-  const lastSyncedSnapshotRef = useRef('')
-  const syncSuspendedRef = useRef(false)
+
+  const armOnboardingAfterLogin = useCallback(() => {
+    setPendingOnboardingLogin(true)
+  }, [])
+
+  const clearOnboardingAfterLogin = useCallback(() => {
+    setPendingOnboardingLogin(false)
+  }, [])
+
+  // Register the JWT getter so authFetch can send Authorization: Bearer header.
+  // Previously we sent X-User-Id (forjável) because user_metadata inflated JWTs.
+  // Now that apice_state was moved to Blobs, JWTs are light again (~300 chars).
+  useEffect(() => {
+    registerAuthTokenGetter(async () => {
+      const currentUser = auth.currentUser()
+      if (!currentUser) return ''
+      try {
+        // GoTrue .jwt() refreshes the token if expired and returns the JWT string
+        const token = await currentUser.jwt()
+        return token || ''
+      } catch (err) {
+        console.warn('[AuthProvider] Falha ao obter JWT:', err.message)
+        // Fallback: return userId so authFetch can still send X-User-Id
+        return currentUser.id ? `__userid__${currentUser.id}` : ''
+      }
+    })
+    return () => registerAuthTokenGetter(null)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -46,22 +78,45 @@ export function AuthProvider({ children }) {
         const validatedUser = await auth.validateCurrentSession()
         if (cancelled) return
 
-        setUser(validatedUser)
         if (!validatedUser) {
-          syncLockRef.current = false
-          lastSyncedSnapshotRef.current = ''
+          // Sessão inválida/expirada — limpar dados locais para evitar corrupção
+          console.warn('[AuthProvider] Sessão inválida ou expirada. Limpando dados locais.')
+          if (typeof window !== 'undefined' && window.localStorage) {
+            // Remove apenas dados da app, mantém onboarding e preferências de UI
+            const appKeys = []
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i)
+              if (key && (key.startsWith('apice:') || key === 'gotrue.user')) {
+                appKeys.push(key)
+              }
+            }
+            appKeys.forEach(key => {
+              try { localStorage.removeItem(key) } catch {
+                // Falha silenciosa ao limpar chave individual
+              }
+            })
+            console.log(`[AuthProvider] ${appKeys.length} chaves locais removidas (sessão inválida)`)
+          }
+          setUser(null)
+        } else {
+          setUser(validatedUser)
         }
       } catch (error) {
-        console.error('Auth session validation error:', error)
+        console.error('[AuthProvider] Erro ao validar sessão:', error.message)
         if (!cancelled) {
+          // Em caso de erro inesperado, também limpa para segurança
+          if (typeof window !== 'undefined' && window.localStorage) {
+            try {
+              const gotrueUser = localStorage.getItem('gotrue.user')
+              if (gotrueUser) localStorage.removeItem('gotrue.user')
+            } catch {
+              // Falha silenciosa ao limpar sessão
+            }
+          }
           setUser(null)
-          syncLockRef.current = false
-          lastSyncedSnapshotRef.current = ''
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
+        if (!cancelled) setLoading(false)
       }
     }
 
@@ -72,115 +127,163 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const syncLocalStateToCloud = useCallback(async () => {
-    if (!user || syncLockRef.current || syncSuspendedRef.current) return null
+  useEffect(() => {
+    if (!user) {
+      setPendingOnboardingLogin(false)
+    }
+  }, [user])
 
-    const currentUser = auth.currentUser()
-    if (!currentUser) return null
+  // ── Cloud Sync via Netlify Blobs (NÃO via user_metadata/JWT) ────────────
 
-    const snapshot = buildAccountSnapshot(currentUser)
-    const serialized = JSON.stringify(snapshot)
-    if (serialized === lastSyncedSnapshotRef.current) {
-      return snapshot
+  // No login, restaura estado da nuvem e aplica no localStorage
+  // IMPORTANTE: Só fazer pull da nuvem no primeiro login, não a cada reload
+  // para não destruir dados do localStorage que ainda não foram syncados
+  useEffect(() => {
+    if (!user) return
+
+    // Verifica se já fizemos cloud pull nesta sessão (previne duplicação em reloads)
+    const cloudPullKey = 'apice:cloud-session:has-pulled'
+    const hasPulled = typeof window !== 'undefined'
+      && window.sessionStorage
+      && window.sessionStorage.getItem(cloudPullKey) === '1'
+
+    if (hasPulled) {
+      console.log('[AuthProvider] Cloud pull já feito nesta sessão, pulando (dados locais preservados)')
+      return
     }
 
-    syncLockRef.current = true
-    try {
-      const updatedUser = await currentUser.update({
-        data: {
-          ...pickSafeUserMetadata(currentUser.user_metadata),
-          full_name: snapshot.profile.full_name,
-          first_name: snapshot.profile.first_name,
-          school: snapshot.profile.school,
-          apice_state: snapshot,
-        },
+    let cancelled = false
+
+    const restoreCloudState = async () => {
+      try {
+        // Puxa estado da nuvem e aplica no localStorage
+        const pulled = await pullStateFromCloud()
+
+        if (!cancelled && pulled) {
+          console.log('[AuthProvider] Estado restaurado da nuvem com sucesso')
+        } else if (!cancelled && !pulled) {
+          console.warn('[AuthProvider] Falha ao restaurar estado da nuvem. Dados locais preservados.')
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[AuthProvider] Erro inesperado no cloud restore:', err.message)
+        }
+      } finally {
+        // Marca que já fizemos pull nesta sessão (mesmo se falhou)
+        if (typeof window !== 'undefined' && window.sessionStorage && !cancelled) {
+          try { window.sessionStorage.setItem(cloudPullKey, '1') } catch {}
+        }
+      }
+    }
+
+    void restoreCloudState()
+
+    return () => { cancelled = true }
+  }, [user])
+
+  // Sync de mudanças do localStorage → nuvem (debounced)
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    let syncTimeout = null
+
+    const scheduleSync = () => {
+      if (syncTimeout) clearTimeout(syncTimeout)
+      // Debounce de 2s para não chamar a API a cada tecla
+      syncTimeout = setTimeout(async () => {
+        if (!cancelled && !syncLockRef.current) {
+          syncLockRef.current = true
+          try {
+            await pushStateToCloud(user)
+          } catch (err) {
+            console.error('[AuthProvider] Erro no cloud sync:', err.message)
+            // Se falhou, pode ser auth expirada — reset lock para próxima tentativa
+            syncLockRef.current = false
+            return
+          }
+          syncLockRef.current = false
+        }
+      }, 2000)
+    }
+
+    const events = [
+      'apice:historico-updated',
+      'apice:free-plan-usage-updated',
+      'apice:enem-date-updated',
+      'apice:radar-favorites-updated',
+      'apice:radar-state-updated',
+      'apice:theme-updated',
+      'apice:user-summary-updated',
+      'apice:ai-response-preferences-updated',
+      'apice:avatar-settings-updated',
+      'apice:notificacoes-updated',
+      'apice:conquistas-updated',
+    ]
+
+    events.forEach(event => {
+      window.addEventListener(event, scheduleSync)
+    })
+
+    // Primeira sync ao montar
+    void refreshUserSummaryFromHistory()
+    scheduleSync()
+
+    return () => {
+      cancelled = true
+      if (syncTimeout) clearTimeout(syncTimeout)
+      events.forEach(event => {
+        window.removeEventListener(event, scheduleSync)
       })
-      setUser(updatedUser)
-      lastSyncedSnapshotRef.current = serialized
-      return snapshot
-    } catch (error) {
-      console.error('Account sync error:', error)
-      return null
-    } finally {
-      window.setTimeout(() => {
-        syncLockRef.current = false
-      }, 0)
     }
   }, [user])
 
   useEffect(() => {
-    if (!user) {
-      syncLockRef.current = false
-      lastSyncedSnapshotRef.current = ''
-      syncSuspendedRef.current = false
-      return undefined
-    }
+    if (!user) return
 
     let cancelled = false
-    const remoteSnapshot = extractAccountSnapshot(user)
 
-    if (remoteSnapshot) {
-      const serialized = JSON.stringify(remoteSnapshot)
-      if (serialized !== lastSyncedSnapshotRef.current) {
-        syncLockRef.current = true
-        applyAccountSnapshot(remoteSnapshot)
-        lastSyncedSnapshotRef.current = serialized
-        window.setTimeout(() => {
-          syncLockRef.current = false
-        }, 0)
+    const grantWelcomePremium = async () => {
+      try {
+        const result = maybeGrantWelcomePremiumForUser(user)
+        if (cancelled) return
+
+        if (result.applied || isWelcomePremiumActive()) {
+          window.dispatchEvent(new CustomEvent('apice:free-plan-usage-updated'))
+        }
+      } catch (error) {
+        console.error('[AuthProvider] Erro ao avaliar premium temporário:', error?.message || error)
       }
     }
 
-    const handleAccountStateChange = () => {
-      void syncLocalStateToCloud()
-    }
-
-    window.addEventListener('apice:historico-updated', handleAccountStateChange)
-    window.addEventListener('apice:free-plan-usage-updated', handleAccountStateChange)
-    window.addEventListener('apice:enem-date-updated', handleAccountStateChange)
-    window.addEventListener('apice:radar-favorites-updated', handleAccountStateChange)
-    window.addEventListener('apice:radar-state-updated', handleAccountStateChange)
-    window.addEventListener('apice:theme-updated', handleAccountStateChange)
-    window.addEventListener('apice:user-summary-updated', handleAccountStateChange)
-    window.addEventListener('apice:ai-response-preferences-updated', handleAccountStateChange)
-    window.addEventListener('apice:avatar-settings-updated', handleAccountStateChange)
-    window.addEventListener('apice:notificacoes-updated', handleAccountStateChange)
-    window.addEventListener('apice:conquistas-updated', handleAccountStateChange)
-
-    const initializeCloudState = async () => {
-      await refreshUserSummaryFromHistory()
-      if (!cancelled) {
-        void syncLocalStateToCloud()
-      }
-    }
-
-    void initializeCloudState()
+    void grantWelcomePremium()
 
     return () => {
       cancelled = true
-      window.removeEventListener('apice:historico-updated', handleAccountStateChange)
-      window.removeEventListener('apice:free-plan-usage-updated', handleAccountStateChange)
-      window.removeEventListener('apice:enem-date-updated', handleAccountStateChange)
-      window.removeEventListener('apice:radar-favorites-updated', handleAccountStateChange)
-      window.removeEventListener('apice:radar-state-updated', handleAccountStateChange)
-      window.removeEventListener('apice:theme-updated', handleAccountStateChange)
-      window.removeEventListener('apice:user-summary-updated', handleAccountStateChange)
-      window.removeEventListener('apice:ai-response-preferences-updated', handleAccountStateChange)
-      window.removeEventListener('apice:avatar-settings-updated', handleAccountStateChange)
-      window.removeEventListener('apice:notificacoes-updated', handleAccountStateChange)
-      window.removeEventListener('apice:conquistas-updated', handleAccountStateChange)
     }
-  }, [user, syncLocalStateToCloud])
+  }, [user])
 
   const signup = async (email, password, data) => {
-    return await auth.signup(email, password, data)
+    const response = await auth.signup(email, password, data)
+
+    if (response) {
+      try {
+        maybeGrantWelcomePremiumForUser(response)
+      } catch (error) {
+        console.warn('[AuthProvider] Não foi possível aplicar premium temporário no signup:', error?.message || error)
+      }
+    }
+
+    return response
   }
 
   const confirmAccount = async (token) => {
     const response = await auth.confirm(token, true)
     clearVerificationPassword()
     // Após confirmar, o GoTrue retorna o usuário logado
-    if (response) setUser(response)
+    if (response) {
+      setUser(response)
+      armOnboardingAfterLogin()
+    }
     return response
   }
 
@@ -192,6 +295,7 @@ export function AuthProvider({ children }) {
     const response = await auth.login(email, password, remember)
     clearVerificationPassword()
     setUser(response)
+    armOnboardingAfterLogin()
     return response
   }
 
@@ -199,11 +303,11 @@ export function AuthProvider({ children }) {
     const response = await auth.recover(token, true)
     clearVerificationPassword()
     setUser(response)
+    armOnboardingAfterLogin()
     return response
   }
 
   const logout = async () => {
-    syncSuspendedRef.current = true
     const currentUser = auth.currentUser()
     if (currentUser) {
       try {
@@ -213,26 +317,34 @@ export function AuthProvider({ children }) {
       }
     }
     clearVerificationPassword()
-    // Limpeza total do localStorage para isolamento de contas
+    clearOnboardingAfterLogin()
+    // Limpeza total do localStorage
     if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.clear()
+      Object.keys(localStorage).forEach(key => localStorage.removeItem(key))
     }
+    // Limpa flag de cloud pull para permitir pull limpo no próximo login
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      try { window.sessionStorage.removeItem('apice:cloud-session:has-pulled') } catch {}
+    }
+    clearLocalCloudSync()
     syncLockRef.current = false
-    lastSyncedSnapshotRef.current = ''
     setUser(null)
   }
 
   const deleteAccount = async () => {
-    syncSuspendedRef.current = true
     try {
       const result = await requestAccountDeletion(auth)
       clearVerificationPassword()
+      clearOnboardingAfterLogin()
+      // Limpeza agressiva antes do logout
+      if (typeof window !== 'undefined' && window.localStorage) {
+        Object.keys(localStorage).forEach(key => localStorage.removeItem(key))
+      }
+      clearLocalCloudSync()
       await logout()
       return result
     } finally {
-      if (auth.currentUser()) {
-        syncSuspendedRef.current = false
-      }
+      syncLockRef.current = false
     }
   }
 
@@ -241,9 +353,17 @@ export function AuthProvider({ children }) {
     if (currentUser) {
       const nextAttributes = { ...attributes }
       if (nextAttributes.data && typeof nextAttributes.data === 'object') {
+        // M-04 FIX: Apply pickSafeUserMetadata AFTER user-supplied data
+        // so that only the allowed fields survive. This prevents callers
+        // from injecting arbitrary keys like 'roles' or 'app_metadata'.
+        const safeBase = pickSafeUserMetadata(currentUser.user_metadata)
+        const userSupplied = nextAttributes.data
         nextAttributes.data = {
-          ...pickSafeUserMetadata(currentUser.user_metadata),
-          ...nextAttributes.data,
+          ...safeBase,
+          full_name: String(userSupplied.full_name ?? safeBase.full_name).trim(),
+          first_name: String(userSupplied.first_name ?? safeBase.first_name).trim(),
+          school: String(userSupplied.school ?? safeBase.school).trim(),
+          // NO apice_state — all app state goes to Netlify Blobs via cloudSync
         }
       }
 
@@ -271,6 +391,8 @@ export function AuthProvider({ children }) {
     updateAccount,
     updateMetadata,
     auth,
+    onboardingLoginPending: pendingOnboardingLogin,
+    clearOnboardingLoginPrompt: clearOnboardingAfterLogin,
   }
 
   return (

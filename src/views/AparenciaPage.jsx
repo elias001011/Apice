@@ -11,6 +11,19 @@ const ACCENT_OPTIONS = [
   { key: 'pink',   label: 'Rosa', light: '#f04fbc', dark: '#f060d8' },
 ]
 
+const VISUAL_EFFECT_OPTIONS = [
+  {
+    key: 'none',
+    label: 'Desligado',
+    sub: 'Superfícies sólidas, sem efeitos decorativos. Visual minimalista e limpo.',
+  },
+  {
+    key: 'gradients',
+    label: 'Gradiente',
+    sub: 'Gradientes sutis no fundo do app e nos cards de destaque. Cards comuns permanecem limpos.',
+  },
+]
+
 export function AparenciaPage() {
   const {
     theme,
@@ -114,11 +127,7 @@ export function AparenciaPage() {
           <div className="card anim anim-d4">
             <div className="card-title">Efeitos Visuais</div>
             <div className="ap-fx-options">
-              {[
-                { key: 'none', label: 'Desligado', sub: 'Interface limpa, sem gradientes decorativos nos cards ou no fundo.' },
-                { key: 'gradients', label: 'Gradiente', sub: 'Gradientes sutis no fundo, header e alguns elementos destacados.' },
-                { key: 'blur', label: 'Vidro leve', sub: 'Vidro discreto em navegação, modais e cards pontuais sobrepostos.' },
-              ].map(f => (
+              {VISUAL_EFFECT_OPTIONS.map(f => (
                 <button
                   key={f.key}
                   className={`ap-fx-btn ${visualEffects === f.key ? 'active' : ''}`}
@@ -267,10 +276,6 @@ export function AparenciaPage() {
                 <span className="toggle-knob" />
               </button>
             </div>
-
-            <div className="card-footer-tip" style={{ marginTop: '12px', fontSize: '0.72rem', opacity: 0.5, textAlign: 'center' }}>
-              Essas preferências acompanham sua conta e são reaplicadas na nuvem.
-            </div>
           </div>
 
           {/* ── TAMANHO DO CONTEÚDO (DESKTOP) ── */}
@@ -293,7 +298,7 @@ export function AparenciaPage() {
                   </button>
                 ))}
               </div>
-              <div className="card-footer-tip" style={{ marginTop: '12px', fontSize: '0.72rem', opacity: 0.5, textAlign: 'center' }}>
+              <div className="card-footer-tip">
                 Dica: O Corretor mantém sua largura ideal independente desta escolha.
               </div>
             </div>
@@ -301,16 +306,16 @@ export function AparenciaPage() {
 
           {/* ── PREVIEW AO VIVO ── */}
           <div className="card ap-preview anim anim-d4">
-            <div className="card-title">Preview ao vivo</div>
+            <div className="card-title">Iniciar</div>
             <div className="ap-preview-box">
               <div className="ap-preview-badge" style={{ background: accentHex, color: '#0f0f0f' }}>Ápice</div>
               <div className="ap-preview-title">Redação nota 1000</div>
               <div className="ap-preview-text">
-                Escreva textos argumentativos com clareza e estrutura perfeita para o ENEM.
+                Volte para a home e comece a usar as funções do app com o visual que você acabou de montar.
               </div>
-              <button className="ap-preview-btn" style={{ background: accentHex, color: '#0f0f0f' }}>
-                Começar agora →
-              </button>
+              <Link to="/home" className="ap-preview-btn" style={{ background: accentHex, color: '#0f0f0f' }}>
+                Ir para a home →
+              </Link>
             </div>
           </div>
         </div>
@@ -323,6 +328,14 @@ export function AparenciaPage() {
 const aparenciaCss = `
   /* ── GRADE APARÊNCIA ── */
   /* no mobile: coluna única (aplica-se pelo global.css .aparencia-grid) */
+
+  .card-footer-tip {
+    margin-top: 12px;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    opacity: 0.58;
+    text-align: center;
+  }
 
   /* ── TEMA ── */
   .theme-preview-icons {
@@ -338,12 +351,13 @@ const aparenciaCss = `
     gap: 6px;
     padding: 12px 8px;
     border-radius: 12px;
-    border: 1.5px solid var(--border2);
-    background: var(--bg3);
+    border: 1px solid rgba(var(--accent-rgb), 0.08);
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 40%), var(--bg3);
     cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
+    transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
     font-size: 0.8rem;
     color: var(--text2);
+    box-shadow: 0 12px 28px rgba(8, 9, 4, 0.05);
   }
   .theme-icon-opt svg {
     width: 22px;
@@ -351,12 +365,12 @@ const aparenciaCss = `
     stroke: var(--text2);
   }
   .theme-icon-opt.selected {
-    border-color: var(--accent);
+    border-color: rgba(var(--accent-rgb), 0.18);
     background: var(--accent-dim);
     color: var(--accent);
   }
   .theme-icon-opt.selected svg { stroke: var(--accent); }
-  .theme-icon-opt:hover:not(.selected) { border-color: var(--border2); background: var(--bg3); opacity: 0.85; }
+  .theme-icon-opt:hover:not(.selected) { border-color: rgba(var(--accent-rgb), 0.14); background: var(--bg3); opacity: 0.96; transform: translateY(-1px); }
 
   /* ── CORES ── */
   .ap-color-grid {
@@ -370,17 +384,18 @@ const aparenciaCss = `
     gap: 10px;
     padding: 9px 12px;
     border-radius: 12px;
-    border: 1.5px solid var(--border2);
-    background: var(--bg3);
+    border: 1px solid rgba(var(--accent-rgb), 0.08);
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 40%), var(--bg3);
     cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
+    transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
     width: 100%;
     text-align: left;
     position: relative;
+    box-shadow: 0 12px 28px rgba(8, 9, 4, 0.05);
   }
-  .ap-color-btn:hover { border-color: var(--accent); }
+  .ap-color-btn:hover { border-color: rgba(var(--accent-rgb), 0.18); transform: translateY(-1px); }
   .ap-color-btn.active {
-    border-color: var(--accent);
+    border-color: rgba(var(--accent-rgb), 0.2);
     background: var(--accent-dim);
   }
   .ap-color-circle {
@@ -418,16 +433,17 @@ const aparenciaCss = `
     gap: 12px;
     padding: 12px 14px;
     border-radius: 12px;
-    border: 1.5px solid var(--border2);
-    background: var(--bg3);
+    border: 1px solid rgba(var(--accent-rgb), 0.08);
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 40%), var(--bg3);
     cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
+    transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
     width: 100%;
     position: relative;
+    box-shadow: 0 12px 28px rgba(8, 9, 4, 0.05);
   }
-  .ap-font-btn:hover { border-color: var(--accent); }
+  .ap-font-btn:hover { border-color: rgba(var(--accent-rgb), 0.18); transform: translateY(-1px); }
   .ap-font-btn.active {
-    border-color: var(--accent);
+    border-color: rgba(var(--accent-rgb), 0.2);
     background: var(--accent-dim);
   }
   .ap-font-preview {
@@ -464,17 +480,18 @@ const aparenciaCss = `
     gap: 12px;
     padding: 12px 14px;
     border-radius: 12px;
-    border: 1.5px solid var(--border2);
-    background: var(--bg3);
+    border: 1px solid rgba(var(--accent-rgb), 0.08);
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 40%), var(--bg3);
     cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
+    transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
     width: 100%;
     position: relative;
     text-align: left;
+    box-shadow: 0 12px 28px rgba(8, 9, 4, 0.05);
   }
-  .ap-fx-btn:hover { border-color: var(--accent); }
+  .ap-fx-btn:hover { border-color: rgba(var(--accent-rgb), 0.18); transform: translateY(-1px); }
   .ap-fx-btn.active {
-    border-color: var(--accent);
+    border-color: rgba(var(--accent-rgb), 0.2);
     background: var(--accent-dim);
   }
   .ap-fx-content {
@@ -528,19 +545,20 @@ const aparenciaCss = `
     gap: 4px;
     padding: 12px 8px;
     border-radius: 12px;
-    border: 1.5px solid var(--border2);
-    background: var(--bg3);
+    border: 1px solid rgba(var(--accent-rgb), 0.08);
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 40%), var(--bg3);
     cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
+    transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
     font-family: 'DM Sans', sans-serif;
     color: var(--text2);
     font-size: 0.75rem;
     font-weight: 500;
+    box-shadow: 0 12px 28px rgba(8, 9, 4, 0.05);
   }
   .ap-size-btn span:first-child { font-weight: 700; color: var(--text); }
-  .ap-size-btn:hover { border-color: var(--accent); }
+  .ap-size-btn:hover { border-color: rgba(var(--accent-rgb), 0.18); transform: translateY(-1px); }
   .ap-size-btn.active {
-    border-color: var(--accent);
+    border-color: rgba(var(--accent-rgb), 0.2);
     background: var(--accent-dim);
     color: var(--accent);
   }
@@ -558,17 +576,18 @@ const aparenciaCss = `
     align-items: center;
     padding: 14px 10px;
     border-radius: 16px;
-    border: 1.5px solid var(--border2);
-    background: var(--bg3);
+    border: 1px solid rgba(var(--accent-rgb), 0.08);
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 40%), var(--bg3);
     cursor: pointer;
     transition: all 0.2s;
     position: relative;
     text-align: center;
     width: 100%;
+    box-shadow: 0 12px 28px rgba(8, 9, 4, 0.05);
   }
-  .ap-layout-btn:hover { border-color: var(--accent); }
+  .ap-layout-btn:hover { border-color: rgba(var(--accent-rgb), 0.18); transform: translateY(-1px); }
   .ap-layout-btn.active {
-    border-color: var(--accent);
+    border-color: rgba(var(--accent-rgb), 0.2);
     background: var(--accent-dim);
   }
   .ap-layout-preview {
@@ -619,12 +638,14 @@ const aparenciaCss = `
 
   /* ── PREVIEW ── */
   .ap-preview-box {
-    background: var(--bg3);
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.03), transparent 40%), var(--bg3);
     border-radius: 14px;
     padding: 1.25rem;
     display: flex;
     flex-direction: column;
     gap: 8px;
+    border: 1px solid rgba(var(--accent-rgb), 0.08);
+    box-shadow: 0 14px 32px rgba(8, 9, 4, 0.06);
   }
   .ap-preview-badge {
     display: inline-flex;
@@ -662,8 +683,30 @@ const aparenciaCss = `
     width: fit-content;
     margin-top: 4px;
     transition: opacity 0.2s;
+    text-decoration: none;
   }
   .ap-preview-btn:hover { opacity: 0.85; }
+
+  html[data-fx="none"] .theme-icon-opt,
+  html[data-fx="none"] .ap-color-btn,
+  html[data-fx="none"] .ap-font-btn,
+  html[data-fx="none"] .ap-fx-btn,
+  html[data-fx="none"] .ap-size-btn,
+  html[data-fx="none"] .ap-layout-btn,
+  html[data-fx="none"] .ap-fx-extra,
+  html[data-fx="none"] .ap-preview-box {
+    background: var(--bg3);
+    box-shadow: 0 6px 16px rgba(8, 9, 4, 0.04);
+  }
+
+  html[data-fx="none"] .theme-icon-opt.selected,
+  html[data-fx="none"] .ap-color-btn.active,
+  html[data-fx="none"] .ap-font-btn.active,
+  html[data-fx="none"] .ap-fx-btn.active,
+  html[data-fx="none"] .ap-size-btn.active,
+  html[data-fx="none"] .ap-layout-btn.active {
+    background: var(--accent-dim);
+  }
 
   @media (max-width: 900px) {
     .desktop-only-feature { display: none; }

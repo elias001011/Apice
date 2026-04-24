@@ -57,27 +57,29 @@ export function RadarPage() {
   const [temas, setTemas] = useState(() => hasInitialRadarThemes ? initialRadarSnapshot.temas : [])
   const [savedTemas, setSavedTemas] = useState(() => loadRadarFavorites())
   const [searchResumo, setSearchResumo] = useState(() => initialRadarSnapshot?.resumoPesquisa || '')
-  const [atualizadoEm, setAtualizadoEm] = useState(() => initialRadarSnapshot?.atualizadoEm || '')
   const [searchCooldown, setSearchCooldown] = useState(() => getRadarSearchCooldown(initialRadarSnapshot))
   const [errorMsg, setErrorMsg] = useState('')
   const [loadingLabel, setLoadingLabel] = useState('Procurando novos temas…')
   const [searchConfirmOpen, setSearchConfirmOpen] = useState(false)
   const [pendingRemoval, setPendingRemoval] = useState(null)
+  const [localNow, setLocalNow] = useState(() => new Date())
 
   useEffect(() => {
+    const refreshClock = () => setLocalNow(new Date())
+    refreshClock()
+    const clockId = window.setInterval(refreshClock, 60_000)
+
     const refreshRadar = () => {
       const snapshot = loadRadarSnapshot()
 
       if (snapshot?.temas?.length) {
         setTemas(snapshot.temas)
         setSearchResumo(snapshot.resumoPesquisa || '')
-        setAtualizadoEm(snapshot.atualizadoEm || '')
         setSearchCooldown(getRadarSearchCooldown(snapshot))
         setStatus('results')
       } else {
         setTemas([])
         setSearchResumo(snapshot?.resumoPesquisa || '')
-        setAtualizadoEm(snapshot?.atualizadoEm || '')
         setSearchCooldown(getRadarSearchCooldown(snapshot))
         setStatus((currentStatus) => (currentStatus === 'loading' ? currentStatus : 'intro'))
       }
@@ -90,6 +92,7 @@ export function RadarPage() {
     const unlistenRadar = subscribeRadarSnapshot(refreshRadar)
     const unlistenSaved = subscribeRadarFavorites(refreshSaved)
     return () => {
+      window.clearInterval(clockId)
       unlistenRadar()
       unlistenSaved()
     }
@@ -109,7 +112,6 @@ export function RadarPage() {
 
       setTemas(nextThemes)
       setSearchResumo(result.resumoPesquisa || '')
-      setAtualizadoEm(result.atualizadoEm || new Date().toISOString())
       setSearchCooldown(getRadarSearchCooldown(result))
       setStatus('results')
     } catch (error) {
@@ -133,7 +135,6 @@ export function RadarPage() {
         }
         setTemas(fallbackSnapshot.temas)
         setSearchResumo('')
-        setAtualizadoEm(fallbackSnapshot.atualizadoEm)
         saveRadarSnapshot(fallbackSnapshot)
         setSearchCooldown(getRadarSearchCooldown(fallbackSnapshot))
         setStatus('results')
@@ -175,13 +176,11 @@ export function RadarPage() {
     return savedTemas.some((item) => item.id === temaId)
   }
 
-  const updatedLabel = atualizadoEm
-    ? new Date(atualizadoEm).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-      })
-    : ''
+  const updatedLabel = localNow.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
 
   const renderTemaCard = (tema, {
     allowRemove = false,
@@ -349,7 +348,7 @@ export function RadarPage() {
           </div>
 
           <div className="atualizado" style={{ animationDelay: '0.5s' }}>
-            {updatedLabel ? `Radar atualizado em ${updatedLabel}` : 'Radar atualizado recentemente'}
+            Radar atualizado em {updatedLabel}
           </div>
 
           <div style={{ marginTop: '0.75rem' }}>
@@ -404,7 +403,7 @@ const radarCss = `
   .page-header {
     margin-bottom: 1.5rem;
     padding-bottom: 1.25rem;
-    border-bottom: 0.5px solid var(--border);
+    border-bottom: 1px solid rgba(var(--accent-rgb), 0.08);
   }
 
   .page-header .page-title {
@@ -429,13 +428,19 @@ const radarCss = `
 
   .radar-hero {
     background: var(--bg2);
-    border: 1.5px solid var(--border);
+    border: 1px solid var(--border);
     border-radius: 24px;
     padding: 1.25rem;
     margin-bottom: 12px;
     display: flex;
     align-items: center;
     gap: 1rem;
+    box-shadow: 0 16px 38px rgba(8, 9, 4, 0.06);
+  }
+
+  html[data-card-gradients="on"] .radar-hero {
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2);
+    border-color: rgba(var(--accent-rgb), 0.08);
   }
 
   .radar-icon-wrap {
@@ -443,11 +448,12 @@ const radarCss = `
     height: 48px;
     flex-shrink: 0;
     background: var(--accent-dim);
-    border: 1.5px solid rgba(var(--accent-rgb), 0.25);
+    border: 1px solid rgba(var(--accent-rgb), 0.16);
     border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 12px 24px rgba(var(--accent-rgb), 0.12);
   }
 
   .radar-icon-wrap svg {
@@ -492,29 +498,49 @@ const radarCss = `
 
   .tema-card {
     background: var(--bg2);
-    border: 1.5px solid var(--border);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 1.1rem 1.25rem;
     margin-bottom: 0;
     text-decoration: none;
     display: block;
     position: relative;
-    transition: border-color 0.2s, transform 0.25s, background-color 0.2s;
+    overflow: hidden;
+    box-shadow: 0 14px 34px rgba(8, 9, 4, 0.05);
+    transition: border-color 0.2s, transform 0.25s, background-color 0.2s, box-shadow 0.25s;
+  }
+
+  html[data-card-gradients="on"] .tema-card {
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 34%), var(--bg2);
+    border-color: rgba(var(--accent-rgb), 0.08);
   }
 
   .tema-card:hover {
-    border-color: var(--border2);
-    transform: translateY(-2px);
+    border-color: rgba(var(--accent-rgb), 0.18);
+    transform: translateY(-3px);
+    box-shadow: 0 22px 46px rgba(8, 9, 4, 0.09);
   }
 
   .tema-card.hot {
-    border-color: rgba(var(--accent-rgb), 0.3);
-    background: var(--accent-dim);
+    border-color: rgba(var(--accent-rgb), 0.18);
+  }
+
+  html[data-card-gradients="on"] .tema-card.hot {
+    background:
+      radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.14), transparent 34%),
+      linear-gradient(180deg, rgba(var(--accent-rgb), 0.06), transparent 42%),
+      var(--bg2);
   }
 
   .tema-card.saved {
-    border-color: rgba(var(--accent-rgb), 0.32);
-    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.1), rgba(var(--accent-rgb), 0.04));
+    border-color: rgba(var(--accent-rgb), 0.2);
+  }
+
+  html[data-card-gradients="on"] .tema-card.saved {
+    background:
+      radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.12), transparent 34%),
+      linear-gradient(180deg, rgba(var(--accent-rgb), 0.05), transparent 42%),
+      var(--bg2);
   }
 
   .tema-top {
@@ -616,7 +642,7 @@ const radarCss = `
     justify-content: flex-end;
     margin-top: 0.9rem;
     padding-top: 0.85rem;
-    border-top: 0.5px solid var(--border);
+    border-top: 1px solid rgba(var(--accent-rgb), 0.08);
   }
 
   .tema-detail-link {
@@ -636,7 +662,7 @@ const radarCss = `
   .tema-save-btn {
     width: 38px;
     height: 38px;
-    border: 1px solid var(--border2);
+    border: 1px solid var(--border);
     background: var(--bg3);
     color: var(--text2);
     border-radius: 999px;
@@ -645,15 +671,21 @@ const radarCss = `
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
-    transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.1s, opacity 0.2s;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.1s, opacity 0.2s, box-shadow 0.2s;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    box-shadow: 0 10px 22px rgba(8, 9, 4, 0.05);
+  }
+
+  html[data-card-gradients="on"] .tema-save-btn {
+    background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 40%), var(--bg3);
+    border-color: rgba(var(--accent-rgb), 0.08);
   }
 
   .tema-save-btn:hover {
-    border-color: var(--accent);
+    border-color: rgba(var(--accent-rgb), 0.18);
     color: var(--text);
     background: var(--accent-dim);
   }
@@ -671,7 +703,7 @@ const radarCss = `
   }
 
   .tema-save-btn.saved {
-    border-color: rgba(var(--accent-rgb), 0.3);
+    border-color: rgba(var(--accent-rgb), 0.18);
     color: var(--accent);
     background: var(--accent-dim);
     cursor: default;
