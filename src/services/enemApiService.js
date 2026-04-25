@@ -8,6 +8,8 @@ const ENEM_API_BASE = 'https://api.enem.dev/v1'
 const CACHE_KEY = 'apice:enem-api:cache:v2'
 const CACHE_TTL = 1000 * 60 * 60 // 1 hora
 const DEFAULT_EXAM_YEARS = [2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015]
+const MAX_API_LIMIT = 50
+const MAX_API_YEARS_PER_FETCH = 4
 
 const AREA_MAP = {
   Linguagens: {
@@ -405,14 +407,15 @@ async function fetchExams() {
   return exams
 }
 
-async function fetchQuestionsPage(year, { limit = 180, offset = 0, language = '' } = {}) {
+async function fetchQuestionsPage(year, { limit = MAX_API_LIMIT, offset = 0, language = '' } = {}) {
   const yearValue = Number(year)
   if (!Number.isFinite(yearValue)) {
     throw new Error('Ano inválido para buscar questões.')
   }
 
+  const safeLimit = Math.min(MAX_API_LIMIT, Math.max(1, Number(limit) || 10))
   const params = new URLSearchParams()
-  params.set('limit', String(limit))
+  params.set('limit', String(safeLimit))
   if (Number.isFinite(offset) && offset > 0) {
     params.set('offset', String(offset))
   }
@@ -420,7 +423,7 @@ async function fetchQuestionsPage(year, { limit = 180, offset = 0, language = ''
     params.set('language', String(language))
   }
 
-  const cacheKey = `enem:v2:year:${yearValue}:limit:${limit}:offset:${offset}:language:${language || 'all'}`
+  const cacheKey = `enem:v2:year:${yearValue}:limit:${safeLimit}:offset:${offset}:language:${language || 'all'}`
   const cached = getFromCache(cacheKey)
   if (cached) {
     const questions = Array.isArray(cached) ? cached : cached?.questions || []
@@ -505,14 +508,15 @@ export async function fetchQuestoes({ area, ano, limit = 50, offset = 0, discipl
   }
 
   const { areaConfig, requestedDisciplina, language } = resolveApiFilters(area, disciplina)
-  const cacheKey = `enem:v2:questoes:${area || 'all'}:${yearValue}:${limit}:${offset}:${requestedDisciplina || 'all'}:${language || 'all'}`
+  const safeLimit = Math.min(MAX_API_LIMIT, Math.max(1, Number(limit) || MAX_API_LIMIT))
+  const cacheKey = `enem:v2:questoes:${area || 'all'}:${yearValue}:${safeLimit}:${offset}:${requestedDisciplina || 'all'}:${language || 'all'}`
   const cached = getFromCache(cacheKey)
   if (cached) {
     return Array.isArray(cached) ? cached : []
   }
 
   const page = await fetchQuestionsPage(yearValue, {
-    limit: Math.max(1, Number(limit) || 50),
+    limit: safeLimit,
     offset: Math.max(0, Number(offset) || 0),
     language,
   })
@@ -572,27 +576,53 @@ export async function fetchQuestaoById(id) {
 export async function fetchQuestoesAleatorias({ area, quantidade = 5, disciplina } = {}) {
   const areaConfig = resolveAreaConfig(area)
   const requestedQuantidade = Math.max(1, Math.round(Number(quantidade) || 5))
-  const years = resolveYearList(await fetchAnosDisponiveis())
+  const years = resolveYearList(await fetchAnosDisponiveis()).slice(0, MAX_API_YEARS_PER_FETCH)
   const orderedYears = [...years].sort((a, b) => b - a)
 
   const collected = []
+  let rateLimited = false
 
-  for (const year of orderedYears) {
+  const fetchBatch = async (year, fetchDiscipline = '') => {
     try {
       const batch = await fetchQuestoes({
         area,
         ano: year,
-        limit: 180,
-        disciplina,
+        limit: MAX_API_LIMIT,
+        disciplina: fetchDiscipline || disciplina,
       })
 
-      collected.push(...batch)
-
-      if (uniqueQuestions(collected).length >= requestedQuantidade * 2) {
-        break
+      if (batch.length > 0) {
+        collected.push(...batch)
       }
     } catch (error) {
       console.warn(`[enemApiService] Falha ao buscar ${area || 'questões'} em ${year}:`, error.message)
+      if (String(error?.message || '').includes('429') || String(error?.message || '').toLowerCase().includes('rate limit')) {
+        rateLimited = true
+      }
+    }
+  }
+
+  const normalizeDisciplina = normalizeText(disciplina)
+  const languageDisciplinas = ['ingles', 'espanhol'].filter((item) => normalizeText(item) === normalizeDisciplina)
+  const shouldUseLanguageFilter = area === 'Linguagens' && languageDisciplinas.length > 0
+
+  if (shouldUseLanguageFilter) {
+    for (const year of orderedYears) {
+      if (rateLimited) break
+      await fetchBatch(year, disciplina)
+      if (rateLimited) break
+      if (uniqueQuestions(collected).length >= requestedQuantidade) {
+        break
+      }
+    }
+  } else {
+    for (const year of orderedYears) {
+      if (rateLimited) break
+      await fetchBatch(year)
+      if (rateLimited) break
+      if (uniqueQuestions(collected).length >= requestedQuantidade) {
+        break
+      }
     }
   }
 

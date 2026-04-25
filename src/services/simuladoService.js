@@ -226,13 +226,18 @@ async function buscarQuestoesEmFonte({ fetcher, area, disciplinas, quantidade, o
 
   const disciplinaLista = Array.isArray(disciplinas) ? disciplinas.filter(Boolean) : []
   const quantidadePorDisciplina = Math.max(1, Math.ceil(quantidade / Math.max(disciplinaLista.length, 1)))
+  const isOfficialApiFetcher = fetcher === fetchFromEnemApi
+  const isLanguageDiscipline = (value) => {
+    const normalized = String(value ?? '').trim().toLowerCase()
+    return normalized === 'ingles' || normalized === 'espanhol'
+  }
 
-  const buscar = async (disciplina) => {
+  const buscar = async (disciplina, alvo = quantidadePorDisciplina) => {
     try {
       return await fetcher({
         area,
         disciplina,
-        quantidade: quantidadePorDisciplina,
+        quantidade: Math.max(1, alvo || quantidadePorDisciplina),
       })
     } catch (error) {
       const nome = disciplina || area || origem
@@ -241,12 +246,42 @@ async function buscarQuestoesEmFonte({ fetcher, area, disciplinas, quantidade, o
     }
   }
 
-  if (disciplinaLista.length > 0) {
-    const resultados = await Promise.all(disciplinaLista.map((disciplina) => buscar(disciplina)))
-    return dedupeQuestoes(resultados.flat()).slice(0, quantidade)
+  if (isOfficialApiFetcher) {
+    const resultados = []
+    const disciplinasIdioma = disciplinaLista.filter(isLanguageDiscipline)
+
+    for (const disciplina of disciplinasIdioma) {
+      const restantes = Math.max(quantidade - dedupeQuestoes(resultados).length, 0)
+      if (restantes <= 0) break
+
+      const quota = Math.max(1, Math.min(quantidadePorDisciplina, restantes))
+      const batch = await buscar(disciplina, quota)
+      resultados.push(...batch)
+    }
+
+    const restantes = Math.max(quantidade - dedupeQuestoes(resultados).length, 0)
+    if (restantes > 0) {
+      const batch = await buscar('', restantes)
+      resultados.push(...batch)
+    }
+
+    return dedupeQuestoes(resultados).slice(0, quantidade)
   }
 
-  const resultado = await buscar('')
+  if (disciplinaLista.length > 0) {
+    const resultados = []
+    for (const disciplina of disciplinaLista) {
+      const restantes = Math.max(quantidade - dedupeQuestoes(resultados).length, 0)
+      if (restantes <= 0) break
+
+      const quota = Math.max(1, Math.min(quantidadePorDisciplina, restantes))
+      const batch = await buscar(disciplina, quota)
+      resultados.push(...batch)
+    }
+    return dedupeQuestoes(resultados).slice(0, quantidade)
+  }
+
+  const resultado = await buscar('', quantidade)
   return dedupeQuestoes(resultado).slice(0, quantidade)
 }
 
