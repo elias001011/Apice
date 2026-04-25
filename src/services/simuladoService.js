@@ -1,12 +1,13 @@
 /**
- * Serviço de simulados integrado com ENEM API e banco local
- * Prioriza o banco local de questões reais, depois a ENEM API
+ * Serviço de simulados integrado com o banco local e a API oficial enem.dev.
+ * Prioriza o banco local de questões reais, depois a API oficial
  * e usa IA só como fallback para completar o que faltar.
  */
 
 import { authFetch } from './authFetch.js'
 import { loadAiResponsePreferenceText } from './aiResponsePreferences.js'
-import { fetchQuestoesAleatorias as fetchFromEnemApi, getDisciplinasByArea } from './enemApiService.js'
+import { getDisciplinasByArea } from './enemApiService.js'
+import { fetchQuestoesAleatorias as fetchFromEnemApi } from './enemApiService.js'
 import { buscarQuestoesAleatorias, popularBancoQuestoes } from './questoesLocalDB.js'
 
 const STORAGE_KEY = 'apice:simulado_progresso:v2'
@@ -14,7 +15,7 @@ const MAX_SIMULADO_QUESTIONS = 90
 export const MAX_SIMULADO_AI_QUESTIONS = 15
 
 /**
- * Gera simulado combinando banco local, ENEM API e IA
+ * Gera simulado combinando banco local, API oficial e IA
  * @param {Object} config - Configuração do simulado
  * @param {string} config.area - Área do conhecimento
  * @param {Array<string>} config.disciplinas - Disciplinas selecionadas
@@ -60,12 +61,12 @@ export async function gerarSimulado({
 
       if (quantidadeRestante > 0) {
         questoesApi = await buscarQuestoesEmFonte({
-          fetcher: fetchFromEnemApi,
-          area,
-          disciplinas: disciplinasSelecionadas,
-          quantidade: quantidadeRestante,
-          origem: 'ENEM API',
-        })
+        fetcher: fetchFromEnemApi,
+        area,
+        disciplinas: disciplinasSelecionadas,
+        quantidade: quantidadeRestante,
+        origem: 'API oficial',
+      })
       }
 
       // Salva no banco local para uso futuro
@@ -73,7 +74,7 @@ export async function gerarSimulado({
         await popularBancoQuestoes(questoesApi)
       }
       
-      console.log(`[simuladoService] Banco local: ${questoesLocais.length} | ENEM API: ${questoesApi.length}`)
+      console.log(`[simuladoService] Banco local: ${questoesLocais.length} | API oficial: ${questoesApi.length}`)
     } catch (error) {
       console.warn('[simuladoService] Falha ao buscar questões reais:', error.message)
     }

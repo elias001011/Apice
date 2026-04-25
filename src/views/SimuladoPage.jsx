@@ -208,7 +208,7 @@ export function SimuladoPage() {
         <div className="simulado-header anim anim-d1">
           <h1 className="simulado-title">Simulados Ápice</h1>
           <p className="simulado-subtitle">
-            Configure seu simulado personalizado com banco local de questões reais do ENEM, reforço da ENEM API e IA só para completar o que faltar, limitada a 15 questões.
+            Configure seu simulado com banco local de questões reais do ENEM, apoio da API oficial enem.dev e IA só para completar o que faltar, limitada a 15 questões.
           </p>
         </div>
 
@@ -239,7 +239,7 @@ export function SimuladoPage() {
                 <div>
                   <h2 className="setup-section-title">2. Selecione as Disciplinas</h2>
                   <p className="setup-section-copy">
-                    Escolha uma ou mais matérias para o seu simulado. O gerador tenta primeiro o banco local de questões reais do ENEM, depois a ENEM API e só então a IA limitada.
+                    Escolha uma ou mais matérias para o seu simulado. O gerador tenta primeiro o banco local de questões reais do ENEM, depois a API oficial enem.dev e só então a IA limitada.
                   </p>
                 </div>
                 <button type="button" className="btn-select-all" onClick={selectAllDisciplinas}>
@@ -302,7 +302,7 @@ export function SimuladoPage() {
                   ))}
                 </div>
                 <p className="quantidade-info">
-                  O app tenta fechar a quantidade primeiro com o banco local de questões reais, depois com a ENEM API e só então com IA limitada a 15 questões.
+                  O app tenta fechar a quantidade primeiro com o banco local de questões reais, depois com a API oficial enem.dev e só então com IA limitada a 15 questões.
                 </p>
               </div>
             </div>
@@ -335,7 +335,7 @@ export function SimuladoPage() {
           <div className="spinner"></div>
           <h2 className="simulado-title">Preparando Simulado...</h2>
           <p className="simulado-subtitle">
-            Primeiro o banco local, depois a ENEM API e, se faltar, a IA completa no máximo 15 questões.
+            Primeiro o banco local, depois a API oficial enem.dev e, se faltar, a IA completa no máximo 15 questões.
           </p>
         </div>
       </div>
@@ -482,7 +482,7 @@ export function SimuladoPage() {
               </div>
               <div className="stat-item">
                 <span className="stat-value">{examData.estatisticas.reais}</span>
-                <span className="stat-label">Questões Reais (banco + API)</span>
+                <span className="stat-label">Questões Reais (banco + API oficial)</span>
               </div>
               <div className="stat-item">
                 <span className="stat-value">{examData.estatisticas.ia}</span>

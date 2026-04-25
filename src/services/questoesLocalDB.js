@@ -249,7 +249,7 @@ export async function popularBancoQuestoes(questoes) {
   const promises = questoes.map(q => salvarQuestao({
     ...q,
     id: q.id || `api-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    fonte: q.fonte || 'ENEM API',
+    fonte: q.fonte || 'ENEM API oficial',
     sincronizadoEm: new Date().toISOString(),
   }))
 
