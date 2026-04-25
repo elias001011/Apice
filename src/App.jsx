@@ -55,7 +55,7 @@ export default function App() {
       } />
 
       <Route path="/login" element={user && !isRecovery && !isConfirm ? <Navigate to="/home" replace /> : <LoginPage />} />
-      <Route path="/cadastro" element={user ? <Navigate to="/home" replace /> : <CadastroPage />} />
+      <Route path="/cadastro" element={user && !user.guest ? <Navigate to="/home" replace /> : <CadastroPage />} />
       <Route path="/esqueci-senha" element={<EsqueciSenhaPage />} />
       <Route path="/redefinir-senha" element={<RedefinirSenhaPage />} />
       <Route path="/confirmar-email" element={<ConfirmarEmailPage />} />

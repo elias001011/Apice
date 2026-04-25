@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { saveVerificationPassword } from '../services/identityAuth.js'
@@ -35,7 +35,18 @@ export function CadastroPage() {
   const [loading, setLoading] = useState(false)
   
   const navigate = useNavigate()
-  const { signup } = useAuth()
+  const { signup, user, isGuest } = useAuth()
+
+  useEffect(() => {
+    if (!isGuest) return
+
+    const fullName = String(user?.user_metadata?.full_name ?? '').trim()
+    if (fullName) {
+      const parts = fullName.split(/\s+/)
+      setNome((current) => current || parts[0] || '')
+      setSobrenome((current) => current || parts.slice(1).join(' ') || '')
+    }
+  }, [isGuest, user])
 
   const handleSignup = async (e) => {
     e.preventDefault()
@@ -60,7 +71,11 @@ export function CadastroPage() {
       console.error('Signup error:', err)
       const msg = err?.json?.msg || err?.message || ''
       if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exists')) {
-        setError('Este e-mail já está cadastrado. Tente fazer login.')
+        setError(
+          isGuest
+            ? 'Este e-mail já existe. Para não perder os dados locais, crie uma conta nova com outro e-mail.'
+            : 'Este e-mail já está cadastrado. Tente fazer login.',
+        )
       } else if (msg) {
         setError(`Erro: ${msg}`)
       } else {
@@ -78,17 +93,27 @@ export function CadastroPage() {
         <div className="cad-glow" aria-hidden="true" />
         <div className="cad-wrap">
           <div className="cad-top anim anim-d1">
-            <Link to="/login" className="cad-logo" style={{ textDecoration: 'none' }}>
+            <Link to={isGuest ? '/home' : '/login'} className="cad-logo" style={{ textDecoration: 'none' }}>
               <div className="logo-icon" />
             </Link>
             <div className="cad-title">Criar conta gratuita</div>
-            <div className="cad-sub">Comece a estudar para o ENEM hoje</div>
+            <div className="cad-sub">
+              {isGuest
+                ? 'Crie uma conta nova para salvar os dados locais do modo convidado na nuvem.'
+                : 'Comece a estudar para o ENEM hoje'}
+            </div>
           </div>
 
           <form onSubmit={handleSignup} className="cad-card anim anim-d2">
             {error && (
               <div className="error-msg" role="alert" aria-live="assertive">
                 {error}
+              </div>
+            )}
+
+            {isGuest && (
+              <div className="guest-note">
+                Você está transformando o modo convidado em uma conta nova. Use um e-mail que ainda não exista para não perder os dados locais.
               </div>
             )}
             
@@ -182,7 +207,9 @@ export function CadastroPage() {
           </form>
 
           <div className="cad-footer anim anim-d3">
-            Já tem conta? <Link to="/login">Entrar</Link>
+            {isGuest
+              ? 'Depois de salvar sua conta nova, seus dados locais continuam intactos até a confirmação.'
+              : <>Já tem conta? <Link to="/login">Entrar</Link></>}
           </div>
         </div>
       </div>
@@ -200,6 +227,17 @@ const cadastroCss = `
     margin-bottom: 15px;
     text-align: center;
     border: 1px solid rgba(234, 67, 53, 0.2);
+  }
+
+  .guest-note {
+    background: rgba(var(--accent-rgb), 0.08);
+    border: 1px solid rgba(var(--accent-rgb), 0.18);
+    color: var(--text2);
+    border-radius: 16px;
+    padding: 12px 14px;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    margin-bottom: 14px;
   }
 
   .cad-page {

@@ -44,7 +44,7 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [throttleTick, setThrottleTick] = useState(() => Date.now())
   
-  const { login } = useAuth()
+  const { login, loginAsGuest } = useAuth()
   const normalizedEmail = email.trim()
   const throttleState = getLoginThrottleState(normalizedEmail, throttleTick)
   const throttleMessage = getLoginThrottleMessage(throttleState)
@@ -85,6 +85,20 @@ export function LoginPage() {
       } else {
         setError(normalizeIdentityError(err) || 'Não foi possível entrar. Tente novamente mais tarde.')
       }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGuestLogin = async () => {
+    setError('')
+    setLoading(true)
+
+    try {
+      await loginAsGuest()
+      // O App.jsx cuida do redirecionamento
+    } catch (err) {
+      setError(err?.message || 'Não foi possível entrar como convidado agora.')
     } finally {
       setLoading(false)
     }
@@ -168,6 +182,20 @@ export function LoginPage() {
                   ? `Aguarde ${formatThrottleTime(throttleState.remainingMs)}`
                   : 'Entrar'}
             </button>
+
+            <button
+              className="btn-secondary"
+              style={{ marginTop: 12, width: '100%' }}
+              type="button"
+              onClick={handleGuestLogin}
+              disabled={loading}
+            >
+              Entrar como convidado
+            </button>
+
+            <div className="guest-msg">
+              Modo convidado usa só os dados deste navegador. Se sair sem criar uma conta nova, tudo será apagado.
+            </div>
           </form>
 
           <div className="login-footer anim anim-d3">
@@ -369,6 +397,14 @@ const loginCss = `
   }
 
   .login-footer a:hover { text-decoration: underline; }
+
+  .guest-msg {
+    margin-top: 0.9rem;
+    font-size: 0.78rem;
+    line-height: 1.55;
+    color: var(--text3);
+    text-align: center;
+  }
 
   @media (max-width: 480px) {
     .login-page {

@@ -13,6 +13,8 @@
  * o JWT ficou leve (~300 chars) e pode ser usado normalmente.
  */
 
+import { isGuestSessionActive } from '../auth/sessionMode.js'
+
 let _getAuthToken = null
 
 /**
@@ -76,6 +78,19 @@ async function getAuthCredentials() {
  * @returns {Promise<Response>}
  */
 export async function authFetch(url, options = {}) {
+  if (isGuestSessionActive()) {
+    const message = 'Modo convidado não pode acessar este recurso online. Crie uma conta para sincronizar na nuvem.'
+    return new Response(
+      JSON.stringify({ error: message }),
+      {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+  }
+
   const { jwt, userId } = await getAuthCredentials()
 
   const headers = {

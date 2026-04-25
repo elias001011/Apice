@@ -5,7 +5,7 @@ import { useAuth } from '../auth/useAuth.js'
 export function EditarPerfilPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, updateAccount } = useAuth()
+  const { user, updateAccount, isGuest } = useAuth()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [school, setSchool] = useState('')
@@ -20,6 +20,13 @@ export function EditarPerfilPage() {
     setEmail(user?.email || '')
     setSchool(user?.user_metadata?.school || '')
   }, [user])
+
+  useEffect(() => {
+    if (!isGuest) return
+
+    setPassword('')
+    setConfirmPassword('')
+  }, [isGuest])
 
   useEffect(() => {
     const targetId = location.hash.replace('#', '')
@@ -63,17 +70,19 @@ export function EditarPerfilPage() {
         },
       }
 
-      if (email.trim() && email.trim() !== user?.email) {
+      if (!isGuest && email.trim() && email.trim() !== user?.email) {
         payload.email = email.trim()
       }
 
-      if (password) {
+      if (!isGuest && password) {
         payload.password = password
       }
 
       await updateAccount(payload)
       setSuccess(
-        email.trim() !== user?.email
+        isGuest
+          ? 'Dados locais atualizados neste navegador.'
+          : email.trim() !== user?.email
           ? 'Dados salvos. Se você alterou o e-mail, confirme a mudança no endereço novo.'
           : 'Perfil atualizado com sucesso.',
       )
@@ -98,12 +107,22 @@ export function EditarPerfilPage() {
 
       <div className="page-header anim anim-d1">
         <div className="page-title">Editar perfil</div>
-        <div className="page-sub">Atualize suas informações pessoais, e-mail e senha.</div>
+        <div className="page-sub">
+          {isGuest
+            ? 'Atualize seus dados locais. Para e-mail e senha, crie uma conta nova primeiro.'
+            : 'Atualize suas informações pessoais, e-mail e senha.'}
+        </div>
       </div>
 
       <form className="card anim anim-d2" onSubmit={handleSave}>
         {error && <div className="form-msg error">{error}</div>}
         {success && <div className="form-msg success">{success}</div>}
+
+        {isGuest && (
+          <div className="guest-edit-note">
+            Você está editando uma sessão local. Os dados só vão para a nuvem depois que você criar uma conta nova.
+          </div>
+        )}
 
         <div className="input-group" style={{ marginBottom: 13 }}>
           <label className="input-label">Nome completo</label>
@@ -118,18 +137,20 @@ export function EditarPerfilPage() {
           />
         </div>
 
-        <div className="input-group" style={{ marginBottom: 13 }}>
-          <label className="input-label">E-mail</label>
-          <input
-            id="email"
-            type="email"
-            className="input-field"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="seu@email.com"
-            required
-          />
-        </div>
+        {!isGuest && (
+          <div className="input-group" style={{ marginBottom: 13 }}>
+            <label className="input-label">E-mail</label>
+            <input
+              id="email"
+              type="email"
+              className="input-field"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="seu@email.com"
+              required
+            />
+          </div>
+        )}
 
         <div className="input-group" style={{ marginBottom: 13 }}>
           <label className="input-label">Escola</label>
@@ -143,36 +164,40 @@ export function EditarPerfilPage() {
           />
         </div>
 
-        <div className="card-subtitle" style={{ marginBottom: 10 }}>Segurança</div>
+        {!isGuest && (
+          <>
+            <div className="card-subtitle" style={{ marginBottom: 10 }}>Segurança</div>
 
-        <div className="input-group" style={{ marginBottom: 13 }}>
-          <label className="input-label">Nova senha</label>
-          <input
-            id="senha"
-            type="password"
-            className="input-field"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Deixe em branco para manter a atual"
-            minLength={8}
-          />
-        </div>
+            <div className="input-group" style={{ marginBottom: 13 }}>
+              <label className="input-label">Nova senha</label>
+              <input
+                id="senha"
+                type="password"
+                className="input-field"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Deixe em branco para manter a atual"
+                minLength={8}
+              />
+            </div>
 
-        <div className="input-group" style={{ marginBottom: 0 }}>
-          <label className="input-label">Confirmar nova senha</label>
-          <input
-            id="confirmar-senha"
-            type="password"
-            className="input-field"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Repita a nova senha"
-            minLength={8}
-          />
-        </div>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label">Confirmar nova senha</label>
+              <input
+                id="confirmar-senha"
+                type="password"
+                className="input-field"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repita a nova senha"
+                minLength={8}
+              />
+            </div>
+          </>
+        )}
 
         <button className="btn-primary" style={{ marginTop: 18, width: 'auto', padding: '0 2.5rem' }} type="submit" disabled={loading}>
-          {loading ? 'Salvando...' : 'Salvar alterações'}
+          {loading ? 'Salvando...' : isGuest ? 'Salvar dados locais' : 'Salvar alterações'}
         </button>
       </form>
 
@@ -186,7 +211,9 @@ export function EditarPerfilPage() {
       </button>
 
       <div className="edit-hint">
-        Se você alterar o e-mail, o Netlify Identity pode pedir confirmação no novo endereço.
+        {isGuest
+          ? 'Crie uma conta nova para definir e-mail e senha sem perder seus dados locais.'
+          : 'Se você alterar o e-mail, o Netlify Identity pode pedir confirmação no novo endereço.'}
       </div>
     </div>
     </>
@@ -212,6 +239,17 @@ const editCss = `
     background: rgba(var(--accent-rgb), 0.1);
     border: 1px solid rgba(var(--accent-rgb), 0.22);
     color: var(--accent);
+  }
+
+  .guest-edit-note {
+    background: rgba(var(--accent-rgb), 0.08);
+    border: 1px solid rgba(var(--accent-rgb), 0.18);
+    border-radius: 16px;
+    padding: 12px 14px;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--text2);
+    margin-bottom: 14px;
   }
 
   .card-subtitle {
