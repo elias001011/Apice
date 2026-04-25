@@ -91,7 +91,9 @@ export function authenticateRequest(req, context = {}) {
   try {
     const token = extractBearerToken(req)
     if (!token) {
-      console.warn('[auth] Token JWT não fornecido na requisição')
+      if (!extractUserIdFromHeader(req)) {
+        console.warn('[auth] Token JWT não fornecido na requisição')
+      }
       return null
     }
 

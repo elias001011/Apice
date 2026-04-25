@@ -184,17 +184,27 @@ export function LoginPage() {
             </button>
 
             <button
-              className="btn-secondary"
+              className="guest-cta-btn"
               style={{ marginTop: 12, width: '100%' }}
               type="button"
               onClick={handleGuestLogin}
               disabled={loading}
             >
-              Entrar como convidado
+              <span className="guest-cta-badge" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="8" r="3.5" />
+                  <path d="M5 20c1.8-3.2 4.6-5 7-5s5.2 1.8 7 5" />
+                </svg>
+              </span>
+              <span className="guest-cta-copy">
+                <span className="guest-cta-title">Continuar como convidado</span>
+                <span className="guest-cta-subtitle">Use a IA agora, sem criar conta.</span>
+              </span>
+              <span className="guest-cta-arrow" aria-hidden="true">→</span>
             </button>
 
             <div className="guest-msg">
-              Modo convidado usa só os dados deste navegador. Se sair sem criar uma conta nova, tudo será apagado.
+              O modo convidado usa só este navegador. Se sair sem criar uma conta nova, tudo será apagado.
             </div>
           </form>
 
@@ -406,6 +416,106 @@ const loginCss = `
     text-align: center;
   }
 
+  .guest-cta-btn {
+    position: relative;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    min-height: 58px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    border: 1px solid rgba(var(--accent-rgb), 0.28);
+    background:
+      linear-gradient(180deg, rgba(var(--accent-rgb), 0.14), rgba(255, 255, 255, 0.02)),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
+    color: var(--text);
+    box-shadow: 0 12px 30px rgba(8, 9, 4, 0.08);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease,
+      border-color 0.2s ease,
+      background 0.2s ease;
+  }
+
+  .guest-cta-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.12) 50%, transparent 80%);
+    transform: translateX(-120%);
+    transition: transform 0.55s ease;
+    pointer-events: none;
+  }
+
+  .guest-cta-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: rgba(var(--accent-rgb), 0.48);
+    box-shadow: 0 16px 36px rgba(8, 9, 4, 0.12);
+  }
+
+  .guest-cta-btn:hover:not(:disabled)::before {
+    transform: translateX(120%);
+  }
+
+  .guest-cta-btn:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .guest-cta-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    box-shadow: 0 8px 18px rgba(8, 9, 4, 0.05);
+  }
+
+  .guest-cta-badge {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(var(--accent-rgb), 0.18);
+    color: var(--text);
+    border: 1px solid rgba(var(--accent-rgb), 0.3);
+    flex-shrink: 0;
+  }
+
+  .guest-cta-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .guest-cta-title {
+    font-size: 0.98rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--text);
+  }
+
+  .guest-cta-subtitle {
+    font-size: 0.78rem;
+    line-height: 1.35;
+    color: var(--text2);
+  }
+
+  .guest-cta-arrow {
+    font-size: 1.05rem;
+    color: var(--text3);
+    transition: transform 0.2s ease, color 0.2s ease;
+  }
+
+  .guest-cta-btn:hover:not(:disabled) .guest-cta-arrow {
+    transform: translateX(2px);
+    color: var(--text);
+  }
+
   @media (max-width: 480px) {
     .login-page {
       padding: 1.25rem 0.875rem;
@@ -427,6 +537,24 @@ const loginCss = `
     .login-card {
       padding: 1.25rem;
       border-radius: 20px;
+    }
+    .guest-cta-btn {
+      grid-template-columns: 38px minmax(0, 1fr) auto;
+      gap: 10px;
+      min-height: 54px;
+      padding: 12px 14px;
+      border-radius: 16px;
+    }
+    .guest-cta-badge {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+    }
+    .guest-cta-title {
+      font-size: 0.92rem;
+    }
+    .guest-cta-subtitle {
+      font-size: 0.74rem;
     }
     .login-top {
       margin-bottom: 1.5rem;
