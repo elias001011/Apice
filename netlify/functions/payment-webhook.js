@@ -68,7 +68,7 @@ async function updateBillingInBlob(userId, planKey, billingUpdate) {
       contentType: 'application/json',
     })
 
-    console.log(`[payment-webhook] Billing atualizado no blob para userId: ${userId}`)
+    console.log('[payment-webhook] Billing atualizado no blob.')
     return true
   } catch (error) {
     console.error('[payment-webhook] Erro ao atualizar blob:', error.message)
@@ -88,10 +88,10 @@ export async function handler(req) {
     const userId = safeText(metadata.userId)
     const planKey = safeText(metadata.planKey) || 'monthly'
 
-    console.log(`[payment-webhook] Evento recebido: ${event}`, { userId, planKey })
+    console.log(`[payment-webhook] Evento recebido: ${event}`, { planKey })
 
     if (!userId) {
-      console.warn('[payment-webhook] userId não encontrado no metadata. Dados:', JSON.stringify(metadata))
+      console.warn('[payment-webhook] userId não encontrado no metadata.')
       return new Response(JSON.stringify({ success: true, message: 'Ignorado: userId não encontrado' }), { status: 200 })
     }
 
@@ -112,11 +112,11 @@ export async function handler(req) {
 
     const blobUpdated = await updateBillingInBlob(userId, planKey, billingUpdate)
 
-    console.log(`[payment-webhook] Usuário ${userId} marcado como PRO. Blob atualizado: ${blobUpdated}`)
+    console.log(`[payment-webhook] Usuário marcado como PRO. Blob atualizado: ${blobUpdated}`)
 
     return new Response(JSON.stringify({
       success: true,
-      message: `Usuário ${userId} atualizado para PRO`,
+      message: 'Usuário atualizado para PRO',
       blobUpdated,
     }), {
       status: 200,

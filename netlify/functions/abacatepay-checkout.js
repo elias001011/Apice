@@ -249,7 +249,7 @@ async function createCheckout(req, authUser, headers) {
   const customerCellphone = safeText(body?.customerCellphone ?? body?.phone ?? body?.cellphone)
   const customerTaxId = safeText(body?.customerTaxId ?? body?.taxId ?? body?.cpf ?? body?.cnpj)
 
-  console.log('[abacatepay] userId:', userId, '| userEmail:', userEmail)
+  console.log('[abacatepay] Checkout autorizado.')
 
   // BLINDAGEM DO TRIAL: Verifica no blob da nuvem se já usou trial
   // Isso previne que usuários burlem limpando localStorage
@@ -259,7 +259,7 @@ async function createCheckout(req, authUser, headers) {
     hasUsedTrialCloud = cloudStatus.hasUsedTrial
 
     if (hasUsedTrialCloud) {
-      console.warn(`[abacatepay] Usuário ${userId} tentou usar trial novamente. Bloqueado.`)
+      console.warn('[abacatepay] Tentativa de reutilizar trial bloqueada.')
       return new Response(JSON.stringify({
         error: 'O teste grátis já foi usado nesta conta. Assine um plano para continuar.',
         hasUsedTrial: true,

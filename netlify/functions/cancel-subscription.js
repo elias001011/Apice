@@ -147,7 +147,7 @@ async function downgradeUserToFreeInBlob(userId) {
       contentType: 'application/json',
     })
 
-    console.log(`[cancel-subscription] Usuário ${userId} downgraded para FREE no blob.`)
+    console.log('[cancel-subscription] Usuário downgraded para FREE no blob.')
     return true
   } catch (error) {
     console.error('[cancel-subscription] Erro ao downgradar usuário no blob:', error.message)

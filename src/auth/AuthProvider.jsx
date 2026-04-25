@@ -111,8 +111,7 @@ export function AuthProvider({ children }) {
         return token || ''
       } catch (err) {
         console.warn('[AuthProvider] Falha ao obter JWT:', err.message)
-        // Fallback: return userId so authFetch can still send X-User-Id
-        return currentUser.id ? `__userid__${currentUser.id}` : ''
+        return ''
       }
     })
     return () => registerAuthTokenGetter(null)

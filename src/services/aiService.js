@@ -2,6 +2,7 @@ import {
   canConsumeFreePlan,
   consumeFreePlan,
 } from './freePlanUsage.js'
+import { createAiRequestError } from './aiRequestError.js'
 import { loadAiResponsePreferenceText } from './aiResponsePreferences.js'
 import { authFetch } from './authFetch.js'
 import {
@@ -14,6 +15,7 @@ import {
 } from './essayInsights.js'
 import { refreshUserSummaryFromHistory } from './userSummary.js'
 import { checkConquistasRedacao } from './conquistas.js'
+import { isGuestSessionActive } from '../auth/sessionMode.js'
 
 function createQuotaError(message) {
   const error = new Error(message)
@@ -21,11 +23,20 @@ function createQuotaError(message) {
   return error
 }
 
+function buildQuotaBlockedMessage(featureLabel) {
+  const scopeLabel = isGuestSessionActive() ? 'modo convidado' : 'cota gratuita'
+  const recoveryLabel = isGuestSessionActive()
+    ? 'Crie uma conta nova para continuar.'
+    : 'Tente mais tarde ou troque de plano.'
+
+  return `Limite do ${scopeLabel} atingido para ${featureLabel}. ${recoveryLabel}`
+}
+
 export async function gerarTemaDinamico({ retryCount = 1 } = {}) {
   // O frontend chama só o endpoint Netlify.
   // Toda decisão de search/fallback/provider fica no backend.
   if (!canConsumeFreePlan('themeDynamic')) {
-    throw createQuotaError('Limite do plano free atingido para tema dinâmico. Tente mais tarde ou troque de plano.')
+    throw createQuotaError(buildQuotaBlockedMessage('tema dinâmico'))
   }
 
   let lastError = null
@@ -41,22 +52,16 @@ export async function gerarTemaDinamico({ retryCount = 1 } = {}) {
       })
 
       if (!res.ok) {
-        let errorDetail = ''
-        try {
-          const errorData = await res.json()
-          errorDetail = errorData.error || errorData.detail || JSON.stringify(errorData)
-        } catch {
-          errorDetail = res.statusText || `HTTP ${res.status}`
-        }
+        const error = await createAiRequestError(res, 'Falha ao gerar tema dinâmico.')
 
         const authHint = res.status === 401 ? ' (AUTH: faça logout e login novamente)' : ''
         const serverHint = res.status === 502 ? ' (SERVIDOR: problema com chave API ou timeout)' : ''
 
         console.error(
-          `[aiService] Falha ao gerar tema (tentativa ${attempt + 1}). HTTP ${res.status}: ${errorDetail}${authHint}${serverHint}`
+          `[aiService] Falha ao gerar tema (tentativa ${attempt + 1}). HTTP ${res.status}: ${error.message}${authHint}${serverHint}`
         )
 
-        throw new Error(errorDetail || 'Falha ao gerar tema dinâmico.')
+        throw error
       }
 
       const data = await res.json()
@@ -78,7 +83,7 @@ export async function corrigirRedacao({ redacao, tema, material, isRigido }) {
   // O backend agora monta o prompt de correção e aplica a heurística de cópia.
   // Aqui a tela só envia dados brutos; não existe lógica de IA no cliente.
   if (!canConsumeFreePlan('essayCorrection')) {
-    throw createQuotaError('Limite do plano free atingido para correção de redação. Tente mais tarde ou troque de plano.')
+    throw createQuotaError(buildQuotaBlockedMessage('correção de redação'))
   }
 
   const responsePreference = loadAiResponsePreferenceText()
@@ -94,22 +99,16 @@ export async function corrigirRedacao({ redacao, tema, material, isRigido }) {
   })
 
   if (!res.ok) {
-    let errorDetail = ''
-    try {
-      const errorData = await res.json()
-      errorDetail = errorData.error || errorData.detail || JSON.stringify(errorData)
-    } catch {
-      errorDetail = res.statusText || `HTTP ${res.status}`
-    }
+    const error = await createAiRequestError(res, 'Erro na comunicação com a IA.')
 
     const authHint = res.status === 401 ? ' (AUTH: faça logout e login novamente)' : ''
     const serverHint = res.status === 502 ? ' (SERVIDOR: problema com chave API ou timeout)' : ''
 
     console.error(
-      `[aiService] Falha ao corrigir redação. HTTP ${res.status}: ${errorDetail}${authHint}${serverHint}`
+      `[aiService] Falha ao corrigir redação. HTTP ${res.status}: ${error.message}${authHint}${serverHint}`
     )
 
-    throw new Error(errorDetail || 'Erro na comunicação com a IA.')
+    throw error
   }
 
   const data = await res.json()
@@ -122,7 +121,7 @@ export async function chamarIAEspecifica({ provider, systemPrompt, userMessages 
   // Helper pronto para a próxima etapa: chamar um provider/modelo específico sem search.
   // Hoje ele não é usado pela tela principal, mas já fica disponível para um painel avançado.
   if (!canConsumeFreePlan('directModelCall')) {
-    throw createQuotaError('Limite do plano free atingido para chamada direta de IA.')
+    throw createQuotaError(buildQuotaBlockedMessage('chamada direta de IA'))
   }
 
   const responsePreference = loadAiResponsePreferenceText()
@@ -139,23 +138,17 @@ export async function chamarIAEspecifica({ provider, systemPrompt, userMessages 
   })
 
   if (!res.ok) {
-    let errorDetail = ''
-    try {
-      const errorData = await res.json()
-      errorDetail = errorData.error || errorData.detail || JSON.stringify(errorData)
-    } catch {
-      errorDetail = res.statusText || `HTTP ${res.status}`
-    }
+    const error = await createAiRequestError(res, 'Erro ao chamar IA específica.')
 
     const authStatus = res.status === 401 ? '(PROBLEMA DE AUTENTICAÇÃO — faça logout e login novamente)' : ''
     const providerStatus = res.status === 502 ? '(PROBLEMA NO PROVIDER DE IA — chave API ou timeout no servidor)' : ''
 
     console.error(
       `[aiService] Falha no provider ${provider} (${modelVariant}) para Professor IA. ` +
-      `HTTP ${res.status}: ${errorDetail} ${authStatus} ${providerStatus}`
+      `HTTP ${res.status}: ${error.message} ${authStatus} ${providerStatus}`
     )
 
-    throw new Error(errorDetail || 'Erro ao chamar IA específica.')
+    throw error
   }
 
   const data = await res.json()

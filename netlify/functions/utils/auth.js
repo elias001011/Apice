@@ -81,6 +81,10 @@ function isTokenExpired(payload) {
   return Date.now() >= payload.exp * 1000
 }
 
+function isProductionEnvironment() {
+  return String(process?.env?.NODE_ENV ?? '').toLowerCase() === 'production'
+}
+
 /**
  * Authenticate a request by extracting and decoding the JWT.
  *
@@ -91,9 +95,7 @@ export function authenticateRequest(req, context = {}) {
   try {
     const token = extractBearerToken(req)
     if (!token) {
-      if (!extractUserIdFromHeader(req)) {
-        console.warn('[auth] Token JWT não fornecido na requisição')
-      }
+      console.warn('[auth] Token JWT não fornecido na requisição')
       return null
     }
 
@@ -115,7 +117,7 @@ export function authenticateRequest(req, context = {}) {
 
     if (userContext) {
       const userId = String(userContext.sub ?? userContext.id ?? '').trim()
-      console.log(`[auth] Auth via Netlify Identity (Seguro). userId: ${userId}, email: ${userContext.email}`)
+      console.log('[auth] Auth via Netlify Identity (Seguro).')
       
       return {
         user: {
@@ -137,12 +139,18 @@ export function authenticateRequest(req, context = {}) {
       }
     }
 
-    // Camada 2: Fallback estrutural (Ambiente de desenvolvimento)
+    // Camada 2: Fallback estrutural apenas em desenvolvimento local.
+    // Em produção, exigimos o `user` do clientContext do Netlify.
+    if (isProductionEnvironment()) {
+      console.warn('[auth] Contexto de usuário ausente em produção. JWT não validado pelo clientContext.')
+      return null
+    }
+
     console.warn('[auth] Contexto criptográfico Netlify ausente. Fazendo fallback para validação estrutural do JWT.')
     
     const payload = decodeJwtPayload(token)
     if (!payload) {
-      console.error('[auth] Token JWT malformado ou inválido. Token preview:', token.substring(0, 30) + '...')
+      console.error('[auth] Token JWT malformado ou inválido.')
       return null
     }
 
@@ -158,7 +166,7 @@ export function authenticateRequest(req, context = {}) {
       return null
     }
 
-    console.log(`[auth] Auth estrutural OK. userId: ${userId}, email: ${payload.email}`)
+    console.log('[auth] Auth estrutural OK.')
 
     return {
       user: {
@@ -201,9 +209,8 @@ export function unauthorizedResponse(corsHeaders = {}) {
 }
 
 /**
- * Extract userId from X-User-Id header.
- * This is the FALLBACK auth mechanism — kept for backward compatibility
- * during transition period. Will be removed in a future version.
+ * Extract the guest marker from X-User-Id header.
+ * Only the literal value `guest` is accepted by requireAuth when allowGuest=true.
  */
 function extractUserIdFromHeader(req) {
   if (typeof req?.headers?.get === 'function') {
@@ -217,7 +224,7 @@ function extractUserIdFromHeader(req) {
  * Returns the auth context or a 401 Response.
  *
  * Primary auth: Bearer JWT (extracts userId, email, fullName from token payload)
- * Fallback: X-User-Id header (forjável — deprecated, para período de transição)
+ * Guest access: only `guest` is accepted, and only when allowGuest=true.
  *
  * Usage:
  *   const auth = requireAuth(req, headers)
@@ -225,20 +232,25 @@ function extractUserIdFromHeader(req) {
  *   // auth.user.id is the authenticated user
  *   // auth.user.email and auth.user.fullName are available from JWT
  */
-export function requireAuth(req, context = {}, corsHeaders = {}) {
+export function requireAuth(req, context = {}, corsHeaders = {}, options = {}) {
+  const allowGuest = Boolean(options?.allowGuest)
+  const userId = extractUserIdFromHeader(req)
+
+  if (allowGuest && userId === 'guest') {
+    console.warn('[auth] Convidado autorizado em rota liberada.')
+    return {
+      user: { id: 'guest', email: '', fullName: '', roles: [], metadata: {}, appMetadata: {}, guest: true },
+      token: '',
+      payload: { sub: 'guest', guest: true },
+    }
+  }
+
   // Primary: try Bearer JWT (secure — extracts email/fullName from token)
   const auth = authenticateRequest(req, context)
   if (auth) return auth
 
-  // Fallback: accept X-User-Id header (forjável — período de transição)
-  const userId = extractUserIdFromHeader(req)
   if (userId) {
-    console.warn(`[auth] Usando X-User-Id fallback (forjável). userId: ${userId}. Migre o frontend para enviar JWT.`)
-    return {
-      user: { id: userId, email: '', fullName: '', roles: [], metadata: {}, appMetadata: {} },
-      token: '',
-      payload: { sub: userId },
-    }
+    console.warn('[auth] X-User-Id recebido sem permissão para fallback. JWT obrigatório.')
   }
 
   return unauthorizedResponse(corsHeaders)

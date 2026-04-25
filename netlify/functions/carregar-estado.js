@@ -61,7 +61,7 @@ export default async function handler(req, context) {
 
     const secureState = sanitizeState(rawData, rawData, auth.user)
 
-    console.log(`[carregar-estado] Carregado para ${auth.user.id}`)
+    console.log('[carregar-estado] Estado carregado.')
 
     return new Response(
       JSON.stringify({

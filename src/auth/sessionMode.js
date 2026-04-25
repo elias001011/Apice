@@ -1,5 +1,6 @@
 const GUEST_SESSION_KEY = 'apice:session-mode:v1'
 const GUEST_PROFILE_KEY = 'apice:guest-profile:v1'
+const GUEST_SESSION_ID_KEY = 'apice:guest-session-id:v1'
 
 const DEFAULT_GUEST_PROFILE = {
   full_name: 'Convidado',
@@ -7,8 +8,52 @@ const DEFAULT_GUEST_PROFILE = {
   school: '',
 }
 
+let inMemoryGuestSessionId = ''
+
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+}
+
+function generateGuestSessionId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+
+  return `guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function readGuestSessionIdFromStorage() {
+  if (!canUseStorage()) return ''
+
+  try {
+    return String(localStorage.getItem(GUEST_SESSION_ID_KEY) || '').trim()
+  } catch {
+    return ''
+  }
+}
+
+export function getGuestSessionId() {
+  const stored = readGuestSessionIdFromStorage()
+  if (stored) return stored
+  return inMemoryGuestSessionId
+}
+
+export function getOrCreateGuestSessionId() {
+  const stored = getGuestSessionId()
+  if (stored) return stored
+
+  const nextId = generateGuestSessionId()
+  inMemoryGuestSessionId = nextId
+
+  if (canUseStorage()) {
+    try {
+      localStorage.setItem(GUEST_SESSION_ID_KEY, nextId)
+    } catch {
+      // ignore storage failures
+    }
+  }
+
+  return nextId
 }
 
 function normalizeGuestProfile(profile) {
@@ -84,6 +129,7 @@ export function markGuestSession(profile = loadGuestProfile()) {
 
   try {
     localStorage.setItem(GUEST_SESSION_KEY, 'guest')
+    localStorage.setItem(GUEST_SESSION_ID_KEY, getOrCreateGuestSessionId())
   } catch {
     // ignore storage failures
   }
@@ -92,11 +138,14 @@ export function markGuestSession(profile = loadGuestProfile()) {
 }
 
 export function clearGuestSession() {
+  inMemoryGuestSessionId = ''
+
   if (!canUseStorage()) return
 
   try {
     localStorage.removeItem(GUEST_SESSION_KEY)
     localStorage.removeItem(GUEST_PROFILE_KEY)
+    localStorage.removeItem(GUEST_SESSION_ID_KEY)
   } catch {
     // ignore storage failures
   }

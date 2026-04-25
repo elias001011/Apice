@@ -2,6 +2,11 @@ import { generateTextDirect } from '../ai/ai.js'
 import { requireAuth } from './utils/auth.js'
 import { buildCorsHeaders } from './utils/cors.js'
 import {
+  buildGuestQuotaBlockedResponse,
+  checkGuestQuotaAllowance,
+  recordGuestQuotaSuccess,
+} from './utils/guestQuota.js'
+import {
   INPUT_LIMITS,
   validateStringLength,
   validateArrayLength,
@@ -20,13 +25,13 @@ export default async function handler(req, context) {
   }
 
   // ── Authentication ──────────────────────────────────────────────────────
-  const auth = requireAuth(req, context, headers)
+  const auth = requireAuth(req, context, headers, { allowGuest: true })
   if (auth instanceof Response) {
     console.warn('[chamar-ia] Requisição não autenticada (401). Verifique se o usuário está logado e o JWT está válido.')
     return auth
   }
 
-  console.log(`[chamar-ia] Auth OK. userId: ${auth.user.id}, email: ${auth.user.email}`)
+  console.log('[chamar-ia] Auth OK.')
 
   try {
     const body = await req.json().catch(() => ({}))
@@ -62,6 +67,17 @@ export default async function handler(req, context) {
       if (!check.valid) return validationErrorResponse(check.error, headers)
     }
 
+    if (auth.user?.guest) {
+      const quota = await checkGuestQuotaAllowance(req)
+      if (!quota.allowed) {
+        return buildGuestQuotaBlockedResponse(
+          headers,
+          quota.quota,
+          'Limite do modo convidado atingido para chamada direta de IA. Crie uma conta nova para continuar.',
+        )
+      }
+    }
+
     const result = await generateTextDirect({
       provider,
       systemPrompt,
@@ -70,6 +86,10 @@ export default async function handler(req, context) {
       modelOverride,
       responsePreference,
     })
+
+    if (auth.user?.guest) {
+      await recordGuestQuotaSuccess(req, { featureKey: 'directModelCall', route: 'chamar-ia' })
+    }
 
     console.log(`[chamar-ia] Sucesso. Provider: ${provider}, result keys: ${Object.keys(result || {}).join(', ')}`)
     return new Response(JSON.stringify(result), { status: 200, headers })

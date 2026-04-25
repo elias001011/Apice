@@ -287,7 +287,7 @@ export function ProfessorPage() {
 
     if (isBrowserOffline()) {
       setAiError(true)
-      window.alert('Voce esta offline. Verifique sua conexao para continuar usando o Professor IA.')
+      window.alert('Você está offline. Verifique sua conexão para continuar usando o Professor IA.')
       return
     }
 
@@ -391,8 +391,14 @@ export function ProfessorPage() {
     } catch (error) {
       console.error('Erro ao chamar IA do Professor:', error)
       const rawMessage = String(error?.message || '').toLowerCase()
-      const isQuotaBlocked = error?.code === 'quota_blocked' || rawMessage.includes('limite do plano free')
+      const isQuotaBlocked = error?.code === 'quota_blocked'
+        || rawMessage.includes('limite do plano free')
+        || rawMessage.includes('cota gratuita')
+        || rawMessage.includes('modo convidado')
       const isOffline = isBrowserOffline()
+      const quotaBlockedText = rawMessage.includes('modo convidado')
+        ? 'Você atingiu o limite diário do modo convidado. Crie uma conta nova para continuar usando a IA.'
+        : 'Você atingiu o limite diário de IA no plano atual. Tente novamente amanhã ou faça upgrade do plano.'
 
       setConversations((prev) => ({
         ...prev,
@@ -402,18 +408,20 @@ export function ProfessorPage() {
             id: nextMessageId(),
             sender: 'ai',
             text: isQuotaBlocked
-              ? 'Voce atingiu o limite diario de IA no plano atual. Tente novamente amanha ou faca upgrade do plano.'
+              ? quotaBlockedText
               : isOffline
-              ? 'Estou sem conexao no momento. Verifique sua internet e tente novamente.'
-              : 'O servico de IA esta indisponivel no momento. Ja tentei provedores alternativos. Tente novamente em alguns segundos.',
+              ? 'Estou sem conexão no momento. Verifique sua internet e tente novamente.'
+              : 'O serviço de IA está indisponível no momento. Já tentei provedores alternativos. Tente novamente em alguns segundos.',
           },
         ],
       }))
 
       if (isOffline) {
-        window.alert('Conexao offline detectada. O Professor IA nao consegue responder sem internet.')
+        window.alert('Conexão offline detectada. O Professor IA não consegue responder sem internet.')
       } else if (isQuotaBlocked) {
-        window.alert('Limite diario de IA atingido no plano atual.')
+        window.alert(rawMessage.includes('modo convidado')
+          ? 'Limite diário do modo convidado atingido. Crie uma conta nova para continuar.'
+          : 'Limite diário de IA atingido no plano atual.')
       }
       setAiError(true)
     } finally {

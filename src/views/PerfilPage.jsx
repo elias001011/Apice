@@ -883,7 +883,9 @@ export function PerfilPage() {
   const quotaHelpMessage = [
     'Cada vez que o app precisa gerar um resultado novo com IA, 1 uso é consumido.',
     '',
-    'Conta gratuita: 5 usos por dia.',
+    isGuest
+      ? `Modo convidado: ${quotaRow.limit} solicitações por dia, com cota separada neste navegador e validação no servidor para reduzir abuso.`
+      : 'Conta gratuita: 5 usos por dia.',
     `Conta paga, teste grátis ativo ou premium temporário: ${PAID_AI_DAILY_LIMIT} usos por dia.`,
     '',
     'Cada um destes pontos conta como 1 uso quando você:',
@@ -1286,12 +1288,12 @@ export function PerfilPage() {
         <div className="meu-plano-left">
           <div className="meu-plano-label">Plano Atual</div>
           <div className="meu-plano-tier">
-            {billingStatus === 'free' ? 'Gratuito' : welcomePremiumActive ? 'Premium temporário' : billingStatus === 'trial' ? 'Teste grátis' : 'Pago'}
-            <span className={`meu-plano-tier-badge ${billingStatus === 'free' ? '' : 'pro'}`}>
-              {billingStatus === 'free' ? 'Free' : welcomePremiumActive ? `Premium ${WELCOME_PREMIUM_DAYS}d` : billingStatus === 'trial' ? 'Trial' : 'Pago'}
+            {isGuest ? 'Modo convidado' : billingStatus === 'free' ? 'Gratuito' : welcomePremiumActive ? 'Premium temporário' : billingStatus === 'trial' ? 'Teste grátis' : 'Pago'}
+            <span className={`meu-plano-tier-badge ${isGuest || billingStatus === 'free' ? '' : 'pro'}`}>
+              {isGuest ? 'Convidado' : billingStatus === 'free' ? 'Free' : welcomePremiumActive ? `Premium ${WELCOME_PREMIUM_DAYS}d` : billingStatus === 'trial' ? 'Trial' : 'Pago'}
             </span>
           </div>
-          {billingStatus === 'free' && (
+          {(billingStatus === 'free' || isGuest) && (
             <div className="meu-plano-quota">
               <div className="meu-plano-bar">
                 <div
@@ -1305,7 +1307,11 @@ export function PerfilPage() {
             </div>
           )}
         </div>
-        {billingStatus === 'free' ? (
+        {isGuest ? (
+          <Link to="/cadastro" className="meu-plano-btn">
+            Criar conta nova
+          </Link>
+        ) : billingStatus === 'free' ? (
           <Link to="/planos" className="meu-plano-btn">
             Ver planos
           </Link>
@@ -1661,12 +1667,14 @@ export function PerfilPage() {
               <div>
                 <div className="quota-title">Cota diária de IA</div>
                 <div className="quota-subtitle">
-                  {quotaRow.limit} solicitações por dia. Conte 1 uso sempre que a IA gerar um resultado novo.
+                  {isGuest
+                    ? `${quotaRow.limit} solicitações por dia no modo convidado. Conte 1 uso sempre que a IA gerar um resultado novo.`
+                    : `${quotaRow.limit} solicitações por dia. Conte 1 uso sempre que a IA gerar um resultado novo.`}
                 </div>
               </div>
               <div className="quota-head-right">
-                <div className={`quota-plan-badge ${billingStatus === 'free' ? 'free' : 'pro'}`}>
-                  {billingStatusLabel}
+                <div className={`quota-plan-badge ${isGuest || billingStatus === 'free' ? 'free' : 'pro'}`}>
+                  {isGuest ? 'Convidado' : billingStatusLabel}
                 </div>
                 <button
                   type="button"

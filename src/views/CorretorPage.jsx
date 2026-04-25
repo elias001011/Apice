@@ -194,6 +194,9 @@ export function CorretorPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
       if (themeRequestSeq.current !== requestId) return
+      if (err?.code === 'quota_blocked') {
+        openUpgradeModal({ reason: UPGRADE_REASONS.QUOTA_BLOCKED })
+      }
       setErrorMsg(err?.message || 'Não foi possível gerar um tema agora. Tente digitar um manualmente.')
     } finally {
       if (themeRequestSeq.current === requestId) {
@@ -244,6 +247,9 @@ export function CorretorPage() {
       )
     } catch (err) {
       if (correctionRequestSeq.current !== requestId) return
+      if (err?.code === 'quota_blocked') {
+        openUpgradeModal({ reason: UPGRADE_REASONS.QUOTA_BLOCKED })
+      }
       setErrorMsg(err.message || 'Erro ao processar a redação. Tente mais tarde.')
     } finally {
       if (correctionRequestSeq.current === requestId) {

@@ -160,7 +160,6 @@ export function PlanosPage() {
   const activeAccessLabel = welcomePremiumActive ? 'Premium temporário' : 'Teste grátis'
   const activeAccessLabelLower = activeAccessLabel.toLowerCase()
   const trialEnded = trialAlreadyUsed && !trialCurrentlyActive && billingState.status !== 'paid'
-  const statusLabel = getBillingStatusLabel(billingState.status)
   const quotaRow = quotaInfo || getQuotaInfo()
   const activeLimit = quotaRow.limit || getFreePlanUsageRows()[0]?.limit || 5
   const trialEndDate = billingState.trialEndsAt ? new Date(billingState.trialEndsAt) : null
@@ -171,11 +170,18 @@ export function PlanosPage() {
       year: 'numeric',
     })
     : ''
-  const statusDescription = trialEnded && trialEndLabel
-    ? `${billingState.trialKind === 'welcome' ? 'Premium temporário' : 'Teste grátis'} encerrado em ${trialEndLabel}`
-    : getBillingStatusDescription(billingState.status)
+  const statusLabel = isGuest ? 'Convidado' : getBillingStatusLabel(billingState.status)
+  const statusDescription = isGuest
+    ? `Modo convidado ativo. A IA aqui fica limitada a ${quotaRow.limit} solicitações por dia e os dados ficam só neste navegador até criar uma conta nova.`
+    : trialEnded && trialEndLabel
+      ? `${billingState.trialKind === 'welcome' ? 'Premium temporário' : 'Teste grátis'} encerrado em ${trialEndLabel}`
+      : getBillingStatusDescription(billingState.status)
 
   const currentStateText = (() => {
+    if (isGuest) {
+      return `Modo convidado ativo. A IA fica limitada a ${quotaRow.limit} solicitações por dia neste navegador e os dados não sincronizam na nuvem até você criar uma conta nova.`
+    }
+
     if (trialCurrentlyActive) {
       if (welcomePremiumActive) {
         return activePlan
@@ -211,7 +217,7 @@ export function PlanosPage() {
   })()
 
   const guestNotice = isGuest
-    ? 'Você está no modo convidado. Seus dados ficam só neste navegador até criar uma conta nova.'
+    ? `Você está no modo convidado. Seus dados ficam só neste navegador até criar uma conta nova, e a IA aqui fica limitada a ${quotaRow.limit} solicitações por dia.`
     : ''
 
   const handleCheckout = async (plan) => {
