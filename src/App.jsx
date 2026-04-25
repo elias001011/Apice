@@ -10,6 +10,7 @@ import { ConquistasPage } from './views/ConquistasPage.jsx'
 import { CadastroPage } from './views/CadastroPage.jsx'
 import { EsqueciSenhaPage } from './views/EsqueciSenhaPage.jsx'
 import { HistoricoRedacoesPage } from './views/HistoricoRedacoesPage.jsx'
+import { HistoricoSimuladosPage } from './views/HistoricoSimuladosPage.jsx'
 import { ResultadoRedacaoPage } from './views/ResultadoRedacaoPage.jsx'
 import { NotificacoesPage } from './views/NotificacoesPage.jsx'
 import { AparenciaPage } from './views/AparenciaPage.jsx'
@@ -79,6 +80,7 @@ export default function App() {
         <Route path="/notificacoes" element={<NotificacoesPage />} />
         <Route path="/sobre" element={<SobrePage />} />
         <Route path="/historico-redacoes" element={<HistoricoRedacoesPage />} />
+        <Route path="/historico-simulados" element={<HistoricoSimuladosPage />} />
         <Route path="/resultado-redacao" element={<ResultadoRedacaoPage />} />
         <Route path="/tema-detalhe" element={<TemaDetalhePage />} />
         <Route path="/aparencia" element={<AparenciaPage />} />

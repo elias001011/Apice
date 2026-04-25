@@ -250,6 +250,7 @@ export function AuthProvider({ children }) {
 
     const events = [
       'apice:historico-updated',
+      'apice:simulado-historico-updated',
       'apice:free-plan-usage-updated',
       'apice:enem-date-updated',
       'apice:radar-favorites-updated',

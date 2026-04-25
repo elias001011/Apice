@@ -11,6 +11,7 @@ import { buscarQuestoesAleatorias, popularBancoQuestoes } from './questoesLocalD
 
 const STORAGE_KEY = 'apice:simulado_progresso:v2'
 const MAX_SIMULADO_QUESTIONS = 90
+export const MAX_SIMULADO_AI_QUESTIONS = 15
 
 /**
  * Gera simulado combinando banco local, ENEM API e IA
@@ -18,7 +19,7 @@ const MAX_SIMULADO_QUESTIONS = 90
  * @param {string} config.area - Área do conhecimento
  * @param {Array<string>} config.disciplinas - Disciplinas selecionadas
  * @param {number} config.quantidade - Total de questões
- * @param {string} config.fonte - 'api', 'ia' ou 'mista'
+ * @param {string} config.fonte - 'api' (somente questões reais), 'ia' (somente IA) ou 'mista' (reais + IA limitada)
  * @returns {Promise<Object>} Simulado gerado
  */
 export async function gerarSimulado({ 
@@ -29,6 +30,7 @@ export async function gerarSimulado({
 }) {
   const responsePreference = loadAiResponsePreferenceText()
   const disciplinasSelecionadas = normalizeDisciplinas(disciplinas)
+  const alertas = []
   
   // Validar entrada
   if (!area) {
@@ -41,7 +43,7 @@ export async function gerarSimulado({
 
   let questoesLocais = []
   let questoesApi = []
-  let questoesIA = []
+  let resultadoIA = { questoes: [] }
 
   // Tenta primeiro o banco local de questões reais.
   if (fonte !== 'ia') {
@@ -82,18 +84,30 @@ export async function gerarSimulado({
   
   if ((fonte === 'ia' || fonte === 'mista') && quantidadeFaltante > 0) {
     try {
-      questoesIA = await gerarQuestoesIA({
+      const quantidadeIA = Math.min(quantidadeFaltante, MAX_SIMULADO_AI_QUESTIONS)
+      if (quantidadeFaltante > MAX_SIMULADO_AI_QUESTIONS) {
+        alertas.push(`A IA foi limitada a ${MAX_SIMULADO_AI_QUESTIONS} questões para manter o simulado seguro.`)
+      }
+
+      resultadoIA = await gerarQuestoesIA({
         area,
         disciplinas: disciplinasSelecionadas,
-        quantidade: quantidadeFaltante,
+        quantidade: quantidadeIA,
+        quantidadeSolicitada: quantidadeFaltante,
         responsePreference,
       })
+
+      if (resultadoIA?.alerta && String(resultadoIA.alerta).trim()) {
+        alertas.push(String(resultadoIA.alerta).trim())
+      }
       
-      console.log(`[simuladoService] ${questoesIA.length} questões geradas por IA`)
+      console.log(`[simuladoService] ${resultadoIA.questoes.length} questões geradas por IA`)
     } catch (error) {
       console.error('[simuladoService] IA falhou:', error.message)
     }
   }
+
+  const questoesIA = Array.isArray(resultadoIA.questoes) ? resultadoIA.questoes : []
 
   // Combina e embaralha questões
   const todasQuestoes = dedupeQuestoes([
@@ -108,14 +122,23 @@ export async function gerarSimulado({
 
   // Embaralha e seleciona quantidade exata
   const questoesSelecionadas = shuffleArray(todasQuestoes).slice(0, quantidade)
+  if (questoesSelecionadas.length < quantidade) {
+    alertas.push(
+      `O simulado ficou com ${questoesSelecionadas.length} questão(ões) porque a IA foi limitada e o banco real não fechou o total pedido.`,
+    )
+  }
 
   return {
     area,
     disciplinas: disciplinasSelecionadas,
     fonte,
     quantidade: questoesSelecionadas.length,
+    quantidadeSolicitada: quantidade,
     questoes: questoesSelecionadas,
     geradoEm: new Date().toISOString(),
+    alerta: alertas.join(' '),
+    limiteIAAplicado: alertas.length > 0,
+    quantidadeMaximaIA: MAX_SIMULADO_AI_QUESTIONS,
     estatisticas: {
       bancoLocal: questoesLocais.length,
       reais: questoesLocais.length + questoesApi.length,
@@ -129,7 +152,7 @@ export async function gerarSimulado({
  * @param {Object} config - Configuração
  * @returns {Promise<Array>} Questões geradas
  */
-async function gerarQuestoesIA({ area, disciplinas, quantidade, responsePreference }) {
+async function gerarQuestoesIA({ area, disciplinas, quantidade, responsePreference, quantidadeSolicitada }) {
   const res = await authFetch('/.netlify/functions/gerar-simulado', {
     method: 'POST',
     headers: {
@@ -139,6 +162,7 @@ async function gerarQuestoesIA({ area, disciplinas, quantidade, responsePreferen
       area,
       disciplinas,
       quantidade,
+      ...(Number.isFinite(Number(quantidadeSolicitada)) ? { quantidadeSolicitada } : {}),
       ...(responsePreference ? { responsePreference } : {}),
     }),
   })
@@ -160,7 +184,7 @@ async function gerarQuestoesIA({ area, disciplinas, quantidade, responsePreferen
     throw new Error('Resposta inválida do servidor.')
   }
 
-  return data.questoes
+  return data
 }
 
 function normalizeDisciplinas(disciplinas = []) {

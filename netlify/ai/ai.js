@@ -62,6 +62,7 @@ const PROVIDER_MODELS = {
 
 const SEARCH_TIMEOUT_MS = envInt('AI_SEARCH_TIMEOUT_MS', 30000)
 const TEXT_TIMEOUT_MS = envInt('AI_TEXT_TIMEOUT_MS', 20000)
+const MAX_AI_EXAM_QUESTIONS = 15
 const OPENROUTER_SEARCH_MODEL = process.env.AI_OPENROUTER_SEARCH_MODEL || 'openrouter/free'
 
 const SEARCH_QUERY = [
@@ -2298,12 +2299,16 @@ function buildExamSystemPrompt(area, quantidade, disciplinas, responsePreference
   return lines.join('\n')
 }
 
-export async function generateExam({ area, quantidade = 5, disciplinas = [], responsePreference }) {
-  const systemPrompt = buildExamSystemPrompt(area, quantidade, disciplinas, responsePreference)
+export async function generateExam({ area, quantidade = 5, quantidadeSolicitada = null, disciplinas = [], responsePreference }) {
+  const requestedQuantidade = Number.isFinite(Number(quantidadeSolicitada))
+    ? Number(quantidadeSolicitada)
+    : Number(quantidade) || 5
+  const safeQuantidade = Math.max(1, Math.min(Math.round(Number(quantidade) || 5), MAX_AI_EXAM_QUESTIONS))
+  const systemPrompt = buildExamSystemPrompt(area, safeQuantidade, disciplinas, responsePreference)
   const userMessages = [
     {
       role: 'user',
-      content: `Gere um simulado de ${area} com ${quantidade} questões nível ENEM${disciplinas.length > 0 ? ' focado em: ' + disciplinas.join(', ') : ''}.`,
+      content: `Gere um simulado de ${area} com ${safeQuantidade} questões nível ENEM${disciplinas.length > 0 ? ' focado em: ' + disciplinas.join(', ') : ''}.`,
     },
   ]
 
@@ -2344,12 +2349,24 @@ export async function generateExam({ area, quantidade = 5, disciplinas = [], res
       }
     })
 
+    const alertas = []
+    if (requestedQuantidade > MAX_AI_EXAM_QUESTIONS) {
+      alertas.push(`A IA foi limitada a ${MAX_AI_EXAM_QUESTIONS} questões por segurança.`)
+    }
+    if (questoes.length < safeQuantidade) {
+      alertas.push(`O modelo respondeu com ${questoes.length} questão(ões), abaixo do solicitado.`)
+    }
+
     return {
       ...result,
       questoes,
       area: result.area || area,
       disciplinas,
       quantidade: questoes.length,
+      quantidadeSolicitada: requestedQuantidade,
+      quantidadeMaximaIA: MAX_AI_EXAM_QUESTIONS,
+      limiteIAAplicado: alertas.length > 0,
+      alerta: alertas.join(' '),
       geradoEm: new Date().toISOString(),
     }
   } catch (error) {
@@ -2367,6 +2384,14 @@ export async function generateExam({ area, quantidade = 5, disciplinas = [], res
         id: q.id || `q-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
         correta: String(q.correta).toUpperCase().trim(),
       }))
+
+      const alertas = []
+      if (requestedQuantidade > MAX_AI_EXAM_QUESTIONS) {
+        alertas.push(`A IA foi limitada a ${MAX_AI_EXAM_QUESTIONS} questões por segurança.`)
+      }
+      if (questoes.length < safeQuantidade) {
+        alertas.push(`O fallback respondeu com ${questoes.length} questão(ões), abaixo do solicitado.`)
+      }
       
       return {
         ...result,
@@ -2374,6 +2399,10 @@ export async function generateExam({ area, quantidade = 5, disciplinas = [], res
         area: result.area || area,
         disciplinas,
         quantidade: questoes.length,
+        quantidadeSolicitada: requestedQuantidade,
+        quantidadeMaximaIA: MAX_AI_EXAM_QUESTIONS,
+        limiteIAAplicado: alertas.length > 0,
+        alerta: alertas.join(' '),
         geradoEm: new Date().toISOString(),
       }
     } catch (fallbackError) {

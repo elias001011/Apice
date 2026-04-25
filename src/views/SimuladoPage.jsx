@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { gerarSimulado, salvarProgressoSimulado, carregarProgressoSimulado, limparProgressoSimulado } from '../services/simuladoService.js'
+import {
+  gerarSimulado,
+  salvarProgressoSimulado,
+  carregarProgressoSimulado,
+  limparProgressoSimulado,
+} from '../services/simuladoService.js'
+import { saveSimuladoHistoryEntry } from '../services/simuladoHistory.js'
 import { getDisciplinasByArea, getAreasDisponiveis } from '../services/enemApiService.js'
 import { useAppBusy } from '../ui/AppBusyContext.jsx'
 import '../styles/simulado.css'
@@ -147,6 +153,30 @@ export function SimuladoPage() {
       setShowFeedback(false)
       setQuestionStartTime(Date.now())
     } else {
+      const total = examData.questoes.length
+      const correct = calculateScore()
+      const percent = total > 0 ? Math.round((correct / total) * 100) : 0
+      const performance = percent >= 80 ? 'Excelente' : percent >= 60 ? 'Bom' : percent >= 40 ? 'Regular' : 'Precisa melhorar'
+
+      saveSimuladoHistoryEntry({
+        id: examData.sessionId || `${Date.now()}`,
+        sessionId: examData.sessionId || '',
+        data: new Date().toISOString(),
+        titulo: `Simulado de ${examData.area}`,
+        area: examData.area,
+        disciplinas: examData.disciplinas,
+        fonte: examData.fonte,
+        quantidadeSolicitada: examData.quantidadeSolicitada || quantidade,
+        quantidade: total,
+        acertos: correct,
+        total,
+        percentual: percent,
+        performance,
+        estatisticas: examData.estatisticas,
+        limiteIAAplicado: Boolean(examData.limiteIAAplicado),
+        alerta: examData.alerta,
+        geradoEm: examData.geradoEm,
+      })
       setStep('result')
       limparProgressoSimulado()
     }
@@ -181,7 +211,7 @@ export function SimuladoPage() {
         <div className="simulado-header anim anim-d1">
           <h1 className="simulado-title">Simulados Ápice</h1>
           <p className="simulado-subtitle">
-            Configure seu simulado personalizado com banco local de questões reais do ENEM, reforço da ENEM API e IA só para completar o que faltar.
+            Configure seu simulado personalizado com banco local de questões reais do ENEM, reforço da ENEM API e IA só para completar o que faltar, limitada a 15 questões.
           </p>
         </div>
 
@@ -212,7 +242,7 @@ export function SimuladoPage() {
                 <div>
                   <h2 className="setup-section-title">2. Selecione as Disciplinas</h2>
                   <p className="setup-section-copy">
-                    Escolha uma ou mais matérias para o seu simulado. O gerador tenta primeiro o banco local de questões reais do ENEM.
+                    Escolha uma ou mais matérias para o seu simulado. O gerador tenta primeiro o banco local de questões reais do ENEM, depois a ENEM API e só então a IA limitada.
                   </p>
                 </div>
                 <button type="button" className="btn-select-all" onClick={selectAllDisciplinas}>
@@ -275,7 +305,7 @@ export function SimuladoPage() {
                   ))}
                 </div>
                 <p className="quantidade-info">
-                  O app tenta fechar a quantidade primeiro com o banco local de questões reais, depois com a ENEM API e só então com IA.
+                  O app tenta fechar a quantidade primeiro com o banco local de questões reais, depois com a ENEM API e só então com IA limitada a 15 questões.
                 </p>
               </div>
             </div>
@@ -308,7 +338,7 @@ export function SimuladoPage() {
           <div className="spinner"></div>
           <h2 className="simulado-title">Preparando Simulado...</h2>
           <p className="simulado-subtitle">
-            Primeiro o banco local, depois a ENEM API e, se faltar, a IA completa o simulado...
+            Primeiro o banco local, depois a ENEM API e, se faltar, a IA completa no máximo 15 questões.
           </p>
         </div>
       </div>
@@ -426,6 +456,15 @@ export function SimuladoPage() {
           <h1 className="simulado-title" style={{ marginBottom: '2rem' }}>
             {examData.area}
           </h1>
+
+          {examData.alerta && (
+            <div className="card" style={{ marginBottom: '1.25rem', padding: '1rem 1.1rem', borderColor: 'rgba(255, 193, 7, 0.35)', background: 'rgba(255, 193, 7, 0.06)', textAlign: 'left' }}>
+              <strong style={{ display: 'block', marginBottom: '0.35rem' }}>Aviso de composição</strong>
+              <div style={{ color: 'var(--text2)', fontSize: '0.92rem', lineHeight: 1.5 }}>
+                {examData.alerta}
+              </div>
+            </div>
+          )}
           
           <div className="result-score">
             {correct}<span>/{total}</span>
@@ -459,6 +498,9 @@ export function SimuladoPage() {
             <button type="button" className="btn-primary" onClick={handleNewExam}>
               Novo Simulado
             </button>
+            <Link to="/historico-simulados" className="btn-ghost" style={{ textDecoration: 'none' }}>
+              Ver histórico completo
+            </Link>
             <Link to="/home" className="btn-ghost" style={{ textDecoration: 'none' }}>
               Voltar ao Início
             </Link>

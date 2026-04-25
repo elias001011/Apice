@@ -12,6 +12,8 @@ import {
   validationErrorResponse,
 } from './utils/validate.js'
 
+const MAX_AI_SIMULADO_QUESTIONS = 15
+
 export default async function handler(req, context) {
   const headers = buildCorsHeaders(req)
 
@@ -30,7 +32,8 @@ export default async function handler(req, context) {
   try {
     const body = await req.json().catch(() => ({}))
     const area = String(body?.area ?? 'Linguagens').trim()
-    const quantidade = Number(body?.quantidade ?? 5)
+    const quantidadeSolicitada = Number(body?.quantidade ?? 5)
+    const quantidade = Number.isFinite(quantidadeSolicitada) ? quantidadeSolicitada : 5
     const disciplinas = Array.isArray(body?.disciplinas) ? body.disciplinas : []
     const responsePreference = body?.responsePreference ?? null
 
@@ -59,9 +62,17 @@ export default async function handler(req, context) {
     const result = await generateExam({
       area,
       quantidade,
+      quantidadeSolicitada: quantidade,
       disciplinas,
       responsePreference,
     })
+
+    if (result?.alerta && String(result.alerta).trim()) {
+      result.alerta = String(result.alerta).trim()
+    } else if (Number.isFinite(result?.quantidadeSolicitada) && result.quantidadeSolicitada > MAX_AI_SIMULADO_QUESTIONS) {
+      result.alerta = `A IA foi limitada a ${MAX_AI_SIMULADO_QUESTIONS} questões por segurança.`
+      result.limiteIAAplicado = true
+    }
 
     if (auth.user?.guest) {
       await recordGuestQuotaSuccess(req, { featureKey: 'generateExam', route: 'gerar-simulado' })

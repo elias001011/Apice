@@ -34,6 +34,13 @@ import {
   loadEssayHistoryCount,
 } from './essayInsights.js'
 import {
+  loadSimuladoHistory,
+  compactSimuladoHistoryEntry,
+  mergeSimuladoHistorySnapshots,
+  saveSimuladoHistorySnapshot,
+  loadSimuladoHistoryCount,
+} from './simuladoHistory.js'
+import {
   loadManualEnemDate,
   saveManualEnemDate,
 } from './enemCalendar.js'
@@ -91,7 +98,7 @@ const ANIMATIONS_ENABLED_KEY = 'apice:animationsEnabled'
 const CARD_HOVER_ENABLED_KEY = 'apice:cardHoverEffects'
 
 // Versão atual do schema do snapshot. Incrementar quando houver breaking changes.
-export const CURRENT_SCHEMA_VERSION = 18
+export const CURRENT_SCHEMA_VERSION = 19
 // Versões mínimas compatíveis (abaixo disso, os dados são considerados corrompidos/incompatíveis)
 export const MIN_COMPATIBLE_VERSION = 15
 
@@ -288,6 +295,11 @@ export function buildAccountSnapshot(user) {
     .map((item) => compactCloudEssayHistoryEntryFull(item))
     .filter(Boolean)
 
+  const localSimuladoHistory = loadSimuladoHistory()
+  const cloudSimuladoHistory = localSimuladoHistory
+    .map((item) => compactSimuladoHistoryEntry(item))
+    .filter(Boolean)
+
   // Radar: lista de temas + detalhes apenas dos favoritos
   const localRadar = loadRadarSnapshot()
   const radarThemes = Array.isArray(localRadar?.temas) ? localRadar.temas : []
@@ -312,6 +324,8 @@ export function buildAccountSnapshot(user) {
     profile: readProfileSnapshot(user),
     historyCount: loadEssayHistoryCount(),
     history: cloudHistory,
+    simuladoHistoryCount: loadSimuladoHistoryCount(),
+    simuladoHistory: cloudSimuladoHistory,
     usage: getFreePlanUsageSnapshot(),
     billing: getBillingState(),
     planStatus: getCurrentBillingStatus(),
@@ -367,6 +381,9 @@ export function normalizeAccountSnapshot(rawSnapshot) {
   if (!rawSnapshot || typeof rawSnapshot !== 'object') return null
 
   const history = normalizeHistory(Array.isArray(rawSnapshot.history) ? rawSnapshot.history : [])
+  const simuladoHistory = Array.isArray(rawSnapshot.simuladoHistory)
+    ? rawSnapshot.simuladoHistory.map((item) => compactSimuladoHistoryEntry(item)).filter(Boolean)
+    : []
   const radarFavorites = normalizeRadarFavorites(
     Array.isArray(rawSnapshot.radarFavorites)
       ? rawSnapshot.radarFavorites
@@ -397,7 +414,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
   }
 
   const snapshot = {
-    version: Number(rawSnapshot.version ?? 17) || 17,
+    version: Number(rawSnapshot.version ?? 19) || 19,
     profile: readProfileSnapshot({
       user_metadata: rawSnapshot.profile || {},
       email: rawSnapshot.profile?.email || '',
@@ -406,6 +423,8 @@ export function normalizeAccountSnapshot(rawSnapshot) {
     preferences: null,
     history,
     historyCount: Number.isFinite(Number(rawSnapshot.historyCount)) ? Number(rawSnapshot.historyCount) : history.length,
+    simuladoHistory,
+    simuladoHistoryCount: Number.isFinite(Number(rawSnapshot.simuladoHistoryCount)) ? Number(rawSnapshot.simuladoHistoryCount) : simuladoHistory.length,
     usage: normalizeUsage(rawSnapshot.usage),
     ...(billing ? { billing } : {}),
     planStatus: String(rawSnapshot.planStatus ?? billing?.status ?? rawSnapshot.planTier ?? 'free').trim() || 'free',
@@ -466,6 +485,7 @@ export function applyAccountSnapshot(snapshot) {
       'apice:billing-state:v1', 'apice:plan:tier',
       'apice:free-plan-usage:v1',
       'apice:historico', 'apice:historico:total',
+      'apice:simulado:historico:v1', 'apice:simulado:historico:total:v1',
       'apice:user-summary',
       'apice:radar-favorites', 'apice:radar-state',
       'apice:enem-manual-date',
@@ -491,6 +511,16 @@ export function applyAccountSnapshot(snapshot) {
     const incomingHistoryCount = Number.isFinite(Number(snapshot.historyCount)) ? Number(snapshot.historyCount) : 0
     const historyCount = Math.max(loadEssayHistoryCount(), mergedHistory.length, incomingHistoryCount)
     saveEssayHistorySnapshot(mergedHistory, historyCount)
+  }
+
+  // ── Histórico de simulados: merge por ID, sem duplicar ──
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'simuladoHistory')) {
+    const cloudSimuladoHistory = Array.isArray(snapshot.simuladoHistory) ? snapshot.simuladoHistory : []
+    const localSimuladoHistory = loadSimuladoHistory()
+    const mergedSimuladoHistory = mergeSimuladoHistorySnapshots(localSimuladoHistory, cloudSimuladoHistory)
+    const incomingSimuladoCount = Number.isFinite(Number(snapshot.simuladoHistoryCount)) ? Number(snapshot.simuladoHistoryCount) : 0
+    const simuladoHistoryCount = Math.max(loadSimuladoHistoryCount(), mergedSimuladoHistory.length, incomingSimuladoCount)
+    saveSimuladoHistorySnapshot(mergedSimuladoHistory, simuladoHistoryCount)
   }
 
   // ── Preferências de aparência: NUNCA restauradas da nuvem ──
@@ -647,6 +677,7 @@ export function applyAccountSnapshot(snapshot) {
   // ── Dispara eventos de atualização ──
   window.dispatchEvent(new CustomEvent('apice:theme-updated'))
   window.dispatchEvent(new CustomEvent('apice:historico-updated'))
+  window.dispatchEvent(new CustomEvent('apice:simulado-historico-updated'))
   window.dispatchEvent(new CustomEvent('apice:free-plan-usage-updated'))
   window.dispatchEvent(new CustomEvent('apice:radar-favorites-updated'))
   window.dispatchEvent(new CustomEvent('apice:radar-state-updated'))

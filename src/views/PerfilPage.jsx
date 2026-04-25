@@ -1423,6 +1423,23 @@ export function PerfilPage() {
               </div>
             </Link>
 
+            <Link to="/historico-simulados" className="settings-item">
+              <div className="settings-left">
+                <div className="settings-icon" aria-hidden="true">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M4 6h16" />
+                    <path d="M4 12h16" />
+                    <path d="M4 18h10" />
+                    <path d="M18 18l2 2 4-4" />
+                  </svg>
+                </div>
+                <div className="settings-name">Histórico de simulados</div>
+              </div>
+              <div className="settings-chevron" aria-hidden="true">
+                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+              </div>
+            </Link>
+
             <Link to="/sobre" className="settings-item">
               <div className="settings-left">
                 <div className="settings-icon" aria-hidden="true">
