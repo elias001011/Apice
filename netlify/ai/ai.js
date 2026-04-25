@@ -1047,7 +1047,7 @@ function buildOpenAICompatibleMessages(systemPrompt, userMessages) {
     { role: 'system', content: systemPrompt },
     ...ensureArray(userMessages).map(message => ({
       role: message.role === 'assistant' ? 'assistant' : 'user',
-      content: String(message.content ?? ''),
+      content: normalizePromptContent(message.content),
     })),
   ]
 }
@@ -1073,6 +1073,55 @@ function parseStructuredCompletion(content, fallbackShape = {}) {
     return parsed
   }
   return fallbackShape
+}
+
+function normalizePromptContent(value, seen = new Set()) {
+  if (value == null) return ''
+
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value).trim()
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizePromptContent(item, seen))
+      .filter(Boolean)
+      .join('\n')
+      .trim()
+  }
+
+  if (typeof value !== 'object') return ''
+  if (seen.has(value)) return ''
+  seen.add(value)
+
+  const keys = [
+    'response',
+    'text',
+    'texto',
+    'content',
+    'message',
+    'answer',
+    'reply',
+    'resposta',
+    'mensagem',
+    'question',
+    'pergunta',
+  ]
+
+  for (const key of keys) {
+    const nested = normalizePromptContent(value[key], seen)
+    if (nested) return nested
+  }
+
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return ''
+  }
 }
 
 async function runGroqSearch({ query }) {
@@ -1401,7 +1450,7 @@ async function runHuggingFaceText({ systemPrompt, userMessages, modelVariant = '
   const prompt = [
     systemPrompt,
     '',
-    ...ensureArray(userMessages).map(message => `${message.role === 'assistant' ? 'Assistant' : 'User'}: ${message.content}`),
+    ...ensureArray(userMessages).map(message => `${message.role === 'assistant' ? 'Assistant' : 'User'}: ${normalizePromptContent(message.content)}`),
     '',
     'Return only JSON.',
   ].join('\n')

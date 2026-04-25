@@ -24,6 +24,121 @@ function safeJsonParse(value) {
   }
 }
 
+function normalizeProfessorText(value, seen = new Set()) {
+  if (value == null) return ''
+
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value).trim()
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeProfessorText(item, seen))
+      .filter(Boolean)
+      .join('\n')
+      .trim()
+  }
+
+  if (typeof value !== 'object') return ''
+  if (seen.has(value)) return ''
+  seen.add(value)
+
+  const keys = [
+    'response',
+    'text',
+    'texto',
+    'content',
+    'message',
+    'answer',
+    'reply',
+    'resposta',
+    'mensagem',
+    'question',
+    'pergunta',
+  ]
+
+  for (const key of keys) {
+    const nested = normalizeProfessorText(value[key], seen)
+    if (nested) return nested
+  }
+
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return ''
+  }
+}
+
+function normalizeProfessorConversation(messages, fallbackText, seed = Date.now()) {
+  const normalized = Array.isArray(messages)
+    ? messages
+      .map((message, index) => {
+        const sender = message?.sender === 'user' ? 'user' : 'ai'
+        const text = normalizeProfessorText(message?.text ?? message?.content ?? message?.message ?? message)
+        const rawId = Number(message?.id)
+
+        return {
+          id: Number.isFinite(rawId) ? rawId : seed + index + 1,
+          sender,
+          text: text || (sender === 'ai' ? normalizeProfessorText(fallbackText) : ''),
+        }
+      })
+      .filter((message) => message.text)
+    : []
+
+  const welcomeText = normalizeProfessorText(fallbackText) || 'Olá! Como posso ajudar?'
+
+  if (normalized.length === 0) {
+    return [{ id: seed, sender: 'ai', text: welcomeText }]
+  }
+
+  if (!normalized.some((message) => message.sender === 'ai')) {
+    normalized.unshift({ id: seed, sender: 'ai', text: welcomeText })
+  }
+
+  return normalized
+}
+
+function createDefaultProfessorConversations() {
+  const initial = {}
+  CATEGORIES.forEach((cat, index) => {
+    initial[cat.id] = normalizeProfessorConversation([], cat.welcomeMessage, Date.now() + index)
+  })
+  return initial
+}
+
+function loadProfessorConversations() {
+  if (typeof window === 'undefined') {
+    return createDefaultProfessorConversations()
+  }
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const normalized = {}
+        CATEGORIES.forEach((cat, index) => {
+          normalized[cat.id] = normalizeProfessorConversation(
+            parsed[cat.id],
+            cat.welcomeMessage,
+            Date.now() + index,
+          )
+        })
+        return normalized
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load professor conversation', error)
+  }
+
+  return createDefaultProfessorConversations()
+}
+
 function extractAiText(response) {
   if (typeof response === 'string') {
     const trimmed = response.trim()
@@ -48,6 +163,13 @@ function extractAiText(response) {
     response.content,
     response.message,
     response.response,
+    response.responseText,
+    response.answerText,
+    response.replyText,
+    response.textoResposta,
+    response.resposta,
+    response.mensagem,
+    response.conteudo,
     response.output,
     response.answer,
     response.reply,
@@ -96,7 +218,7 @@ function buildSystemPrompt(category) {
   }
 
   if (category.id === 'mapas') {
-    lines.push('- Para Mapas Mentais, responda somente com uma estrutura textual organizada, sem JSON, sem canvas, sem PDF e sem comentários técnicos.')
+    lines.push('- Para Mapas Mentais, o conteúdo do campo "response" deve ser uma estrutura textual organizada, sem canvas, sem PDF e sem comentários técnicos.')
   }
 
   if (category.id === 'pratica') {
@@ -108,6 +230,8 @@ function buildSystemPrompt(category) {
     '- Se não souber, seja honesto.',
     '- Mantenha o foco no contexto do ENEM e no Brasil.',
     '- Responda em português do Brasil.',
+    '- Retorne somente JSON válido, sem markdown e sem bloco de código.',
+    '- Use exatamente a chave "response" para a resposta final.',
   )
 
   if (category.id === 'mapas') {
@@ -121,10 +245,11 @@ function buildSystemPrompt(category) {
       '- Prefira palavras-chave e expressões curtas.',
       '- Não escreva parágrafos longos nem use rótulos genéricos como "tópico", "item" ou "assunto".',
       '- Entregue o texto pronto para leitura, como um mapa mental escrito.',
+      '- Dentro da chave "response", entregue o mapa completo com quebras de linha.',
     )
   }
 
-  lines.push('', 'Histórico recente da conversa (para manter coerência):')
+  lines.push('', 'O histórico recente já segue nas mensagens do payload; use-o para manter coerência.')
   return lines.join('\n')
 }
 
@@ -193,14 +318,40 @@ function iconSvg(kind) {
           <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
       )
+    case 'fullscreen':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M8 3H3v5" />
+          <path d="M16 3h5v5" />
+          <path d="M21 16v5h-5" />
+          <path d="M3 16v5h5" />
+        </svg>
+      )
+    case 'fullscreenExit':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M9 9H4V4" />
+          <path d="M15 9h5V4" />
+          <path d="M15 15h5v5" />
+          <path d="M9 15H4v5" />
+        </svg>
+      )
     default:
       return <svg viewBox="0 0 24 24" />
   }
 }
 
-function renderMessageBody(messageText, isMindmap) {
-  const text = String(messageText || '').trim()
+function renderMessageBody(messageText, isMindmap, isFullscreen = false, sender = 'ai') {
+  const text = normalizeProfessorText(messageText)
   if (!text) return null
+
+  if (isFullscreen) {
+    return (
+      <div className={`prof-text-content prof-text-content--fullscreen ${isMindmap ? 'prof-text-content--mindmap' : ''} ${sender === 'user' ? 'prof-text-content--user' : 'prof-text-content--assistant'}`}>
+        {text}
+      </div>
+    )
+  }
 
   if (isMindmap) {
     return <div className="prof-text-content prof-text-content--mindmap">{text}</div>
@@ -220,26 +371,13 @@ export function ProfessorPage() {
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0])
   const messageIdRef = useRef(0)
   const autoHandoffRef = useRef(false)
-
-  const [conversations, setConversations] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) return JSON.parse(saved)
-    } catch (error) {
-      console.error('Failed to load professor conversation', error)
-    }
-
-    const initial = {}
-    CATEGORIES.forEach((cat, index) => {
-      initial[cat.id] = [{ id: Date.now() + index, sender: 'ai', text: cat.welcomeMessage }]
-    })
-    return initial
-  })
+  const [conversations, setConversations] = useState(() => loadProfessorConversations())
 
   const [inputText, setInputText] = useState('')
   const [isSearchEnabled, setIsSearchEnabled] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const [aiError, setAiError] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const messagesWallRef = useRef(null)
   const [queuedHandoff] = useState(() => normalizeProfessorHandoff(location.state?.handoff) || loadProfessorHandoff())
 
@@ -269,8 +407,8 @@ export function ProfessorPage() {
   }, [])
 
   useEffect(() => {
-    scrollMessagesToEnd()
-  }, [activeMessages, isTyping, scrollMessagesToEnd])
+    scrollMessagesToEnd(isFullscreen ? 'auto' : 'smooth')
+  }, [activeMessages, isTyping, isFullscreen, scrollMessagesToEnd])
 
   useEffect(() => {
     try {
@@ -280,8 +418,28 @@ export function ProfessorPage() {
     }
   }, [conversations])
 
+  useEffect(() => {
+    if (!isFullscreen) return undefined
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setIsFullscreen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isFullscreen])
+
   const handleSendMessage = async (messageOverride = inputText, categoryOverride = activeCategory) => {
-    const userMessage = String(messageOverride ?? '').trim()
+    const userMessage = normalizeProfessorText(messageOverride)
     const categoryAtSend = categoryOverride || activeCategory
     if (!userMessage || isTyping) return
 
@@ -301,7 +459,7 @@ export function ProfessorPage() {
       ...prev,
       [categoryId]: [
         ...(Array.isArray(prev[categoryId]) ? prev[categoryId] : []),
-        { id: nextMessageId(), sender: 'user', text: userMessage },
+        { id: nextMessageId(), sender: 'user', text: normalizeProfessorText(userMessage) },
       ],
     }))
 
@@ -312,8 +470,9 @@ export function ProfessorPage() {
       .filter((msg) => msg.sender === 'user' || msg.sender === 'ai')
       .map((msg) => ({
         role: msg.sender === 'user' ? 'user' : 'assistant',
-        content: msg.text,
+        content: normalizeProfessorText(msg.text),
       }))
+      .filter((msg) => msg.content)
 
     const systemPrompt = buildSystemPrompt(categoryAtSend)
 
@@ -446,8 +605,12 @@ export function ProfessorPage() {
     setAiError(false)
     setConversations((prev) => ({
       ...prev,
-      [activeCategory.id]: [{ id: nextMessageId(), sender: 'ai', text: activeCategory.welcomeMessage }],
+      [activeCategory.id]: [{ id: nextMessageId(), sender: 'ai', text: normalizeProfessorText(activeCategory.welcomeMessage) }],
     }))
+  }
+
+  const handleToggleFullscreen = () => {
+    setIsFullscreen((current) => !current)
   }
 
   const handleKeyDown = (event) => {
@@ -458,7 +621,14 @@ export function ProfessorPage() {
   }
 
   return (
-    <div className="professor-sleek-view">
+    <div className={`professor-sleek-view${isFullscreen ? ' is-fullscreen' : ''}`}>
+      {isFullscreen && (
+        <div
+          className="professor-fullscreen-backdrop"
+          aria-hidden="true"
+          onClick={() => setIsFullscreen(false)}
+        />
+      )}
       <div className="professor-container anim-fade-in">
         <header className="professor-nav-header">
           <div className="prof-pills-bar anim-slide-down">
@@ -478,7 +648,13 @@ export function ProfessorPage() {
           </div>
         </header>
 
-        <div className="prof-chat-card anim-slide-up" style={{ animationDelay: '0.1s' }}>
+        <div
+          className={`prof-chat-card anim-slide-up${isFullscreen ? ' prof-chat-card--fullscreen' : ''}`}
+          style={{ animationDelay: '0.1s' }}
+          role={isFullscreen ? 'dialog' : undefined}
+          aria-modal={isFullscreen ? 'true' : undefined}
+          aria-label={isFullscreen ? 'Professor IA em tela cheia' : undefined}
+        >
           <div className="prof-card-head">
             <div className="prof-session-bar">
               <div className="prof-session-icon" aria-hidden="true">
@@ -502,14 +678,23 @@ export function ProfessorPage() {
               >
                 {iconSvg('trash')}
               </button>
+              <button
+                type="button"
+                className="prof-session-expand"
+                onClick={handleToggleFullscreen}
+                title={isFullscreen ? 'Sair da tela cheia' : 'Abrir IA em tela cheia'}
+                aria-label={isFullscreen ? 'Sair da tela cheia' : 'Abrir IA em tela cheia'}
+              >
+                {iconSvg(isFullscreen ? 'fullscreenExit' : 'fullscreen')}
+              </button>
             </div>
             <div className="prof-card-rule" aria-hidden="true" />
           </div>
 
-          <main className={`prof-chat-surface ${activeCategory.id === 'mapas' ? 'prof-chat-surface--map' : ''}`}>
+          <main className={`prof-chat-surface ${activeCategory.id === 'mapas' ? 'prof-chat-surface--map' : ''}${isFullscreen ? ' prof-chat-surface--fullscreen' : ''}`}>
             <div
               ref={messagesWallRef}
-              className="prof-messages-wall"
+              className={`prof-messages-wall${isFullscreen ? ' prof-messages-wall--fullscreen' : ''}`}
               role="log"
               aria-live="polite"
               aria-relevant="additions"
@@ -518,25 +703,32 @@ export function ProfessorPage() {
                 if (activeCategory.id === 'mapas' && msg.text === '[MAPA_GERADO]') return null
 
                 const isMindmapReply = activeCategory.id === 'mapas' && msg.sender === 'ai'
+                const normalizedText = normalizeProfessorText(msg.text)
 
                 return (
                   <div
                     key={msg.id}
-                    className={`prof-msg-row ${msg.sender === 'user' ? 'user-row' : 'ai-row'} anim-pop-in`}
+                    className={`prof-msg-row ${msg.sender === 'user' ? 'user-row' : 'ai-row'}${isFullscreen ? ' prof-msg-row--fullscreen' : ''} anim-pop-in`}
                     style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
                   >
-                    <div className="prof-msg-bubble">
-                      {msg.sender === 'ai' && <div className="prof-side-avatar" aria-hidden="true">👨‍🏫</div>}
-                      {renderMessageBody(msg.text, isMindmapReply)}
+                    <div className={`prof-msg-bubble${isFullscreen ? ' prof-msg-bubble--fullscreen' : ''}`}>
+                      {isFullscreen && (
+                        <div className={`prof-message-label ${msg.sender === 'user' ? 'is-user' : 'is-ai'}`}>
+                          {msg.sender === 'user' ? 'Você' : 'Professor IA'}
+                        </div>
+                      )}
+                      {msg.sender === 'ai' && !isFullscreen && <div className="prof-side-avatar" aria-hidden="true">👨‍🏫</div>}
+                      {renderMessageBody(normalizedText, isMindmapReply, isFullscreen, msg.sender)}
                     </div>
                   </div>
                 )
               })}
 
               {isTyping && (
-                <div className="prof-msg-row ai-row anim-pop-in">
-                  <div className="prof-msg-bubble">
-                    <div className="prof-side-avatar" aria-hidden="true">👨‍🏫</div>
+                <div className={`prof-msg-row ai-row${isFullscreen ? ' prof-msg-row--fullscreen' : ''} anim-pop-in`}>
+                  <div className={`prof-msg-bubble${isFullscreen ? ' prof-msg-bubble--fullscreen' : ''}`}>
+                    {isFullscreen && <div className="prof-message-label is-ai">Professor IA</div>}
+                    {!isFullscreen && <div className="prof-side-avatar" aria-hidden="true">👨‍🏫</div>}
                     <div className="prof-typing-wave">
                       <span />
                       <span />
@@ -547,10 +739,10 @@ export function ProfessorPage() {
               )}
             </div>
 
-            <div className="prof-actions-dock">
+            <div className={`prof-actions-dock${isFullscreen ? ' prof-actions-dock--fullscreen' : ''}`}>
               <div className="prof-card-rule prof-card-rule--subtle" aria-hidden="true" />
               <div
-                className="prof-composer-unified"
+                className={`prof-composer-unified${isFullscreen ? ' prof-composer-unified--fullscreen' : ''}`}
                 role="group"
                 aria-label="Escrever e enviar mensagem"
               >
