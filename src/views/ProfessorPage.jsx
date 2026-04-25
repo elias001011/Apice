@@ -24,11 +24,23 @@ function safeJsonParse(value) {
   }
 }
 
+function isMeaninglessProfessorText(value) {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  return (
+    !normalized
+    || normalized === '[object object]'
+    || normalized === 'object object'
+    || normalized === '{}'
+    || normalized === '[]'
+  )
+}
+
 function normalizeProfessorText(value, seen = new Set()) {
   if (value == null) return ''
 
   if (typeof value === 'string') {
-    return value.trim()
+    const trimmed = value.trim()
+    return isMeaninglessProfessorText(trimmed) ? '' : trimmed
   }
 
   if (typeof value === 'number' || typeof value === 'boolean') {
@@ -67,7 +79,8 @@ function normalizeProfessorText(value, seen = new Set()) {
   }
 
   try {
-    return JSON.stringify(value)
+    const serialized = JSON.stringify(value)
+    return isMeaninglessProfessorText(serialized) ? '' : serialized
   } catch {
     return ''
   }
@@ -142,7 +155,7 @@ function loadProfessorConversations() {
 function extractAiText(response) {
   if (typeof response === 'string') {
     const trimmed = response.trim()
-    if (!trimmed) return ''
+    if (isMeaninglessProfessorText(trimmed)) return ''
 
     if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
       const parsed = safeJsonParse(trimmed)
@@ -180,7 +193,7 @@ function extractAiText(response) {
 
     if (typeof candidate === 'string') {
       const trimmed = candidate.trim()
-      if (!trimmed) continue
+      if (isMeaninglessProfessorText(trimmed)) continue
 
       if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
         const parsed = safeJsonParse(trimmed)
@@ -200,6 +213,396 @@ function extractAiText(response) {
   }
 
   return ''
+}
+
+function stripMindmapPrefix(value) {
+  return normalizeProfessorText(value)
+    .replace(/^[├└│*•-]+\s*/g, '')
+    .replace(/^\d+[.)]\s*/g, '')
+    .replace(/^(?:tema central|tema|centro)\s*[:-]\s*/i, '')
+    .replace(/[:-]\s*$/, '')
+    .trim()
+}
+
+function parseProfessorBlocks(text) {
+  const normalized = normalizeProfessorText(text)
+  if (!normalized) return []
+
+  const blocks = []
+  const lines = normalized.replace(/\r\n/g, '\n').split('\n')
+  let paragraph = []
+  let list = null
+
+  const flushParagraph = () => {
+    const content = paragraph.join(' ').replace(/\s+/g, ' ').trim()
+    if (content) {
+      blocks.push({ type: 'paragraph', text: content })
+    }
+    paragraph = []
+  }
+
+  const flushList = () => {
+    if (list && list.items.length > 0) {
+      blocks.push(list)
+    }
+    list = null
+  }
+
+  for (const rawLine of lines) {
+    const line = String(rawLine ?? '').replace(/\s+$/, '')
+    const trimmed = line.trim()
+
+    if (!trimmed) {
+      flushParagraph()
+      flushList()
+      continue
+    }
+
+    const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/)
+      || (trimmed.endsWith(':') && trimmed.length <= 80 && !/[.!?]$/.test(trimmed))
+
+    if (headingMatch) {
+      flushParagraph()
+      flushList()
+      blocks.push({
+        type: 'heading',
+        level: Array.isArray(headingMatch) && headingMatch[1] ? headingMatch[1].length : 3,
+        text: Array.isArray(headingMatch) ? stripMindmapPrefix(headingMatch[2] || trimmed) : stripMindmapPrefix(trimmed),
+      })
+      continue
+    }
+
+    const listMatch = trimmed.match(/^(\d+)[.)]\s+(.+)$/) || trimmed.match(/^([-*•])\s+(.+)$/)
+
+    if (listMatch) {
+      flushParagraph()
+      const ordered = Boolean(listMatch[1] && /^\d+$/.test(listMatch[1]))
+      const itemText = stripMindmapPrefix(listMatch[2] || trimmed)
+
+      if (!list || list.ordered !== ordered) {
+        flushList()
+        list = { type: 'list', ordered, items: [] }
+      }
+
+      list.items.push(itemText)
+      continue
+    }
+
+    if (trimmed.endsWith(':') && trimmed.length <= 60) {
+      flushParagraph()
+      flushList()
+      blocks.push({
+        type: 'label',
+        text: stripMindmapPrefix(trimmed),
+      })
+      continue
+    }
+
+    if (list) {
+      flushList()
+    }
+
+    paragraph.push(trimmed)
+  }
+
+  flushParagraph()
+  flushList()
+  return blocks
+}
+
+function parseMindmapStructure(text) {
+  const normalized = normalizeProfessorText(text)
+  if (!normalized) {
+    return { rootTitle: '', branches: [] }
+  }
+
+  const lines = normalized.replace(/\r\n/g, '\n').split('\n')
+  const branches = []
+  let rootTitle = ''
+  let currentBranch = null
+
+  const pushBranch = (title) => {
+    const cleanTitle = stripMindmapPrefix(title)
+    if (!cleanTitle) return null
+
+    const branch = {
+      title: cleanTitle,
+      children: [],
+    }
+    branches.push(branch)
+    currentBranch = branch
+    return branch
+  }
+
+  for (const rawLine of lines) {
+    const line = String(rawLine ?? '').replace(/\s+$/, '')
+    const trimmed = line.trim()
+    if (!trimmed) continue
+
+    const rootMatch = trimmed.match(/^(?:tema central|tema|centro)\s*[:-]\s*(.+)$/i)
+    if (!rootTitle && rootMatch) {
+      rootTitle = stripMindmapPrefix(rootMatch[1])
+      continue
+    }
+
+    if (!rootTitle && !/^[\d*•-]/.test(trimmed) && !trimmed.startsWith('├') && !trimmed.startsWith('└')) {
+      rootTitle = stripMindmapPrefix(trimmed)
+      continue
+    }
+
+    const numberedMatch = trimmed.match(/^(\d+)[.)]\s+(.+)$/)
+    if (numberedMatch) {
+      pushBranch(numberedMatch[2])
+      continue
+    }
+
+    const bulletMatch = trimmed.match(/^[-*•]\s+(.+)$/)
+    if (bulletMatch) {
+      const cleanBullet = stripMindmapPrefix(bulletMatch[1])
+      if (currentBranch && cleanBullet) {
+        currentBranch.children.push(cleanBullet)
+      } else if (cleanBullet) {
+        pushBranch(cleanBullet)
+      }
+      continue
+    }
+
+    if (/^[├└│]/.test(trimmed)) {
+      const cleanTreeLine = stripMindmapPrefix(trimmed)
+      if (currentBranch && cleanTreeLine) {
+        currentBranch.children.push(cleanTreeLine)
+      } else if (cleanTreeLine) {
+        pushBranch(cleanTreeLine)
+      }
+      continue
+    }
+
+    if (!rootTitle) {
+      rootTitle = stripMindmapPrefix(trimmed)
+      continue
+    }
+
+    if (currentBranch && line.startsWith(' ')) {
+      currentBranch.children.push(stripMindmapPrefix(trimmed))
+      continue
+    }
+
+    pushBranch(trimmed)
+  }
+
+  if (!rootTitle && branches.length > 0) {
+    rootTitle = branches.shift().title
+  }
+
+  return {
+    rootTitle: rootTitle || 'Mapa mental',
+    branches: branches
+      .map((branch) => ({
+        ...branch,
+        children: branch.children
+          .map((child) => stripMindmapPrefix(child))
+          .filter(Boolean)
+          .slice(0, 4),
+      }))
+      .filter((branch) => branch.title)
+      .slice(0, 8),
+  }
+}
+
+function getMindmapSlot(index, total) {
+  const layout = total <= 4
+    ? [-145, -35, 35, 145]
+    : total <= 6
+      ? [-155, -105, -35, 35, 105, 155]
+      : [-160, -120, -75, -25, 25, 75, 120, 160]
+
+  const angle = layout[index % layout.length] + (Math.floor(index / layout.length) * 12)
+  const radiusX = total <= 4 ? 31 : total <= 6 ? 35 : 38
+  const radiusY = total <= 4 ? 23 : total <= 6 ? 27 : 30
+  const radians = angle * (Math.PI / 180)
+
+  const x = 50 + Math.cos(radians) * radiusX
+  const y = 50 + Math.sin(radians) * radiusY
+
+  return {
+    left: `${Math.max(16, Math.min(84, x))}%`,
+    top: `${Math.max(16, Math.min(84, y))}%`,
+  }
+}
+
+function ProfessorRichText({ text, isFullscreen = false, sender = 'ai', isMindmap = false }) {
+  const blocks = parseProfessorBlocks(text)
+  if (blocks.length === 0) return null
+
+  const className = [
+    'prof-text-content',
+    isFullscreen ? 'prof-text-content--fullscreen' : '',
+    isMindmap ? 'prof-text-content--mindmap' : '',
+    sender === 'user' ? 'prof-text-content--user' : 'prof-text-content--assistant',
+    'prof-formatted-content',
+  ].filter(Boolean).join(' ')
+
+  return (
+    <div className={className}>
+      {blocks.map((block, index) => {
+        if (block.type === 'heading') {
+          return (
+            <h4
+              key={`heading-${index}-${block.text}`}
+              className={`prof-formatted-heading prof-formatted-heading--${Math.min(block.level || 3, 3)}`}
+            >
+              {block.text}
+            </h4>
+          )
+        }
+
+        if (block.type === 'label') {
+          return (
+            <div key={`label-${index}-${block.text}`} className="prof-formatted-label">
+              {block.text}
+            </div>
+          )
+        }
+
+        if (block.type === 'list') {
+          const ListTag = block.ordered ? 'ol' : 'ul'
+          return (
+            <ListTag
+              key={`list-${index}-${block.items.join('-')}`}
+              className={`prof-formatted-list ${block.ordered ? 'is-ordered' : ''}`}
+            >
+              {block.items.map((item, itemIndex) => (
+                <li key={`item-${index}-${itemIndex}`} className="prof-formatted-list-item">
+                  {item}
+                </li>
+              ))}
+            </ListTag>
+          )
+        }
+
+        return (
+          <p key={`paragraph-${index}-${block.text}`} className="prof-formatted-paragraph">
+            {block.text}
+          </p>
+        )
+      })}
+    </div>
+  )
+}
+
+function ProfessorMindmap({ text, isFullscreen = false }) {
+  const structure = parseMindmapStructure(text)
+  const childCount = structure.branches.reduce((sum, branch) => sum + branch.children.length, 0)
+
+  if (structure.branches.length === 0) {
+    return (
+      <ProfessorRichText
+        text={text}
+        isFullscreen={isFullscreen}
+        sender="ai"
+        isMindmap
+      />
+    )
+  }
+
+  return (
+    <section className={`prof-mindmap-canvas-wrap${isFullscreen ? ' prof-mindmap-canvas-wrap--fullscreen' : ''}`}>
+      <div className="prof-mindmap-toolbar">
+        <div className="prof-mindmap-toolbar-copy">
+          <span className="prof-mindmap-toolbar-title">Mapa mental</span>
+          <span className="prof-mindmap-toolbar-subtitle">
+            Estrutura visualizada automaticamente para aproveitar melhor a tela.
+          </span>
+          <div className="prof-mindmap-toolbar-stats">
+            <span className="prof-mindmap-stat-pill">{structure.branches.length} ramos</span>
+            <span className="prof-mindmap-stat-pill">{childCount} subtópicos</span>
+          </div>
+        </div>
+        <div className="prof-mindmap-toolbar-actions">
+          <span className="prof-mindmap-toolbar-status is-ready">Pronto</span>
+        </div>
+      </div>
+
+      <div className="prof-mindmap-preview-shell">
+        <div className="prof-mindmap-preview-paper">
+          <div className="prof-mindmap-preview-header">
+            <div className="prof-mindmap-preview-copy">
+              <span className="prof-mindmap-preview-kicker">Tema central</span>
+              <h3 className="prof-mindmap-preview-title">{structure.rootTitle}</h3>
+              <p className="prof-mindmap-preview-note">
+                Ramos principais com subtópicos curtos para leitura rápida.
+              </p>
+            </div>
+            <div className="prof-mindmap-preview-badge">
+              {structure.branches.length} ramos
+            </div>
+          </div>
+
+          <div className="prof-mindmap-stage">
+            <div className="prof-mindmap-rings" aria-hidden="true">
+              <span className="prof-mindmap-rings__ring prof-mindmap-rings__ring--outer" />
+              <span className="prof-mindmap-rings__ring" />
+            </div>
+            <svg className="prof-mindmap-links" viewBox="0 0 1000 720" preserveAspectRatio="none" aria-hidden="true">
+              {structure.branches.map((branch, index) => {
+                const slot = getMindmapSlot(index, structure.branches.length)
+                const x = (Number.parseFloat(slot.left) / 100) * 1000
+                const y = (Number.parseFloat(slot.top) / 100) * 720
+
+                return (
+                  <line
+                    key={`line-${index}-${branch.title}`}
+                    x1="500"
+                    y1="360"
+                    x2={x}
+                    y2={y}
+                    stroke="rgba(var(--accent-rgb), 0.28)"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                )
+              })}
+            </svg>
+
+            <article className="prof-mindmap-node is-root" style={{ left: '50%', top: '50%', width: 'clamp(190px, 24vw, 290px)' }}>
+              <span className="prof-mindmap-node-badge">Centro</span>
+              <div className="prof-mindmap-node-label">{structure.rootTitle}</div>
+              <div className="prof-mindmap-node-subtitle">Resumo visual do assunto</div>
+            </article>
+
+            {structure.branches.map((branch, index) => {
+              const slot = getMindmapSlot(index, structure.branches.length)
+
+              return (
+                <article
+                  key={`branch-${index}-${branch.title}`}
+                  className={`prof-mindmap-node is-level-1 ${index % 2 === 0 ? 'is-left' : 'is-right'}`}
+                  style={{ left: slot.left, top: slot.top, width: 'clamp(210px, 24vw, 300px)' }}
+                >
+                  <span className="prof-mindmap-node-badge">{String(index + 1).padStart(2, '0')}</span>
+                  <div className="prof-mindmap-node-label">{branch.title}</div>
+                  {branch.children.length > 0 && (
+                    <div className="prof-mindmap-node-children">
+                      {branch.children.map((child, childIndex) => (
+                        <span key={`child-${index}-${childIndex}-${child}`} className="prof-mindmap-node-child">
+                          {child}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              )
+            })}
+
+            <div className="prof-mindmap-stage-footer">
+              <span>{structure.branches.length} ramos principais</span>
+              <span>{childCount} subtópicos</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
 }
 
 function buildSystemPrompt(category) {
@@ -230,6 +633,8 @@ function buildSystemPrompt(category) {
     '- Se não souber, seja honesto.',
     '- Mantenha o foco no contexto do ENEM e no Brasil.',
     '- Responda em português do Brasil.',
+    '- Formate a resposta com títulos curtos, parágrafos curtos e listas quando isso melhorar a leitura.',
+    '- Nunca deixe a resposta vazia e nunca use "[object Object]" como conteúdo.',
     '- Retorne somente JSON válido, sem markdown e sem bloco de código.',
     '- Use exatamente a chave "response" para a resposta final.',
   )
@@ -239,12 +644,12 @@ function buildSystemPrompt(category) {
       '',
       'INSTRUCOES EXTRA PARA O MAPA MENTAL POR ESCRITO:',
       '- Comece com "Tema central:" seguido do assunto principal.',
-      '- Em seguida, liste de 5 a 8 ramos principais com nomes concretos.',
-      '- Abaixo de cada ramo, use de 1 a 3 subtópicos curtos quando fizer sentido.',
-      '- Use recuo ou marcadores para deixar a hierarquia visível.',
+      '- Em seguida, liste de 5 a 8 ramos principais numerados como "1.", "2.", "3.".',
+      '- Abaixo de cada ramo, use de 1 a 3 subtópicos curtos com marcadores e recuo.',
+      '- Mantenha a hierarquia bem visível e evite blocos longos de texto.',
       '- Prefira palavras-chave e expressões curtas.',
       '- Não escreva parágrafos longos nem use rótulos genéricos como "tópico", "item" ou "assunto".',
-      '- Entregue o texto pronto para leitura, como um mapa mental escrito.',
+      '- Entregue o texto pronto para ser transformado em mapa visual na tela.',
       '- Dentro da chave "response", entregue o mapa completo com quebras de linha.',
     )
   }
@@ -345,25 +750,11 @@ function renderMessageBody(messageText, isMindmap, isFullscreen = false, sender 
   const text = normalizeProfessorText(messageText)
   if (!text) return null
 
-  if (isFullscreen) {
-    return (
-      <div className={`prof-text-content prof-text-content--fullscreen ${isMindmap ? 'prof-text-content--mindmap' : ''} ${sender === 'user' ? 'prof-text-content--user' : 'prof-text-content--assistant'}`}>
-        {text}
-      </div>
-    )
+  if (isMindmap && sender === 'ai') {
+    return <ProfessorMindmap text={text} isFullscreen={isFullscreen} />
   }
 
-  if (isMindmap) {
-    return <div className="prof-text-content prof-text-content--mindmap">{text}</div>
-  }
-
-  return (
-    <div className="prof-text-content">
-      {text.split('\n').map((line, index) => (
-        <p key={`${index}-${line}`}>{line}</p>
-      ))}
-    </div>
-  )
+  return <ProfessorRichText text={text} isFullscreen={isFullscreen} sender={sender} isMindmap={isMindmap} />
 }
 
 export function ProfessorPage() {
@@ -512,12 +903,21 @@ export function ProfessorPage() {
 
       for (const config of PROFESSOR_PROVIDER_FALLBACKS) {
         try {
-          return await chamarIAEspecifica({
+          const response = await chamarIAEspecifica({
             provider: config.provider,
             modelVariant: config.modelVariant,
             systemPrompt: finalSystemPrompt,
             userMessages,
           })
+
+          const aiText = extractAiText(response)
+          if (!aiText) {
+            const emptyError = new Error(`Resposta vazia da IA (${config.provider}/${config.modelVariant}).`)
+            emptyError.code = 'empty_ai_response'
+            throw emptyError
+          }
+
+          return { response, aiText, provider: config.provider, modelVariant: config.modelVariant }
         } catch (error) {
           errors.push(error)
           console.warn(
@@ -532,12 +932,7 @@ export function ProfessorPage() {
     }
 
     try {
-      const response = await callProfessorIa()
-      const aiText = extractAiText(response)
-
-      if (!aiText) {
-        throw new Error('Resposta vazia da IA')
-      }
+      const { aiText } = await callProfessorIa()
 
       setConversations((prev) => ({
         ...prev,

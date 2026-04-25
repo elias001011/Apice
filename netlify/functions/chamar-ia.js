@@ -13,6 +13,92 @@ import {
   validationErrorResponse,
 } from './utils/validate.js'
 
+function isMeaninglessResponseText(value) {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  return (
+    !normalized
+    || normalized === '[object object]'
+    || normalized === 'object object'
+    || normalized === '{}'
+    || normalized === '[]'
+  )
+}
+
+function extractMeaningfulText(response, seen = new Set()) {
+  if (response == null) return ''
+
+  if (typeof response === 'string') {
+    const trimmed = response.trim()
+    if (isMeaninglessResponseText(trimmed)) return ''
+
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        const nested = extractMeaningfulText(parsed, seen)
+        if (nested) return nested
+      } catch {
+        // Ignora e segue como texto bruto.
+      }
+    }
+
+    return trimmed
+  }
+
+  if (typeof response === 'number' || typeof response === 'boolean') {
+    return String(response).trim()
+  }
+
+  if (Array.isArray(response)) {
+    return response
+      .map((item) => extractMeaningfulText(item, seen))
+      .filter(Boolean)
+      .join('\n')
+      .trim()
+  }
+
+  if (typeof response !== 'object') return ''
+  if (seen.has(response)) return ''
+  seen.add(response)
+
+  const keys = [
+    'response',
+    'text',
+    'texto',
+    'content',
+    'message',
+    'answer',
+    'reply',
+    'resposta',
+    'mensagem',
+    'output',
+    'result',
+    'data',
+  ]
+
+  for (const key of keys) {
+    const nested = extractMeaningfulText(response[key], seen)
+    if (nested) return nested
+  }
+
+  return ''
+}
+
+function normalizeProfessorResult(result) {
+  const text = extractMeaningfulText(result)
+  if (!text) {
+    throw new Error('Resposta vazia da IA')
+  }
+
+  if (result && typeof result === 'object' && !Array.isArray(result)) {
+    return {
+      ...result,
+      response: text,
+    }
+  }
+
+  return { response: text }
+}
+
 export default async function handler(req, context) {
   const headers = buildCorsHeaders(req)
 
@@ -87,12 +173,14 @@ export default async function handler(req, context) {
       responsePreference,
     })
 
+    const normalizedResult = normalizeProfessorResult(result)
+
     if (auth.user?.guest) {
       await recordGuestQuotaSuccess(req, { featureKey: 'directModelCall', route: 'chamar-ia' })
     }
 
-    console.log(`[chamar-ia] Sucesso. Provider: ${provider}, result keys: ${Object.keys(result || {}).join(', ')}`)
-    return new Response(JSON.stringify(result), { status: 200, headers })
+    console.log(`[chamar-ia] Sucesso. Provider: ${provider}, result keys: ${Object.keys(normalizedResult || {}).join(', ')}`)
+    return new Response(JSON.stringify(normalizedResult), { status: 200, headers })
   } catch (error) {
     console.error('[chamar-ia] erro:', error.message, error.stack?.split('\n').slice(0, 4).join(' | '))
     return new Response(
