@@ -43,7 +43,7 @@ function getAbacatePayErrorMessage(data, fallback) {
 }
 
 export function PlanosPage() {
-  const { user } = useAuth()
+  const { user, isGuest } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const verificationKeyRef = useRef('')
@@ -210,9 +210,18 @@ export function PlanosPage() {
     return `Conta gratuita com ${activeLimit} usos de IA por dia.`
   })()
 
+  const guestNotice = isGuest
+    ? 'Você está no modo convidado. Seus dados ficam só neste navegador até criar uma conta nova.'
+    : ''
+
   const handleCheckout = async (plan) => {
     if (!user) {
       navigate('/login')
+      return
+    }
+
+    if (isGuest) {
+      navigate('/cadastro', { state: { from: '/planos' } })
       return
     }
 
@@ -292,6 +301,14 @@ export function PlanosPage() {
       return
     }
 
+    if (isGuest) {
+      setFlash({
+        tone: 'warning',
+        text: 'O modo convidado não tem assinatura para cancelar. Crie uma conta nova para contratar um plano.',
+      })
+      return
+    }
+
     const cancelPrompt = billingState.status === 'paid'
       ? 'Tem certeza que deseja cancelar sua assinatura? Seu acesso ao plano pago continuará até o fim do período já pago. Após isso, sua conta voltará para o plano gratuito.'
       : welcomePremiumActive
@@ -356,6 +373,10 @@ export function PlanosPage() {
   }
 
   const getPlanActionLabel = (plan) => {
+    if (isGuest) {
+      return 'Criar conta nova'
+    }
+
     const isCurrentPlan = billingState.planKey === plan.key
 
     if (billingState.status === 'paid' && isCurrentPlan) {
@@ -384,6 +405,10 @@ export function PlanosPage() {
   }
 
   const getPlanHint = (plan) => {
+    if (isGuest) {
+      return 'O modo convidado usa só dados locais. Crie uma conta nova para contratar este plano.'
+    }
+
     if (billingState.status === 'paid' && billingState.planKey === plan.key) {
       return 'Sua assinatura já está ativa neste plano.'
     }
@@ -436,6 +461,26 @@ export function PlanosPage() {
             O teste grátis manual continua com 7 dias e só pode ser ativado uma vez por conta.
           </p>
 
+          {isGuest && (
+            <div className="planos-guest-banner">
+              <div>
+                <div className="planos-guest-title">Modo convidado ativo</div>
+                <div className="planos-guest-copy">
+                  Seus dados estão só neste navegador. Crie uma conta nova para levar tudo para a nuvem antes de contratar um plano.
+                </div>
+              </div>
+              <Link to="/cadastro" className="planos-guest-btn">
+                Criar conta nova
+              </Link>
+            </div>
+          )}
+
+          {guestNotice && (
+            <div className="planos-flash info">
+              {guestNotice}
+            </div>
+          )}
+
           <div className="planos-status-strip">
             <div className="planos-status-chip">
               <div className="planos-status-label">Status da conta</div>
@@ -477,7 +522,7 @@ export function PlanosPage() {
           )}
 
           {/* Seção de gerenciamento de assinatura ativa */}
-          {(billingState.status === 'paid' || trialCurrentlyActive) && (
+          {!isGuest && (billingState.status === 'paid' || trialCurrentlyActive) && (
             <div className="planos-management-strip">
               <div className="management-card">
                 <div className="management-label">
@@ -638,12 +683,18 @@ export function PlanosPage() {
                       className="plan-cta-btn"
                       onClick={() => handleCheckout(plan)}
                       disabled={
-                        busyPlanKey === plan.key
-                        || (billingState.status === 'paid' && billingState.planKey === plan.key)
-                        || trialCurrentlyActive
+                        !isGuest && (
+                          busyPlanKey === plan.key
+                          || (billingState.status === 'paid' && billingState.planKey === plan.key)
+                          || trialCurrentlyActive
+                        )
                       }
                     >
-                      {busyPlanKey === plan.key ? 'Abrindo checkout...' : buttonLabel}
+                      {isGuest
+                        ? 'Criar conta nova'
+                        : busyPlanKey === plan.key
+                          ? 'Abrindo checkout...'
+                          : buttonLabel}
                     </button>
                     <div className="plan-cta-hint">
                       {buttonHint}
@@ -774,6 +825,53 @@ const planosCss = `
     margin: 0.8rem 0 0;
     font-size: 1rem;
     max-width: 66ch;
+  }
+
+  .planos-guest-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.1rem;
+    border-radius: 18px;
+    border: 1px solid rgba(var(--accent-rgb), 0.18);
+    background: rgba(var(--accent-rgb), 0.06);
+    margin-top: 1rem;
+  }
+
+  .planos-guest-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .planos-guest-copy {
+    margin-top: 3px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--text2);
+    max-width: 50ch;
+  }
+
+  .planos-guest-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 12px;
+    background: var(--accent);
+    color: #0f0f0f;
+    font-size: 0.84rem;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: transform 0.2s ease, background 0.2s ease;
+  }
+
+  .planos-guest-btn:hover {
+    background: var(--accent2);
+    transform: translateY(-1px);
   }
 
   .planos-status-strip {
@@ -1244,6 +1342,15 @@ const planosCss = `
   @media (max-width: 767px) {
     .planos-title {
       max-width: none;
+    }
+
+    .planos-guest-banner {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .planos-guest-btn {
+      width: 100%;
     }
 
     .planos-subtitle {

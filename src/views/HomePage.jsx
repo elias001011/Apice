@@ -83,6 +83,7 @@ function formatWeatherUpdatedAt(value) {
 
 export function HomePage() {
   const { user } = useAuth()
+  const isGuest = Boolean(user?.guest)
   const navigate = useNavigate()
   
   const rawName = user?.user_metadata?.full_name || 'Sua conta'
@@ -235,6 +236,20 @@ export function HomePage() {
     } else {
       setWeatherData(null)
     }
+
+    if (isGuest) {
+      if (hasFreshCache) {
+        setWeatherLoading(false)
+        setWeatherData(cached)
+        setWeatherError('')
+      } else {
+        setWeatherLoading(false)
+        setWeatherData(null)
+        setWeatherError('Modo convidado não atualiza o clima online. Crie uma conta nova para usar esse card.')
+      }
+      return undefined
+    }
+
     setWeatherError('')
     setWeatherLoading(true)
 
@@ -272,7 +287,7 @@ export function HomePage() {
       cancelled = true
       clearInterval(intervalId)
     }
-  }, [weatherCardEnabled, weatherLocation])
+  }, [isGuest, weatherCardEnabled, weatherLocation])
 
   const ultimaNota = insights.latestEssay?.nota || 0
   const ultimaNotaPercent = Math.round((ultimaNota / 1000) * 100)
@@ -395,7 +410,7 @@ export function HomePage() {
       ) : (
         <div className="weather-empty-state">
           <div className="weather-empty-copy">
-            {weatherLoading ? 'Buscando o clima...' : 'Não foi possível carregar o clima.'}
+            {weatherError || (weatherLoading ? 'Buscando o clima...' : 'Não foi possível carregar o clima.')}
           </div>
         </div>
       )}

@@ -2,6 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import GoTrue from 'gotrue-js'
 import { AuthContext } from './authContext.js'
 import {
+  clearGuestSession,
+  createGuestUser,
+  isGuestSessionActive,
+  loadGuestProfile,
+  markGuestSession,
+  saveGuestProfile,
+} from './sessionMode.js'
+import {
   clearVerificationPassword,
   resendVerificationEmail,
   requestAccountDeletion,
@@ -36,11 +44,51 @@ function pickSafeUserMetadata(metadata) {
   }
 }
 
+function clearLegacyIdentityStorage() {
+  if (typeof window === 'undefined' || !window.localStorage) return
+
+  try {
+    const keysToRemove = []
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i)
+      if (key && (key === 'gotrue.user' || key.startsWith('gotrue.'))) {
+        keysToRemove.push(key)
+      }
+    }
+
+    keysToRemove.forEach((key) => {
+      try {
+        localStorage.removeItem(key)
+      } catch {
+        // ignore
+      }
+    })
+  } catch {
+    // ignore
+  }
+}
+
+function hasStoredIdentitySession(authClient) {
+  if (typeof window === 'undefined' || !window.localStorage) return false
+
+  try {
+    return Boolean(authClient.currentUser() || localStorage.getItem('gotrue.user'))
+  } catch {
+    return false
+  }
+}
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => auth.currentUser() || null)
+  const [user, setUser] = useState(() => {
+    const currentUser = auth.currentUser()
+    if (currentUser) return currentUser
+    if (isGuestSessionActive()) return createGuestUser(loadGuestProfile())
+    return null
+  })
   const [loading, setLoading] = useState(true)
   const [pendingOnboardingLogin, setPendingOnboardingLogin] = useState(false)
   const syncLockRef = useRef(false)
+  const isGuest = Boolean(user?.guest)
 
   const armOnboardingAfterLogin = useCallback(() => {
     setPendingOnboardingLogin(true)
@@ -75,45 +123,34 @@ export function AuthProvider({ children }) {
 
     const hydrateSession = async () => {
       try {
+        const guestSession = isGuestSessionActive()
+        const storedIdentitySession = hasStoredIdentitySession(auth)
+
+        if (!storedIdentitySession) {
+          if (!cancelled) {
+            setUser(guestSession ? createGuestUser(loadGuestProfile()) : null)
+          }
+          return
+        }
+
         const validatedUser = await auth.validateCurrentSession()
         if (cancelled) return
 
         if (!validatedUser) {
-          // Sessão inválida/expirada — limpar dados locais para evitar corrupção
-          console.warn('[AuthProvider] Sessão inválida ou expirada. Limpando dados locais.')
-          if (typeof window !== 'undefined' && window.localStorage) {
-            // Remove apenas dados da app, mantém onboarding e preferências de UI
-            const appKeys = []
-            for (let i = 0; i < localStorage.length; i++) {
-              const key = localStorage.key(i)
-              if (key && (key.startsWith('apice:') || key === 'gotrue.user')) {
-                appKeys.push(key)
-              }
-            }
-            appKeys.forEach(key => {
-              try { localStorage.removeItem(key) } catch {
-                // Falha silenciosa ao limpar chave individual
-              }
-            })
-            console.log(`[AuthProvider] ${appKeys.length} chaves locais removidas (sessão inválida)`)
+          console.warn('[AuthProvider] Sessão inválida ou expirada. Limpando apenas os dados de identidade.')
+          clearLegacyIdentityStorage()
+          if (!cancelled) {
+            setUser(guestSession ? createGuestUser(loadGuestProfile()) : null)
           }
-          setUser(null)
         } else {
+          clearGuestSession()
           setUser(validatedUser)
         }
       } catch (error) {
         console.error('[AuthProvider] Erro ao validar sessão:', error.message)
         if (!cancelled) {
-          // Em caso de erro inesperado, também limpa para segurança
-          if (typeof window !== 'undefined' && window.localStorage) {
-            try {
-              const gotrueUser = localStorage.getItem('gotrue.user')
-              if (gotrueUser) localStorage.removeItem('gotrue.user')
-            } catch {
-              // Falha silenciosa ao limpar sessão
-            }
-          }
-          setUser(null)
+          clearLegacyIdentityStorage()
+          setUser(isGuestSessionActive() ? createGuestUser(loadGuestProfile()) : null)
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -140,6 +177,12 @@ export function AuthProvider({ children }) {
   // para não destruir dados do localStorage que ainda não foram syncados
   useEffect(() => {
     if (!user) return
+
+    void refreshUserSummaryFromHistory()
+
+    if (isGuest) {
+      return
+    }
 
     // Verifica se já fizemos cloud pull nesta sessão (previne duplicação em reloads)
     const cloudPullKey = 'apice:cloud-session:has-pulled'
@@ -179,11 +222,11 @@ export function AuthProvider({ children }) {
     void restoreCloudState()
 
     return () => { cancelled = true }
-  }, [user])
+  }, [user, isGuest])
 
   // Sync de mudanças do localStorage → nuvem (debounced)
   useEffect(() => {
-    if (!user) return
+    if (!user || isGuest) return
     let cancelled = false
     let syncTimeout = null
 
@@ -235,10 +278,10 @@ export function AuthProvider({ children }) {
         window.removeEventListener(event, scheduleSync)
       })
     }
-  }, [user])
+  }, [user, isGuest])
 
   useEffect(() => {
-    if (!user) return
+    if (!user || isGuest) return
 
     let cancelled = false
 
@@ -260,7 +303,7 @@ export function AuthProvider({ children }) {
     return () => {
       cancelled = true
     }
-  }, [user])
+  }, [user, isGuest])
 
   const signup = async (email, password, data) => {
     const response = await auth.signup(email, password, data)
@@ -279,6 +322,7 @@ export function AuthProvider({ children }) {
   const confirmAccount = async (token) => {
     const response = await auth.confirm(token, true)
     clearVerificationPassword()
+    clearGuestSession()
     // Após confirmar, o GoTrue retorna o usuário logado
     if (response) {
       setUser(response)
@@ -294,6 +338,7 @@ export function AuthProvider({ children }) {
   const login = async (email, password, remember = true) => {
     const response = await auth.login(email, password, remember)
     clearVerificationPassword()
+    clearGuestSession()
     setUser(response)
     armOnboardingAfterLogin()
     return response
@@ -302,9 +347,19 @@ export function AuthProvider({ children }) {
   const confirmRecovery = async (token) => {
     const response = await auth.recover(token, true)
     clearVerificationPassword()
+    clearGuestSession()
     setUser(response)
     armOnboardingAfterLogin()
     return response
+  }
+
+  const loginAsGuest = async () => {
+    clearVerificationPassword()
+    const guestProfile = markGuestSession(loadGuestProfile())
+    const guestUser = createGuestUser(guestProfile)
+    setUser(guestUser)
+    clearOnboardingAfterLogin()
+    return guestUser
   }
 
   const logout = async () => {
@@ -332,6 +387,10 @@ export function AuthProvider({ children }) {
   }
 
   const deleteAccount = async () => {
+    if (isGuest) {
+      throw new Error('Modo convidado não possui conta para excluir.')
+    }
+
     try {
       const result = await requestAccountDeletion(auth)
       clearVerificationPassword()
@@ -349,6 +408,24 @@ export function AuthProvider({ children }) {
   }
 
   const updateAccount = async (attributes) => {
+    if (isGuest) {
+      const nextAttributes = { ...attributes }
+      const nextData = nextAttributes.data && typeof nextAttributes.data === 'object'
+        ? nextAttributes.data
+        : {}
+
+      const nextProfile = saveGuestProfile({
+        ...loadGuestProfile(),
+        full_name: String(nextData.full_name ?? user?.user_metadata?.full_name ?? '').trim() || 'Convidado',
+        first_name: String(nextData.first_name ?? user?.user_metadata?.first_name ?? '').trim() || 'Convidado',
+        school: String(nextData.school ?? user?.user_metadata?.school ?? '').trim(),
+      })
+
+      const updatedGuest = createGuestUser(nextProfile)
+      setUser(updatedGuest)
+      return updatedGuest
+    }
+
     const currentUser = auth.currentUser()
     if (currentUser) {
       const nextAttributes = { ...attributes }
@@ -381,10 +458,12 @@ export function AuthProvider({ children }) {
   const value = {
     user,
     loading,
+    isGuest,
     signup,
     confirmAccount,
     resendConfirmation,
     login,
+    loginAsGuest,
     confirmRecovery,
     logout,
     deleteAccount,

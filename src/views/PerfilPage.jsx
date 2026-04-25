@@ -131,6 +131,18 @@ const perfilCss = `
     text-transform: uppercase;
   }
 
+  .profile-plan.guest {
+    background: rgba(var(--accent-rgb), 0.08);
+    color: var(--text);
+  }
+
+  .profile-session-copy {
+    font-size: 0.78rem;
+    color: var(--text3);
+    line-height: 1.45;
+    margin-top: 2px;
+  }
+
   .pwa-btn {
     display: flex;
     align-items: center;
@@ -203,6 +215,45 @@ const perfilCss = `
   }
   .settings-name { font-size: 0.95rem; font-weight: 500; }
   .settings-chevron { color: var(--text3); opacity: 0.5; }
+
+  .guest-cta-card {
+    margin-bottom: 1.25rem;
+    padding: 1.1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-left: 3px solid var(--accent);
+  }
+
+  .guest-cta-copy {
+    margin-top: 4px;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--text2);
+    max-width: 46ch;
+  }
+
+  .guest-cta-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 12px;
+    background: var(--accent);
+    color: #0f0f0f;
+    font-size: 0.84rem;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: transform 0.2s ease, background 0.2s ease;
+  }
+
+  .guest-cta-btn:hover {
+    background: var(--accent2);
+    transform: translateY(-1px);
+  }
 
   .weather-settings-card {
     padding: 1.2rem 1.25rem;
@@ -699,6 +750,8 @@ const perfilCss = `
     .perfil-grid { grid-template-columns: 1fr; }
     .profile-hero { flex-direction: column; text-align: center; padding: 2rem; }
     .profile-email-row, .profile-badges-row { justify-content: center; }
+    .guest-cta-card { flex-direction: column; align-items: stretch; }
+    .guest-cta-btn { width: 100%; }
     .quota-head { flex-direction: column; gap: 12px; }
     .quota-head-right { align-items: flex-start; margin-left: 0; }
     .quota-subtitle { max-width: none; }
@@ -757,7 +810,7 @@ function buildDeletionRequestMailto({ name, email }) {
 
 export function PerfilPage() {
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user, logout, isGuest } = useAuth()
   const { canInstall: pwaCanInstall, isInstalled: pwaInstalled, installPwa } = usePwaInstall()
   const { theme, accent } = useTheme()
   const isMountedRef = useRef(true)
@@ -799,6 +852,10 @@ export function PerfilPage() {
   const hasAiPreference = Boolean(aiPreference.trim())
   const aiPreferenceCount = aiPreference.length
   const school = user?.user_metadata?.school || 'Não informada'
+  const accountLabel = isGuest ? 'Sessão local' : 'Conta vinculada'
+  const sessionDetail = isGuest
+    ? 'Seus dados ficam apenas neste navegador até você criar uma conta nova.'
+    : visibleEmail
   const avatarAppearance = resolveAvatarAppearance({
     name,
     settings: avatarSettings,
@@ -1058,7 +1115,7 @@ export function PerfilPage() {
       if (saved) {
         setAvatarSettingsState(saved)
         setAvatarDraft(saved)
-        setAvatarMsg('Avatar salvo e sincronizado na nuvem.')
+        setAvatarMsg(isGuest ? 'Avatar salvo neste navegador.' : 'Avatar salvo e sincronizado na nuvem.')
       }
     } finally {
       setAvatarSaving(false)
@@ -1162,34 +1219,40 @@ export function PerfilPage() {
         <div className="profile-hero-content">
           <div className="profile-name">{name}</div>
           <div className="profile-email-row">
-            <div className="profile-school">Conta vinculada · {visibleEmail}</div>
-            <button
-              className="profile-email-toggle"
-              type="button"
-              onClick={() => setShowEmail((value) => !value)}
-              aria-label={showEmail ? 'Ocultar e-mail' : 'Mostrar e-mail'}
-              title={showEmail ? 'Ocultar e-mail' : 'Mostrar e-mail'}
-              disabled={email === 'Sem e-mail'}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                {showEmail ? (
-                  <>
-                    <path d="M3 3l18 18" />
-                    <path d="M10.58 10.58A3 3 0 0012 15a3 3 0 003-3 3 3 0 00-.42-1.58" />
-                    <path d="M9.88 5.09A10 10 0 0112 5c7 0 11 7 11 7a17.8 17.8 0 01-3.17 4.31" />
-                    <path d="M6.61 6.61C3.41 8.7 1 12 1 12s4 7 11 7a13.1 13.1 0 005.12-1" />
-                  </>
-                ) : (
-                  <>
-                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </>
-                )}
-              </svg>
-            </button>
+            <div>
+              <div className="profile-school">{accountLabel} · {sessionDetail}</div>
+              {isGuest && <div className="profile-session-copy">Crie uma conta nova para salvar tudo na nuvem antes de sair.</div>}
+            </div>
+            {!isGuest && (
+              <button
+                className="profile-email-toggle"
+                type="button"
+                onClick={() => setShowEmail((value) => !value)}
+                aria-label={showEmail ? 'Ocultar e-mail' : 'Mostrar e-mail'}
+                title={showEmail ? 'Ocultar e-mail' : 'Mostrar e-mail'}
+                disabled={email === 'Sem e-mail'}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  {showEmail ? (
+                    <>
+                      <path d="M3 3l18 18" />
+                      <path d="M10.58 10.58A3 3 0 0012 15a3 3 0 003-3 3 3 0 00-.42-1.58" />
+                      <path d="M9.88 5.09A10 10 0 0112 5c7 0 11 7 11 7a17.8 17.8 0 01-3.17 4.31" />
+                      <path d="M6.61 6.61C3.41 8.7 1 12 1 12s4 7 11 7a13.1 13.1 0 005.12-1" />
+                    </>
+                  ) : (
+                    <>
+                      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </>
+                  )}
+                </svg>
+              </button>
+            )}
           </div>
           <div className="profile-badges-row">
             <div className="profile-plan">{billingStatusLabel}</div>
+            {isGuest && <div className="profile-plan guest">Convidado</div>}
             <button className="pwa-btn" type="button" onClick={handleInstallPwa} disabled={pwaInstalled}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2v13M7 11l5 5 5-5" />
@@ -1271,11 +1334,17 @@ export function PerfilPage() {
             <div className="info-row">
               <div className="info-left">
                 <div className="info-k">E-mail</div>
-                <div className="info-v">{maskedEmail}</div>
+                <div className="info-v">{isGuest ? 'Sem conta vinculada' : maskedEmail}</div>
               </div>
-              <Link to="/editar-perfil#email" className="info-action">
-                Alterar
-              </Link>
+              {!isGuest ? (
+                <Link to="/editar-perfil#email" className="info-action">
+                  Alterar
+                </Link>
+              ) : (
+                <Link to="/cadastro" className="info-action">
+                  Criar conta nova
+                </Link>
+              )}
             </div>
             <div className="info-row">
               <div className="info-left">
@@ -1289,13 +1358,33 @@ export function PerfilPage() {
             <div className="info-row">
               <div className="info-left">
                 <div className="info-k">Senha</div>
-                <div className="info-v">••••••••</div>
+                <div className="info-v">{isGuest ? 'Disponível ao criar uma conta' : '••••••••'}</div>
               </div>
-              <Link to="/editar-perfil#senha" className="info-action">
-                Alterar
-              </Link>
+              {!isGuest ? (
+                <Link to="/editar-perfil#senha" className="info-action">
+                  Alterar
+                </Link>
+              ) : (
+                <Link to="/cadastro" className="info-action">
+                  Criar conta nova
+                </Link>
+              )}
             </div>
           </div>
+
+          {isGuest && (
+            <div className="card guest-cta-card anim anim-d3">
+              <div>
+                <div className="card-title" style={{ marginBottom: '0.25rem' }}>Levar meus dados para a nuvem</div>
+                <div className="guest-cta-copy">
+                  Crie uma conta nova para salvar o progresso do modo convidado sem perder o que já está neste navegador.
+                </div>
+              </div>
+              <Link to="/cadastro" className="guest-cta-btn">
+                Criar conta nova
+              </Link>
+            </div>
+          )}
 
           <div className="section-label anim anim-d3">Aparência e Redações</div>
           <div className="card anim anim-d3" style={{ padding: '0 1.25rem', marginBottom: '1.25rem' }}>
@@ -1653,19 +1742,21 @@ export function PerfilPage() {
             type="button"
             onClick={handleLogoutRequest}
           >
-            Sair da minha conta
+            {isGuest ? 'Sair do modo convidado' : 'Sair da minha conta'}
           </button>
 
-          <button
-            className="logout-btn danger anim anim-d4"
-            type="button"
-            onClick={() => {
-              setDeleteDialogOpen(true)
-            }}
-            style={{ marginTop: 12 }}
-          >
-            Solicitar exclusão da conta
-          </button>
+          {!isGuest && (
+            <button
+              className="logout-btn danger anim anim-d4"
+              type="button"
+              onClick={() => {
+                setDeleteDialogOpen(true)
+              }}
+              style={{ marginTop: 12 }}
+            >
+              Solicitar exclusão da conta
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1680,12 +1771,16 @@ export function PerfilPage() {
       />
       <ConfirmDialog
         open={logoutDialogOpen}
-        title="Sair da conta?"
+        title={isGuest ? 'Sair do modo convidado?' : 'Sair da conta?'}
         message={
           logoutError
-            || 'Isso encerra sua sessão e limpa os dados locais deste navegador. Você poderá entrar novamente quando quiser.'
+            || (
+              isGuest
+                ? 'Se você sair agora, todos os dados locais deste navegador serão apagados. Crie uma conta nova e sincronize na nuvem antes de sair se quiser manter seu progresso.'
+                : 'Isso encerra sua sessão e limpa os dados locais deste navegador. Você poderá entrar novamente quando quiser.'
+            )
         }
-        confirmLabel={logoutLoading ? 'Saindo...' : 'Sair da conta'}
+        confirmLabel={logoutLoading ? 'Saindo...' : (isGuest ? 'Sair e apagar dados' : 'Sair da conta')}
         cancelLabel="Cancelar"
         danger
         confirmDisabled={logoutLoading}
@@ -1706,20 +1801,22 @@ export function PerfilPage() {
         onConfirm={handleAvatarReset}
         onCancel={() => setAvatarResetDialogOpen(false)}
       />
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        title="Solicitar exclusão da conta?"
-        message={
-          'No momento não é possível excluir a conta diretamente pelo app. Para solicitar a exclusão permanente, envie um e-mail para a equipe de desenvolvimento com o texto já pronto.'
-        }
-        confirmLabel="Abrir e-mail"
-        cancelLabel="Fechar"
-        danger={false}
-        onConfirm={handleRequestAccountDeletionEmail}
-        onCancel={() => {
-          setDeleteDialogOpen(false)
-        }}
-      />
+      {!isGuest && (
+        <ConfirmDialog
+          open={deleteDialogOpen}
+          title="Solicitar exclusão da conta?"
+          message={
+            'No momento não é possível excluir a conta diretamente pelo app. Para solicitar a exclusão permanente, envie um e-mail para a equipe de desenvolvimento com o texto já pronto.'
+          }
+          confirmLabel="Abrir e-mail"
+          cancelLabel="Fechar"
+          danger={false}
+          onConfirm={handleRequestAccountDeletionEmail}
+          onCancel={() => {
+            setDeleteDialogOpen(false)
+          }}
+        />
+      )}
       <ConfirmDialog
         open={restoreDialogOpen}
         title="Restaurar dados do Ápice?"
