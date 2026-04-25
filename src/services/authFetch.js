@@ -17,6 +17,32 @@ import { isGuestSessionActive } from '../auth/sessionMode.js'
 
 let _getAuthToken = null
 
+const GUEST_ALLOWED_PATHS = new Set([
+  '/.netlify/functions/gerar-tema',
+  '/.netlify/functions/corrigir-redacao',
+  '/.netlify/functions/chamar-ia',
+  '/.netlify/functions/buscar-contexto',
+  '/.netlify/functions/gerar-radar',
+  '/.netlify/functions/gerar-radar-detalhe',
+  '/.netlify/functions/resumir-usuario',
+  '/.netlify/functions/gerar-simulado',
+])
+
+function resolveRequestPath(url) {
+  try {
+    const baseUrl = typeof window !== 'undefined' && window.location
+      ? window.location.origin
+      : 'http://localhost'
+    return new URL(url, baseUrl).pathname
+  } catch {
+    return String(url || '').split('?')[0]
+  }
+}
+
+function canGuestAccessUrl(url) {
+  return GUEST_ALLOWED_PATHS.has(resolveRequestPath(url))
+}
+
 /**
  * Register a function that returns the current auth token.
  * Returns JWT string or '__userid__<id>' prefix for fallback.
@@ -78,8 +104,11 @@ async function getAuthCredentials() {
  * @returns {Promise<Response>}
  */
 export async function authFetch(url, options = {}) {
-  if (isGuestSessionActive()) {
-    const message = 'Modo convidado não pode acessar este recurso online. Crie uma conta para sincronizar na nuvem.'
+  const guestSessionActive = isGuestSessionActive()
+  const guestCanAccess = guestSessionActive && canGuestAccessUrl(url)
+
+  if (guestSessionActive && !guestCanAccess) {
+    const message = 'Modo convidado não pode acessar este recurso online. Crie uma conta para sincronizar na nuvem, contratar planos ou usar integrações externas.'
     return new Response(
       JSON.stringify({ error: message }),
       {
@@ -91,14 +120,19 @@ export async function authFetch(url, options = {}) {
     )
   }
 
-  const { jwt, userId } = await getAuthCredentials()
+  const { jwt, userId } = guestSessionActive
+    ? { jwt: '', userId: 'guest' }
+    : await getAuthCredentials()
 
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
   }
 
-  if (jwt) {
+  if (guestCanAccess) {
+    headers['X-User-Id'] = 'guest'
+    delete headers.Authorization
+  } else if (jwt) {
     headers['Authorization'] = `Bearer ${jwt}`
   } else if (userId) {
     // Fallback: X-User-Id (forjável — será removido em versão futura)
