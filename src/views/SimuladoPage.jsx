@@ -6,6 +6,15 @@ import { useAppBusy } from '../ui/AppBusyContext.jsx'
 import '../styles/simulado.css'
 
 const AREAS = getAreasDisponiveis()
+const MIN_SIMULADO_QUESTIONS = 10
+const MAX_SIMULADO_QUESTIONS = 90
+const QUESTION_PRESETS = [10, 20, 30, 45, 60, 90]
+
+function clampQuestionCount(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return 20
+  return Math.min(Math.max(Math.round(numeric), MIN_SIMULADO_QUESTIONS), MAX_SIMULADO_QUESTIONS)
+}
 
 export function SimuladoPage() {
   const { beginBusy, endBusy } = useAppBusy()
@@ -33,7 +42,7 @@ export function SimuladoPage() {
         setSelectedDisciplinas(saved.selectedDisciplinas || [])
         setCurrentQuestionIndex(saved.currentQuestionIndex || 0)
         setAnswers(saved.answers || {})
-        setQuantidade(saved.quantidade || 20)
+        setQuantidade(clampQuestionCount(saved.quantidade || 20))
         setStep('exam')
       }
     }
@@ -86,8 +95,8 @@ export function SimuladoPage() {
       setError('Selecione pelo menos uma disciplina.')
       return
     }
-    if (quantidade < 10 || quantidade > 200) {
-      setError('A quantidade de questões deve ser entre 10 e 200.')
+    if (quantidade < MIN_SIMULADO_QUESTIONS || quantidade > MAX_SIMULADO_QUESTIONS) {
+      setError(`A quantidade de questões deve ser entre ${MIN_SIMULADO_QUESTIONS} e ${MAX_SIMULADO_QUESTIONS}.`)
       return
     }
 
@@ -172,7 +181,7 @@ export function SimuladoPage() {
         <div className="simulado-header anim anim-d1">
           <h1 className="simulado-title">Simulados Ápice</h1>
           <p className="simulado-subtitle">
-            Configure seu simulado personalizado com questões reais do ENEM e geração por IA.
+            Configure seu simulado personalizado com banco local de questões reais do ENEM, reforço da ENEM API e IA só para completar o que faltar.
           </p>
         </div>
 
@@ -203,7 +212,7 @@ export function SimuladoPage() {
                 <div>
                   <h2 className="setup-section-title">2. Selecione as Disciplinas</h2>
                   <p className="setup-section-copy">
-                    Escolha uma ou mais matérias para o seu simulado.
+                    Escolha uma ou mais matérias para o seu simulado. O gerador tenta primeiro o banco local de questões reais do ENEM.
                   </p>
                 </div>
                 <button type="button" className="btn-select-all" onClick={selectAllDisciplinas}>
@@ -241,8 +250,8 @@ export function SimuladoPage() {
                 <div className="quantidade-slider">
                   <input
                     type="range"
-                    min="10"
-                    max="200"
+                    min={MIN_SIMULADO_QUESTIONS}
+                    max={MAX_SIMULADO_QUESTIONS}
                     step="5"
                     value={quantidade}
                     onChange={(e) => setQuantidade(Number(e.target.value))}
@@ -254,7 +263,7 @@ export function SimuladoPage() {
                   </div>
                 </div>
                 <div className="quantidade-presets">
-                  {[10, 20, 45, 90, 180].map(q => (
+                  {QUESTION_PRESETS.map(q => (
                     <button
                       key={q}
                       type="button"
@@ -266,14 +275,14 @@ export function SimuladoPage() {
                   ))}
                 </div>
                 <p className="quantidade-info">
-                  As questões serão divididas igualmente entre as {selectedDisciplinas.length} disciplina(s) selecionada(s).
+                  O app tenta fechar a quantidade primeiro com o banco local de questões reais, depois com a ENEM API e só então com IA.
                 </p>
               </div>
             </div>
           )}
 
           {/* Botão Iniciar */}
-          {selectedDisciplinas.length > 0 && quantidade >= 10 && (
+          {selectedDisciplinas.length > 0 && quantidade >= MIN_SIMULADO_QUESTIONS && (
             <div className="setup-section anim anim-d5" style={{ textAlign: 'center' }}>
               <button type="button" className="btn-start-simulado" onClick={handleStartExam}>
                 🚀 Iniciar Simulado
@@ -299,7 +308,7 @@ export function SimuladoPage() {
           <div className="spinner"></div>
           <h2 className="simulado-title">Preparando Simulado...</h2>
           <p className="simulado-subtitle">
-            Buscando questões reais da ENEM API e gerando questões complementares com IA...
+            Primeiro o banco local, depois a ENEM API e, se faltar, a IA completa o simulado...
           </p>
         </div>
       </div>
@@ -432,8 +441,12 @@ export function SimuladoPage() {
           {examData.estatisticas && (
             <div className="result-stats">
               <div className="stat-item">
+                <span className="stat-value">{examData.estatisticas.bancoLocal || 0}</span>
+                <span className="stat-label">Banco Local</span>
+              </div>
+              <div className="stat-item">
                 <span className="stat-value">{examData.estatisticas.reais}</span>
-                <span className="stat-label">Questões Reais (ENEM)</span>
+                <span className="stat-label">Questões Reais (banco + API)</span>
               </div>
               <div className="stat-item">
                 <span className="stat-value">{examData.estatisticas.ia}</span>
