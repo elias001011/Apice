@@ -17,11 +17,82 @@ const PROFESSOR_PROVIDER_FALLBACKS = [
 
 function safeJsonParse(value) {
   if (!value || typeof value !== 'string') return null
-  try {
-    return JSON.parse(value)
-  } catch {
-    return null
+
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  const candidates = [trimmed]
+  const strippedFences = trimmed
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim()
+
+  if (strippedFences && strippedFences !== trimmed) {
+    candidates.push(strippedFences)
   }
+
+  const extractBalancedJsonBlock = (source) => {
+    const firstCurly = source.indexOf('{')
+    const firstSquare = source.indexOf('[')
+    const firstBrace = firstCurly === -1
+      ? firstSquare
+      : firstSquare === -1
+        ? firstCurly
+        : Math.min(firstCurly, firstSquare)
+    if (firstBrace < 0) return ''
+
+    const opener = source[firstBrace]
+    const closer = opener === '{' ? '}' : ']'
+    let depth = 0
+    let inString = false
+    let escaped = false
+
+    for (let index = firstBrace; index < source.length; index += 1) {
+      const char = source[index]
+
+      if (inString) {
+        if (escaped) {
+          escaped = false
+        } else if (char === '\\') {
+          escaped = true
+        } else if (char === '"') {
+          inString = false
+        }
+        continue
+      }
+
+      if (char === '"') {
+        inString = true
+        continue
+      }
+
+      if (char === opener) {
+        depth += 1
+      } else if (char === closer) {
+        depth -= 1
+        if (depth === 0) {
+          return source.slice(firstBrace, index + 1)
+        }
+      }
+    }
+
+    return ''
+  }
+
+  const extracted = extractBalancedJsonBlock(strippedFences)
+  if (extracted && !candidates.includes(extracted)) {
+    candidates.push(extracted)
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate)
+    } catch {
+      // Tenta o próximo candidato.
+    }
+  }
+
+  return null
 }
 
 function isMeaninglessProfessorText(value) {
@@ -224,6 +295,109 @@ function stripMindmapPrefix(value) {
     .trim()
 }
 
+function normalizeMindmapList(items) {
+  return Array.isArray(items)
+    ? items
+      .map((item) => stripMindmapPrefix(item))
+      .filter(Boolean)
+      .slice(0, 4)
+    : []
+}
+
+function normalizeMindmapBranch(branch, index = 0) {
+  if (typeof branch === 'string') {
+    const title = stripMindmapPrefix(branch)
+    if (!title) return null
+    return {
+      title,
+      children: [],
+    }
+  }
+
+  if (!branch || typeof branch !== 'object') return null
+
+  const title = stripMindmapPrefix(
+    branch.titulo
+    ?? branch.title
+    ?? branch.nome
+    ?? branch.nomeRamo
+    ?? branch.ramo
+    ?? branch.tópico
+    ?? branch.topico
+    ?? branch.node
+    ?? branch.label
+    ?? `Ramo ${index + 1}`,
+  )
+
+  if (!title) return null
+
+  const children = normalizeMindmapList(
+    branch.subtopicos
+    ?? branch.subtopicosSecundarios
+    ?? branch.children
+    ?? branch.subitens
+    ?? branch.itens
+    ?? branch.bullets
+    ?? branch.nodes
+    ?? branch.topicosSecundarios,
+  )
+
+  return {
+    title,
+    children,
+  }
+}
+
+function parseStructuredMindmapResponse(text) {
+  const normalized = normalizeProfessorText(text)
+  if (!normalized) return null
+
+  const parsed = safeJsonParse(normalized)
+  if (!parsed) return null
+
+  const payload = parsed.response && typeof parsed.response === 'object'
+    ? parsed.response
+    : parsed.response && typeof parsed.response === 'string'
+      ? safeJsonParse(parsed.response) || parsed
+      : parsed
+  if (!payload || typeof payload !== 'object') return null
+
+  const rootTitle = stripMindmapPrefix(
+    payload.temaCentral
+    ?? payload.rootTitle
+    ?? payload.centro
+    ?? payload.title
+    ?? payload.tema
+    ?? payload.assunto
+    ?? payload.mainTopic
+    ?? payload.response?.temaCentral
+    ?? payload.response?.rootTitle
+    ?? '',
+  )
+
+  const rawBranches = Array.isArray(payload.ramos)
+    ? payload.ramos
+    : Array.isArray(payload.branches)
+      ? payload.branches
+      : Array.isArray(payload.nodes)
+        ? payload.nodes
+        : Array.isArray(payload.items)
+          ? payload.items
+          : []
+
+  const branches = rawBranches
+    .map((branch, index) => normalizeMindmapBranch(branch, index))
+    .filter(Boolean)
+    .slice(0, 8)
+
+  if (!rootTitle && branches.length === 0) return null
+
+  return {
+    rootTitle: rootTitle || 'Mapa mental',
+    branches,
+  }
+}
+
 function parseProfessorBlocks(text) {
   const normalized = normalizeProfessorText(text)
   if (!normalized) return []
@@ -314,6 +488,11 @@ function parseMindmapStructure(text) {
   const normalized = normalizeProfessorText(text)
   if (!normalized) {
     return { rootTitle: '', branches: [] }
+  }
+
+  const structured = parseStructuredMindmapResponse(normalized)
+  if (structured) {
+    return structured
   }
 
   const lines = normalized.replace(/\r\n/g, '\n').split('\n')
@@ -613,19 +792,37 @@ function buildSystemPrompt(category) {
   ]
 
   if (category.id === 'duvidas') {
-    lines.push('- Explique de forma clara, passo a passo, com exemplos quando possível.')
+    lines.push(
+      '- Explique de forma clara, passo a passo, com exemplos quando possível.',
+      '- Estruture a resposta com título curto, resumo inicial e lista de passos ou tópicos.',
+      '- Evite blocos de texto muito longos e prefira espaçamento real entre as partes.',
+    )
   }
 
   if (category.id === 'resumos') {
-    lines.push('- Crie resumos objetivos com os pontos mais importantes para o ENEM. Use tópicos e seja direto.')
+    lines.push(
+      '- Crie resumos objetivos com os pontos mais importantes para o ENEM.',
+      '- Use subtítulos, listas e palavras-chave para aproveitar melhor a largura da tela.',
+      '- Evite parágrafos corridos quando uma estrutura em blocos for mais clara.',
+    )
   }
 
   if (category.id === 'mapas') {
-    lines.push('- Para Mapas Mentais, o conteúdo do campo "response" deve ser uma estrutura textual organizada, sem canvas, sem PDF e sem comentários técnicos.')
+    lines.push(
+      '- Para Mapas Mentais, o conteúdo do campo "response" deve ser uma STRING com um JSON válido, sem markdown e sem comentários técnicos.',
+      '- Use exatamente este formato dentro do texto da resposta: {"temaCentral":"...","ramos":[{"titulo":"...","subtopicos":["...","..."]}]}',
+      '- Crie entre 5 e 8 ramos principais, com 1 a 3 subtópicos curtos por ramo.',
+      '- Prefira palavras-chave, expressões curtas e relação hierárquica clara.',
+      '- Não escreva texto fora do JSON da resposta.',
+    )
   }
 
   if (category.id === 'pratica') {
-    lines.push('- Crie questões inéditas no estilo ENEM com 5 alternativas (A-E). Após o aluno responder, dê feedback detalhado.')
+    lines.push(
+      '- Crie questões inéditas no estilo ENEM com 5 alternativas (A-E).',
+      '- Quebre a resposta em enunciado, alternativas e feedback final bem separados.',
+      '- Use listas para a alternativa correta, raciocínio e dica de resolução.',
+    )
   }
 
   lines.push(
@@ -910,7 +1107,9 @@ export function ProfessorPage() {
             userMessages,
           })
 
-          const aiText = extractAiText(response)
+          const aiText = categoryAtSend.id === 'mapas' && typeof response?.response === 'string'
+            ? response.response.trim()
+            : extractAiText(response)
           if (!aiText) {
             const emptyError = new Error(`Resposta vazia da IA (${config.provider}/${config.modelVariant}).`)
             emptyError.code = 'empty_ai_response'
