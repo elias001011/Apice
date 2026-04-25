@@ -1,5 +1,3 @@
-import process from 'node:process'
-
 /**
  * Webhook para eventos de pagamento do AbacatePay
  *

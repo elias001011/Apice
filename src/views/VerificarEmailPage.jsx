@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
 
 export function VerificarEmailPage() {

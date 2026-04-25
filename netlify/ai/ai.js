@@ -1,4 +1,5 @@
 import process from 'node:process'
+import { generateCalibrationPrompt } from '../../src/services/essayCalibrationService.js'
 import { buildAiResponsePreferencePrompt } from '../../src/services/aiResponsePreferences.js'
 import { clampNumber, normalizeEssayFeedbackScore, roundScore } from '../../src/services/essayInsights.js'
 import { getEnemYearLabel } from '../../src/services/examYear.js'
@@ -688,7 +689,6 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, theme
   // Importa exemplos de calibração baseados em redações reais (UOL dataset)
   let calibrationSection = ''
   try {
-    const { generateCalibrationPrompt } = require('../../src/services/essayCalibrationService.js')
     calibrationSection = generateCalibrationPrompt()
   } catch {
     calibrationSection = `

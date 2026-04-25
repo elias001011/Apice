@@ -50,37 +50,6 @@ function getGreetingLabel(date = new Date()) {
   return 'Boa noite'
 }
 
-function formatWeatherDescription(value) {
-  const text = String(value || '').trim()
-  if (!text) return 'Condições atuais'
-  // Corrige capitalização de descrições em português
-  return text.charAt(0).toUpperCase() + text.slice(1)
-}
-
-function formatWeatherUpdatedAt(value) {
-  if (!value) return 'Atualização pendente'
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Atualização pendente'
-
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-
-  if (diffMins < 1) return 'Agora mesmo'
-  if (diffMins < 60) return `Há ${diffMins} min`
-
-  const diffHours = Math.floor(diffMins / 60)
-  if (diffHours < 24) return `Há ${diffHours}h`
-
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
-}
-
 export function HomePage() {
   const { user } = useAuth()
   const isGuest = Boolean(user?.guest)
@@ -104,6 +73,7 @@ export function HomePage() {
     return isClimaResultFresh(cached, loadWeatherLocation()) ? cached : null
   })
   const [weatherLoading, setWeatherLoading] = useState(false)
+  const weatherLoadingRef = useRef(weatherLoading)
   const [weatherError, setWeatherError] = useState('')
   const [professorMessage, setProfessorMessage] = useState('')
   const [professorMessageError, setProfessorMessageError] = useState('')
@@ -278,7 +248,7 @@ export function HomePage() {
       if (cancelled) return
       const currentCached = getLastClimaResult()
       const stillFresh = isClimaResultFresh(currentCached, weatherLocation)
-      if (!stillFresh && !weatherLoading) {
+      if (!stillFresh && !weatherLoadingRef.current) {
         void fetchWeather()
       }
     }, 5 * 60 * 1000) // 5 minutos
@@ -289,10 +259,12 @@ export function HomePage() {
     }
   }, [isGuest, weatherCardEnabled, weatherLocation])
 
+  useEffect(() => {
+    weatherLoadingRef.current = weatherLoading
+  }, [weatherLoading])
+
   const ultimaNota = insights.latestEssay?.nota || 0
   const ultimaNotaPercent = Math.round((ultimaNota / 1000) * 100)
-  const weatherDescription = formatWeatherDescription(weatherData?.descricao)
-  const weatherUpdatedAt = formatWeatherUpdatedAt(weatherData?.fetchedAt)
   const weatherHeaderLocation = weatherData?.cidade || weatherLocation
   const weatherCountry = weatherData?.pais || ''
   const hasWeatherData = Boolean(weatherData)

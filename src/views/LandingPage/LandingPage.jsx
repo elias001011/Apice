@@ -101,7 +101,6 @@ const LandingPage = () => {
   const [r7, v7] = useInView(0.1);
   const [r8, v8] = useInView(0.1);
   const [r9, v9] = useInView(0.1);
-  const [r10, v10] = useInView(0.1);
 
   return (
     <div className={`lp-container${darkMode ? ' lp-dark' : ' lp-light'}`}>

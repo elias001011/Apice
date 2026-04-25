@@ -30,7 +30,6 @@ export function SimuladoPage() {
   const [answers, setAnswers] = useState({})
   const [showFeedback, setShowFeedback] = useState(false)
   const [error, setError] = useState(null)
-  const [questionStartTime, setQuestionStartTime] = useState(null)
   
   // Configuração do simulado
   const [selectedArea, setSelectedArea] = useState(null)
@@ -127,7 +126,6 @@ export function SimuladoPage() {
       setCurrentQuestionIndex(0)
       setAnswers({})
       setShowFeedback(false)
-      setQuestionStartTime(Date.now())
       limparProgressoSimulado()
     } catch (err) {
       console.error('[SimuladoPage] Erro ao gerar simulado:', err)
@@ -151,7 +149,6 @@ export function SimuladoPage() {
     if (currentQuestionIndex < examData.questoes.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1)
       setShowFeedback(false)
-      setQuestionStartTime(Date.now())
     } else {
       const total = examData.questoes.length
       const correct = calculateScore()

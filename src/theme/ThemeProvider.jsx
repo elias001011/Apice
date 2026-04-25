@@ -254,8 +254,14 @@ export function ThemeProvider({ children }) {
     // Agora o usuário controla gradientes nos cards independentemente dos efeitos visuais.
     // Apenas garantimos que se efeitos visuais NÃO forem gradientes, gradientes nos cards ficam off.
     if (visualEffects !== 'gradients' && cardGradientsEnabled) {
-      setCardGradientsEnabled(false)
+      const timerId = window.setTimeout(() => {
+        setCardGradientsEnabled(false)
+      }, 0)
+
+      return () => window.clearTimeout(timerId)
     }
+
+    return undefined
   }, [visualEffects, cardGradientsEnabled])
 
   useEffect(() => {

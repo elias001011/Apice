@@ -438,7 +438,7 @@ export function ProfessorPage() {
     }
   }, [isFullscreen])
 
-  const handleSendMessage = async (messageOverride = inputText, categoryOverride = activeCategory) => {
+  const handleSendMessage = useCallback(async (messageOverride = inputText, categoryOverride = activeCategory) => {
     const userMessage = normalizeProfessorText(messageOverride)
     const categoryAtSend = categoryOverride || activeCategory
     if (!userMessage || isTyping) return
@@ -586,7 +586,7 @@ export function ProfessorPage() {
     } finally {
       setIsTyping(false)
     }
-  }
+  }, [activeCategory, conversations, inputText, isBrowserOffline, isSearchEnabled, isTyping, nextMessageId])
 
   useEffect(() => {
     const handoff = queuedHandoff
@@ -599,7 +599,7 @@ export function ProfessorPage() {
     setActiveCategory(category)
     setInputText('')
     void handleSendMessage(handoff.message, category)
-  }, [queuedHandoff])
+  }, [queuedHandoff, handleSendMessage])
 
   const handleClearHistory = () => {
     setAiError(false)

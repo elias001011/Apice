@@ -92,7 +92,7 @@ export async function searchCities(query, limit = 8) {
 
     // API retornou vazio — usa fallback
     return fallbackCitySearch(q, limit)
-  } catch (error) {
+  } catch {
     // Fallback silencioso - não logar erro se a API ainda não está disponível
     return fallbackCitySearch(q, limit)
   }

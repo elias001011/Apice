@@ -15,7 +15,6 @@
  */
 
 import {
-  clearAiResponsePreference,
   loadAiResponsePreference,
   normalizeAiResponsePreference,
   saveAiResponsePreference,
@@ -49,7 +48,6 @@ import {
   getAiUsageDayKey,
   getFreePlanUsageSnapshot,
   setFreePlanUsageSnapshot,
-  resetFreePlanUsage,
   getCurrentPlanTier,
   setPlanTier,
 } from './freePlanUsage.js'
@@ -73,10 +71,8 @@ import {
   DEFAULT_NOTIFICATIONS,
   loadNotificationPreferences,
   saveNotificationPreferences,
-  resetNotificationPreferences,
 } from './notificationPreferences.js'
 import {
-  clearUserSummary,
   loadUserSummary,
   normalizeUserSummary,
   saveUserSummary,
@@ -106,28 +102,6 @@ function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
 }
 
-function readStoredValue(key, fallback) {
-  if (!canUseStorage()) return fallback
-  try {
-    const value = localStorage.getItem(key)
-    return value || fallback
-  } catch {
-    return fallback
-  }
-}
-
-function readStoredBoolean(key, fallback) {
-  if (!canUseStorage()) return fallback
-
-  try {
-    const raw = localStorage.getItem(key)
-    if (raw === null) return fallback
-    return raw === 'true'
-  } catch {
-    return fallback
-  }
-}
-
 function _normalizeBooleanPreference(value, fallback) {
   if (typeof value === 'boolean') return value
   if (typeof value === 'number') return value !== 0
@@ -137,16 +111,6 @@ function _normalizeBooleanPreference(value, fallback) {
     if (['false', '0', 'no', 'off'].includes(normalized)) return false
   }
   return fallback
-}
-
-function getSystemAnimationsEnabled() {
-  if (typeof window === 'undefined') return true
-  return !(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false)
-}
-
-function getIsMobileLayout() {
-  if (typeof window === 'undefined') return false
-  return window.matchMedia?.('(max-width: 767px)')?.matches ?? false
 }
 
 /**

@@ -213,7 +213,11 @@ export function AuthProvider({ children }) {
       } finally {
         // Marca que já fizemos pull nesta sessão (mesmo se falhou)
         if (typeof window !== 'undefined' && window.sessionStorage && !cancelled) {
-          try { window.sessionStorage.setItem(cloudPullKey, '1') } catch {}
+          try {
+            window.sessionStorage.setItem(cloudPullKey, '1')
+          } catch (storageError) {
+            console.warn('[AuthProvider] Não foi possível marcar o cloud pull:', storageError?.message || storageError)
+          }
         }
       }
     }
@@ -379,7 +383,11 @@ export function AuthProvider({ children }) {
     }
     // Limpa flag de cloud pull para permitir pull limpo no próximo login
     if (typeof window !== 'undefined' && window.sessionStorage) {
-      try { window.sessionStorage.removeItem('apice:cloud-session:has-pulled') } catch {}
+      try {
+        window.sessionStorage.removeItem('apice:cloud-session:has-pulled')
+      } catch (storageError) {
+        console.warn('[AuthProvider] Não foi possível limpar a flag de cloud pull:', storageError?.message || storageError)
+      }
     }
     clearLocalCloudSync()
     syncLockRef.current = false
