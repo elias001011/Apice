@@ -18,7 +18,7 @@ import { buildCheckoutCorsHeaders } from './utils/cors.js'
  *
  * TESTE GRÁTIS (7 dias):
  * - Funciona via cupom de 100% desconto chamado "FREE TEST" no dashboard AbacatePay
- * - Quando isTrial=true, o cupom é aplicado no checkout (campo couponCode)
+ * - Quando isTrial=true, o cupom é aplicado no checkout (campos allowCoupons + coupons)
  * - Usuário vai pro AbacatePay, vê valor R$ 0,00 e completa sem pagar
  * - Só pode ser usado UMA vez por conta (controlado pelo backend + localStorage)
  *
@@ -85,8 +85,14 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
   const customerPayload = {
     name: customerName || userEmail || `Usuario ${userId.substring(0, 8)}`,
     email: userEmail || `${userId}@apice.internal`,
-    cellphone: customerCellphone || '',
-    taxId: customerTaxId || '',
+  }
+
+  if (customerCellphone) {
+    customerPayload.cellphone = customerCellphone
+  }
+
+  if (customerTaxId) {
+    customerPayload.taxId = customerTaxId
   }
 
   const payload = {
@@ -127,15 +133,13 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
   }
 
   console.log('[abacatepay] Payload final (resumido):', JSON.stringify({
-    externalId: payload.externalId,
+    planKey: payload.metadata?.planKey || '',
     frequency: payload.frequency,
     productCount: payload.products.length,
     hasCustomer: !!payload.customer,
-    customerName: payload.customer?.name,
-    customerEmail: payload.customer?.email,
     hasCoupons: !!payload.coupons?.length,
     allowCoupons: !!payload.allowCoupons,
-    metadata: payload.metadata,
+    isTrial: !!payload.metadata?.isTrial,
   }))
 
   return payload
@@ -224,7 +228,13 @@ async function createCheckout(req, authUser, headers) {
   let body = {}
   try {
     body = await req.json()
-    console.log('[abacatepay] Body recebido:', JSON.stringify(body))
+    console.log('[abacatepay] Body recebido (resumido):', JSON.stringify({
+      planKey: body?.planKey || '',
+      isTrial: Boolean(body?.isTrial),
+      hasCustomerName: Boolean(String(body?.customerName || body?.fullName || '').trim()),
+      hasCustomerCellphone: Boolean(String(body?.customerCellphone || body?.phone || body?.cellphone || '').trim()),
+      hasCustomerTaxId: Boolean(String(body?.customerTaxId || body?.taxId || body?.cpf || body?.cnpj || '').trim()),
+    }))
   } catch (error) {
     console.error('[abacatepay] Erro ao parsear body:', error.message)
   }

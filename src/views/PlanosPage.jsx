@@ -465,6 +465,7 @@ export function PlanosPage() {
             A conta gratuita continua com 5 usos de IA por dia. Ao pagar, a cota sobe para 10 usos diários.
             Contas criadas nesta atualização recebem premium temporário por 30 dias.
             O teste grátis manual continua com 7 dias e só pode ser ativado uma vez por conta.
+            No checkout, o cupom <strong>FREE TEST</strong> libera esses 7 dias de premium.
           </p>
 
           {isGuest && (
@@ -654,6 +655,7 @@ export function PlanosPage() {
 
                   <div className="plan-card-note">
                     {plan.billingLabel}. Depois do período temporário, o checkout usa o produto da AbacatePay já cadastrado.
+                    Para ativar o teste grátis de 7 dias, use o cupom <strong>FREE TEST</strong> no checkout.
                   </div>
 
                   <div className="plan-card-list">
