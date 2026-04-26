@@ -27,8 +27,7 @@ import {
 import {
   getBillingStatusLabel,
   TRIAL_DAYS,
-  WELCOME_PREMIUM_DAYS,
-  isWelcomePremiumActive,
+
 } from '../services/billingState.js'
 import { usePwaInstall } from '../pwa/usePwaInstall.js'
 import { useTheme } from '../theme/ThemeProvider.jsx'
@@ -878,7 +877,7 @@ export function PerfilPage() {
   }
   const billingStatus = getCurrentBillingStatus()
   const billingStatusLabel = getBillingStatusLabel(billingStatus)
-  const welcomePremiumActive = isWelcomePremiumActive()
+
 
   const quotaHelpMessage = [
     'Cada vez que o app precisa gerar um resultado novo com IA, 1 uso é consumido.',
@@ -900,7 +899,7 @@ export function PerfilPage() {
     'A contagem zera automaticamente na virada do dia no seu navegador.',
     '',
     `O teste grátis dura ${TRIAL_DAYS} dias e só pode ser usado uma vez por conta.`,
-    `Contas novas criadas nesta atualização recebem premium temporário por ${WELCOME_PREMIUM_DAYS} dias.`,
+    `Use o teste grátis de 7 dias para acessar todos os recursos premium.`,
     'Se você mudar de conta, o cache daquela conta muda junto. Se o detalhe do radar ou outro resultado não estiver salvo nessa conta, o app precisa gerar de novo e isso volta a consumir cota.',
   ].join('\n')
 
@@ -1288,9 +1287,9 @@ export function PerfilPage() {
         <div className="meu-plano-left">
           <div className="meu-plano-label">Plano Atual</div>
           <div className="meu-plano-tier">
-            {isGuest ? 'Modo convidado' : billingStatus === 'free' ? 'Gratuito' : welcomePremiumActive ? 'Premium temporário' : billingStatus === 'trial' ? 'Teste grátis' : 'Pago'}
+            {isGuest ? 'Modo convidado' : billingStatus === 'free' ? 'Gratuito' : billingStatus === 'trial' ? 'Teste grátis' : 'Pago'}
             <span className={`meu-plano-tier-badge ${isGuest || billingStatus === 'free' ? '' : 'pro'}`}>
-              {isGuest ? 'Convidado' : billingStatus === 'free' ? 'Free' : welcomePremiumActive ? `Premium ${WELCOME_PREMIUM_DAYS}d` : billingStatus === 'trial' ? 'Trial' : 'Pago'}
+              {isGuest ? 'Convidado' : billingStatus === 'free' ? 'Free' : billingStatus === 'trial' ? 'Trial' : 'Pago'}
             </span>
           </div>
           {(billingStatus === 'free' || isGuest) && (

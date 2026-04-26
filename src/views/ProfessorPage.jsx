@@ -855,6 +855,82 @@ function buildSystemPrompt(category) {
   return lines.join('\n')
 }
 
+/** Renderiza markdown básico em JSX sem dependência externa */
+function renderMarkdown(text) {
+  if (!text) return null
+  const lines = text.split('\n')
+  const elements = []
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    const h3 = line.match(/^###\s+(.+)/)
+    const h2 = line.match(/^##\s+(.+)/)
+    const h1 = line.match(/^#\s+(.+)/)
+    const hr = line.match(/^---+$/)
+    const ul = line.match(/^[*-]\s+(.+)/)
+    const ol = line.match(/^\d+\.\s+(.+)/)
+    const bq = line.match(/^>\s+(.+)/)
+    if (h1) { elements.push(<h1 key={i}>{inlineMarkdown(h1[1])}</h1>); i++; continue }
+    if (h2) { elements.push(<h2 key={i}>{inlineMarkdown(h2[1])}</h2>); i++; continue }
+    if (h3) { elements.push(<h3 key={i}>{inlineMarkdown(h3[1])}</h3>); i++; continue }
+    if (hr) { elements.push(<hr key={i} />); i++; continue }
+    if (bq) { elements.push(<blockquote key={i}>{inlineMarkdown(bq[1])}</blockquote>); i++; continue }
+    if (ul) {
+      const items = []
+      while (i < lines.length && lines[i].match(/^[*-]\s+/)) {
+        const m = lines[i].match(/^[*-]\s+(.+)/)
+        if (m) items.push(<li key={i}>{inlineMarkdown(m[1])}</li>)
+        i++
+      }
+      elements.push(<ul key={`ul-${i}`}>{items}</ul>)
+      continue
+    }
+    if (ol) {
+      const items = []
+      while (i < lines.length && lines[i].match(/^\d+\.\s+/)) {
+        const m = lines[i].match(/^\d+\.\s+(.+)/)
+        if (m) items.push(<li key={i}>{inlineMarkdown(m[1])}</li>)
+        i++
+      }
+      elements.push(<ol key={`ol-${i}`}>{items}</ol>)
+      continue
+    }
+    if (line.trim() === '') { elements.push(<br key={i} />); i++; continue }
+    elements.push(<p key={i}>{inlineMarkdown(line)}</p>)
+    i++
+  }
+  return elements
+}
+
+function inlineMarkdown(text) {
+  if (!text) return null
+  // Processa **bold**, *italic*, `code`
+  const parts = []
+  const regex = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|_[^_]+_)/g
+  let last = 0
+  let match
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index))
+    const token = match[0]
+    if (token.startsWith('`')) {
+      parts.push(<code key={match.index}>{token.slice(1, -1)}</code>)
+    } else if (token.startsWith('**') || token.startsWith('__')) {
+      parts.push(<strong key={match.index}>{token.slice(2, -2)}</strong>)
+    } else {
+      parts.push(<em key={match.index}>{token.slice(1, -1)}</em>)
+    }
+    last = match.index + token.length
+  }
+  if (last < text.length) parts.push(text.slice(last))
+  return parts.length === 1 && typeof parts[0] === 'string' ? parts[0] : parts
+}
+
+function ProfMarkdown({ text }) {
+  const content = normalizeProfessorText(text)
+  if (!content) return null
+  return <div className="prof-md">{renderMarkdown(content)}</div>
+}
+
 function iconSvg(kind) {
   switch (kind) {
     case 'question':
@@ -872,15 +948,17 @@ function iconSvg(kind) {
           <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
         </svg>
       )
-    case 'mindmap':
+    case 'copy':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      )
+    case 'check':
       return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M3 12h6M15 12h6M12 3v6M12 15v6" />
-          <circle cx="3" cy="12" r="2" />
-          <circle cx="21" cy="12" r="2" />
-          <circle cx="12" cy="3" r="2" />
-          <circle cx="12" cy="21" r="2" />
+          <polyline points="20 6 9 17 4 12" />
         </svg>
       )
     case 'target':
@@ -967,6 +1045,7 @@ export function ProfessorPage() {
   const [aiError, setAiError] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const messagesWallRef = useRef(null)
+  const [copiedId, setCopiedId] = useState(null)
   const [queuedHandoff] = useState(() => normalizeProfessorHandoff(location.state?.handoff) || loadProfessorHandoff())
 
   const activeMessages = Array.isArray(conversations[activeCategory.id]) ? conversations[activeCategory.id] : EMPTY_MESSAGES
@@ -1107,9 +1186,7 @@ export function ProfessorPage() {
             userMessages,
           })
 
-          const aiText = categoryAtSend.id === 'mapas' && typeof response?.response === 'string'
-            ? response.response.trim()
-            : extractAiText(response)
+          const aiText = extractAiText(response)
           if (!aiText) {
             const emptyError = new Error(`Resposta vazia da IA (${config.provider}/${config.modelVariant}).`)
             emptyError.code = 'empty_ai_response'
@@ -1285,7 +1362,7 @@ export function ProfessorPage() {
             <div className="prof-card-rule" aria-hidden="true" />
           </div>
 
-          <main className={`prof-chat-surface ${activeCategory.id === 'mapas' ? 'prof-chat-surface--map' : ''}${isFullscreen ? ' prof-chat-surface--fullscreen' : ''}`}>
+          <main className={`prof-chat-surface${isFullscreen ? ' prof-chat-surface--fullscreen' : ''}`}>
             <div
               ref={messagesWallRef}
               className={`prof-messages-wall${isFullscreen ? ' prof-messages-wall--fullscreen' : ''}`}
@@ -1294,10 +1371,15 @@ export function ProfessorPage() {
               aria-relevant="additions"
             >
               {activeMessages.map((msg, index) => {
-                if (activeCategory.id === 'mapas' && msg.text === '[MAPA_GERADO]') return null
-
-                const isMindmapReply = activeCategory.id === 'mapas' && msg.sender === 'ai'
                 const normalizedText = normalizeProfessorText(msg.text)
+                if (!normalizedText) return null
+
+                const handleCopy = () => {
+                  navigator.clipboard?.writeText(normalizedText).then(() => {
+                    setCopiedId(msg.id)
+                    setTimeout(() => setCopiedId(prev => prev === msg.id ? null : prev), 2000)
+                  })
+                }
 
                 return (
                   <div
@@ -1312,8 +1394,21 @@ export function ProfessorPage() {
                         </div>
                       )}
                       {msg.sender === 'ai' && !isFullscreen && <div className="prof-side-avatar" aria-hidden="true">👨‍🏫</div>}
-                      {renderMessageBody(normalizedText, isMindmapReply, isFullscreen, msg.sender)}
+                      <div className={`prof-text-content${isFullscreen ? ' prof-text-content--fullscreen' : ''} ${msg.sender === 'user' ? 'prof-text-content--user' : 'prof-text-content--assistant'}`}>
+                        <ProfMarkdown text={normalizedText} />
+                      </div>
                     </div>
+                    {msg.sender === 'ai' && (
+                      <button
+                        type="button"
+                        className={`prof-msg-copy-btn${copiedId === msg.id ? ' copied' : ''}`}
+                        onClick={handleCopy}
+                        title="Copiar resposta"
+                      >
+                        {iconSvg(copiedId === msg.id ? 'check' : 'copy')}
+                        {copiedId === msg.id ? 'Copiado' : 'Copiar'}
+                      </button>
+                    )}
                   </div>
                 )
               })}

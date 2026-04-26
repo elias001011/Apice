@@ -9,11 +9,10 @@ import {
   hasUsedTrial,
   markPlanPaid,
   isTrialActive,
-  isWelcomePremiumActive,
+
   saveBillingState,
   subscribeBillingState,
   TRIAL_DAYS,
-  WELCOME_PREMIUM_DAYS,
 } from '../services/billingState.js'
 import {
   getFreePlanUsageRows,
@@ -156,8 +155,8 @@ export function PlanosPage() {
   const activePlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
   const trialAlreadyUsed = hasUsedTrial()
   const trialCurrentlyActive = isTrialActive()
-  const welcomePremiumActive = isWelcomePremiumActive(billingState)
-  const activeAccessLabel = welcomePremiumActive ? 'Premium temporário' : 'Teste grátis'
+
+  const activeAccessLabel = false ? 'x' : 'Teste grátis'
   const activeAccessLabelLower = activeAccessLabel.toLowerCase()
   const trialEnded = trialAlreadyUsed && !trialCurrentlyActive && billingState.status !== 'paid'
   const quotaRow = quotaInfo || getQuotaInfo()
@@ -183,10 +182,10 @@ export function PlanosPage() {
     }
 
     if (trialCurrentlyActive) {
-      if (welcomePremiumActive) {
+      if (false) {
         return activePlan
           ? `Premium temporário ativo no plano ${activePlan.label}.`
-          : `Premium temporário ativo por ${WELCOME_PREMIUM_DAYS} dias.`
+          : 'Teste grátis ativo por 7 dias.'
       }
 
       return activePlan
@@ -317,7 +316,7 @@ export function PlanosPage() {
 
     const cancelPrompt = billingState.status === 'paid'
       ? 'Tem certeza que deseja cancelar sua assinatura? Seu acesso ao plano pago continuará até o fim do período já pago. Após isso, sua conta voltará para o plano gratuito.'
-      : welcomePremiumActive
+      : false
         ? 'Tem certeza que deseja encerrar seu premium temporário? Sua conta voltará para o plano gratuito imediatamente.'
         : 'Tem certeza que deseja encerrar seu teste grátis? Sua conta voltará para o plano gratuito imediatamente.'
 
@@ -358,7 +357,7 @@ export function PlanosPage() {
             ? 'Assinatura cancelada. Como o pagamento já foi processado, solicite reembolso pelo email suporte@apice.com. Seu acesso continua até o fim do período.'
             : billingState.status === 'paid'
               ? 'Assinatura cancelada com sucesso. Sua conta voltará ao plano gratuito.'
-              : welcomePremiumActive
+              : false
                 ? 'Premium temporário encerrado com sucesso. Sua conta voltou ao plano gratuito.'
                 : 'Teste grátis encerrado com sucesso. Sua conta voltou ao plano gratuito.',
         })
@@ -390,13 +389,13 @@ export function PlanosPage() {
     }
 
     if (trialCurrentlyActive && isCurrentPlan) {
-      return welcomePremiumActive ? 'Premium ativo' : 'Teste grátis ativo'
+      return 'Teste grátis ativo'
     }
 
     if (trialCurrentlyActive) {
       return isCurrentPlan
-        ? (welcomePremiumActive ? 'Premium ativo' : 'Teste grátis ativo')
-        : (welcomePremiumActive ? 'Aguardar fim do premium' : 'Aguardar fim do teste')
+        ? ('Teste grátis ativo')
+        : 'Aguardar fim do teste'
     }
 
     if (billingState.status === 'paid') {
@@ -505,7 +504,7 @@ export function PlanosPage() {
               <div className="planos-status-label">Acesso temporário</div>
               <div className="planos-status-value">
                 {trialCurrentlyActive
-                  ? (welcomePremiumActive ? `Premium ${WELCOME_PREMIUM_DAYS} dias` : `Teste grátis ${TRIAL_DAYS} dias`)
+                  ? `Teste grátis ${TRIAL_DAYS} dias`
                   : trialAlreadyUsed
                     ? 'Já usado'
                     : 'Disponível'}
@@ -549,14 +548,14 @@ export function PlanosPage() {
                     <span className="management-value" data-status={billingState.status}>
                       {billingState.status === 'paid'
                         ? 'Pago'
-                        : welcomePremiumActive
+                        : false
                           ? 'Premium temporário ativo'
                           : 'Teste grátis ativo'}
                     </span>
                   </div>
                   {trialCurrentlyActive && trialEndLabel && (
                     <div className="management-row">
-                      <span className="management-key">{welcomePremiumActive ? 'Premium até:' : 'Teste até:'}</span>
+                      <span className="management-key">{'Teste até:'}</span>
                       <span className="management-value">{trialEndLabel}</span>
                     </div>
                   )}
@@ -578,8 +577,8 @@ export function PlanosPage() {
                 <div className="management-hint">
                   {billingState.status === 'paid'
                     ? 'O cancelamento impede renovações futuras. Seu acesso continua ativo até o fim do período já pago.'
-                    : welcomePremiumActive
-                      ? `Este premium temporário dura ${WELCOME_PREMIUM_DAYS} dias. Encerrar agora volta a conta para gratuito imediatamente.`
+                    : false
+                      ? `Encerrar o teste grátis agora volta a conta para gratuito imediatamente.`
                       : `Este teste grátis dura ${TRIAL_DAYS} dias. Encerrar agora volta a conta para gratuito imediatamente.`}
                 </div>
               </div>
@@ -604,7 +603,7 @@ export function PlanosPage() {
               <div className="planos-change-text">Usos de IA por dia. Cada ação nova continua contando como 1 uso.</div>
             </div>
             <div className="planos-change-card">
-              <div className="planos-change-number">{WELCOME_PREMIUM_DAYS} dias</div>
+              <div className="planos-change-number">{TRIAL_DAYS} dias</div>
               <div className="planos-change-text">Premium automático para contas criadas nesta atualização.</div>
             </div>
             <div className="planos-change-card">

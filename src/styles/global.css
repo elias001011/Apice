@@ -373,10 +373,83 @@ body,
   align-items: center;
 }
 
-/* Gradiente sutil direto na nav — não via custom property intermediária
-   porque linear-gradient() dentro de var() pode falhar na cadeia de resolução */
+/* Gradiente blob na nav — bolinhas radiais suaves em vez do gradiente reto */
 html[data-fx="gradients"] .nav {
-  background: linear-gradient(180deg, var(--bg2) 0%, color-mix(in srgb, var(--accent) 3%, var(--bg2)) 50%, var(--bg2) 100%);
+  background: var(--bg2);
+  overflow: hidden;
+}
+
+html[data-fx="gradients"] .nav::before,
+html[data-fx="gradients"] .nav::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(32px);
+  opacity: 0.45;
+  z-index: 0;
+}
+
+html[data-fx="gradients"] .nav::before {
+  width: 220px;
+  height: 140px;
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.55) 0%, transparent 70%);
+  top: -60px;
+  left: 12%;
+  animation: nav-blob-drift 9s ease-in-out infinite alternate;
+}
+
+html[data-fx="gradients"] .nav::after {
+  width: 180px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.38) 0%, transparent 70%);
+  top: -50px;
+  right: 18%;
+  animation: nav-blob-drift 12s ease-in-out infinite alternate-reverse;
+}
+
+html[data-fx="gradients"] .nav-inner {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes nav-blob-drift {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(24px, 8px) scale(1.08); }
+}
+
+html[data-fx="blur"] .nav::before,
+html[data-fx="blur"] .nav::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(48px);
+  opacity: 0.3;
+  z-index: 0;
+}
+
+html[data-fx="blur"] .nav::before {
+  width: 260px;
+  height: 160px;
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.5) 0%, transparent 70%);
+  top: -80px;
+  left: 10%;
+  animation: nav-blob-drift 10s ease-in-out infinite alternate;
+}
+
+html[data-fx="blur"] .nav::after {
+  width: 200px;
+  height: 140px;
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.35) 0%, transparent 70%);
+  top: -60px;
+  right: 15%;
+  animation: nav-blob-drift 14s ease-in-out infinite alternate-reverse;
+}
+
+html[data-fx="blur"] .nav-inner {
+  position: relative;
+  z-index: 1;
 }
 
 .nav-inner {

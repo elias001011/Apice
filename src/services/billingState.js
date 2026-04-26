@@ -33,10 +33,6 @@ const USAGE_UPDATED_EVENT = 'apice:free-plan-usage-updated'
 
 /** Duração do teste grátis em dias */
 export const TRIAL_DAYS = 7
-/** Duração do premium de boas-vindas em dias */
-export const WELCOME_PREMIUM_DAYS = 30
-/** Contas criadas a partir deste momento recebem o premium temporário */
-export const WELCOME_PREMIUM_CUTOFF_ISO = '2026-04-15T22:55:09-03:00'
 
 const VALID_STATUSES = new Set(['free', 'trial', 'paid'])
 const STATUS_ALIASES = {
@@ -47,11 +43,6 @@ const STATUS_ALIASES = {
   premium: 'paid',
 }
 const TRIAL_KIND_ALIASES = {
-  welcome: 'welcome',
-  welcomepremium: 'welcome',
-  welcome_premium: 'welcome',
-  premium: 'welcome',
-  promo: 'welcome',
   standard: 'standard',
   trial: 'standard',
   default: 'standard',
@@ -167,7 +158,7 @@ function normalizeState(rawState) {
 
     const trialEndsAtDate = normalized.trialEndsAt ? new Date(normalized.trialEndsAt) : null
     if (!trialEndsAtDate || !Number.isFinite(trialEndsAtDate.getTime())) {
-      const fallbackDays = normalized.trialKind === 'welcome' ? WELCOME_PREMIUM_DAYS : TRIAL_DAYS
+      const fallbackDays = TRIAL_DAYS
       const trialStartedAtDate = normalized.trialStartedAt ? new Date(normalized.trialStartedAt) : null
       if (trialStartedAtDate && Number.isFinite(trialStartedAtDate.getTime())) {
         normalized.trialEndsAt = new Date(
@@ -269,9 +260,7 @@ function isTrialActiveState(state) {
   return Boolean(trialEndsAtDate && Number.isFinite(trialEndsAtDate.getTime()) && trialEndsAtDate.getTime() > Date.now())
 }
 
-export function isWelcomePremiumActive(state = getBillingState()) {
-  return Boolean(state && state.status === 'trial' && state.trialKind === 'welcome' && isTrialActiveState(state))
-}
+
 
 /** Retorna true se a conta já usou o teste grátis (independente de status atual) */
 export function hasUsedTrial() {
@@ -340,7 +329,7 @@ export function setBillingStatus(status, { planKey = '', checkoutId = '', extern
 
   if (normalizedStatus === 'trial') {
     const startedAt = normalizeIsoDate(trialStartedAt) || current.trialStartedAt || nowIso()
-    const durationDays = normalizedTrialKind === 'welcome' ? WELCOME_PREMIUM_DAYS : TRIAL_DAYS
+    const durationDays = TRIAL_DAYS
     const endsAt = normalizeIsoDate(trialEndsAt) || new Date(new Date(startedAt).getTime() + (durationDays * 24 * 60 * 60 * 1000)).toISOString()
     next.trialStartedAt = startedAt
     next.trialEndsAt = endsAt
@@ -392,81 +381,6 @@ export function startTrial({ planKey = '', checkoutId = '', externalId = '' } = 
   })
 }
 
-/**
- * Inicia o premium temporário de boas-vindas por 30 dias.
- * Usa o mesmo mecanismo de trial para reaproveitar a infraestrutura atual,
- * mas com labels e duração próprios.
- */
-export function startWelcomePremium({
-  planKey = '',
-  checkoutId = '',
-  externalId = '',
-  startedAt = '',
-} = {}) {
-  const current = getBillingState()
-
-  if (current.status === 'paid') {
-    return current
-  }
-
-  if (current.status === 'trial' && isTrialActiveState(current)) {
-    return current
-  }
-
-  if (!canStartTrial()) {
-    return current
-  }
-
-  const premiumStartedAt = normalizeIsoDate(startedAt) || nowIso()
-  const premiumEndsAt = new Date(
-    new Date(premiumStartedAt).getTime() + (WELCOME_PREMIUM_DAYS * 24 * 60 * 60 * 1000),
-  ).toISOString()
-
-  return setBillingStatus('trial', {
-    planKey,
-    checkoutId,
-    externalId,
-    trialKind: 'welcome',
-    trialStartedAt: premiumStartedAt,
-    trialEndsAt: premiumEndsAt,
-  })
-}
-
-/**
- * Concede o premium de boas-vindas para contas criadas a partir da atualização.
- * Retorna um resumo simples para facilitar logs/telemetria.
- */
-export function maybeGrantWelcomePremiumForUser(user, options = {}) {
-  const createdAt = extractUserCreatedAt(user)
-  if (!createdAt) {
-    return { applied: false, reason: 'created-at-missing' }
-  }
-
-  const createdAtDate = new Date(createdAt)
-  const launchDate = new Date(WELCOME_PREMIUM_CUTOFF_ISO)
-  if (!Number.isFinite(createdAtDate.getTime()) || !Number.isFinite(launchDate.getTime())) {
-    return { applied: false, reason: 'date-invalid' }
-  }
-
-  if (createdAtDate.getTime() < launchDate.getTime()) {
-    return { applied: false, reason: 'before-launch' }
-  }
-
-  if (!canStartTrial()) {
-    return { applied: false, reason: 'billing-not-available' }
-  }
-
-  const state = startWelcomePremium({
-    ...options,
-    startedAt: createdAt,
-  })
-
-  return {
-    applied: Boolean(state?.status === 'trial' && state?.trialKind === 'welcome'),
-    reason: 'granted',
-    state,
-  }
-}
 
 /**
  * Marca o plano como pago (após confirmação do pagamento)
@@ -508,10 +422,9 @@ export function emitBillingStateUpdated() {
 }
 
 export function getBillingStatusLabel(status = getCurrentBillingStatus()) {
-  const state = getBillingState()
   switch (normalizeStatus(status)) {
     case 'trial':
-      return state.trialKind === 'welcome' ? 'Premium temporário' : 'Teste grátis'
+      return 'Teste grátis'
     case 'paid':
       return 'Plano pago'
     default:
@@ -523,20 +436,13 @@ export function getBillingStatusDescription(status = getCurrentBillingStatus()) 
   const state = getBillingState()
   switch (normalizeStatus(status)) {
     case 'trial':
-      return state.trialKind === 'welcome'
-        ? `Premium temporário de ${WELCOME_PREMIUM_DAYS} dias`
-        : `Teste grátis de ${TRIAL_DAYS} dias`
+      return `Teste grátis de ${TRIAL_DAYS} dias`
     case 'paid':
       return 'Plano pago ativo'
     default:
-      if (state.trialKind === 'welcome' && state.trialEndsAt) {
-        return 'Premium temporário expirado'
-      }
-
-      if (state.trialKind === 'standard' && state.trialEndsAt) {
+      if (state.trialEndsAt) {
         return 'Teste grátis expirado'
       }
-
       return 'Conta gratuita'
   }
 }
