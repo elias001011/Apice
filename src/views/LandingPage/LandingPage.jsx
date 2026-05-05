@@ -367,7 +367,13 @@ const LandingPage = () => {
           <div className="lp-footer-col"><h4>Empresa</h4><a href="/sobre">Sobre</a><a href="#">Blog</a></div>
           <div className="lp-footer-col"><h4>Legal</h4><a href="#">Privacidade</a><a href="#">Termos</a></div>
         </div>
-        <div className="lp-footer-bottom"><p>&copy; {new Date().getFullYear()} Ápice. Todos os direitos reservados.</p></div>
+        <div className="lp-footer-bottom">
+          <div className="lp-developed-logos">
+            <img src="/developed_desktop.png" alt="Desenvolvido por - Desktop" className="lp-logo-desktop" />
+            <img src="/developed_mobile.png" alt="Desenvolvido por - Mobile" className="lp-logo-mobile" />
+          </div>
+          <p>&copy; {new Date().getFullYear()} Ápice. Todos os direitos reservados.</p>
+        </div>
       </footer>
     </div>
   );

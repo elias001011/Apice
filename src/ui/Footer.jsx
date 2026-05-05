@@ -172,6 +172,10 @@ export function Footer() {
       </div>
 
       <div className="footer-bottom">
+        <div className="footer-developed-logos">
+          <img src="/developed_desktop.png" alt="Desenvolvido por - Desktop" className="logo-desktop" />
+          <img src="/developed_mobile.png" alt="Desenvolvido por - Mobile" className="logo-mobile" />
+        </div>
         <p>© {currentYear} Ápice. Todos os direitos reservados.</p>
       </div>
     </footer>
@@ -472,6 +476,33 @@ const footerCss = `
     text-align: center;
     position: relative;
     z-index: 1;
+  }
+
+  .footer-developed-logos {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1rem;
+  }
+
+  .footer-developed-logos .logo-mobile {
+    display: none;
+  }
+
+  .footer-developed-logos .logo-desktop {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  @media (max-width: 768px) {
+    .footer-developed-logos .logo-desktop {
+      display: none;
+    }
+    .footer-developed-logos .logo-mobile {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
   }
 
   .footer-bottom p {
