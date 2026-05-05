@@ -369,8 +369,7 @@ const LandingPage = () => {
         </div>
         <div className="lp-footer-bottom">
           <div className="lp-developed-logos">
-            <img src="/developed_desktop.png" alt="Desenvolvido por - Desktop" className="lp-logo-desktop" />
-            <img src="/developed_mobile.png" alt="Desenvolvido por - Mobile" className="lp-logo-mobile" />
+            <img src="/developed_by_connecta.svg" alt="Desenvolvido por Connecta" className="lp-logo-connecta" />
           </div>
           <p>&copy; {new Date().getFullYear()} Ápice. Todos os direitos reservados.</p>
         </div>

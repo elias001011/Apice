@@ -173,8 +173,7 @@ export function Footer() {
 
       <div className="footer-bottom">
         <div className="footer-developed-logos">
-          <img src="/developed_desktop.png" alt="Desenvolvido por - Desktop" className="logo-desktop" />
-          <img src="/developed_mobile.png" alt="Desenvolvido por - Mobile" className="logo-mobile" />
+          <img src="/developed_by_connecta.svg" alt="Desenvolvido por Connecta" className="logo-connecta" />
         </div>
         <p>© {currentYear} Ápice. Todos os direitos reservados.</p>
       </div>
@@ -484,24 +483,17 @@ const footerCss = `
     margin-bottom: 1rem;
   }
 
-  .footer-developed-logos .logo-mobile {
-    display: none;
-  }
-
-  .footer-developed-logos .logo-desktop {
+  .footer-developed-logos .logo-connecta {
     display: block;
+    width: 240px;
     max-width: 100%;
     height: auto;
+    transition: width 0.3s ease;
   }
 
   @media (max-width: 768px) {
-    .footer-developed-logos .logo-desktop {
-      display: none;
-    }
-    .footer-developed-logos .logo-mobile {
-      display: block;
-      max-width: 100%;
-      height: auto;
+    .footer-developed-logos .logo-connecta {
+      width: 180px;
     }
   }
 
