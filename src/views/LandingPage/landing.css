@@ -449,6 +449,7 @@
 .lp-footer-bottom { max-width: 1100px; margin: 0 auto; padding-top: 1.5rem; margin-top: 1.5rem; border-top: 1px solid var(--lp-border); text-align: center; font-size: 0.75rem; }
 
 .lp-developed-logos { display: flex; justify-content: center; margin-bottom: 1rem; }
+.lp-developed-logos a { display: inline-flex; align-items: center; justify-content: center; }
 .lp-developed-logos .lp-logo-connecta { display: block; width: 240px; max-width: 100%; height: auto; transition: width 0.3s ease; }
 @media (max-width: 768px) {
   .lp-developed-logos .lp-logo-connecta { width: 180px; }
