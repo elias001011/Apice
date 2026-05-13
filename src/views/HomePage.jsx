@@ -2000,13 +2000,13 @@ const homeCss = `
     transition: all 0.2s;
   }
 
-  html[data-fx="gradients"] .performance-block--positive .performance-chip {
+  html[data-fx="gradients"][data-card-gradients="on"] .performance-block--positive .performance-chip {
     background: var(--accent-dim);
     color: var(--accent);
     border-color: var(--accent-dim2);
   }
 
-  html[data-fx="gradients"] .performance-block--negative .performance-chip {
+  html[data-fx="gradients"][data-card-gradients="on"] .performance-block--negative .performance-chip {
     background: rgba(225, 68, 68, 0.08);
     color: var(--red);
     border-color: rgba(225, 68, 68, 0.16);
@@ -2020,7 +2020,7 @@ const homeCss = `
     border-color: var(--border2);
   }
 
-  html[data-fx="gradients"] .performance-block--negative .performance-chip.muted {
+  html[data-fx="gradients"][data-card-gradients="on"] .performance-block--negative .performance-chip.muted {
     background: rgba(225, 68, 68, 0.06);
     color: var(--red);
     border-color: rgba(225, 68, 68, 0.12);

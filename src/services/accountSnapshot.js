@@ -10,7 +10,7 @@
  * DADOS NA NUVEM:
  * ✅ Conquistas, Perfil, Preferências IA, Histórico (índices completos SEM redação),
  *    Análise de desempenho, Localização do clima, Radar (temas + detalhes dos favoritos),
- *    Data da prova, Cota diária, Plano/billing, Avatar, Notificações
+ *    Data da prova, Cota diária, Plano/billing, Avatar, Notificações, Professor IA
  * ❌ Aparência (tema, accent, fonte), Redação completa, Detalhes do Radar não-favoritos
  */
 
@@ -87,6 +87,12 @@ import {
   saveWeatherLocation,
   normalizeWeatherLocation,
 } from './weatherPreferences.js'
+import {
+  loadProfessorChats,
+  saveProfessorChats,
+  compactProfessorChatsForCloud,
+  mergeProfessorChats,
+} from './professorChats.js'
 
 const LAYOUT_MODE_KEY = 'apice:layoutMode'
 const CONTAINER_SIZE_KEY = 'apice:containerSize'
@@ -94,7 +100,7 @@ const ANIMATIONS_ENABLED_KEY = 'apice:animationsEnabled'
 const CARD_HOVER_ENABLED_KEY = 'apice:cardHoverEffects'
 
 // Versão atual do schema do snapshot. Incrementar quando houver breaking changes.
-export const CURRENT_SCHEMA_VERSION = 19
+export const CURRENT_SCHEMA_VERSION = 20
 // Versões mínimas compatíveis (abaixo disso, os dados são considerados corrompidos/incompatíveis)
 export const MIN_COMPATIBLE_VERSION = 15
 
@@ -313,6 +319,7 @@ export function buildAccountSnapshot(user) {
       .filter(Boolean),
     summary: loadUserSummary(),
     aiResponsePreference: loadAiResponsePreference(),
+    professorChats: compactProfessorChatsForCloud(loadProfessorChats()),
     avatarSettings: loadAvatarSettings(),
     notifications: loadNotificationPreferences(),
     conquistas: loadConquistas(),
@@ -378,7 +385,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
   }
 
   const snapshot = {
-    version: Number(rawSnapshot.version ?? 19) || 19,
+    version: Number(rawSnapshot.version ?? CURRENT_SCHEMA_VERSION) || CURRENT_SCHEMA_VERSION,
     profile: readProfileSnapshot({
       user_metadata: rawSnapshot.profile || {},
       email: rawSnapshot.profile?.email || '',
@@ -402,6 +409,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
     radarSnapshot,
     radarFavorites,
     summary: rawSnapshot.summary ? normalizeUserSummary(rawSnapshot.summary) : null,
+    professorChats: Array.isArray(rawSnapshot.professorChats) ? rawSnapshot.professorChats : [],
     avatarSettings: normalizeAvatarSettings(rawSnapshot.avatarSettings || rawSnapshot.avatar || null),
     notifications: loadNotificationPreferencesFromObject(rawSnapshot.notifications),
     conquistas: normalizeConquistasSnapshot(rawSnapshot.conquistas || null),
@@ -458,6 +466,7 @@ export function applyAccountSnapshot(snapshot) {
       'apice:notificacoes',
       'apice:conquistas',
       'apice:weather:location:v1',
+      'apice:professor-chats:v1',
     ]
     keysToRemove.forEach(key => {
       try { localStorage.removeItem(key) } catch {
@@ -608,6 +617,16 @@ export function applyAccountSnapshot(snapshot) {
     }
   }
 
+  // ── Professor IA: merge por chat, limite de 10 chats vindos da nuvem ──
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'professorChats')) {
+    const cloudProfessorChats = Array.isArray(snapshot.professorChats) ? snapshot.professorChats : []
+    const localProfessorChats = loadProfessorChats()
+    const mergedProfessorChats = mergeProfessorChats(localProfessorChats, cloudProfessorChats)
+    if (mergedProfessorChats.length > 0) {
+      saveProfessorChats(mergedProfessorChats)
+    }
+  }
+
   // ── Avatar settings ──
   if (Object.prototype.hasOwnProperty.call(snapshot, 'avatarSettings')) {
     const localAvatar = loadAvatarSettings()
@@ -648,6 +667,7 @@ export function applyAccountSnapshot(snapshot) {
   window.dispatchEvent(new CustomEvent('apice:user-summary-updated'))
   window.dispatchEvent(new CustomEvent('apice:notificacoes-updated'))
   window.dispatchEvent(new CustomEvent('apice:conquistas-updated'))
+  window.dispatchEvent(new CustomEvent('apice:professor-chats-updated'))
   window.dispatchEvent(new CustomEvent('apice:account-state-updated'))
   window.dispatchEvent(new CustomEvent('apice:weather-preferences-updated'))
 }

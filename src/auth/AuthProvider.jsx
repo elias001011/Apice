@@ -262,6 +262,7 @@ export function AuthProvider({ children }) {
       'apice:avatar-settings-updated',
       'apice:notificacoes-updated',
       'apice:conquistas-updated',
+      'apice:professor-chats-updated',
     ]
 
     events.forEach(event => {

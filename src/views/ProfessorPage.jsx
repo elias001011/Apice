@@ -1,1475 +1,756 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
-import { CATEGORIES } from '../data/mockProfessorData.js'
-import { chamarIAEspecifica, buscarContexto } from '../services/aiService.js'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import { chamarProfessorIA } from '../services/aiService.js'
 import { clearProfessorHandoff, loadProfessorHandoff, normalizeProfessorHandoff } from '../services/professorHandoff.js'
+import {
+  PROFESSOR_MAX_CHAT_CHARS,
+  PROFESSOR_MAX_INPUT_CHARS,
+  buildProfessorTitleFromMessage,
+  createProfessorChat,
+  getProfessorChatCharCount,
+  loadProfessorChats,
+  normalizeProfessorQuestions,
+  saveProfessorChats,
+} from '../services/professorChats.js'
 import '../styles/professor.css'
 
-const STORAGE_KEY = 'apice:professor:conversations'
-const MAX_CHAT_HISTORY = 12 // Limita o historico enviado para IA
-const EMPTY_MESSAGES = []
-const PROFESSOR_PROVIDER_FALLBACKS = [
-  { provider: 'groq', modelVariant: 'secondary' },
-  { provider: 'groq', modelVariant: 'primary' },
-  { provider: 'gemini', modelVariant: 'primary' },
-  { provider: 'openrouter', modelVariant: 'primary' },
-]
+const HISTORY_MESSAGES_LIMIT = 14
 
-function safeJsonParse(value) {
-  if (!value || typeof value !== 'string') return null
-
-  const trimmed = value.trim()
-  if (!trimmed) return null
-
-  const candidates = [trimmed]
-  const strippedFences = trimmed
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim()
-
-  if (strippedFences && strippedFences !== trimmed) {
-    candidates.push(strippedFences)
-  }
-
-  const extractBalancedJsonBlock = (source) => {
-    const firstCurly = source.indexOf('{')
-    const firstSquare = source.indexOf('[')
-    const firstBrace = firstCurly === -1
-      ? firstSquare
-      : firstSquare === -1
-        ? firstCurly
-        : Math.min(firstCurly, firstSquare)
-    if (firstBrace < 0) return ''
-
-    const opener = source[firstBrace]
-    const closer = opener === '{' ? '}' : ']'
-    let depth = 0
-    let inString = false
-    let escaped = false
-
-    for (let index = firstBrace; index < source.length; index += 1) {
-      const char = source[index]
-
-      if (inString) {
-        if (escaped) {
-          escaped = false
-        } else if (char === '\\') {
-          escaped = true
-        } else if (char === '"') {
-          inString = false
-        }
-        continue
-      }
-
-      if (char === '"') {
-        inString = true
-        continue
-      }
-
-      if (char === opener) {
-        depth += 1
-      } else if (char === closer) {
-        depth -= 1
-        if (depth === 0) {
-          return source.slice(firstBrace, index + 1)
-        }
-      }
-    }
-
-    return ''
-  }
-
-  const extracted = extractBalancedJsonBlock(strippedFences)
-  if (extracted && !candidates.includes(extracted)) {
-    candidates.push(extracted)
-  }
-
-  for (const candidate of candidates) {
-    try {
-      return JSON.parse(candidate)
-    } catch {
-      // Tenta o próximo candidato.
-    }
-  }
-
-  return null
-}
-
-function isMeaninglessProfessorText(value) {
-  const normalized = String(value ?? '').trim().toLowerCase()
-  return (
-    !normalized
-    || normalized === '[object object]'
-    || normalized === 'object object'
-    || normalized === '{}'
-    || normalized === '[]'
-  )
-}
-
-function normalizeProfessorText(value, seen = new Set()) {
-  if (value == null) return ''
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    return isMeaninglessProfessorText(trimmed) ? '' : trimmed
-  }
-
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value).trim()
-  }
-
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => normalizeProfessorText(item, seen))
-      .filter(Boolean)
-      .join('\n')
-      .trim()
-  }
-
-  if (typeof value !== 'object') return ''
-  if (seen.has(value)) return ''
-  seen.add(value)
-
-  const keys = [
-    'response',
-    'text',
-    'texto',
-    'content',
-    'message',
-    'answer',
-    'reply',
-    'resposta',
-    'mensagem',
-    'question',
-    'pergunta',
-  ]
-
-  for (const key of keys) {
-    const nested = normalizeProfessorText(value[key], seen)
-    if (nested) return nested
-  }
-
-  try {
-    const serialized = JSON.stringify(value)
-    return isMeaninglessProfessorText(serialized) ? '' : serialized
-  } catch {
-    return ''
-  }
-}
-
-function normalizeProfessorConversation(messages, fallbackText, seed = Date.now()) {
-  const normalized = Array.isArray(messages)
-    ? messages
-      .map((message, index) => {
-        const sender = message?.sender === 'user' ? 'user' : 'ai'
-        const text = normalizeProfessorText(message?.text ?? message?.content ?? message?.message ?? message)
-        const rawId = Number(message?.id)
-
-        return {
-          id: Number.isFinite(rawId) ? rawId : seed + index + 1,
-          sender,
-          text: text || (sender === 'ai' ? normalizeProfessorText(fallbackText) : ''),
-        }
-      })
-      .filter((message) => message.text)
-    : []
-
-  const welcomeText = normalizeProfessorText(fallbackText) || 'Olá! Como posso ajudar?'
-
-  if (normalized.length === 0) {
-    return [{ id: seed, sender: 'ai', text: welcomeText }]
-  }
-
-  if (!normalized.some((message) => message.sender === 'ai')) {
-    normalized.unshift({ id: seed, sender: 'ai', text: welcomeText })
-  }
-
-  return normalized
-}
-
-function createDefaultProfessorConversations() {
-  const initial = {}
-  CATEGORIES.forEach((cat, index) => {
-    initial[cat.id] = normalizeProfessorConversation([], cat.welcomeMessage, Date.now() + index)
-  })
-  return initial
-}
-
-function loadProfessorConversations() {
-  if (typeof window === 'undefined') {
-    return createDefaultProfessorConversations()
-  }
-
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        const normalized = {}
-        CATEGORIES.forEach((cat, index) => {
-          normalized[cat.id] = normalizeProfessorConversation(
-            parsed[cat.id],
-            cat.welcomeMessage,
-            Date.now() + index,
-          )
-        })
-        return normalized
-      }
-    }
-  } catch (error) {
-    console.error('Failed to load professor conversation', error)
-  }
-
-  return createDefaultProfessorConversations()
-}
-
-function extractAiText(response) {
-  if (typeof response === 'string') {
-    const trimmed = response.trim()
-    if (isMeaninglessProfessorText(trimmed)) return ''
-
-    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-      const parsed = safeJsonParse(trimmed)
-      if (parsed) {
-        const nested = extractAiText(parsed)
-        if (nested) return nested
-      }
-    }
-
-    return trimmed
-  }
-
-  if (!response || typeof response !== 'object') return ''
-
-  const candidates = [
-    response.texto,
-    response.text,
-    response.content,
-    response.message,
-    response.response,
-    response.responseText,
-    response.answerText,
-    response.replyText,
-    response.textoResposta,
-    response.resposta,
-    response.mensagem,
-    response.conteudo,
-    response.output,
-    response.answer,
-    response.reply,
-  ]
-
-  for (const candidate of candidates) {
-    if (candidate == null) continue
-
-    if (typeof candidate === 'string') {
-      const trimmed = candidate.trim()
-      if (isMeaninglessProfessorText(trimmed)) continue
-
-      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-        const parsed = safeJsonParse(trimmed)
-        if (parsed) {
-          const nested = extractAiText(parsed)
-          if (nested) return nested
-        }
-      }
-
-      return trimmed
-    }
-
-    if (typeof candidate === 'object') {
-      const nested = extractAiText(candidate)
-      if (nested) return nested
-    }
-  }
-
-  return ''
-}
-
-function stripMindmapPrefix(value) {
-  return normalizeProfessorText(value)
-    .replace(/^[├└│*•-]+\s*/g, '')
-    .replace(/^\d+[.)]\s*/g, '')
-    .replace(/^(?:tema central|tema|centro)\s*[:-]\s*/i, '')
-    .replace(/[:-]\s*$/, '')
-    .trim()
-}
-
-function normalizeMindmapList(items) {
-  return Array.isArray(items)
-    ? items
-      .map((item) => stripMindmapPrefix(item))
-      .filter(Boolean)
-      .slice(0, 4)
-    : []
-}
-
-function normalizeMindmapBranch(branch, index = 0) {
-  if (typeof branch === 'string') {
-    const title = stripMindmapPrefix(branch)
-    if (!title) return null
-    return {
-      title,
-      children: [],
-    }
-  }
-
-  if (!branch || typeof branch !== 'object') return null
-
-  const title = stripMindmapPrefix(
-    branch.titulo
-    ?? branch.title
-    ?? branch.nome
-    ?? branch.nomeRamo
-    ?? branch.ramo
-    ?? branch.tópico
-    ?? branch.topico
-    ?? branch.node
-    ?? branch.label
-    ?? `Ramo ${index + 1}`,
-  )
-
-  if (!title) return null
-
-  const children = normalizeMindmapList(
-    branch.subtopicos
-    ?? branch.subtopicosSecundarios
-    ?? branch.children
-    ?? branch.subitens
-    ?? branch.itens
-    ?? branch.bullets
-    ?? branch.nodes
-    ?? branch.topicosSecundarios,
-  )
-
+function createMessage({ sender, text, questions, sources, status, action }) {
   return {
-    title,
-    children,
+    id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    sender,
+    text: String(text ?? '').trim(),
+    createdAt: new Date().toISOString(),
+    ...(questions?.length ? { questions: normalizeProfessorQuestions(questions) } : {}),
+    ...(sources?.length ? { sources } : {}),
+    ...(status ? { status } : {}),
+    ...(action ? { action } : {}),
   }
 }
 
-function parseStructuredMindmapResponse(text) {
-  const normalized = normalizeProfessorText(text)
-  if (!normalized) return null
-
-  const parsed = safeJsonParse(normalized)
-  if (!parsed) return null
-
-  const payload = parsed.response && typeof parsed.response === 'object'
-    ? parsed.response
-    : parsed.response && typeof parsed.response === 'string'
-      ? safeJsonParse(parsed.response) || parsed
-      : parsed
-  if (!payload || typeof payload !== 'object') return null
-
-  const rootTitle = stripMindmapPrefix(
-    payload.temaCentral
-    ?? payload.rootTitle
-    ?? payload.centro
-    ?? payload.title
-    ?? payload.tema
-    ?? payload.assunto
-    ?? payload.mainTopic
-    ?? payload.response?.temaCentral
-    ?? payload.response?.rootTitle
-    ?? '',
-  )
-
-  const rawBranches = Array.isArray(payload.ramos)
-    ? payload.ramos
-    : Array.isArray(payload.branches)
-      ? payload.branches
-      : Array.isArray(payload.nodes)
-        ? payload.nodes
-        : Array.isArray(payload.items)
-          ? payload.items
-          : []
-
-  const branches = rawBranches
-    .map((branch, index) => normalizeMindmapBranch(branch, index))
-    .filter(Boolean)
-    .slice(0, 8)
-
-  if (!rootTitle && branches.length === 0) return null
-
-  return {
-    rootTitle: rootTitle || 'Mapa mental',
-    branches,
-  }
+function normalizeAiText(value) {
+  if (typeof value === 'string') return value.trim()
+  if (!value || typeof value !== 'object') return ''
+  return String(value.response ?? value.text ?? value.resposta ?? value.message ?? '').trim()
 }
 
-function parseProfessorBlocks(text) {
-  const normalized = normalizeProfessorText(text)
-  if (!normalized) return []
-
-  const blocks = []
-  const lines = normalized.replace(/\r\n/g, '\n').split('\n')
-  let paragraph = []
-  let list = null
-
-  const flushParagraph = () => {
-    const content = paragraph.join(' ').replace(/\s+/g, ' ').trim()
-    if (content) {
-      blocks.push({ type: 'paragraph', text: content })
-    }
-    paragraph = []
-  }
-
-  const flushList = () => {
-    if (list && list.items.length > 0) {
-      blocks.push(list)
-    }
-    list = null
-  }
-
-  for (const rawLine of lines) {
-    const line = String(rawLine ?? '').replace(/\s+$/, '')
-    const trimmed = line.trim()
-
-    if (!trimmed) {
-      flushParagraph()
-      flushList()
-      continue
-    }
-
-    const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/)
-      || (trimmed.endsWith(':') && trimmed.length <= 80 && !/[.!?]$/.test(trimmed))
-
-    if (headingMatch) {
-      flushParagraph()
-      flushList()
-      blocks.push({
-        type: 'heading',
-        level: Array.isArray(headingMatch) && headingMatch[1] ? headingMatch[1].length : 3,
-        text: Array.isArray(headingMatch) ? stripMindmapPrefix(headingMatch[2] || trimmed) : stripMindmapPrefix(trimmed),
-      })
-      continue
-    }
-
-    const listMatch = trimmed.match(/^(\d+)[.)]\s+(.+)$/) || trimmed.match(/^([-*•])\s+(.+)$/)
-
-    if (listMatch) {
-      flushParagraph()
-      const ordered = Boolean(listMatch[1] && /^\d+$/.test(listMatch[1]))
-      const itemText = stripMindmapPrefix(listMatch[2] || trimmed)
-
-      if (!list || list.ordered !== ordered) {
-        flushList()
-        list = { type: 'list', ordered, items: [] }
-      }
-
-      list.items.push(itemText)
-      continue
-    }
-
-    if (trimmed.endsWith(':') && trimmed.length <= 60) {
-      flushParagraph()
-      flushList()
-      blocks.push({
-        type: 'label',
-        text: stripMindmapPrefix(trimmed),
-      })
-      continue
-    }
-
-    if (list) {
-      flushList()
-    }
-
-    paragraph.push(trimmed)
-  }
-
-  flushParagraph()
-  flushList()
-  return blocks
+function buildHistoryPayload(messages = []) {
+  return messages
+    .filter((message) => message?.sender === 'user' || message?.sender === 'ai')
+    .filter((message) => message?.text && message.status !== 'limit')
+    .slice(-HISTORY_MESSAGES_LIMIT)
+    .map((message) => ({
+      role: message.sender === 'user' ? 'user' : 'assistant',
+      content: message.text,
+    }))
 }
 
-function parseMindmapStructure(text) {
-  const normalized = normalizeProfessorText(text)
-  if (!normalized) {
-    return { rootTitle: '', branches: [] }
-  }
-
-  const structured = parseStructuredMindmapResponse(normalized)
-  if (structured) {
-    return structured
-  }
-
-  const lines = normalized.replace(/\r\n/g, '\n').split('\n')
-  const branches = []
-  let rootTitle = ''
-  let currentBranch = null
-
-  const pushBranch = (title) => {
-    const cleanTitle = stripMindmapPrefix(title)
-    if (!cleanTitle) return null
-
-    const branch = {
-      title: cleanTitle,
-      children: [],
-    }
-    branches.push(branch)
-    currentBranch = branch
-    return branch
-  }
-
-  for (const rawLine of lines) {
-    const line = String(rawLine ?? '').replace(/\s+$/, '')
-    const trimmed = line.trim()
-    if (!trimmed) continue
-
-    const rootMatch = trimmed.match(/^(?:tema central|tema|centro)\s*[:-]\s*(.+)$/i)
-    if (!rootTitle && rootMatch) {
-      rootTitle = stripMindmapPrefix(rootMatch[1])
-      continue
-    }
-
-    if (!rootTitle && !/^[\d*•-]/.test(trimmed) && !trimmed.startsWith('├') && !trimmed.startsWith('└')) {
-      rootTitle = stripMindmapPrefix(trimmed)
-      continue
-    }
-
-    const numberedMatch = trimmed.match(/^(\d+)[.)]\s+(.+)$/)
-    if (numberedMatch) {
-      pushBranch(numberedMatch[2])
-      continue
-    }
-
-    const bulletMatch = trimmed.match(/^[-*•]\s+(.+)$/)
-    if (bulletMatch) {
-      const cleanBullet = stripMindmapPrefix(bulletMatch[1])
-      if (currentBranch && cleanBullet) {
-        currentBranch.children.push(cleanBullet)
-      } else if (cleanBullet) {
-        pushBranch(cleanBullet)
-      }
-      continue
-    }
-
-    if (/^[├└│]/.test(trimmed)) {
-      const cleanTreeLine = stripMindmapPrefix(trimmed)
-      if (currentBranch && cleanTreeLine) {
-        currentBranch.children.push(cleanTreeLine)
-      } else if (cleanTreeLine) {
-        pushBranch(cleanTreeLine)
-      }
-      continue
-    }
-
-    if (!rootTitle) {
-      rootTitle = stripMindmapPrefix(trimmed)
-      continue
-    }
-
-    if (currentBranch && line.startsWith(' ')) {
-      currentBranch.children.push(stripMindmapPrefix(trimmed))
-      continue
-    }
-
-    pushBranch(trimmed)
-  }
-
-  if (!rootTitle && branches.length > 0) {
-    rootTitle = branches.shift().title
-  }
-
-  return {
-    rootTitle: rootTitle || 'Mapa mental',
-    branches: branches
-      .map((branch) => ({
-        ...branch,
-        children: branch.children
-          .map((child) => stripMindmapPrefix(child))
-          .filter(Boolean)
-          .slice(0, 4),
-      }))
-      .filter((branch) => branch.title)
-      .slice(0, 8),
-  }
-}
-
-function getMindmapSlot(index, total) {
-  const layout = total <= 4
-    ? [-145, -35, 35, 145]
-    : total <= 6
-      ? [-155, -105, -35, 35, 105, 155]
-      : [-160, -120, -75, -25, 25, 75, 120, 160]
-
-  const angle = layout[index % layout.length] + (Math.floor(index / layout.length) * 12)
-  const radiusX = total <= 4 ? 31 : total <= 6 ? 35 : 38
-  const radiusY = total <= 4 ? 23 : total <= 6 ? 27 : 30
-  const radians = angle * (Math.PI / 180)
-
-  const x = 50 + Math.cos(radians) * radiusX
-  const y = 50 + Math.sin(radians) * radiusY
-
-  return {
-    left: `${Math.max(16, Math.min(84, x))}%`,
-    top: `${Math.max(16, Math.min(84, y))}%`,
-  }
-}
-
-function ProfessorRichText({ text, isFullscreen = false, sender = 'ai', isMindmap = false }) {
-  const blocks = parseProfessorBlocks(text)
-  if (blocks.length === 0) return null
-
-  const className = [
-    'prof-text-content',
-    isFullscreen ? 'prof-text-content--fullscreen' : '',
-    isMindmap ? 'prof-text-content--mindmap' : '',
-    sender === 'user' ? 'prof-text-content--user' : 'prof-text-content--assistant',
-    'prof-formatted-content',
-  ].filter(Boolean).join(' ')
-
-  return (
-    <div className={className}>
-      {blocks.map((block, index) => {
-        if (block.type === 'heading') {
-          return (
-            <h4
-              key={`heading-${index}-${block.text}`}
-              className={`prof-formatted-heading prof-formatted-heading--${Math.min(block.level || 3, 3)}`}
-            >
-              {block.text}
-            </h4>
-          )
-        }
-
-        if (block.type === 'label') {
-          return (
-            <div key={`label-${index}-${block.text}`} className="prof-formatted-label">
-              {block.text}
-            </div>
-          )
-        }
-
-        if (block.type === 'list') {
-          const ListTag = block.ordered ? 'ol' : 'ul'
-          return (
-            <ListTag
-              key={`list-${index}-${block.items.join('-')}`}
-              className={`prof-formatted-list ${block.ordered ? 'is-ordered' : ''}`}
-            >
-              {block.items.map((item, itemIndex) => (
-                <li key={`item-${index}-${itemIndex}`} className="prof-formatted-list-item">
-                  {item}
-                </li>
-              ))}
-            </ListTag>
-          )
-        }
-
-        return (
-          <p key={`paragraph-${index}-${block.text}`} className="prof-formatted-paragraph">
-            {block.text}
-          </p>
-        )
-      })}
-    </div>
-  )
-}
-
-function ProfessorMindmap({ text, isFullscreen = false }) {
-  const structure = parseMindmapStructure(text)
-  const childCount = structure.branches.reduce((sum, branch) => sum + branch.children.length, 0)
-
-  if (structure.branches.length === 0) {
-    return (
-      <ProfessorRichText
-        text={text}
-        isFullscreen={isFullscreen}
-        sender="ai"
-        isMindmap
-      />
-    )
-  }
-
-  return (
-    <section className={`prof-mindmap-canvas-wrap${isFullscreen ? ' prof-mindmap-canvas-wrap--fullscreen' : ''}`}>
-      <div className="prof-mindmap-toolbar">
-        <div className="prof-mindmap-toolbar-copy">
-          <span className="prof-mindmap-toolbar-title">Mapa mental</span>
-          <span className="prof-mindmap-toolbar-subtitle">
-            Estrutura visualizada automaticamente para aproveitar melhor a tela.
-          </span>
-          <div className="prof-mindmap-toolbar-stats">
-            <span className="prof-mindmap-stat-pill">{structure.branches.length} ramos</span>
-            <span className="prof-mindmap-stat-pill">{childCount} subtópicos</span>
-          </div>
-        </div>
-        <div className="prof-mindmap-toolbar-actions">
-          <span className="prof-mindmap-toolbar-status is-ready">Pronto</span>
-        </div>
-      </div>
-
-      <div className="prof-mindmap-preview-shell">
-        <div className="prof-mindmap-preview-paper">
-          <div className="prof-mindmap-preview-header">
-            <div className="prof-mindmap-preview-copy">
-              <span className="prof-mindmap-preview-kicker">Tema central</span>
-              <h3 className="prof-mindmap-preview-title">{structure.rootTitle}</h3>
-              <p className="prof-mindmap-preview-note">
-                Ramos principais com subtópicos curtos para leitura rápida.
-              </p>
-            </div>
-            <div className="prof-mindmap-preview-badge">
-              {structure.branches.length} ramos
-            </div>
-          </div>
-
-          <div className="prof-mindmap-stage">
-            <div className="prof-mindmap-rings" aria-hidden="true">
-              <span className="prof-mindmap-rings__ring prof-mindmap-rings__ring--outer" />
-              <span className="prof-mindmap-rings__ring" />
-            </div>
-            <svg className="prof-mindmap-links" viewBox="0 0 1000 720" preserveAspectRatio="none" aria-hidden="true">
-              {structure.branches.map((branch, index) => {
-                const slot = getMindmapSlot(index, structure.branches.length)
-                const x = (Number.parseFloat(slot.left) / 100) * 1000
-                const y = (Number.parseFloat(slot.top) / 100) * 720
-
-                return (
-                  <line
-                    key={`line-${index}-${branch.title}`}
-                    x1="500"
-                    y1="360"
-                    x2={x}
-                    y2={y}
-                    stroke="rgba(var(--accent-rgb), 0.28)"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                  />
-                )
-              })}
-            </svg>
-
-            <article className="prof-mindmap-node is-root" style={{ left: '50%', top: '50%', width: 'clamp(190px, 24vw, 290px)' }}>
-              <span className="prof-mindmap-node-badge">Centro</span>
-              <div className="prof-mindmap-node-label">{structure.rootTitle}</div>
-              <div className="prof-mindmap-node-subtitle">Resumo visual do assunto</div>
-            </article>
-
-            {structure.branches.map((branch, index) => {
-              const slot = getMindmapSlot(index, structure.branches.length)
-
-              return (
-                <article
-                  key={`branch-${index}-${branch.title}`}
-                  className={`prof-mindmap-node is-level-1 ${index % 2 === 0 ? 'is-left' : 'is-right'}`}
-                  style={{ left: slot.left, top: slot.top, width: 'clamp(210px, 24vw, 300px)' }}
-                >
-                  <span className="prof-mindmap-node-badge">{String(index + 1).padStart(2, '0')}</span>
-                  <div className="prof-mindmap-node-label">{branch.title}</div>
-                  {branch.children.length > 0 && (
-                    <div className="prof-mindmap-node-children">
-                      {branch.children.map((child, childIndex) => (
-                        <span key={`child-${index}-${childIndex}-${child}`} className="prof-mindmap-node-child">
-                          {child}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </article>
-              )
-            })}
-
-            <div className="prof-mindmap-stage-footer">
-              <span>{structure.branches.length} ramos principais</span>
-              <span>{childCount} subtópicos</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function buildSystemPrompt(category) {
-  const lines = [
-    `Você é um professor especialista no ENEM, atuando na categoria "${category.label}".`,
-    '',
-    'DIRETRIZES:',
-  ]
-
-  if (category.id === 'duvidas') {
-    lines.push(
-      '- Explique de forma clara, passo a passo, com exemplos quando possível.',
-      '- Estruture a resposta com título curto, resumo inicial e lista de passos ou tópicos.',
-      '- Evite blocos de texto muito longos e prefira espaçamento real entre as partes.',
-    )
-  }
-
-  if (category.id === 'resumos') {
-    lines.push(
-      '- Crie resumos objetivos com os pontos mais importantes para o ENEM.',
-      '- Use subtítulos, listas e palavras-chave para aproveitar melhor a largura da tela.',
-      '- Evite parágrafos corridos quando uma estrutura em blocos for mais clara.',
-    )
-  }
-
-  if (category.id === 'mapas') {
-    lines.push(
-      '- Para Mapas Mentais, o conteúdo do campo "response" deve ser uma STRING com um JSON válido, sem markdown e sem comentários técnicos.',
-      '- Use exatamente este formato dentro do texto da resposta: {"temaCentral":"...","ramos":[{"titulo":"...","subtopicos":["...","..."]}]}',
-      '- Crie entre 5 e 8 ramos principais, com 1 a 3 subtópicos curtos por ramo.',
-      '- Prefira palavras-chave, expressões curtas e relação hierárquica clara.',
-      '- Não escreva texto fora do JSON da resposta.',
-    )
-  }
-
-  if (category.id === 'pratica') {
-    lines.push(
-      '- Crie questões inéditas no estilo ENEM com 5 alternativas (A-E).',
-      '- Quebre a resposta em enunciado, alternativas e feedback final bem separados.',
-      '- Use listas para a alternativa correta, raciocínio e dica de resolução.',
-    )
-  }
-
-  lines.push(
-    '- Use linguagem acessível, mas não infantilize.',
-    '- Se não souber, seja honesto.',
-    '- Mantenha o foco no contexto do ENEM e no Brasil.',
-    '- Responda em português do Brasil.',
-    '- Formate a resposta com títulos curtos, parágrafos curtos e listas quando isso melhorar a leitura.',
-    '- Nunca deixe a resposta vazia e nunca use "[object Object]" como conteúdo.',
-    '- Retorne somente JSON válido, sem markdown e sem bloco de código.',
-    '- Use exatamente a chave "response" para a resposta final.',
-  )
-
-  if (category.id === 'mapas') {
-    lines.push(
-      '',
-      'INSTRUCOES EXTRA PARA O MAPA MENTAL POR ESCRITO:',
-      '- Comece com "Tema central:" seguido do assunto principal.',
-      '- Em seguida, liste de 5 a 8 ramos principais numerados como "1.", "2.", "3.".',
-      '- Abaixo de cada ramo, use de 1 a 3 subtópicos curtos com marcadores e recuo.',
-      '- Mantenha a hierarquia bem visível e evite blocos longos de texto.',
-      '- Prefira palavras-chave e expressões curtas.',
-      '- Não escreva parágrafos longos nem use rótulos genéricos como "tópico", "item" ou "assunto".',
-      '- Entregue o texto pronto para ser transformado em mapa visual na tela.',
-      '- Dentro da chave "response", entregue o mapa completo com quebras de linha.',
-    )
-  }
-
-  lines.push('', 'O histórico recente já segue nas mensagens do payload; use-o para manter coerência.')
-  return lines.join('\n')
-}
-
-/** Renderiza markdown básico em JSX sem dependência externa */
-function renderMarkdown(text) {
-  if (!text) return null
-  const lines = text.split('\n')
-  const elements = []
-  let i = 0
-  while (i < lines.length) {
-    const line = lines[i]
-    const h3 = line.match(/^###\s+(.+)/)
-    const h2 = line.match(/^##\s+(.+)/)
-    const h1 = line.match(/^#\s+(.+)/)
-    const hr = line.match(/^---+$/)
-    const ul = line.match(/^[*-]\s+(.+)/)
-    const ol = line.match(/^\d+\.\s+(.+)/)
-    const bq = line.match(/^>\s+(.+)/)
-    if (h1) { elements.push(<h1 key={i}>{inlineMarkdown(h1[1])}</h1>); i++; continue }
-    if (h2) { elements.push(<h2 key={i}>{inlineMarkdown(h2[1])}</h2>); i++; continue }
-    if (h3) { elements.push(<h3 key={i}>{inlineMarkdown(h3[1])}</h3>); i++; continue }
-    if (hr) { elements.push(<hr key={i} />); i++; continue }
-    if (bq) { elements.push(<blockquote key={i}>{inlineMarkdown(bq[1])}</blockquote>); i++; continue }
-    if (ul) {
-      const items = []
-      while (i < lines.length && lines[i].match(/^[*-]\s+/)) {
-        const m = lines[i].match(/^[*-]\s+(.+)/)
-        if (m) items.push(<li key={i}>{inlineMarkdown(m[1])}</li>)
-        i++
-      }
-      elements.push(<ul key={`ul-${i}`}>{items}</ul>)
-      continue
-    }
-    if (ol) {
-      const items = []
-      while (i < lines.length && lines[i].match(/^\d+\.\s+/)) {
-        const m = lines[i].match(/^\d+\.\s+(.+)/)
-        if (m) items.push(<li key={i}>{inlineMarkdown(m[1])}</li>)
-        i++
-      }
-      elements.push(<ol key={`ol-${i}`}>{items}</ol>)
-      continue
-    }
-    if (line.trim() === '') { elements.push(<br key={i} />); i++; continue }
-    elements.push(<p key={i}>{inlineMarkdown(line)}</p>)
-    i++
-  }
-  return elements
-}
-
-function inlineMarkdown(text) {
-  if (!text) return null
-  // Processa **bold**, *italic*, `code`
+function splitInlineMarkdown(text) {
   const parts = []
-  const regex = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|_[^_]+_)/g
+  const regex = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g
   let last = 0
   let match
+
   while ((match = regex.exec(text)) !== null) {
     if (match.index > last) parts.push(text.slice(last, match.index))
     const token = match[0]
     if (token.startsWith('`')) {
       parts.push(<code key={match.index}>{token.slice(1, -1)}</code>)
-    } else if (token.startsWith('**') || token.startsWith('__')) {
+    } else if (token.startsWith('**')) {
       parts.push(<strong key={match.index}>{token.slice(2, -2)}</strong>)
     } else {
       parts.push(<em key={match.index}>{token.slice(1, -1)}</em>)
     }
     last = match.index + token.length
   }
+
   if (last < text.length) parts.push(text.slice(last))
-  return parts.length === 1 && typeof parts[0] === 'string' ? parts[0] : parts
+  return parts.length > 0 ? parts : text
 }
 
-function ProfMarkdown({ text }) {
-  const content = normalizeProfessorText(text)
-  if (!content) return null
-  return <div className="prof-md">{renderMarkdown(content)}</div>
+function ProfessorMarkdown({ text }) {
+  const lines = String(text ?? '').replace(/\r\n/g, '\n').split('\n')
+  const nodes = []
+  let index = 0
+
+  while (index < lines.length) {
+    const line = lines[index]
+    const trimmed = line.trim()
+
+    if (!trimmed) {
+      index += 1
+      continue
+    }
+
+    const h1 = trimmed.match(/^#\s+(.+)/)
+    const h2 = trimmed.match(/^##\s+(.+)/)
+    const h3 = trimmed.match(/^###\s+(.+)/)
+    if (h1 || h2 || h3) {
+      const Tag = h1 ? 'h2' : h2 ? 'h3' : 'h4'
+      const content = (h1 || h2 || h3)[1]
+      nodes.push(<Tag key={`h-${index}`}>{splitInlineMarkdown(content)}</Tag>)
+      index += 1
+      continue
+    }
+
+    if (/^[-*]\s+/.test(trimmed)) {
+      const items = []
+      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^[-*]\s+/, ''))
+        index += 1
+      }
+      nodes.push(
+        <ul key={`ul-${index}`}>
+          {items.map((item, itemIndex) => <li key={`${item}-${itemIndex}`}>{splitInlineMarkdown(item)}</li>)}
+        </ul>,
+      )
+      continue
+    }
+
+    if (/^\d+[.)]\s+/.test(trimmed)) {
+      const items = []
+      while (index < lines.length && /^\d+[.)]\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^\d+[.)]\s+/, ''))
+        index += 1
+      }
+      nodes.push(
+        <ol key={`ol-${index}`}>
+          {items.map((item, itemIndex) => <li key={`${item}-${itemIndex}`}>{splitInlineMarkdown(item)}</li>)}
+        </ol>,
+      )
+      continue
+    }
+
+    const paragraph = [trimmed]
+    index += 1
+    while (
+      index < lines.length
+      && lines[index].trim()
+      && !/^#{1,3}\s+/.test(lines[index].trim())
+      && !/^[-*]\s+/.test(lines[index].trim())
+      && !/^\d+[.)]\s+/.test(lines[index].trim())
+    ) {
+      paragraph.push(lines[index].trim())
+      index += 1
+    }
+    nodes.push(<p key={`p-${index}`}>{splitInlineMarkdown(paragraph.join(' '))}</p>)
+  }
+
+  return <div className="prof-markdown">{nodes}</div>
 }
 
 function iconSvg(kind) {
   switch (kind) {
-    case 'question':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
-        </svg>
-      )
-    case 'book':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-        </svg>
-      )
-    case 'copy':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-        </svg>
-      )
-    case 'check':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      )
-    case 'target':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" />
-          <circle cx="12" cy="12" r="6" />
-          <circle cx="12" cy="12" r="2" />
-        </svg>
-      )
-    case 'send':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13" />
-          <polygon points="22 2 15 22 11 13 2 9 22 2" />
-        </svg>
-      )
-    case 'sendArrow':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M6 4l12 8-12 8" />
-        </svg>
-      )
+    case 'plus':
+      return <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
     case 'trash':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="3 6 5 6 21 6" />
-          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-          <line x1="10" y1="11" x2="10" y2="17" />
-          <line x1="14" y1="11" x2="14" y2="17" />
-        </svg>
-      )
-    case 'search':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="11" cy="11" r="8" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-      )
-    case 'fullscreen':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M8 3H3v5" />
-          <path d="M16 3h5v5" />
-          <path d="M21 16v5h-5" />
-          <path d="M3 16v5h5" />
-        </svg>
-      )
-    case 'fullscreenExit':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M9 9H4V4" />
-          <path d="M15 9h5V4" />
-          <path d="M15 15h5v5" />
-          <path d="M9 15H4v5" />
-        </svg>
-      )
+      return <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15" /><path d="M10 11v6M14 11v6" /></svg>
+    case 'send':
+      return <svg viewBox="0 0 24 24"><path d="M22 2 11 13" /><path d="m22 2-7 20-4-9-9-4 20-7Z" /></svg>
+    case 'mic':
+      return <svg viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3" /></svg>
+    case 'copy':
+      return <svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+    case 'check':
+      return <svg viewBox="0 0 24 24"><path d="m20 6-11 11-5-5" /></svg>
+    case 'volume':
+      return <svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5Z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" /></svg>
+    case 'refresh':
+      return <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2" /><path d="M3 12A9 9 0 0 1 18.5 5.8" /><path d="M3 20v-6h6M21 4v6h-6" /></svg>
+    case 'menu':
+      return <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+    case 'close':
+      return <svg viewBox="0 0 24 24"><path d="m18 6-12 12M6 6l12 12" /></svg>
     default:
       return <svg viewBox="0 0 24 24" />
   }
 }
 
-function renderMessageBody(messageText, isMindmap, isFullscreen = false, sender = 'ai') {
-  const text = normalizeProfessorText(messageText)
-  if (!text) return null
+function QuestionSet({ messageId, questions = [], answers, onAnswer }) {
+  if (!questions.length) return null
 
-  if (isMindmap && sender === 'ai') {
-    return <ProfessorMindmap text={text} isFullscreen={isFullscreen} />
-  }
+  const answeredCount = questions.filter((question) => Number.isInteger(answers?.[question.id])).length
+  const score = questions.reduce((total, question) => {
+    return total + (answers?.[question.id] === question.correta ? 1 : 0)
+  }, 0)
+  const finished = answeredCount === questions.length
 
-  return <ProfessorRichText text={text} isFullscreen={isFullscreen} sender={sender} isMindmap={isMindmap} />
+  return (
+    <section className="prof-question-card" aria-label="Questões interativas">
+      <div className="prof-question-head">
+        <div>
+          <span>Treino interativo</span>
+          <strong>{finished ? `${score}/${questions.length} acertos` : `${answeredCount}/${questions.length} respondidas`}</strong>
+        </div>
+        <small>4 alternativas por questão</small>
+      </div>
+
+      <div className="prof-question-list">
+        {questions.map((question, index) => {
+          const selected = answers?.[question.id]
+          const hasAnswer = Number.isInteger(selected)
+
+          return (
+            <article className="prof-question-item" key={question.id}>
+              <div className="prof-question-number">Questão {index + 1}</div>
+              <p className="prof-question-statement">{question.enunciado}</p>
+              <div className="prof-question-options">
+                {question.opcoes.map((option, optionIndex) => {
+                  const isSelected = selected === optionIndex
+                  const isCorrect = question.correta === optionIndex
+                  const stateClass = hasAnswer
+                    ? isCorrect
+                      ? 'is-correct'
+                      : isSelected
+                        ? 'is-wrong'
+                        : ''
+                    : ''
+
+                  return (
+                    <button
+                      key={`${question.id}-${optionIndex}`}
+                      type="button"
+                      className={`prof-question-option ${isSelected ? 'is-selected' : ''} ${stateClass}`}
+                      onClick={() => onAnswer(messageId, question.id, optionIndex)}
+                    >
+                      <span>{String.fromCharCode(65 + optionIndex)}</span>
+                      <em>{option}</em>
+                    </button>
+                  )
+                })}
+              </div>
+              {hasAnswer && (
+                <div className="prof-question-feedback">
+                  <strong>{selected === question.correta ? 'Boa.' : 'Quase.'}</strong>
+                  <span>{question.explicacao || `A alternativa correta é ${String.fromCharCode(65 + question.correta)}.`}</span>
+                </div>
+              )}
+            </article>
+          )
+        })}
+      </div>
+    </section>
+  )
 }
 
 export function ProfessorPage() {
   const location = useLocation()
-  const [activeCategory, setActiveCategory] = useState(CATEGORIES[0])
-  const messageIdRef = useRef(0)
-  const autoHandoffRef = useRef(false)
-  const [conversations, setConversations] = useState(() => loadProfessorConversations())
-
+  const [chats, setChats] = useState(() => loadProfessorChats())
+  const [activeChatId, setActiveChatId] = useState(() => loadProfessorChats()[0]?.id)
   const [inputText, setInputText] = useState('')
-  const [isSearchEnabled, setIsSearchEnabled] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
-  const [aiError, setAiError] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const messagesWallRef = useRef(null)
-  const [copiedId, setCopiedId] = useState(null)
+  const [copiedId, setCopiedId] = useState('')
+  const [speakingId, setSpeakingId] = useState('')
+  const [isListening, setIsListening] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [questionAnswers, setQuestionAnswers] = useState({})
   const [queuedHandoff] = useState(() => normalizeProfessorHandoff(location.state?.handoff) || loadProfessorHandoff())
+  const threadRef = useRef(null)
+  const textareaRef = useRef(null)
+  const recognitionRef = useRef(null)
+  const handoffConsumedRef = useRef(false)
 
-  const activeMessages = Array.isArray(conversations[activeCategory.id]) ? conversations[activeCategory.id] : EMPTY_MESSAGES
+  const activeChat = chats.find((chat) => chat.id === activeChatId) || chats[0] || createProfessorChat()
+  const activeMessages = Array.isArray(activeChat.messages) ? activeChat.messages : []
+  const charCount = inputText.length
 
-  const nextMessageId = useCallback(() => {
-    const now = Date.now()
-    messageIdRef.current += 1
-    return now + messageIdRef.current
+  const commitChats = useCallback((updater) => {
+    setChats((previous) => {
+      const next = typeof updater === 'function' ? updater(previous) : updater
+      return saveProfessorChats(next)
+    })
   }, [])
 
-  const isBrowserOffline = useCallback(() => {
-    if (typeof navigator === 'undefined') return false
-    return navigator.onLine === false
-  }, [])
-
-  /** Rola so a lista de mensagens - evita scrollIntoView, que puxa a pagina inteira. */
-  const scrollMessagesToEnd = useCallback((behavior = 'smooth') => {
-    const wall = messagesWallRef.current
-    if (!wall) return
-    const y = wall.scrollHeight
-    if (behavior === 'smooth') {
-      wall.scrollTo({ top: y, behavior: 'smooth' })
-    } else {
-      wall.scrollTop = y
-    }
-  }, [])
+  const createNewChat = useCallback(() => {
+    const chat = createProfessorChat()
+    commitChats((previous) => [chat, ...previous])
+    setActiveChatId(chat.id)
+    setInputText('')
+    setSidebarOpen(false)
+    return chat
+  }, [commitChats])
 
   useEffect(() => {
-    scrollMessagesToEnd(isFullscreen ? 'auto' : 'smooth')
-  }, [activeMessages, isTyping, isFullscreen, scrollMessagesToEnd])
+    if (activeChatId && chats.some((chat) => chat.id === activeChatId)) return
+    setActiveChatId(chats[0]?.id || createNewChat().id)
+  }, [activeChatId, chats, createNewChat])
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations))
-    } catch (error) {
-      console.error('Failed to save professor conversation', error)
-    }
-  }, [conversations])
+    const thread = threadRef.current
+    if (!thread) return
+    thread.scrollTo({ top: thread.scrollHeight, behavior: 'smooth' })
+  }, [activeChatId, activeMessages.length, isTyping])
 
   useEffect(() => {
-    if (!isFullscreen) return undefined
+    const input = textareaRef.current
+    if (!input) return
+    input.style.height = 'auto'
+    input.style.height = `${Math.min(input.scrollHeight, 220)}px`
+  }, [inputText])
 
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        setIsFullscreen(false)
-      }
+  useEffect(() => {
+    const updateKeyboardOffset = () => {
+      const viewport = window.visualViewport
+      const offset = viewport
+        ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+        : 0
+      document.documentElement.style.setProperty('--prof-keyboard-offset', `${Math.round(offset)}px`)
     }
 
-    window.addEventListener('keydown', handleKeyDown)
+    updateKeyboardOffset()
+    window.visualViewport?.addEventListener('resize', updateKeyboardOffset)
+    window.visualViewport?.addEventListener('scroll', updateKeyboardOffset)
+    window.addEventListener('resize', updateKeyboardOffset)
 
     return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', handleKeyDown)
+      window.visualViewport?.removeEventListener('resize', updateKeyboardOffset)
+      window.visualViewport?.removeEventListener('scroll', updateKeyboardOffset)
+      window.removeEventListener('resize', updateKeyboardOffset)
+      document.documentElement.style.removeProperty('--prof-keyboard-offset')
     }
-  }, [isFullscreen])
+  }, [])
 
-  const handleSendMessage = useCallback(async (messageOverride = inputText, categoryOverride = activeCategory) => {
-    const userMessage = normalizeProfessorText(messageOverride)
-    const categoryAtSend = categoryOverride || activeCategory
-    if (!userMessage || isTyping) return
+  const updateChatTitle = useCallback((chatId, title) => {
+    const cleanTitle = String(title ?? '').trim().slice(0, 80) || 'Novo chat'
+    commitChats((previous) => previous.map((chat) => (
+      chat.id === chatId
+        ? { ...chat, title: cleanTitle, updatedAt: new Date().toISOString() }
+        : chat
+    )))
+  }, [commitChats])
 
-    if (isBrowserOffline()) {
-      setAiError(true)
-      window.alert('Você está offline. Verifique sua conexão para continuar usando o Professor IA.')
+  const deleteChat = useCallback((chatId) => {
+    const fallbackChat = createProfessorChat()
+    commitChats((previous) => {
+      const filtered = previous.filter((chat) => chat.id !== chatId)
+      return filtered.length > 0 ? filtered : [fallbackChat]
+    })
+    if (activeChatId === chatId) {
+      const nextChat = chats.find((chat) => chat.id !== chatId) || fallbackChat
+      setActiveChatId(nextChat.id)
+    }
+  }, [activeChatId, chats, commitChats])
+
+  const addLimitMessage = useCallback((chatId) => {
+    const limitMessage = createMessage({
+      sender: 'ai',
+      status: 'limit',
+      action: 'create_chat',
+      text: 'Você atingiu o comprimento máximo para esse chat. Crie outro para continuar com contexto limpo.',
+    })
+
+    commitChats((previous) => previous.map((chat) => (
+      chat.id === chatId
+        ? {
+            ...chat,
+            messages: [...chat.messages, limitMessage],
+            updatedAt: new Date().toISOString(),
+          }
+        : chat
+    )))
+  }, [commitChats])
+
+  const sendToProfessor = useCallback(async ({
+    text,
+    chatId = activeChatId,
+    chatOverride = null,
+    historyMessagesOverride = null,
+    regenerateMessageId = '',
+    retryOf = '',
+  } = {}) => {
+    const cleanText = String(text ?? inputText).trim().slice(0, PROFESSOR_MAX_INPUT_CHARS)
+    if (!cleanText || isTyping) return
+
+    const chatAtSend = chatOverride || chats.find((chat) => chat.id === chatId) || activeChat
+    const messagesBefore = Array.isArray(chatAtSend.messages) ? chatAtSend.messages : []
+    const historyMessages = Array.isArray(historyMessagesOverride) ? historyMessagesOverride : messagesBefore
+    const chatIsTooLong = getProfessorChatCharCount(chatAtSend) + cleanText.length > PROFESSOR_MAX_CHAT_CHARS
+
+    if (chatIsTooLong) {
+      addLimitMessage(chatAtSend.id)
       return
     }
 
-    const categoryId = categoryAtSend.id
-    const categoryMessages = Array.isArray(conversations[categoryId]) ? conversations[categoryId] : []
+    const firstUserMessage = !messagesBefore.some((message) => message.sender === 'user')
+    const fallbackTitle = buildProfessorTitleFromMessage(cleanText)
+    const userMessage = createMessage({ sender: 'user', text: cleanText })
 
     setInputText('')
-    setAiError(false)
-
-    setConversations((prev) => ({
-      ...prev,
-      [categoryId]: [
-        ...(Array.isArray(prev[categoryId]) ? prev[categoryId] : []),
-        { id: nextMessageId(), sender: 'user', text: normalizeProfessorText(userMessage) },
-      ],
-    }))
-
     setIsTyping(true)
 
-    const recentMessages = categoryMessages
-      .slice(-MAX_CHAT_HISTORY)
-      .filter((msg) => msg.sender === 'user' || msg.sender === 'ai')
-      .map((msg) => ({
-        role: msg.sender === 'user' ? 'user' : 'assistant',
-        content: normalizeProfessorText(msg.text),
-      }))
-      .filter((msg) => msg.content)
+    commitChats((previous) => {
+      const source = previous.some((chat) => chat.id === chatAtSend.id)
+        ? previous
+        : [chatAtSend, ...previous]
 
-    const systemPrompt = buildSystemPrompt(categoryAtSend)
+      return source.map((chat) => {
+        if (chat.id !== chatAtSend.id) return chat
 
-    let searchContextText = ''
-    if (isSearchEnabled) {
-      try {
-        const searchResult = await buscarContexto(userMessage)
-        if (searchResult) {
-          const cardsText = (searchResult.cards || [])
-            .map((card) => `- ${card.titulo}: ${card.texto} (${card.fonte})`)
-            .join('\n')
+        const nextMessages = regenerateMessageId
+          ? chat.messages.filter((message) => message.id !== regenerateMessageId)
+          : [...chat.messages, userMessage]
 
-          searchContextText = [
-            '',
-            '--- CONTEXTO FACTUAL PESQUISADO (USE ISSO PARA ENRIQUECER A RESPOSTA) ---',
-            `Resumo: ${searchResult.resumo || 'Sem resumo.'}`,
-            'Dados relevantes:',
-            cardsText || 'Nenhum dado especifico encontrado.',
-            '-------------------------------------------------------------------------',
-            '',
-          ].join('\n')
+        return {
+          ...chat,
+          title: firstUserMessage && chat.title === 'Novo chat' ? fallbackTitle : chat.title,
+          messages: nextMessages,
+          updatedAt: new Date().toISOString(),
         }
-      } catch (error) {
-        console.error('Falha na busca de contexto:', error)
-      }
-    }
-
-    const finalSystemPrompt = systemPrompt + (searchContextText ? `\n\n${searchContextText}` : '')
-
-    const userMessages = [
-      ...recentMessages,
-      { role: 'user', content: userMessage },
-    ]
-
-    const callProfessorIa = async () => {
-      const errors = []
-
-      for (const config of PROFESSOR_PROVIDER_FALLBACKS) {
-        try {
-          const response = await chamarIAEspecifica({
-            provider: config.provider,
-            modelVariant: config.modelVariant,
-            systemPrompt: finalSystemPrompt,
-            userMessages,
-          })
-
-          const aiText = extractAiText(response)
-          if (!aiText) {
-            const emptyError = new Error(`Resposta vazia da IA (${config.provider}/${config.modelVariant}).`)
-            emptyError.code = 'empty_ai_response'
-            throw emptyError
-          }
-
-          return { response, aiText, provider: config.provider, modelVariant: config.modelVariant }
-        } catch (error) {
-          errors.push(error)
-          console.warn(
-            `Falha no provider ${config.provider} (${config.modelVariant}) para Professor IA.`,
-            error,
-          )
-        }
-      }
-
-      const lastError = errors[errors.length - 1]
-      throw lastError || new Error('Nenhum provedor respondeu no Professor IA.')
-    }
+      })
+    })
 
     try {
-      const { aiText } = await callProfessorIa()
+      const response = await chamarProfessorIA({
+        message: cleanText,
+        history: buildHistoryPayload(historyMessages),
+        chatTitle: chatAtSend.title,
+        shouldGenerateTitle: firstUserMessage,
+        retryOf,
+      })
 
-      setConversations((prev) => ({
-        ...prev,
-        [categoryId]: [
-          ...(Array.isArray(prev[categoryId]) ? prev[categoryId] : []),
-          { id: nextMessageId(), sender: 'ai', text: aiText },
-        ],
-      }))
-      setAiError(false)
+      const aiMessage = createMessage({
+        sender: 'ai',
+        text: normalizeAiText(response),
+        questions: response?.questions,
+        sources: response?.sources,
+      })
+
+      commitChats((previous) => previous.map((chat) => (
+        chat.id === chatAtSend.id
+          ? {
+              ...chat,
+              title: firstUserMessage && response?.title
+                ? String(response.title).trim().slice(0, 80)
+                : chat.title,
+              messages: [...chat.messages, aiMessage],
+              updatedAt: new Date().toISOString(),
+            }
+          : chat
+      )))
     } catch (error) {
-      console.error('Erro ao chamar IA do Professor:', error)
-      const rawMessage = String(error?.message || '').toLowerCase()
-      const isQuotaBlocked = error?.code === 'quota_blocked'
-        || rawMessage.includes('limite do plano free')
-        || rawMessage.includes('cota gratuita')
-        || rawMessage.includes('modo convidado')
-      const isOffline = isBrowserOffline()
-      const quotaBlockedText = rawMessage.includes('modo convidado')
-        ? 'Você atingiu o limite diário do modo convidado. Crie uma conta nova para continuar usando a IA.'
-        : 'Você atingiu o limite diário de IA no plano atual. Tente novamente amanhã ou faça upgrade do plano.'
+      const errorText = error?.code === 'quota_blocked'
+        ? error.message
+        : 'O serviço de IA está instável agora. Tente novamente em alguns segundos.'
 
-      setConversations((prev) => ({
-        ...prev,
-        [categoryId]: [
-          ...(Array.isArray(prev[categoryId]) ? prev[categoryId] : []),
-          {
-            id: nextMessageId(),
-            sender: 'ai',
-            text: isQuotaBlocked
-              ? quotaBlockedText
-              : isOffline
-              ? 'Estou sem conexão no momento. Verifique sua internet e tente novamente.'
-              : 'O serviço de IA está indisponível no momento. Já tentei provedores alternativos. Tente novamente em alguns segundos.',
-          },
-        ],
-      }))
-
-      if (isOffline) {
-        window.alert('Conexão offline detectada. O Professor IA não consegue responder sem internet.')
-      } else if (isQuotaBlocked) {
-        window.alert(rawMessage.includes('modo convidado')
-          ? 'Limite diário do modo convidado atingido. Crie uma conta nova para continuar.'
-          : 'Limite diário de IA atingido no plano atual.')
-      }
-      setAiError(true)
+      commitChats((previous) => previous.map((chat) => (
+        chat.id === chatAtSend.id
+          ? {
+              ...chat,
+              messages: [
+                ...chat.messages,
+                createMessage({ sender: 'ai', status: 'error', text: errorText }),
+              ],
+              updatedAt: new Date().toISOString(),
+            }
+          : chat
+      )))
     } finally {
       setIsTyping(false)
     }
-  }, [activeCategory, conversations, inputText, isBrowserOffline, isSearchEnabled, isTyping, nextMessageId])
+  }, [activeChat, activeChatId, addLimitMessage, chats, commitChats, inputText, isTyping])
 
   useEffect(() => {
     const handoff = queuedHandoff
-    if (!handoff || autoHandoffRef.current) return
-
-    autoHandoffRef.current = true
+    if (!handoff || handoffConsumedRef.current) return
+    handoffConsumedRef.current = true
     clearProfessorHandoff()
 
-    const category = CATEGORIES.find((item) => item.id === handoff.categoryId) || CATEGORIES[0]
-    setActiveCategory(category)
-    setInputText('')
-    void handleSendMessage(handoff.message, category)
-  }, [queuedHandoff, handleSendMessage])
+    const chat = createNewChat()
+    void sendToProfessor({ text: handoff.message, chatId: chat.id, chatOverride: chat })
+  }, [createNewChat, queuedHandoff, sendToProfessor])
 
-  const handleClearHistory = () => {
-    setAiError(false)
-    setConversations((prev) => ({
-      ...prev,
-      [activeCategory.id]: [{ id: nextMessageId(), sender: 'ai', text: normalizeProfessorText(activeCategory.welcomeMessage) }],
-    }))
-  }
-
-  const handleToggleFullscreen = () => {
-    setIsFullscreen((current) => !current)
+  const handleInputChange = (event) => {
+    const next = event.target.value.slice(0, PROFESSOR_MAX_INPUT_CHARS)
+    setInputText(next)
   }
 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
-      handleSendMessage()
+      void sendToProfessor()
     }
   }
 
-  return (
-    <div className={`professor-sleek-view${isFullscreen ? ' is-fullscreen' : ''}`}>
-      {isFullscreen && (
-        <div
-          className="professor-fullscreen-backdrop"
-          aria-hidden="true"
-          onClick={() => setIsFullscreen(false)}
-        />
-      )}
-      <div className="professor-container anim-fade-in">
-        <header className="professor-nav-header">
-          <div className="prof-pills-bar anim-slide-down">
-            <div className="prof-pills-scroll">
-              {CATEGORIES.map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  className={`prof-pill-btn ${activeCategory.id === cat.id ? 'active' : ''}`}
-                  onClick={() => setActiveCategory(cat)}
-                >
-                  {iconSvg(cat.icon)}
-                  <span>{cat.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </header>
+  const handleCopy = async (message) => {
+    try {
+      await navigator.clipboard?.writeText(message.text)
+      setCopiedId(message.id)
+      window.setTimeout(() => setCopiedId((current) => current === message.id ? '' : current), 1600)
+    } catch {
+      setCopiedId('')
+    }
+  }
 
-        <div
-          className={`prof-chat-card anim-slide-up${isFullscreen ? ' prof-chat-card--fullscreen' : ''}`}
-          style={{ animationDelay: '0.1s' }}
-          role={isFullscreen ? 'dialog' : undefined}
-          aria-modal={isFullscreen ? 'true' : undefined}
-          aria-label={isFullscreen ? 'Professor IA em tela cheia' : undefined}
-        >
-          <div className="prof-card-head">
-            <div className="prof-session-bar">
-              <div className="prof-session-icon" aria-hidden="true">
-                {iconSvg(activeCategory.icon)}
-              </div>
-              <div className="prof-session-titles">
-                <span className="prof-session-active">
-                  Sessão ativa: <strong>{activeCategory.label}</strong>
-                </span>
-                <span className="prof-session-meta">
-                  IA Experimental
-                  {aiError && <span className="prof-ai-error-badge" title="Falha de conexão ou indisponibilidade temporária"> ! Indisponível</span>}
-                </span>
-              </div>
+  const handleSpeak = (message) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return
+    window.speechSynthesis.cancel()
+    if (speakingId === message.id) {
+      setSpeakingId('')
+      return
+    }
+
+    const utterance = new SpeechSynthesisUtterance(message.text)
+    utterance.lang = 'pt-BR'
+    utterance.rate = 1
+    utterance.onend = () => setSpeakingId('')
+    utterance.onerror = () => setSpeakingId('')
+    setSpeakingId(message.id)
+    window.speechSynthesis.speak(utterance)
+  }
+
+  const handleRegenerate = (messageId) => {
+    const messageIndex = activeMessages.findIndex((message) => message.id === messageId)
+    if (messageIndex < 0) return
+    const previousUserIndex = activeMessages
+      .slice(0, messageIndex)
+      .map((message, index) => ({ message, index }))
+      .reverse()
+      .find((entry) => entry.message.sender === 'user')?.index
+    const previousUser = Number.isInteger(previousUserIndex) ? activeMessages[previousUserIndex] : null
+    if (!previousUser) return
+    void sendToProfessor({
+      text: previousUser.text,
+      chatId: activeChat.id,
+      historyMessagesOverride: activeMessages.slice(0, previousUserIndex),
+      regenerateMessageId: messageId,
+      retryOf: activeMessages[messageIndex]?.text || '',
+    })
+  }
+
+  const handleMic = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      window.alert('Seu navegador ainda não suporta transcrição por voz nesta página.')
+      return
+    }
+
+    if (recognitionRef.current && isListening) {
+      recognitionRef.current.stop()
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'pt-BR'
+    recognition.interimResults = false
+    recognition.continuous = false
+    recognition.onstart = () => setIsListening(true)
+    recognition.onend = () => setIsListening(false)
+    recognition.onerror = () => setIsListening(false)
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((result) => result[0]?.transcript || '')
+        .join(' ')
+        .trim()
+
+      if (transcript) {
+        setInputText((current) => {
+          const glue = current.trim() ? ' ' : ''
+          return `${current}${glue}${transcript}`.slice(0, PROFESSOR_MAX_INPUT_CHARS)
+        })
+      }
+    }
+    recognitionRef.current = recognition
+    recognition.start()
+  }
+
+  const handleAnswer = (messageId, questionId, optionIndex) => {
+    setQuestionAnswers((previous) => ({
+      ...previous,
+      [messageId]: {
+        ...(previous[messageId] || {}),
+        [questionId]: optionIndex,
+      },
+    }))
+  }
+
+  return (
+    <div className="prof-page">
+      <aside className={`prof-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="Histórico do Professor IA">
+        <div className="prof-sidebar-top">
+          <Link to="/home" className="prof-brand">Ápice</Link>
+          <button type="button" className="prof-icon-btn mobile-only" onClick={() => setSidebarOpen(false)} aria-label="Fechar histórico">
+            {iconSvg('close')}
+          </button>
+        </div>
+
+        <button type="button" className="prof-new-chat" onClick={createNewChat}>
+          {iconSvg('plus')}
+          Novo chat
+        </button>
+
+        <div className="prof-chat-list">
+          {chats.map((chat) => (
+            <div
+              key={chat.id}
+              className={`prof-chat-list-item ${chat.id === activeChat.id ? 'active' : ''}`}
+            >
               <button
                 type="button"
-                className="prof-session-clear"
-                onClick={handleClearHistory}
-                title="Limpar conversa"
-                aria-label="Limpar conversa desta sessão"
+                className="prof-chat-open"
+                onClick={() => {
+                  setActiveChatId(chat.id)
+                  setSidebarOpen(false)
+                }}
+                aria-label={`Abrir ${chat.title}`}
+              >
+                <span>{chat.title || 'Novo chat'}</span>
+                <small>{chat.messages.length} mensagens</small>
+              </button>
+              {chat.id === activeChat.id && (
+                <input
+                  className="prof-title-input"
+                  value={chat.title}
+                  onChange={(event) => updateChatTitle(chat.id, event.target.value)}
+                  aria-label="Editar nome do chat"
+                />
+              )}
+              <button
+                type="button"
+                className="prof-delete-chat"
+                onClick={() => deleteChat(chat.id)}
+                aria-label={`Excluir ${chat.title}`}
               >
                 {iconSvg('trash')}
               </button>
-              <button
-                type="button"
-                className="prof-session-expand"
-                onClick={handleToggleFullscreen}
-                title={isFullscreen ? 'Sair da tela cheia' : 'Abrir IA em tela cheia'}
-                aria-label={isFullscreen ? 'Sair da tela cheia' : 'Abrir IA em tela cheia'}
-              >
-                {iconSvg(isFullscreen ? 'fullscreenExit' : 'fullscreen')}
-              </button>
             </div>
-            <div className="prof-card-rule" aria-hidden="true" />
+          ))}
+        </div>
+      </aside>
+
+      {sidebarOpen && <button type="button" className="prof-sidebar-backdrop" aria-label="Fechar histórico" onClick={() => setSidebarOpen(false)} />}
+
+      <section className="prof-main-panel">
+        <header className="prof-topbar">
+          <button type="button" className="prof-icon-btn" onClick={() => setSidebarOpen(true)} aria-label="Abrir histórico">
+            {iconSvg('menu')}
+          </button>
+          <div>
+            <span>Professor IA</span>
+            <strong>{activeChat.title}</strong>
           </div>
+          <button type="button" className="prof-icon-btn" onClick={createNewChat} aria-label="Criar novo chat">
+            {iconSvg('plus')}
+          </button>
+        </header>
 
-          <main className={`prof-chat-surface${isFullscreen ? ' prof-chat-surface--fullscreen' : ''}`}>
-            <div
-              ref={messagesWallRef}
-              className={`prof-messages-wall${isFullscreen ? ' prof-messages-wall--fullscreen' : ''}`}
-              role="log"
-              aria-live="polite"
-              aria-relevant="additions"
+        <main className="prof-thread" ref={threadRef} aria-live="polite">
+          {activeMessages.length === 0 && (
+            <section className="prof-empty-state">
+              <span>Professor IA</span>
+              <h1>Explique, treine ou revise qualquer ponto do ENEM.</h1>
+              <p>Peça uma explicação, um resumo, um plano de estudo ou um treino com questões interativas.</p>
+            </section>
+          )}
+
+          {activeMessages.map((message) => (
+            <article
+              key={message.id}
+              className={`prof-message ${message.sender === 'user' ? 'is-user' : 'is-ai'} ${message.status ? `is-${message.status}` : ''}`}
             >
-              {activeMessages.map((msg, index) => {
-                const normalizedText = normalizeProfessorText(msg.text)
-                if (!normalizedText) return null
-
-                const handleCopy = () => {
-                  navigator.clipboard?.writeText(normalizedText).then(() => {
-                    setCopiedId(msg.id)
-                    setTimeout(() => setCopiedId(prev => prev === msg.id ? null : prev), 2000)
-                  })
-                }
-
-                return (
-                  <div
-                    key={msg.id}
-                    className={`prof-msg-row ${msg.sender === 'user' ? 'user-row' : 'ai-row'}${isFullscreen ? ' prof-msg-row--fullscreen' : ''} anim-pop-in`}
-                    style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
-                  >
-                    <div className={`prof-msg-bubble${isFullscreen ? ' prof-msg-bubble--fullscreen' : ''}`}>
-                      {isFullscreen && (
-                        <div className={`prof-message-label ${msg.sender === 'user' ? 'is-user' : 'is-ai'}`}>
-                          {msg.sender === 'user' ? 'Você' : 'Professor IA'}
-                        </div>
-                      )}
-                      {msg.sender === 'ai' && !isFullscreen && <div className="prof-side-avatar" aria-hidden="true">👨‍🏫</div>}
-                      <div className={`prof-text-content${isFullscreen ? ' prof-text-content--fullscreen' : ''} ${msg.sender === 'user' ? 'prof-text-content--user' : 'prof-text-content--assistant'}`}>
-                        <ProfMarkdown text={normalizedText} />
-                      </div>
-                    </div>
-                    {msg.sender === 'ai' && (
-                      <button
-                        type="button"
-                        className={`prof-msg-copy-btn${copiedId === msg.id ? ' copied' : ''}`}
-                        onClick={handleCopy}
-                        title="Copiar resposta"
-                      >
-                        {iconSvg(copiedId === msg.id ? 'check' : 'copy')}
-                        {copiedId === msg.id ? 'Copiado' : 'Copiar'}
-                      </button>
-                    )}
+              <div className="prof-message-card">
+                <div className="prof-message-kicker">{message.sender === 'user' ? 'Você' : 'Professor IA'}</div>
+                <ProfessorMarkdown text={message.text} />
+                {message.action === 'create_chat' && (
+                  <button type="button" className="prof-inline-create" onClick={createNewChat}>
+                    Crie outro
+                  </button>
+                )}
+                {message.sources?.length > 0 && (
+                  <div className="prof-sources">
+                    <span>Fontes consultadas</span>
+                    {message.sources.map((source, sourceIndex) => (
+                      source.url ? (
+                        <a key={`${source.url}-${sourceIndex}`} href={source.url} target="_blank" rel="noreferrer">
+                          {source.nome || source.url}
+                        </a>
+                      ) : (
+                        <small key={`${source.nome}-${sourceIndex}`}>{source.nome || source.trecho}</small>
+                      )
+                    ))}
                   </div>
-                )
-              })}
+                )}
+                <QuestionSet
+                  messageId={message.id}
+                  questions={message.questions || []}
+                  answers={questionAnswers[message.id] || {}}
+                  onAnswer={handleAnswer}
+                />
+              </div>
 
-              {isTyping && (
-                <div className={`prof-msg-row ai-row${isFullscreen ? ' prof-msg-row--fullscreen' : ''} anim-pop-in`}>
-                  <div className={`prof-msg-bubble${isFullscreen ? ' prof-msg-bubble--fullscreen' : ''}`}>
-                    {isFullscreen && <div className="prof-message-label is-ai">Professor IA</div>}
-                    {!isFullscreen && <div className="prof-side-avatar" aria-hidden="true">👨‍🏫</div>}
-                    <div className="prof-typing-wave">
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                  </div>
+              {message.sender === 'ai' && (
+                <div className="prof-message-actions" aria-label="Ações da resposta">
+                  <button type="button" onClick={() => handleSpeak(message)}>
+                    {iconSvg('volume')}
+                    {speakingId === message.id ? 'Parar' : 'Ler'}
+                  </button>
+                  <button type="button" onClick={() => handleRegenerate(message.id)} disabled={isTyping}>
+                    {iconSvg('refresh')}
+                    Regenerar
+                  </button>
+                  <button type="button" onClick={() => handleCopy(message)}>
+                    {iconSvg(copiedId === message.id ? 'check' : 'copy')}
+                    {copiedId === message.id ? 'Copiado' : 'Copiar'}
+                  </button>
                 </div>
               )}
-            </div>
+            </article>
+          ))}
 
-            <div className={`prof-actions-dock${isFullscreen ? ' prof-actions-dock--fullscreen' : ''}`}>
-              <div className="prof-card-rule prof-card-rule--subtle" aria-hidden="true" />
-              <div
-                className={`prof-composer-unified${isFullscreen ? ' prof-composer-unified--fullscreen' : ''}`}
-                role="group"
-                aria-label="Escrever e enviar mensagem"
-              >
-                <label className="prof-composer-input-area">
-                  <span className="sr-only">Mensagem para o professor</span>
-                  <textarea
-                    className="prof-composer-input"
-                    value={inputText}
-                    onChange={(event) => setInputText(event.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={`Escreva algo em '${activeCategory.label}'...`}
-                    rows={1}
-                    autoComplete="off"
-                  />
-                </label>
-                <button
-                  type="button"
-                  className={`prof-search-toggle ${isSearchEnabled ? 'active' : ''}`}
-                  onClick={() => setIsSearchEnabled(!isSearchEnabled)}
-                  title={isSearchEnabled ? 'Desativar pesquisa IA' : 'Ativar pesquisa IA (mais lento, porém mais preciso)'}
-                >
-                  {iconSvg('search')}
-                </button>
-                <button
-                  type="button"
-                  className="prof-send-command"
-                  onClick={handleSendMessage}
-                  disabled={!inputText.trim() || isTyping}
-                  aria-label="Enviar mensagem"
-                >
-                  {iconSvg('sendArrow')}
-                </button>
+          {isTyping && (
+            <article className="prof-message is-ai">
+              <div className="prof-message-card">
+                <div className="prof-message-kicker">Professor IA</div>
+                <div className="prof-typing">
+                  <span />
+                  <span />
+                  <span />
+                </div>
               </div>
-              <p className="prof-safety-note">As respostas da IA podem ser imprecisas.</p>
-            </div>
-          </main>
-        </div>
-      </div>
+            </article>
+          )}
+        </main>
+
+        <form
+          className="prof-composer-card"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void sendToProfessor()
+          }}
+        >
+          <button
+            type="button"
+            className={`prof-mic-btn ${isListening ? 'is-listening' : ''}`}
+            onClick={handleMic}
+            aria-label={isListening ? 'Parar transcrição' : 'Transcrever fala'}
+          >
+            {iconSvg('mic')}
+          </button>
+
+          <label className="prof-input-shell">
+            <span className="sr-only">Mensagem para o Professor IA</span>
+            <textarea
+              ref={textareaRef}
+              value={inputText}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Pergunte, peça um resumo ou solicite questões..."
+              rows={1}
+              maxLength={PROFESSOR_MAX_INPUT_CHARS}
+            />
+            <small>{charCount.toLocaleString('pt-BR')}/{PROFESSOR_MAX_INPUT_CHARS.toLocaleString('pt-BR')}</small>
+          </label>
+
+          <button
+            type="submit"
+            className="prof-send-btn"
+            disabled={!inputText.trim() || isTyping}
+            aria-label="Enviar mensagem"
+          >
+            {iconSvg('send')}
+          </button>
+        </form>
+      </section>
     </div>
   )
 }

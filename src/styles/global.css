@@ -254,6 +254,11 @@ body {
   z-index: 1;
 }
 
+.app-shell--professor {
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
 /* Camada fixa do app para fundo gradiente sutil. */
 .app-scene {
   position: fixed;
@@ -373,49 +378,42 @@ body,
   align-items: center;
 }
 
-/* Gradiente blob na nav — bolinhas radiais suaves em vez do gradiente reto */
-html[data-fx="gradients"] .nav {
-  background: var(--bg2);
+/* Gradiente sutil na nav: só aparece quando "Gradientes em cards" está ativo. */
+html[data-fx="gradients"][data-card-gradients="on"] .nav {
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.018), transparent 86%), var(--bg2);
   overflow: hidden;
 }
 
-html[data-fx="gradients"] .nav::before,
-html[data-fx="gradients"] .nav::after {
+html[data-fx="gradients"][data-card-gradients="on"] .nav::before,
+html[data-fx="gradients"][data-card-gradients="on"] .nav::after {
   content: '';
   position: absolute;
   border-radius: 50%;
   pointer-events: none;
-  filter: blur(32px);
-  opacity: 0.45;
+  filter: blur(78px);
+  opacity: 0.18;
   z-index: 0;
 }
 
-html[data-fx="gradients"] .nav::before {
-  width: 220px;
-  height: 140px;
-  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.55) 0%, transparent 70%);
-  top: -60px;
-  left: 12%;
-  animation: nav-blob-drift 9s ease-in-out infinite alternate;
+html[data-fx="gradients"][data-card-gradients="on"] .nav::before {
+  width: 480px;
+  height: 220px;
+  background: radial-gradient(ellipse at center, rgba(var(--accent-rgb), 0.42) 0%, transparent 72%);
+  top: -155px;
+  left: -7%;
 }
 
-html[data-fx="gradients"] .nav::after {
-  width: 180px;
-  height: 120px;
-  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.38) 0%, transparent 70%);
-  top: -50px;
-  right: 18%;
-  animation: nav-blob-drift 12s ease-in-out infinite alternate-reverse;
+html[data-fx="gradients"][data-card-gradients="on"] .nav::after {
+  width: 520px;
+  height: 230px;
+  background: radial-gradient(ellipse at center, rgba(var(--accent-rgb), 0.32) 0%, transparent 74%);
+  top: -165px;
+  right: -9%;
 }
 
-html[data-fx="gradients"] .nav-inner {
+html[data-fx="gradients"][data-card-gradients="on"] .nav-inner {
   position: relative;
   z-index: 1;
-}
-
-@keyframes nav-blob-drift {
-  from { transform: translate(0, 0) scale(1); }
-  to   { transform: translate(24px, 8px) scale(1.08); }
 }
 
 html[data-fx="blur"] .nav::before,
@@ -912,6 +910,12 @@ html[data-fx="blur"] .nav-inner {
   width: 100%;
   margin: 0 auto;
   min-height: calc(100vh - var(--tab-h));
+}
+
+.main--professor {
+  min-height: 100dvh;
+  padding: 0;
+  max-width: none;
 }
 
 .view-container {
@@ -1522,6 +1526,49 @@ html[data-fx="none"] :is(
   background-image: none !important;
 }
 
+html[data-fx="gradients"][data-card-gradients="off"] :is(
+  .card,
+  .hero,
+  .weather-card,
+  .enem-card,
+  .performance-card,
+  .pv-feature--dark,
+  .pv-feature--lime,
+  .pv-feature--quote,
+  .profile-hero,
+  .radar-hero,
+  .tema-card,
+  .score-hero,
+  .comps-card,
+  .feedback-block,
+  .prob-hero,
+  .detail-error,
+  .material-box,
+  .material-card,
+  .criteria-card,
+  .intro-card-option,
+  .ap-color-btn,
+  .ap-font-btn,
+  .ap-fx-btn,
+  .ap-layout-btn,
+  .theme-icon-opt,
+  .stat-small,
+  .settings-icon,
+  .weather-settings-card,
+  .ai-pref-card,
+  .quota-card,
+  .meu-plano-card,
+  .avatar-card,
+  .backup-card,
+  .planos-hero,
+  .pricing-card,
+  .planos-change-card,
+  .faq-item
+) {
+  background: var(--bg2) !important;
+  background-image: none !important;
+}
+
 /* ── FX CONSISTENCY - Minimalista padronizado ── */
 /* Todos os modos usam a mesma base limpa. Gradients adiciona só fundo do app. */
 
@@ -1597,7 +1644,7 @@ html[data-fx="none"] :is(
   box-shadow: none !important;
 }
 
-html[data-fx="gradients"] :is(
+html[data-fx="gradients"][data-card-gradients="on"] :is(
   .card,
   .hero,
   .weather-card,
@@ -1652,7 +1699,7 @@ html[data-fx="gradients"] :is(
   box-shadow: var(--surface-shadow-sm) !important;
 }
 
-html[data-fx="gradients"] .pv-feature--lime {
+html[data-fx="gradients"][data-card-gradients="on"] .pv-feature--lime {
   background:
     radial-gradient(circle at top right, rgba(255, 255, 255, 0.18), transparent 28%),
     linear-gradient(145deg, rgba(var(--accent-rgb), 0.3), rgba(var(--accent-rgb), 0.14)) !important;

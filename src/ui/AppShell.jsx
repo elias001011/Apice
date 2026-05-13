@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { ThemeToggleButton } from './ThemeToggleButton.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { useAppBusy } from './AppBusyContext.jsx'
@@ -17,12 +17,14 @@ import { QuotaLimitBanner } from './QuotaLimitBanner.jsx'
 
 export function AppShell() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const { busy } = useAppBusy()
   const { theme, accent } = useTheme()
   const [avatarSettings, setAvatarSettings] = useState(() => loadAvatarSettings())
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
   const mobileMoreRef = useRef(null)
+  const isProfessorRoute = location.pathname.startsWith('/professor')
 
   useEffect(() => {
     const refresh = () => setAvatarSettings(loadAvatarSettings())
@@ -66,10 +68,10 @@ export function AppShell() {
 
   return (
     <UpgradeModalProvider>
-      <div className="app-shell">
+      <div className={`app-shell${isProfessorRoute ? ' app-shell--professor' : ''}`}>
         <div className="app-scene" aria-hidden="true" />
 
-        <nav className="nav">
+        {!isProfessorRoute && <nav className="nav">
           <div className="nav-inner">
             <NavLink to="/home" className="nav-logo">
               Áp<em>i</em>ce
@@ -182,13 +184,13 @@ export function AppShell() {
               </NavLink>
             </div>
           </div>
-        </nav>
+        </nav>}
 
-        <main className="main">
-          <QuotaLimitBanner />
+        <main className={`main${isProfessorRoute ? ' main--professor' : ''}`}>
+          {!isProfessorRoute && <QuotaLimitBanner />}
           <Outlet />
         </main>
-        <Footer />
+        {!isProfessorRoute && <Footer />}
         <ConquistaToast />
 
         {busy && (
@@ -206,12 +208,12 @@ export function AppShell() {
           </div>
         )}
 
-        <nav className="bottom-tab" aria-label="Navegação principal">
+        {!isProfessorRoute && <nav className="bottom-tab" aria-label="Navegação principal">
           <TabLink to="/home" label="Início" icon="home" />
           <TabLink to="/corretor" label="Corretor" icon="edit" />
           <TabLink to="/radar" label="Radar" icon="radar" />
           <TabLink to="/perfil" label="Perfil" icon="user" />
-        </nav>
+        </nav>}
       </div>
     </UpgradeModalProvider>
   )

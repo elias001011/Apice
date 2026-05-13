@@ -169,7 +169,7 @@ const upgradeModalCss = `
     border-bottom: 1px solid var(--border);
   }
 
-  html[data-fx="gradients"] .upgrade-header {
+  html[data-fx="gradients"][data-card-gradients="on"] .upgrade-header {
     background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.1), transparent);
   }
 

@@ -26,7 +26,7 @@
   z-index: 0;
 }
 
-html[data-fx="gradients"] .quota-banner {
+html[data-fx="gradients"][data-card-gradients="on"] .quota-banner {
   background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.01), transparent 70%), var(--bg2);
   border-color: rgba(var(--accent-rgb), 0.06);
 }

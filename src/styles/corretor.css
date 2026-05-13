@@ -263,7 +263,7 @@
   box-shadow: 0 14px 32px rgba(8, 9, 4, 0.05);
 }
 
-html[data-fx="gradients"] .material-box {
+html[data-fx="gradients"][data-card-gradients="on"] .material-box {
   background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.015), transparent 62%), var(--bg3);
 }
 
@@ -478,7 +478,7 @@ html[data-fx="gradients"] .material-box {
 
 .main-submit {
   margin-top: 1rem;
-  box-shadow: 0 14px 32px rgba(var(--accent-rgb), 0.16);
+  box-shadow: none;
 }
 
 .main-reset-btn {
@@ -565,13 +565,13 @@ html[data-fx="gradients"][data-card-gradients="on"] .criteria-card {
 }
 
 .modo-rigido .main-submit {
-  background: linear-gradient(180deg, rgba(225, 90, 90, 0.12), rgba(225, 90, 90, 0.05));
-  color: var(--text);
-  box-shadow: 0 12px 24px rgba(225, 90, 90, 0.08);
+  background: var(--rigid-red);
+  color: #fff;
+  box-shadow: none;
 }
 
 .modo-rigido .main-submit:hover {
-  background: linear-gradient(180deg, rgba(225, 90, 90, 0.16), rgba(225, 90, 90, 0.08));
+  background: #d94e4e;
 }
 
 .modo-rigido .main-reset-btn {

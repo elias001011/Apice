@@ -156,6 +156,48 @@ export async function chamarIAEspecifica({ provider, systemPrompt, userMessages 
   return data
 }
 
+export async function chamarProfessorIA({
+  message,
+  history = [],
+  chatTitle = '',
+  shouldGenerateTitle = false,
+  retryOf = '',
+} = {}) {
+  if (!canConsumeFreePlan('professorChat')) {
+    throw createQuotaError(buildQuotaBlockedMessage('Professor IA'))
+  }
+
+  const responsePreference = loadAiResponsePreferenceText()
+  const res = await authFetch('/.netlify/functions/professor-ia', {
+    method: 'POST',
+    body: JSON.stringify({
+      message,
+      history,
+      chatTitle,
+      shouldGenerateTitle,
+      retryOf,
+      ...(responsePreference ? { responsePreference } : {}),
+    }),
+  })
+
+  if (!res.ok) {
+    const error = await createAiRequestError(res, 'Erro ao chamar o Professor IA.')
+
+    const authStatus = res.status === 401 ? ' (AUTH: faça logout e login novamente)' : ''
+    const providerStatus = res.status === 502 ? ' (PROVIDER: indisponibilidade temporária da IA)' : ''
+
+    console.error(
+      `[aiService] Falha no Professor IA. HTTP ${res.status}: ${error.message}${authStatus}${providerStatus}`
+    )
+
+    throw error
+  }
+
+  const data = await res.json()
+  consumeFreePlan('professorChat')
+  return data
+}
+
 export function salvarNoHistorico(resultadoJSON, temaStr, redacao = '') {
   // Histórico local para recuperar correções antigas sem depender de backend.
   try {

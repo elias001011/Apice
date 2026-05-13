@@ -118,6 +118,66 @@ const GROQ_SEARCH_SETTINGS = {
   exclude_domains: ['wikipedia.org', 'youtube.com', 'tiktok.com', 'facebook.com', 'instagram.com'],
 }
 
+const PROFESSOR_TOOL_DEFINITIONS = [
+  {
+    type: 'function',
+    function: {
+      name: 'pesquisar_web',
+      description: 'Pesquisa dados recentes e verificáveis na web quando a resposta depende de atualidades, fontes ou fatos que podem ter mudado.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Consulta curta e objetiva em português do Brasil.',
+          },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'criar_questoes_interativas',
+      description: 'Cria um mini-card interativo com 5 questões e 4 alternativas selecionáveis para o aluno praticar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          titulo: {
+            type: 'string',
+            description: 'Título curto do treino.',
+          },
+          questoes: {
+            type: 'array',
+            minItems: 5,
+            maxItems: 5,
+            items: {
+              type: 'object',
+              properties: {
+                enunciado: { type: 'string' },
+                opcoes: {
+                  type: 'array',
+                  minItems: 4,
+                  maxItems: 4,
+                  items: { type: 'string' },
+                },
+                correta: {
+                  type: 'string',
+                  description: 'Alternativa correta. Use A, B, C ou D.',
+                },
+                explicacao: { type: 'string' },
+              },
+              required: ['enunciado', 'opcoes', 'correta', 'explicacao'],
+            },
+          },
+        },
+        required: ['questoes'],
+      },
+    },
+  },
+]
+
 function envBool(name, fallback = false) {
   const value = process.env[name]
   if (value == null || value === '') return fallback
@@ -523,7 +583,9 @@ function buildEssayThemeFitHint(redacao, tema) {
 function buildEssayWritingQualityHint(redacao) {
   const text = String(redacao ?? '').trim()
   const essayTokens = tokenize(text)
+  const rawWords = text.split(/\s+/).map(word => word.trim()).filter(Boolean)
   const wordCount = essayTokens.length
+  const rawWordCount = rawWords.length
   const paragraphCount = text
     ? text.split(/\n+/).map(line => line.trim()).filter(Boolean).length || 1
     : 0
@@ -533,8 +595,25 @@ function buildEssayWritingQualityHint(redacao) {
   const uniqueRatio = wordCount > 0 ? new Set(essayTokens).size / wordCount : 0
   const normalizedText = normalizeText(text)
   const transitionHits = ESSAY_TRANSITION_MARKERS.filter(marker => normalizedText.includes(marker)).length
+  const alphaChars = (text.match(/[A-Za-zÀ-ÿ]/g) || []).length
+  const visibleChars = text.replace(/\s/g, '').length
+  const alphaRatio = visibleChars > 0 ? alphaChars / visibleChars : 0
+  const repeatedTokenRatio = rawWordCount > 0
+    ? rawWords.filter((word, index, arr) => arr.indexOf(word) !== index).length / rawWordCount
+    : 0
+  const hasArgumentMarkers = [
+    'portanto',
+    'nesse contexto',
+    'dessa forma',
+    'em suma',
+    'além disso',
+    'alem disso',
+    'deve',
+    'necessário',
+    'necessario',
+  ].some(marker => normalizedText.includes(marker))
 
-  const lengthScore = clampNumber(wordCount / 220, 0, 1)
+  const lengthScore = clampNumber(rawWordCount / 220, 0, 1)
   const diversityScore = clampNumber(uniqueRatio, 0, 1)
   const structureScore = clampNumber(
     ((paragraphCount / 4) * 0.45)
@@ -554,12 +633,24 @@ function buildEssayWritingQualityHint(redacao) {
 
   return {
     wordCount,
+    rawWordCount,
     paragraphCount,
     sentenceCount,
     uniqueRatio: Number(uniqueRatio.toFixed(2)),
+    alphaRatio: Number(alphaRatio.toFixed(2)),
+    repeatedTokenRatio: Number(repeatedTokenRatio.toFixed(2)),
     transitionHits,
+    hasArgumentMarkers,
     richnessScore: Number(richnessScore.toFixed(2)),
-    summary: `Texto com ${wordCount} palavra(s), ${paragraphCount} parágrafo(s) e ${Math.round(uniqueRatio * 100)}% de variedade lexical.`,
+    isTooShort: rawWordCount < 80,
+    isBarelyEssay: rawWordCount < 45 || paragraphCount < 2,
+    isLikelyNonsense: (
+      rawWordCount < 25
+      || alphaRatio < 0.68
+      || (rawWordCount >= 30 && repeatedTokenRatio > 0.42 && uniqueRatio < 0.42)
+      || (rawWordCount >= 60 && !hasArgumentMarkers && paragraphCount <= 1 && sentenceCount <= 3)
+    ),
+    summary: `Texto com ${rawWordCount} palavra(s), ${paragraphCount} parágrafo(s), ${sentenceCount} período(s) e ${Math.round(uniqueRatio * 100)}% de variedade lexical.`,
   }
 }
 
@@ -609,10 +700,12 @@ function buildThemeSystemPrompt(searchBundle, responsePreference) {
   // Ele recebe o resultado da busca e transforma isso em tema + material estilo ENEM.
   const lines = [
     'Você é um gerador de temas de redação estilo ENEM.',
-    'Crie um tema atual, socialmente relevante e com boa chance de virar proposta de redação.',
+    'Crie um tema atual, socialmente relevante e plausível para treino de redação, sem vender certeza sobre a prova.',
     'O material de apoio deve parecer ENEM: curto, factual, organizado em cards e com fontes visíveis.',
     'Não escreva um textão corrido no material.',
     'Use o contexto factual abaixo, mas não copie os trechos.',
+    'Evite temas genéricos demais: recorte o problema social com clareza, agente afetado e conflito público.',
+    'Se o contexto factual for fraco, seja cauteloso e use fontes como apoio, não como estatística inventada.',
     'Responda somente com JSON válido e siga exatamente este formato:',
     '{',
     '  "tema": "tema único e direto",',
@@ -653,6 +746,8 @@ function buildFallbackThemeSystemPrompt(responsePreference) {
     'Você é um gerador de temas de redação estilo ENEM.',
     'Crie um tema atual, socialmente relevante e com material de apoio organizado.',
     'O material deve ser curto, factual e em formato de cards.',
+    'Não invente percentuais, leis ou nomes de instituições. Se não houver fonte, formule como contexto geral.',
+    'O tema precisa ter recorte social claro e permitir proposta de intervenção.',
     'Responda somente com JSON válido e siga exatamente este formato:',
     '{',
     '  "tema": "tema único e direto",',
@@ -750,7 +845,9 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, theme
     '2. ANÁLISE DENSA: Use as chaves "pontoForte", "atencao" e "principalMelhorar" para ser detalhista e pedagógico.',
     '3. RIGOR TÉCNICO: Se houver cópia literal do material de apoio, zere a produtividade do repertório (C2) e puna C3.',
     '4. FUGA AO TEMA: Se o texto ignorar o recorte central, a nota total deve ser zero.',
-    '5. ESCALA REAL: Use apenas as notas 0, 40, 80, 120, 160, 200 por competência. Se estiver em dúvida, opte pela nota inferior.',
+    '5. TEXTO SEM SENTIDO: Se a redação for desconexa, muito curta, sem tese, sem argumentação ou não configurar gênero dissertativo-argumentativo, dê zero ou nota extremamente baixa.',
+    '6. NOTA REALISTA: Não premie intenção. Avalie o texto entregue. Um texto confuso, circular, contraditório ou sem progressão não pode receber nota mediana.',
+    '7. ESCALA REAL: Use apenas as notas 0, 40, 80, 120, 160, 200 por competência. Se estiver em dúvida, opte pela nota inferior.',
     '',
     'Formato de Resposta (JSON estrito):',
     '{',
@@ -778,6 +875,8 @@ function buildCorrectionSystemPrompt({ tema, material, isRigido, copyHint, theme
     copyHint.copiedPhrases.length > 0 ? `- Trechos repetidos: ${copyHint.copiedPhrases.join(' | ')}` : '',
     `- Aderência ao Tema: ${themeHint?.summary || 'N/A'}`,
     `- Qualidade da Escrita: ${qualityHint?.summary || 'N/A'}`,
+    qualityHint?.isLikelyNonsense ? '- ALERTA CRÍTICO: a heurística local encontrou sinais de texto insuficiente/sem sentido. Só não zere se houver argumento claro e avaliável.' : '',
+    qualityHint?.isTooShort ? '- ALERTA DE TAMANHO: texto curto. Limite a nota se faltar desenvolvimento real.' : '',
   ]
 
   appendResponsePreference(lines, responsePreference)
@@ -816,6 +915,30 @@ function calibrateEssayFeedbackScore(result, context = {}) {
 
   const themeHint = context.themeHint || buildEssayThemeFitHint(context.redacao, context.tema)
   const qualityHint = context.qualityHint || buildEssayWritingQualityHint(context.redacao)
+
+  if (qualityHint?.isLikelyNonsense) {
+    const zeroedCompetencias = ensureArray(normalized.competencias).map((competencia) => ({
+      ...competencia,
+      nota: 0,
+      descricao: competencia?.descricao || 'Texto insuficiente ou sem desenvolvimento inteligível para avaliação pela matriz ENEM.',
+    }))
+
+    return {
+      ...normalized,
+      competencias: zeroedCompetencias,
+      notaTotal: 0,
+      atencao: 'O texto foi zerado por insuficiência textual, ausência de desenvolvimento argumentativo ou sinais de conteúdo sem sentido.',
+      principalMelhorar: 'Escreva uma redação dissertativo-argumentativa completa, com tese, dois argumentos desenvolvidos e proposta de intervenção.',
+      temaAderencia: {
+        fitScore: themeHint.fitScore,
+        fitLevel: themeHint.fitLevel,
+        sharedTokens: themeHint.sharedTokens,
+        themeTokenCount: themeHint.themeTokenCount,
+        wordCount: qualityHint.rawWordCount,
+        richnessScore: qualityHint.richnessScore,
+      },
+    }
+  }
 
   if (themeHint?.isOffTopic) {
     const zeroedCompetencias = ensureArray(normalized.competencias).map((competencia) => ({
@@ -874,11 +997,17 @@ function calibrateEssayFeedbackScore(result, context = {}) {
       multiplier = clampNumber(overallMultiplier * coesaoMultiplier, 0, 1)
     }
 
-    const adjusted = clampNumber(
+    let adjusted = clampNumber(
       roundScore(baseScore * multiplier),
       0,
       200,
     )
+
+    if (qualityHint?.isBarelyEssay) {
+      adjusted = Math.min(adjusted, competenceName.includes('c1') ? 80 : 40)
+    } else if (qualityHint?.isTooShort) {
+      adjusted = Math.min(adjusted, competenceName.includes('c1') ? 120 : 80)
+    }
 
     return {
       ...competencia,
@@ -1125,6 +1254,280 @@ function normalizePromptContent(value, seen = new Set()) {
   }
 }
 
+function normalizeProfessorHistory(history = []) {
+  return ensureArray(history)
+    .map((message) => ({
+      role: message?.role === 'assistant' ? 'assistant' : 'user',
+      content: normalizePromptContent(message?.content ?? message?.text ?? message?.message),
+    }))
+    .filter((message) => message.content)
+    .slice(-18)
+}
+
+function buildProfessorSystemPrompt({ chatTitle, shouldGenerateTitle, responsePreference } = {}) {
+  const lines = [
+    'Você é o Professor Ápice, um tutor especialista em ENEM para estudantes brasileiros.',
+    'Seu papel é explicar com rigor, clareza e acolhimento, sem inventar dados.',
+    '',
+    'FORMATO FINAL OBRIGATÓRIO:',
+    '- Responda sempre com JSON válido.',
+    '- Use exatamente a chave "response" para o texto final.',
+    '- Quando este for o primeiro pedido do chat, preencha também "title" com até 5 palavras.',
+    '- O texto de "response" pode usar markdown leve: # título, ## subtítulos, listas e parágrafos curtos.',
+    '- Nunca retorne "[object Object]", nunca deixe resposta vazia e nunca exponha raciocínio interno.',
+    '',
+    'USO DE TOOLS:',
+    '- Se o aluno pedir prática, exercícios, questões, simulado curto, quiz ou treino, chame a tool "criar_questoes_interativas".',
+    '- A tool de questões deve criar exatamente 5 questões, cada uma com exatamente 4 alternativas.',
+    '- Se a resposta depender de atualidades, dados recentes, fontes, leis, números ou acontecimentos que podem ter mudado, chame a tool "pesquisar_web".',
+    '- Se uma resposta conceitual puder ser resolvida sem fonte recente, responda direto.',
+    '',
+    'QUALIDADE DIDÁTICA:',
+    '- Comece com um título curto.',
+    '- Dê uma resposta direta antes dos detalhes.',
+    '- Use subtítulos quando houver mais de uma etapa.',
+    '- Prefira exemplos próximos do ENEM.',
+    '- Se não souber ou se faltarem dados, diga isso com precisão.',
+    '- Responda em português do Brasil.',
+    '',
+    `Título atual do chat: ${String(chatTitle || 'Novo chat').trim() || 'Novo chat'}.`,
+    shouldGenerateTitle
+      ? 'Este é o começo do chat: gere um "title" curto e específico a partir da primeira mensagem.'
+      : 'Não altere o título se ele já estiver adequado; omita "title" se não houver uma melhoria clara.',
+  ]
+
+  appendResponsePreference(lines, responsePreference)
+  return lines.join('\n')
+}
+
+function normalizeProfessorOptionText(value) {
+  return String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, 500)
+}
+
+function normalizeProfessorToolQuestions(rawQuestions) {
+  return ensureArray(rawQuestions)
+    .map((question, index) => {
+      const enunciado = String(question?.enunciado ?? question?.pergunta ?? question?.statement ?? '').trim().slice(0, 1200)
+      const opcoes = ensureArray(question?.opcoes ?? question?.alternativas ?? question?.options)
+        .map((option) => normalizeProfessorOptionText(option?.texto ?? option?.text ?? option))
+        .filter(Boolean)
+        .slice(0, 4)
+
+      if (!enunciado || opcoes.length !== 4) return null
+
+      const rawCorrect = question?.correta ?? question?.respostaCorreta ?? question?.correctIndex ?? question?.correct
+      let correta = Number.isFinite(Number(rawCorrect)) ? Number(rawCorrect) : -1
+      if (typeof rawCorrect === 'string') {
+        const letterIndex = ['a', 'b', 'c', 'd'].indexOf(rawCorrect.trim().toLowerCase())
+        if (letterIndex >= 0) correta = letterIndex
+      }
+      if (correta < 0 || correta > 3) correta = 0
+
+      return {
+        id: String(question?.id ?? `q-${Date.now()}-${index}`).trim(),
+        enunciado,
+        opcoes,
+        correta,
+        explicacao: String(question?.explicacao ?? question?.explanation ?? question?.feedback ?? '').trim().slice(0, 1200),
+      }
+    })
+    .filter(Boolean)
+    .slice(0, 5)
+}
+
+function normalizeProfessorSources(rawSources) {
+  return ensureArray(rawSources)
+    .map((source) => ({
+      nome: String(source?.nome ?? source?.fonte ?? source?.title ?? extractDomain(source?.url)).trim().slice(0, 120),
+      url: String(source?.url ?? '').trim().slice(0, 500),
+      trecho: String(source?.trecho ?? source?.texto ?? source?.content ?? '').trim().slice(0, 300),
+    }))
+    .filter((source) => source.nome || source.url || source.trecho)
+    .slice(0, 8)
+}
+
+function normalizeProfessorReplyPayload(result, extras = {}) {
+  const parsed = typeof result === 'string'
+    ? (safeJsonParse(result) || { response: result })
+    : isPlainObject(result)
+      ? result
+      : {}
+
+  const response = normalizePromptContent(
+    parsed.response
+    ?? parsed.text
+    ?? parsed.resposta
+    ?? parsed.message
+    ?? parsed.content
+    ?? '',
+  )
+
+  const questions = normalizeProfessorToolQuestions(
+    parsed.questions
+    ?? parsed.questoes
+    ?? parsed.interactiveQuestions
+    ?? extras.questions,
+  )
+
+  const sources = normalizeProfessorSources([
+    ...ensureArray(parsed.sources ?? parsed.fontes),
+    ...ensureArray(extras.sources),
+  ])
+
+  return {
+    response: response || 'Não consegui estruturar uma resposta útil agora. Tente reformular a pergunta em uma frase mais específica.',
+    title: String(parsed.title ?? parsed.titulo ?? extras.title ?? '').trim().slice(0, 80),
+    questions,
+    sources,
+    provider: String(extras.provider ?? parsed.provider ?? 'ai').trim() || 'ai',
+    modelVariant: String(extras.modelVariant ?? parsed.modelVariant ?? '').trim(),
+    usedTools: ensureArray(extras.usedTools ?? parsed.usedTools).map(String).filter(Boolean),
+  }
+}
+
+async function runGroqProfessorWithTools({
+  systemPrompt,
+  userMessages,
+  modelVariant = 'secondary',
+  modelOverride = '',
+}) {
+  const apiKey = process.env.GROQ_API_KEY || process.env.GROQ
+  if (!apiKey || apiKey === 'undefined') {
+    throw new Error('GROQ key missing')
+  }
+
+  const baseMessages = buildOpenAICompatibleMessages(systemPrompt, userMessages)
+  const model = resolveProviderModel('groq', modelVariant, modelOverride)
+  const initialPayload = {
+    model,
+    messages: baseMessages,
+    tools: PROFESSOR_TOOL_DEFINITIONS,
+    tool_choice: 'auto',
+    parallel_tool_calls: false,
+    temperature: 0.25,
+    max_tokens: 4096,
+  }
+
+  const firstData = await postJson(
+    'https://api.groq.com/openai/v1/chat/completions',
+    initialPayload,
+    { Authorization: `Bearer ${apiKey}` },
+    TEXT_TIMEOUT_MS + 10000,
+  )
+
+  const firstMessage = firstData?.choices?.[0]?.message ?? {}
+  const toolCalls = ensureArray(firstMessage.tool_calls)
+
+  if (toolCalls.length === 0) {
+    return normalizeProfessorReplyPayload(firstMessage.content || '', {
+      provider: 'groq',
+      modelVariant,
+    })
+  }
+
+  const toolMessages = [
+    ...baseMessages,
+    {
+      role: 'assistant',
+      content: firstMessage.content || null,
+      tool_calls: toolCalls,
+    },
+  ]
+  const collectedQuestions = []
+  const collectedSources = []
+  const usedTools = []
+
+  for (const toolCall of toolCalls) {
+    const name = String(toolCall?.function?.name ?? '').trim()
+    const args = safeJsonParse(toolCall?.function?.arguments || '{}') || {}
+    usedTools.push(name)
+
+    if (name === 'pesquisar_web') {
+      const query = String(args.query ?? '').trim()
+      let searchBundle = null
+      try {
+        searchBundle = await searchContext(query)
+        collectedSources.push(...normalizeProfessorSources(searchBundle?.fontes))
+      } catch (error) {
+        searchBundle = {
+          resumo: `Falha na pesquisa web: ${error?.message || 'indisponível'}`,
+          cards: [],
+          fontes: [],
+        }
+      }
+
+      toolMessages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        name,
+        content: JSON.stringify({
+          resumo: searchBundle?.resumo || '',
+          cards: ensureArray(searchBundle?.cards).slice(0, 5),
+          fontes: ensureArray(searchBundle?.fontes).slice(0, 6),
+        }),
+      })
+      continue
+    }
+
+    if (name === 'criar_questoes_interativas') {
+      const questions = normalizeProfessorToolQuestions(args.questoes ?? args.questions)
+      collectedQuestions.push(...questions)
+      toolMessages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        name,
+        content: JSON.stringify({
+          ok: questions.length === 5,
+          total: questions.length,
+          instrucoes: 'O card interativo foi criado. Na resposta final, explique rapidamente como o aluno deve usar o card.',
+        }),
+      })
+      continue
+    }
+
+    toolMessages.push({
+      role: 'tool',
+      tool_call_id: toolCall.id,
+      name,
+      content: JSON.stringify({ ok: false, error: 'Tool desconhecida.' }),
+    })
+  }
+
+  toolMessages.push({
+    role: 'user',
+    content: [
+      'Agora responda ao aluno com JSON válido.',
+      'Use "response" para o texto final.',
+      collectedQuestions.length > 0 ? 'Não reescreva todas as questões no texto: o card interativo será exibido separado.' : '',
+      collectedSources.length > 0 ? 'Cite no texto que você usou pesquisa factual, sem inventar fontes além das recebidas.' : '',
+    ].filter(Boolean).join('\n'),
+  })
+
+  const finalPayload = {
+    model,
+    messages: toolMessages,
+    temperature: 0.22,
+    max_tokens: 4096,
+    response_format: { type: 'json_object' },
+  }
+
+  const finalData = await postJson(
+    'https://api.groq.com/openai/v1/chat/completions',
+    finalPayload,
+    { Authorization: `Bearer ${apiKey}` },
+    TEXT_TIMEOUT_MS + 10000,
+  )
+
+  const content = finalData?.choices?.[0]?.message?.content || ''
+  return normalizeProfessorReplyPayload(content, {
+    questions: collectedQuestions,
+    sources: collectedSources,
+    provider: 'groq',
+    modelVariant,
+    usedTools,
+  })
+}
+
 async function runGroqSearch({ query }) {
   const apiKey = process.env.GROQ_API_KEY || process.env.GROQ
   if (!apiKey || apiKey === 'undefined') {
@@ -1345,7 +1748,15 @@ async function runGroqText({
   return parsed
 }
 
-async function runGeminiText({ systemPrompt, userMessages, modelVariant = 'primary', modelOverride = '' }) {
+async function runGeminiText({
+  systemPrompt,
+  userMessages,
+  modelVariant = 'primary',
+  modelOverride = '',
+  temperature = 0.25,
+  thinkingLevel = '',
+  thinkingBudget = null,
+}) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GEMINI
   if (!apiKey || apiKey === 'undefined') {
     throw new Error('Gemini key missing')
@@ -1356,16 +1767,30 @@ async function runGeminiText({ systemPrompt, userMessages, modelVariant = 'prima
     parts: [{ text: String(message.content ?? '') }],
   }))
 
+  const resolvedModel = resolveProviderModel('gemini', modelVariant, modelOverride)
+  const generationConfig = {
+    temperature,
+    responseMimeType: 'application/json',
+  }
+  const normalizedThinkingLevel = String(thinkingLevel ?? '').trim().toLowerCase()
+
+  if (normalizedThinkingLevel) {
+    generationConfig.thinkingConfig = {
+      thinkingLevel: normalizedThinkingLevel,
+    }
+  } else if (Number.isFinite(Number(thinkingBudget))) {
+    generationConfig.thinkingConfig = {
+      thinkingBudget: Number(thinkingBudget),
+    }
+  }
+
   const payload = {
     contents,
-    generationConfig: {
-      temperature: 0.25,
-      responseMimeType: 'application/json',
-    },
+    generationConfig,
   }
 
   const data = await postJson(
-    `https://generativelanguage.googleapis.com/v1beta/models/${resolveProviderModel('gemini', modelVariant, modelOverride)}:generateContent?key=` + encodeURIComponent(apiKey),
+    `https://generativelanguage.googleapis.com/v1beta/models/${resolvedModel}:generateContent?key=` + encodeURIComponent(apiKey),
     payload,
     {},
     TEXT_TIMEOUT_MS,
@@ -1546,6 +1971,71 @@ export async function generateTextDirect({
     userMessages,
     modelVariant,
     modelOverride,
+  })
+}
+
+export async function generateProfessorReply({
+  message,
+  history = [],
+  chatTitle = '',
+  shouldGenerateTitle = false,
+  retryOf = '',
+  responsePreference,
+} = {}) {
+  const normalizedMessage = String(message ?? '').trim()
+  if (!normalizedMessage) {
+    throw new Error('message é obrigatório para o Professor IA')
+  }
+
+  const systemPrompt = buildProfessorSystemPrompt({
+    chatTitle,
+    shouldGenerateTitle,
+    responsePreference,
+  })
+
+  const recentHistory = normalizeProfessorHistory(history)
+  const userMessages = [
+    ...recentHistory,
+    {
+      role: 'user',
+      content: [
+        retryOf ? `Pedido de regeneração da resposta anterior: ${retryOf}` : '',
+        normalizedMessage,
+      ].filter(Boolean).join('\n\n'),
+    },
+  ]
+
+  try {
+    return await runGroqProfessorWithTools({
+      systemPrompt,
+      userMessages,
+      modelVariant: 'secondary',
+    })
+  } catch (secondaryError) {
+    console.error('[AI][professor] Groq secondary tools failed, falling back to normal pipeline:', secondaryError?.message || secondaryError)
+  }
+
+  const fallbackSystemPrompt = [
+    systemPrompt,
+    '',
+    'Fallback sem tools:',
+    '- Se o aluno pediu questões, inclua uma chave "questions" com exatamente 5 questões de 4 opções no JSON final.',
+    '- Se o aluno pediu dados recentes e você não tiver certeza, diga que não conseguiu pesquisar agora em vez de inventar.',
+  ].join('\n')
+
+  const result = await runPipeline('text', {
+    systemPrompt: fallbackSystemPrompt,
+    userMessages,
+    temperature: 0.25,
+    maxTokens: 4096,
+  }, {
+    chatTitle,
+    shouldGenerateTitle,
+  })
+
+  return normalizeProfessorReplyPayload(result, {
+    provider: result?.provider || 'pipeline',
+    modelVariant: 'fallback',
   })
 }
 
@@ -1805,6 +2295,7 @@ function buildRadarSystemPrompt(searchBundle, responsePreference, enemLabel) {
   const lines = [
     `Você é um analista de tendências para temas de redação estilo ${enemLabel}.`,
     'Use o contexto factual pesquisado para sugerir apenas os temas mais prováveis.',
+    'As probabilidades são estimativas pedagógicas, não previsões absolutas; mantenha coerência e cautela.',
     'Retorne somente a lista principal de temas, sem detalhes explicativos.',
     'Responda somente com JSON válido e siga exatamente este formato:',
     '{',
@@ -1825,6 +2316,8 @@ function buildRadarSystemPrompt(searchBundle, responsePreference, enemLabel) {
     '- Destaque os 2 primeiros como hot.',
     '- Misture áreas sociais, culturais e científicas.',
     '- Evite repetir o mesmo assunto com palavras diferentes.',
+    '- Penalize temas que dependam de evento passageiro sem conexão estrutural com problemas brasileiros.',
+    '- Prefira recortes que permitam tese, repertório e intervenção viável.',
     '',
     'Contexto factual pesquisado:',
     flattenSearchContext(searchBundle),
@@ -2182,6 +2675,9 @@ export async function correctEssay({ redacao, tema, material, isRigido, response
       systemPrompt,
       userMessages,
       modelVariant: 'tertiary',
+      reasoningEffort: 'high',
+      includeReasoning: false,
+      temperature: 0.12,
     })
 
     return calibrateEssayFeedbackScore(groqTertiaryResult, {
@@ -2199,6 +2695,12 @@ export async function correctEssay({ redacao, tema, material, isRigido, response
   const result = await runPipeline('text', {
     systemPrompt,
     userMessages,
+    reasoningEffort: 'high',
+    includeReasoning: false,
+    thinkingLevel: 'high',
+    thinkingBudget: 4096,
+    temperature: 0.12,
+    maxTokens: 6144,
   }, { copyHint, tema, material })
 
   return calibrateEssayFeedbackScore(result, {

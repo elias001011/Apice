@@ -22,6 +22,7 @@ const GUEST_ALLOWED_PATHS = new Set([
   '/.netlify/functions/gerar-tema',
   '/.netlify/functions/corrigir-redacao',
   '/.netlify/functions/chamar-ia',
+  '/.netlify/functions/professor-ia',
   '/.netlify/functions/buscar-contexto',
   '/.netlify/functions/gerar-radar',
   '/.netlify/functions/gerar-radar-detalhe',

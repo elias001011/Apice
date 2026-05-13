@@ -783,7 +783,7 @@ const planosCss = `
     overflow: hidden;
   }
 
-  html[data-fx="gradients"] .planos-hero {
+  html[data-fx="gradients"][data-card-gradients="on"] .planos-hero {
     background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.05), transparent 58%), var(--bg2);
   }
 
@@ -1083,7 +1083,7 @@ const planosCss = `
     padding: 1rem;
   }
 
-  html[data-fx="gradients"] .planos-change-card {
+  html[data-fx="gradients"][data-card-gradients="on"] .planos-change-card {
     background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.03), transparent 58%), var(--bg2);
   }
 
@@ -1126,7 +1126,7 @@ const planosCss = `
     border-color: var(--accent2);
   }
 
-  html[data-fx="gradients"] .pricing-card {
+  html[data-fx="gradients"][data-card-gradients="on"] .pricing-card {
     background: linear-gradient(160deg, rgba(var(--accent-rgb), 0.01), transparent 72%), var(--bg2);
   }
 
@@ -1284,7 +1284,7 @@ const planosCss = `
     padding: 1rem 1.1rem;
   }
 
-  html[data-fx="gradients"] .faq-item {
+  html[data-fx="gradients"][data-card-gradients="on"] .faq-item {
     background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.015), transparent 60%), var(--bg2);
   }
 
