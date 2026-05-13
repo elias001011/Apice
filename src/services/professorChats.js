@@ -71,6 +71,43 @@ function extractQuestionOptions(question) {
     .slice(0, 4)
 }
 
+function moveCorrectOption(question, targetIndex) {
+  const options = Array.isArray(question?.opcoes) ? question.opcoes.slice(0, 4) : []
+  const currentIndex = Number(question?.correta)
+  if (options.length !== 4 || currentIndex === targetIndex) return question
+
+  const correctOption = options[currentIndex]
+  const remaining = options.filter((_, index) => index !== currentIndex)
+  const reordered = []
+
+  for (let index = 0; index < 4; index += 1) {
+    reordered[index] = index === targetIndex ? correctOption : remaining.shift()
+  }
+
+  return {
+    ...question,
+    opcoes: reordered,
+    correta: targetIndex,
+  }
+}
+
+function balanceQuestionAnswers(questions = []) {
+  const normalized = Array.isArray(questions) ? questions : []
+  if (normalized.length < 2) return normalized
+
+  const counts = normalized.reduce((acc, question) => {
+    const index = Number(question?.correta)
+    acc[index] = (acc[index] || 0) + 1
+    return acc
+  }, {})
+  const maxAllowed = Math.ceil(normalized.length / 4)
+  const needsBalance = Object.values(counts).some((count) => count > maxAllowed)
+  if (!needsBalance) return normalized
+
+  const pattern = [0, 1, 2, 3]
+  return normalized.map((question, index) => moveCorrectOption(question, pattern[index % pattern.length]))
+}
+
 function nowIso() {
   return new Date().toISOString()
 }
@@ -153,7 +190,7 @@ export function normalizeProfessorQuestions(rawQuestions) {
       ? Object.values(rawQuestions)
       : []
 
-  return questionList
+  const normalizedQuestions = questionList
     .map((question, index) => {
       const statement = trimText(question?.enunciado ?? question?.statement ?? question?.pergunta, 1200)
       const options = extractQuestionOptions(question)
@@ -179,6 +216,8 @@ export function normalizeProfessorQuestions(rawQuestions) {
     })
     .filter(Boolean)
     .slice(0, 5)
+
+  return balanceQuestionAnswers(normalizedQuestions)
 }
 
 export function normalizeProfessorMessages(rawMessages) {

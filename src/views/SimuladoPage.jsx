@@ -69,8 +69,31 @@ const AREA_ICONS = {
   ),
 }
 
+const AREA_TONES = {
+  Linguagens: 'Leitura, repertório e interpretação',
+  Humanas: 'Tempo, espaço, sociedade e política',
+  Natureza: 'Fenômenos, vida, matéria e energia',
+  Matematica: 'Modelagem, lógica e resolução',
+}
+
 function clamp(n) {
   return Math.min(MAX_Q, Math.max(MIN_Q, Math.round(Number(n) || MIN_Q)))
+}
+
+function getAreaConfig(areaId) {
+  return AREAS.find((area) => area.id === areaId) || null
+}
+
+function getDisciplineLabels(areaId, selected = []) {
+  const labels = new Map(getDisciplinasByArea(areaId).map((disciplina) => [disciplina.id, disciplina.label]))
+  return selected.map((disciplinaId) => labels.get(disciplinaId) || disciplinaId)
+}
+
+function buildPerformance(percentual) {
+  if (percentual >= 80) return { label: 'Excelente', hint: 'Você está dominando bem este recorte.' }
+  if (percentual >= 60) return { label: 'Bom', hint: 'Boa base. Revise os erros para consolidar.' }
+  if (percentual >= 40) return { label: 'Regular', hint: 'Há bons sinais, mas ainda existe espaço grande para revisão.' }
+  return { label: 'Precisa melhorar', hint: 'Use os erros como mapa de estudo para o próximo treino.' }
 }
 
 async function gerarSimuladoEnem({ area, disciplinas, quantidade }) {
@@ -154,7 +177,13 @@ function shuffle(arr) {
 }
 
 const STORAGE_KEY = 'apice:simulado_progresso:v2'
-function salvarProgresso(data) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, savedAt: new Date().toISOString() })) } catch {} }
+function salvarProgresso(data) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, savedAt: new Date().toISOString() }))
+  } catch {
+    // Storage pode estar indisponível em navegação privada.
+  }
+}
 function carregarProgresso() {
   try {
     const p = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
@@ -163,7 +192,13 @@ function carregarProgresso() {
     return p
   } catch { return null }
 }
-function limparProgresso() { try { localStorage.removeItem(STORAGE_KEY) } catch {} }
+function limparProgresso() {
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // Storage pode estar indisponível em navegação privada.
+  }
+}
 
 export function SimuladoPage() {
   const { beginBusy, endBusy } = useAppBusy()
@@ -241,44 +276,108 @@ export function SimuladoPage() {
   }
 
   const discs = selectedArea ? getDisciplinasByArea(selectedArea) : []
+  const selectedAreaConfig = getAreaConfig(selectedArea)
+  const selectedDiscLabels = getDisciplineLabels(selectedArea, selectedDiscs)
+  const estimatedMinutes = Math.max(5, Math.round(quantidade * 3))
 
   // ── SETUP ─────────────────────────────────────────────────────────────────
   if (step === 'setup') {
     return (
-      <div className="simulado-container">
-        <div className="simulado-header anim anim-d1">
-          <h1 className="simulado-title">Simulados ENEM</h1>
-          <p className="simulado-subtitle">
-            Questões reais do ENEM via API oficial. Se faltar, a IA completa (máx. {MAX_AI_Q} questões).
-          </p>
-        </div>
-
-        <div className="simulado-setup anim anim-d2">
-          {/* Área */}
-          <div className="setup-section">
-            <h2 className="setup-section-title">1. Área do Conhecimento</h2>
-            <div className="area-grid area-grid--big">
-              {AREAS.map(area => (
-                <button
-                  key={area.id}
-                  type="button"
-                  className={`area-card area-card--big ${selectedArea === area.id ? 'selected' : ''}`}
-                  onClick={() => handleAreaChange(area.id)}
-                >
-                  <div className="area-icon-big">{AREA_ICONS[area.id]}</div>
-                  <h3>{area.label}</h3>
-                  <p>{area.disciplinas.length} disciplinas</p>
-                </button>
-              ))}
-            </div>
+      <div className="simulado-page">
+        <section className="simulado-hero anim anim-d1">
+          <div className="simulado-hero-copy">
+            <span className="simulado-kicker">Treino adaptativo</span>
+            <h1 className="simulado-title">Monte um simulado ENEM com cara de prova real.</h1>
+            <p className="simulado-subtitle">
+              A plataforma prioriza questões reais da API ENEM e completa com IA quando o banco não fecha a quantidade escolhida.
+            </p>
           </div>
+          <div className="simulado-hero-metrics" aria-label="Resumo do sistema de simulados">
+            <div>
+              <strong>{MAX_Q}</strong>
+              <span>questões máx.</span>
+            </div>
+            <div>
+              <strong>{MAX_AI_Q}</strong>
+              <span>fallback IA</span>
+            </div>
+            <Link to="/historico-simulados">Histórico</Link>
+          </div>
+        </section>
 
-          {/* Disciplinas */}
-          {selectedArea && (
-            <div className="setup-section anim anim-d3">
+        <div className="simulado-builder anim anim-d2">
+          <aside className="simulado-summary-card" aria-label="Resumo do simulado">
+            <span className="simulado-kicker">Seu simulado</span>
+            <h2>{selectedAreaConfig?.label || 'Escolha uma área'}</h2>
+            <p>{selectedArea ? AREA_TONES[selectedArea] : 'Selecione área, disciplinas e quantidade para começar.'}</p>
+
+            <div className="simulado-summary-list">
+              <div>
+                <span>Disciplinas</span>
+                <strong>{selectedDiscs.length || 'Nenhuma'}</strong>
+              </div>
+              <div>
+                <span>Questões</span>
+                <strong>{quantidade}</strong>
+              </div>
+              <div>
+                <span>Tempo sugerido</span>
+                <strong>{estimatedMinutes} min</strong>
+              </div>
+            </div>
+
+            {selectedDiscLabels.length > 0 && (
+              <div className="simulado-selected-chips">
+                {selectedDiscLabels.map((label) => <span key={label}>{label}</span>)}
+              </div>
+            )}
+
+            {error && <p className="simulado-error">{error}</p>}
+
+            <button
+              type="button"
+              className="btn-start-simulado"
+              onClick={handleStart}
+              disabled={!selectedArea || selectedDiscs.length === 0}
+            >
+              Iniciar simulado
+            </button>
+          </aside>
+
+          <div className="simulado-setup-panel">
+            <section className="setup-section">
               <div className="setup-section-header">
-                <h2 className="setup-section-title">2. Disciplinas</h2>
-                <button type="button" className="btn-select-all" onClick={selectAll}>Todas</button>
+                <span className="setup-step">01</span>
+                <div>
+                  <h2 className="setup-section-title">Área do conhecimento</h2>
+                  <p>Comece escolhendo o eixo da prova.</p>
+                </div>
+              </div>
+              <div className="area-grid area-grid--big">
+                {AREAS.map(area => (
+                  <button
+                    key={area.id}
+                    type="button"
+                    className={`area-card area-card--big ${selectedArea === area.id ? 'selected' : ''}`}
+                    onClick={() => handleAreaChange(area.id)}
+                  >
+                    <div className="area-icon-big">{AREA_ICONS[area.id]}</div>
+                    <h3>{area.label}</h3>
+                    <p>{AREA_TONES[area.id] || `${area.disciplinas.length} disciplinas`}</p>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {selectedArea && (
+            <section className="setup-section anim anim-d3">
+              <div className="setup-section-header">
+                <span className="setup-step">02</span>
+                <div>
+                  <h2 className="setup-section-title">Disciplinas</h2>
+                  <p>Escolha um foco específico ou treine tudo da área.</p>
+                </div>
+                <button type="button" className="btn-select-all" onClick={selectAll}>Selecionar todas</button>
               </div>
               <div className="disciplinas-grid">
                 {discs.map(disc => (
@@ -288,19 +387,23 @@ export function SimuladoPage() {
                     className={`disciplina-card ${selectedDiscs.includes(disc.id) ? 'selected' : ''}`}
                     onClick={() => toggleDisc(disc.id)}
                   >
-                    <div className="disciplina-check">{selectedDiscs.includes(disc.id) ? '✓' : '○'}</div>
+                    <div className="disciplina-check">{selectedDiscs.includes(disc.id) ? '✓' : ''}</div>
                     <span>{disc.label}</span>
                   </button>
                 ))}
               </div>
-              {selectedDiscs.length > 0 && <p className="selected-count">{selectedDiscs.length} selecionada(s)</p>}
-            </div>
-          )}
+            </section>
+            )}
 
-          {/* Quantidade */}
-          {selectedDiscs.length > 0 && (
-            <div className="setup-section anim anim-d4">
-              <h2 className="setup-section-title">3. Quantidade de Questões</h2>
+            {selectedDiscs.length > 0 && (
+            <section className="setup-section anim anim-d4">
+              <div className="setup-section-header">
+                <span className="setup-step">03</span>
+                <div>
+                  <h2 className="setup-section-title">Quantidade</h2>
+                  <p>Ajuste o tamanho do treino conforme seu tempo.</p>
+                </div>
+              </div>
               <div className="quantidade-config">
                 <div className="quantidade-slider">
                   <input type="range" min={MIN_Q} max={MAX_Q} step="1" value={quantidade}
@@ -318,23 +421,10 @@ export function SimuladoPage() {
                   ))}
                 </div>
               </div>
-            </div>
-          )}
-
-          {selectedDiscs.length > 0 && (
-            <div className="setup-section anim anim-d5" style={{ textAlign: 'center' }}>
-              <button type="button" className="btn-start-simulado" onClick={handleStart}>
-                🚀 Iniciar Simulado
-              </button>
-            </div>
-          )}
-        </div>
-
-        {error && (
-          <div className="card anim anim-d1" style={{ marginTop: '2rem', borderColor: 'var(--red)' }}>
-            <p style={{ color: 'var(--red)', margin: 0, textAlign: 'center' }}>{error}</p>
+            </section>
+            )}
           </div>
-        )}
+        </div>
       </div>
     )
   }
@@ -342,11 +432,12 @@ export function SimuladoPage() {
   // ── LOADING ────────────────────────────────────────────────────────────────
   if (step === 'loading') {
     return (
-      <div className="simulado-container">
+      <div className="simulado-page simulado-page--center">
         <div className="loading-box anim anim-d1">
           <div className="spinner" />
-          <h2 className="simulado-title">Buscando questões reais...</h2>
-          <p className="simulado-subtitle">API ENEM oficial · fallback IA até {MAX_AI_Q} questões</p>
+          <span className="simulado-kicker">Preparando prova</span>
+          <h2 className="simulado-title">Buscando as melhores questões para seu treino.</h2>
+          <p className="simulado-subtitle">Primeiro a API ENEM. Se faltar questão, a IA completa com limite de {MAX_AI_Q} itens.</p>
         </div>
       </div>
     )
@@ -357,75 +448,120 @@ export function SimuladoPage() {
     const q = examData.questoes[currentQ]
     const sel = answers[q.id]
     const prog = ((currentQ + 1) / examData.questoes.length) * 100
+    const answeredCount = Object.keys(answers).length
+    const isLastQuestion = currentQ >= examData.questoes.length - 1
 
     return (
-      <div className="simulado-container">
-        <div className="simulado-nav anim anim-d1">
-          <div className="timer">{examData.area}</div>
-          <div className="progress-bar-bg">
-            <div className="progress-bar-fill" style={{ width: `${prog}%` }} />
-          </div>
-          <div className="question-count">{currentQ + 1}/{examData.questoes.length}</div>
-        </div>
+      <div className="simulado-page simulado-page--exam">
+        <div className="simulado-exam-shell">
+          <aside className="simulado-exam-rail anim anim-d1" aria-label="Navegação do simulado">
+            <span className="simulado-kicker">Simulado em andamento</span>
+            <h2>{examData.area}</h2>
+            <p>{answeredCount}/{examData.questoes.length} respondidas</p>
 
-        <div className="question-card anim anim-d2">
-          <div className="question-meta">
-            <span>{q.disciplina || examData.area}</span>
-            <span>Questão {currentQ + 1}</span>
-            {q.ano && <span>{q.ano}</span>}
-          </div>
-
-          {q.textoBase && (
-            <div className="question-text-base">
-              <SimuladoText text={q.textoBase} />
+            <div className="simulado-progress-card">
+              <div>
+                <strong>{Math.round(prog)}%</strong>
+                <span>progresso</span>
+              </div>
+              <div className="progress-bar-bg">
+                <div className="progress-bar-fill" style={{ width: `${prog}%` }} />
+              </div>
             </div>
-          )}
 
-          <div className="question-enunciado">
-            <SimuladoText text={q.enunciado} />
-          </div>
+            <div className="question-map" aria-label="Mapa de questões">
+              {examData.questoes.map((question, index) => {
+                const answered = Boolean(answers[question.id])
+                const active = index === currentQ
+                return (
+                  <button
+                    key={question.id}
+                    type="button"
+                    className={`question-map-dot ${active ? 'active' : ''} ${answered ? 'answered' : ''}`}
+                    onClick={() => {
+                      setCurrentQ(index)
+                      setShowFeedback(false)
+                    }}
+                    aria-label={`Ir para questão ${index + 1}`}
+                  >
+                    {index + 1}
+                  </button>
+                )
+              })}
+            </div>
 
-          <div className="options-list">
-            {Object.entries(q.alternativas || {}).map(([letter, text]) => {
-              let cls = 'option-item'
-              if (sel === letter) cls += ' selected'
-              if (showFeedback) {
-                cls += ' disabled'
-                if (letter === q.correta) cls += ' correct'
-                else if (sel === letter) cls += ' wrong'
-              }
-              return (
-                <button key={letter} type="button" className={cls}
-                  onClick={() => handleSelect(letter)} disabled={showFeedback}>
-                  <div className="option-letter">{letter}</div>
-                  <div className="option-text"><SimuladoText text={text} /></div>
+            {examData.alerta && (
+              <div className="simulado-alert">
+                <strong>Composição</strong>
+                <span>{examData.alerta}</span>
+              </div>
+            )}
+          </aside>
+
+          <section className="question-card anim anim-d2">
+            <div className="question-topline">
+              <div className="question-meta">
+                <span>{q.disciplina || examData.area}</span>
+                <span>Questão {currentQ + 1}</span>
+                {q.ano && <span>ENEM {q.ano}</span>}
+              </div>
+              <span className="question-count">{currentQ + 1}/{examData.questoes.length}</span>
+            </div>
+
+            {q.textoBase && (
+              <div className="question-text-base">
+                <span>Texto-base</span>
+                <SimuladoText text={q.textoBase} />
+              </div>
+            )}
+
+            <div className="question-enunciado">
+              <SimuladoText text={q.enunciado} />
+            </div>
+
+            <div className="options-list">
+              {Object.entries(q.alternativas || {}).map(([letter, text]) => {
+                let cls = 'option-item'
+                if (sel === letter) cls += ' selected'
+                if (showFeedback) {
+                  cls += ' disabled'
+                  if (letter === q.correta) cls += ' correct'
+                  else if (sel === letter) cls += ' wrong'
+                }
+                return (
+                  <button key={letter} type="button" className={cls}
+                    onClick={() => handleSelect(letter)} disabled={showFeedback}>
+                    <div className="option-letter">{letter}</div>
+                    <div className="option-text"><SimuladoText text={text} /></div>
+                  </button>
+                )
+              })}
+            </div>
+
+            {showFeedback && (
+              <div className={`feedback-box anim anim-d1 ${sel === q.correta ? 'is-correct' : 'is-wrong'}`}>
+                <div className="feedback-title">
+                  {sel === q.correta ? 'Resposta correta' : 'Resposta incorreta'}
+                </div>
+                <div className="feedback-text">
+                  <strong>Gabarito: {q.correta}</strong>
+                  {q.explicacao && <SimuladoText text={q.explicacao} />}
+                </div>
+                <button type="button" className="btn-primary question-action" onClick={handleNext}>
+                  {isLastQuestion ? 'Ver resultado final' : 'Próxima questão'}
                 </button>
-              )
-            })}
-          </div>
-
-          {showFeedback && (
-            <div className="feedback-box anim anim-d1">
-              <div className="feedback-title">
-                {sel === q.correta ? '✓ Resposta Correta!' : '✗ Resposta Incorreta'}
               </div>
-              <div className="feedback-text">
-                <strong>Gabarito: {q.correta}</strong>
-                {q.explicacao && <><br /><br /><SimuladoText text={q.explicacao} /></>}
-              </div>
-              <button type="button" className="btn-primary" onClick={handleNext}
-                style={{ marginTop: '1.5rem', width: '100%' }}>
-                {currentQ < examData.questoes.length - 1 ? 'Próxima →' : 'Ver Resultado Final'}
-              </button>
-            </div>
-          )}
+            )}
 
-          {!showFeedback && sel && (
-            <button type="button" className="btn-primary" onClick={handleConfirm}
-              style={{ marginTop: '2rem', width: '100%' }}>
-              Confirmar Resposta
-            </button>
-          )}
+            {!showFeedback && (
+              <div className="question-footer">
+                <span>{sel ? 'Alternativa selecionada. Confirme para ver a explicação.' : 'Escolha uma alternativa para continuar.'}</span>
+                <button type="button" className="btn-primary question-action" onClick={handleConfirm} disabled={!sel}>
+                  Confirmar resposta
+                </button>
+              </div>
+            )}
+          </section>
         </div>
       </div>
     )
@@ -436,30 +572,44 @@ export function SimuladoPage() {
     const total = examData.questoes.length
     const acertos = examData.questoes.filter(q => answers[q.id] === q.correta).length
     const pct = Math.round((acertos / total) * 100)
-    const perf = pct >= 80 ? 'Excelente 🏆' : pct >= 60 ? 'Bom 👍' : pct >= 40 ? 'Regular 📚' : 'Precisa melhorar 💪'
+    const performance = buildPerformance(pct)
+    const wrongQuestions = examData.questoes.filter(q => answers[q.id] !== q.correta)
 
     return (
-      <div className="simulado-container">
-        <div className="card anim anim-d1" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
-          <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text3)', marginBottom: '1rem' }}>
-            Resultado do Simulado
+      <div className="simulado-page">
+        <section className="result-card anim anim-d1">
+          <div className="result-hero">
+            <div>
+              <span className="simulado-kicker">Resultado do simulado</span>
+              <h1 className="simulado-title">{examData.area}</h1>
+              <p className="simulado-subtitle">{performance.hint}</p>
+            </div>
+            <div className="result-score">
+              {acertos}<span>/{total}</span>
+            </div>
           </div>
-          <h1 className="simulado-title" style={{ marginBottom: '2rem' }}>{examData.area}</h1>
 
           {examData.alerta && (
-            <div className="card" style={{ marginBottom: '1.25rem', padding: '1rem', borderColor: 'rgba(255,193,7,0.35)', background: 'rgba(255,193,7,0.06)', textAlign: 'left' }}>
-              <strong style={{ display: 'block', marginBottom: '0.35rem' }}>Composição do simulado</strong>
-              <div style={{ color: 'var(--text2)', fontSize: '0.92rem' }}>{examData.alerta}</div>
+            <div className="simulado-alert result-alert">
+              <strong>Composição do simulado</strong>
+              <span>{examData.alerta}</span>
             </div>
           )}
 
-          <div className="result-score">{acertos}<span>/{total}</span></div>
-          <p className="simulado-subtitle" style={{ marginBottom: '0.5rem' }}>
-            Você acertou <strong>{pct}%</strong>
-          </p>
-          <p style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--accent)', marginBottom: '2rem' }}>
-            {perf}
-          </p>
+          <div className="result-band">
+            <div>
+              <span>Percentual</span>
+              <strong>{pct}%</strong>
+            </div>
+            <div>
+              <span>Desempenho</span>
+              <strong>{performance.label}</strong>
+            </div>
+            <div>
+              <span>Erros para revisar</span>
+              <strong>{wrongQuestions.length}</strong>
+            </div>
+          </div>
 
           {examData.estatisticas && (
             <div className="result-stats">
@@ -474,12 +624,28 @@ export function SimuladoPage() {
             </div>
           )}
 
+          {wrongQuestions.length > 0 && (
+            <div className="result-review">
+              <div className="result-review-head">
+                <span className="simulado-kicker">Revisão rápida</span>
+                <strong>Questões para retomar</strong>
+              </div>
+              {wrongQuestions.slice(0, 4).map((question, index) => (
+                <div className="result-review-item" key={question.id || `${question.enunciado}-${index}`}>
+                  <span>{question.disciplina || examData.area}</span>
+                  <p>{question.enunciado}</p>
+                  <strong>Gabarito: {question.correta}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="result-actions">
             <button type="button" className="btn-primary" onClick={handleNew}>Novo Simulado</button>
-            <Link to="/historico-simulados" className="btn-ghost" style={{ textDecoration: 'none' }}>Ver histórico</Link>
-            <Link to="/home" className="btn-ghost" style={{ textDecoration: 'none' }}>Início</Link>
+            <Link to="/historico-simulados" className="btn-ghost result-link">Ver histórico</Link>
+            <Link to="/home" className="btn-ghost result-link">Início</Link>
           </div>
-        </div>
+        </section>
       </div>
     )
   }

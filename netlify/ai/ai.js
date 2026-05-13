@@ -1281,6 +1281,7 @@ function buildProfessorSystemPrompt({ chatTitle, shouldGenerateTitle, responsePr
     '- Se o aluno pedir prática, exercícios, questões, simulado curto, quiz ou treino, chame a tool "criar_questoes_interativas".',
     '- A tool de questões deve criar exatamente 5 questões, cada uma com exatamente 4 alternativas.',
     '- As alternativas precisam ser textos completos de resposta. Nunca envie alternativas como apenas "A", "B", "C" ou "D".',
+    '- Distribua o gabarito entre A, B, C e D. Nunca coloque todas as respostas corretas na mesma letra.',
     '- Quando chamar "criar_questoes_interativas", não liste as questões dentro de "response"; escreva no máximo uma frase curta convidando o aluno a abrir o quiz.',
     '- Se a resposta depender de atualidades, dados recentes, fontes, leis, números ou acontecimentos que podem ter mudado, chame a tool "pesquisar_web".',
     '- Se uma resposta conceitual puder ser resolvida sem fonte recente, responda direto.',
@@ -1351,6 +1352,43 @@ function extractProfessorQuestionOptions(question) {
     .slice(0, 4)
 }
 
+function moveProfessorCorrectOption(question, targetIndex) {
+  const options = ensureArray(question?.opcoes).slice(0, 4)
+  const currentIndex = Number(question?.correta)
+  if (options.length !== 4 || currentIndex === targetIndex) return question
+
+  const correctOption = options[currentIndex]
+  const remaining = options.filter((_, index) => index !== currentIndex)
+  const reordered = []
+
+  for (let index = 0; index < 4; index += 1) {
+    reordered[index] = index === targetIndex ? correctOption : remaining.shift()
+  }
+
+  return {
+    ...question,
+    opcoes: reordered,
+    correta: targetIndex,
+  }
+}
+
+function balanceProfessorQuestionAnswers(questions = []) {
+  const normalized = ensureArray(questions)
+  if (normalized.length < 2) return normalized
+
+  const counts = normalized.reduce((acc, question) => {
+    const index = Number(question?.correta)
+    acc[index] = (acc[index] || 0) + 1
+    return acc
+  }, {})
+  const maxAllowed = Math.ceil(normalized.length / 4)
+  const needsBalance = Object.values(counts).some((count) => count > maxAllowed)
+  if (!needsBalance) return normalized
+
+  const pattern = [0, 1, 2, 3]
+  return normalized.map((question, index) => moveProfessorCorrectOption(question, pattern[index % pattern.length]))
+}
+
 function normalizeProfessorToolQuestions(rawQuestions) {
   const questionList = Array.isArray(rawQuestions)
     ? rawQuestions
@@ -1358,7 +1396,7 @@ function normalizeProfessorToolQuestions(rawQuestions) {
       ? Object.values(rawQuestions)
       : []
 
-  return questionList
+  const normalizedQuestions = questionList
     .map((question, index) => {
       const enunciado = String(question?.enunciado ?? question?.pergunta ?? question?.statement ?? '').trim().slice(0, 1200)
       const opcoes = extractProfessorQuestionOptions(question)
@@ -1383,6 +1421,8 @@ function normalizeProfessorToolQuestions(rawQuestions) {
     })
     .filter(Boolean)
     .slice(0, 5)
+
+  return balanceProfessorQuestionAnswers(normalizedQuestions)
 }
 
 function normalizeProfessorSources(rawSources) {
