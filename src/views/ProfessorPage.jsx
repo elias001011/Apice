@@ -16,7 +16,7 @@ import '../styles/professor.css'
 
 const HISTORY_MESSAGES_LIMIT = 14
 
-function createMessage({ sender, text, questions, sources, status, action }) {
+function createMessage({ sender, text, questions, sources, status, action, retryText, retryOf }) {
   return {
     id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     sender,
@@ -26,6 +26,8 @@ function createMessage({ sender, text, questions, sources, status, action }) {
     ...(sources?.length ? { sources } : {}),
     ...(status ? { status } : {}),
     ...(action ? { action } : {}),
+    ...(retryText ? { retryText: String(retryText).slice(0, PROFESSOR_MAX_INPUT_CHARS) } : {}),
+    ...(retryOf ? { retryOf: String(retryOf).slice(0, 12000) } : {}),
   }
 }
 
@@ -170,7 +172,6 @@ function iconSvg(kind) {
 }
 
 function QuestionSet({ messageId, questions = [], answers, onAnswer }) {
-  const [isOpen, setIsOpen] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(0)
 
   if (!questions.length) return null
@@ -185,15 +186,9 @@ function QuestionSet({ messageId, questions = [], answers, onAnswer }) {
   const selected = currentQuestion ? answers?.[currentQuestion.id] : undefined
   const hasAnswer = Number.isInteger(selected)
   const isResultSlide = currentIndex >= totalQuestions
-  const firstUnansweredIndex = questions.findIndex((question) => !Number.isInteger(answers?.[question.id]))
   const progressValue = isResultSlide
     ? 100
     : Math.round(((currentIndex + (hasAnswer ? 1 : 0)) / totalQuestions) * 100)
-
-  const openQuiz = () => {
-    setCurrentIndex(finished ? totalQuestions : Math.max(0, firstUnansweredIndex))
-    setIsOpen(true)
-  }
 
   const chooseAnswer = (questionId, optionIndex) => {
     if (Number.isInteger(answers?.[questionId])) return
@@ -201,119 +196,99 @@ function QuestionSet({ messageId, questions = [], answers, onAnswer }) {
   }
 
   return (
-    <>
-      <section className="prof-quiz-launch-card" aria-label="Quiz interativo">
+    <section className="prof-quiz-card" aria-label="Quiz interativo">
+      <header className="prof-quiz-card-head">
         <div>
           <span>Quiz interativo</span>
-          <strong>{finished ? `${score}/${totalQuestions} acertos` : `${answeredCount}/${totalQuestions} respondidas`}</strong>
+          <strong>{isResultSlide ? 'Pontuação final' : `Questão ${currentIndex + 1} de ${totalQuestions}`}</strong>
         </div>
-        <button type="button" onClick={openQuiz}>
-          {finished ? 'Ver resultado' : answeredCount > 0 ? 'Continuar quiz' : 'Abrir quiz'}
-        </button>
-      </section>
+        <small>{finished ? `${score}/${totalQuestions} acertos` : `${answeredCount}/${totalQuestions} respondidas`}</small>
+      </header>
 
-      {isOpen && (
-        <div className="prof-quiz-overlay" role="dialog" aria-modal="true" aria-label="Quiz interativo">
-          <button type="button" className="prof-quiz-backdrop" aria-label="Fechar quiz" onClick={() => setIsOpen(false)} />
-          <section className="prof-quiz-modal">
-            <header className="prof-quiz-modal-head">
-              <div>
-                <span>{isResultSlide ? 'Resultado' : `Questão ${currentIndex + 1} de ${totalQuestions}`}</span>
-                <strong>Quiz interativo</strong>
-              </div>
-              <button type="button" className="prof-icon-btn" onClick={() => setIsOpen(false)} aria-label="Fechar quiz">
-                {iconSvg('close')}
-              </button>
-            </header>
+      <div className="prof-quiz-progress" aria-hidden="true">
+        <span style={{ width: `${progressValue}%` }} />
+      </div>
 
-            <div className="prof-quiz-progress" aria-hidden="true">
-              <span style={{ width: `${progressValue}%` }} />
-            </div>
-
-            {isResultSlide ? (
-              <div className="prof-quiz-result">
-                <span>{score}/{totalQuestions}</span>
-                <h3>{score === totalQuestions ? 'Mandou muito bem.' : 'Resultado do treino'}</h3>
-                <p>Você acertou {score} de {totalQuestions} perguntas. As respostas ficam salvas neste chat.</p>
-                <div className="prof-quiz-review">
-                  {questions.map((question, index) => {
-                    const answer = answers?.[question.id]
-                    const correct = answer === question.correta
-                    return (
-                      <div key={question.id} className={correct ? 'is-correct' : 'is-wrong'}>
-                        <strong>Questão {index + 1}: {correct ? 'correta' : 'revisar'}</strong>
-                        <span>Resposta correta: {String.fromCharCode(65 + question.correta)}. {question.explicacao}</span>
-                      </div>
-                    )
-                  })}
+      {isResultSlide ? (
+        <div className="prof-quiz-result">
+          <span>{score}/{totalQuestions}</span>
+          <h3>{score === totalQuestions ? 'Mandou muito bem.' : 'Resultado do treino'}</h3>
+          <p>Você acertou {score} de {totalQuestions} perguntas.</p>
+          <div className="prof-quiz-review">
+            {questions.map((question, index) => {
+              const answer = answers?.[question.id]
+              const correct = answer === question.correta
+              return (
+                <div key={question.id} className={correct ? 'is-correct' : 'is-wrong'}>
+                  <strong>Questão {index + 1}: {correct ? 'correta' : 'revisar'}</strong>
+                  <span>Resposta correta: {String.fromCharCode(65 + question.correta)}. {question.explicacao}</span>
                 </div>
-              </div>
-            ) : (
-              <article className="prof-quiz-slide">
-                <p className="prof-question-statement">{currentQuestion.enunciado}</p>
-                <div className="prof-question-options">
-                  {currentQuestion.opcoes.map((option, optionIndex) => {
-                    const isSelected = selected === optionIndex
-                    const shouldReveal = finished
-                    const isCorrect = currentQuestion.correta === optionIndex
-                    const stateClass = shouldReveal
-                      ? isCorrect
-                        ? 'is-correct'
-                        : isSelected
-                          ? 'is-wrong'
-                          : ''
-                      : isSelected
-                        ? 'is-selected'
-                        : ''
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <article className="prof-quiz-slide">
+          <p className="prof-question-statement">{currentQuestion.enunciado}</p>
+          <div className="prof-question-options">
+            {currentQuestion.opcoes.map((option, optionIndex) => {
+              const isSelected = selected === optionIndex
+              const isCorrect = currentQuestion.correta === optionIndex
+              const stateClass = hasAnswer
+                ? isCorrect
+                  ? 'is-correct'
+                  : isSelected
+                    ? 'is-wrong'
+                    : ''
+                : ''
 
-                    return (
-                      <button
-                        key={`${currentQuestion.id}-${optionIndex}`}
-                        type="button"
-                        className={`prof-question-option ${stateClass}`}
-                        onClick={() => chooseAnswer(currentQuestion.id, optionIndex)}
-                        disabled={hasAnswer}
-                      >
-                        <span>{String.fromCharCode(65 + optionIndex)}</span>
-                        <em>{option}</em>
-                      </button>
-                    )
-                  })}
-                </div>
-                {hasAnswer && !finished && (
-                  <p className="prof-quiz-lock-note">Resposta marcada. Ela não pode ser alterada neste quiz.</p>
-                )}
-              </article>
-            )}
-
-            <footer className="prof-quiz-footer">
-              <button
-                type="button"
-                className="prof-quiz-secondary"
-                onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))}
-                disabled={currentIndex === 0}
-              >
-                Voltar
-              </button>
-              {isResultSlide ? (
-                <button type="button" className="prof-quiz-primary" onClick={() => setIsOpen(false)}>
-                  Fechar
-                </button>
-              ) : (
+              return (
                 <button
+                  key={`${currentQuestion.id}-${optionIndex}`}
                   type="button"
-                  className="prof-quiz-primary"
-                  onClick={() => setCurrentIndex((index) => Math.min(totalQuestions, index + 1))}
-                  disabled={!hasAnswer}
+                  className={`prof-question-option ${stateClass}`}
+                  onClick={() => chooseAnswer(currentQuestion.id, optionIndex)}
+                  disabled={hasAnswer}
                 >
-                  {currentIndex === totalQuestions - 1 ? 'Ver pontuação' : 'Próxima'}
+                  <span>{String.fromCharCode(65 + optionIndex)}</span>
+                  <em>{option}</em>
                 </button>
-              )}
-            </footer>
-          </section>
-        </div>
+              )
+            })}
+          </div>
+          {hasAnswer && (
+            <p className={`prof-quiz-lock-note ${selected === currentQuestion.correta ? 'is-correct' : 'is-wrong'}`}>
+              {selected === currentQuestion.correta ? 'Resposta correta.' : 'Resposta incorreta. A correta está marcada em verde.'}
+            </p>
+          )}
+        </article>
       )}
-    </>
+
+      <footer className="prof-quiz-footer">
+        <button
+          type="button"
+          className="prof-quiz-secondary"
+          onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))}
+          disabled={currentIndex === 0}
+        >
+          Voltar
+        </button>
+        {isResultSlide ? (
+          <button type="button" className="prof-quiz-primary" onClick={() => setCurrentIndex(0)}>
+            Revisar
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="prof-quiz-primary"
+            onClick={() => setCurrentIndex((index) => Math.min(totalQuestions, index + 1))}
+            disabled={!hasAnswer}
+          >
+            {currentIndex === totalQuestions - 1 ? 'Ver pontuação' : 'Próxima'}
+          </button>
+        )}
+      </footer>
+    </section>
   )
 }
 
@@ -327,7 +302,8 @@ export function ProfessorPage() {
   const [speakingId, setSpeakingId] = useState('')
   const [isListening, setIsListening] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editingChatId, setEditingChatId] = useState('')
+  const [titleDraft, setTitleDraft] = useState('')
   const [questionAnswers, setQuestionAnswers] = useState({})
   const [queuedHandoff] = useState(() => normalizeProfessorHandoff(location.state?.handoff) || loadProfessorHandoff())
   const threadRef = useRef(null)
@@ -353,15 +329,16 @@ export function ProfessorPage() {
     setActiveChatId(chat.id)
     setInputText('')
     setHistoryOpen(false)
-    setIsEditingTitle(false)
+    setEditingChatId('')
+    setTitleDraft('')
     return chat
   }, [commitChats])
 
   useEffect(() => {
-    if (!isEditingTitle) return
+    if (!editingChatId) return
     titleInputRef.current?.focus()
     titleInputRef.current?.select()
-  }, [isEditingTitle])
+  }, [editingChatId])
 
   useEffect(() => {
     if (activeChatId && chats.some((chat) => chat.id === activeChatId)) return
@@ -403,14 +380,27 @@ export function ProfessorPage() {
     }
   }, [])
 
-  const updateChatTitle = useCallback((chatId, title) => {
-    const cleanTitle = String(title ?? '').trim().slice(0, 80) || 'Novo chat'
+  const startEditingChatTitle = useCallback((chat) => {
+    setEditingChatId(chat.id)
+    setTitleDraft(String(chat.title ?? '').slice(0, 80))
+  }, [])
+
+  const cancelEditingChatTitle = useCallback(() => {
+    setEditingChatId('')
+    setTitleDraft('')
+  }, [])
+
+  const saveChatTitle = useCallback((chatId = editingChatId) => {
+    if (!chatId) return
+    const cleanTitle = titleDraft.trim().slice(0, 80) || 'Novo chat'
     commitChats((previous) => previous.map((chat) => (
       chat.id === chatId
         ? { ...chat, title: cleanTitle, updatedAt: new Date().toISOString() }
         : chat
     )))
-  }, [commitChats])
+    setEditingChatId('')
+    setTitleDraft('')
+  }, [commitChats, editingChatId, titleDraft])
 
   const deleteChat = useCallback((chatId) => {
     const fallbackChat = createProfessorChat()
@@ -422,7 +412,10 @@ export function ProfessorPage() {
       const nextChat = chats.find((chat) => chat.id !== chatId) || fallbackChat
       setActiveChatId(nextChat.id)
     }
-  }, [activeChatId, chats, commitChats])
+    if (editingChatId === chatId) {
+      cancelEditingChatTitle()
+    }
+  }, [activeChatId, cancelEditingChatTitle, chats, commitChats, editingChatId])
 
   const addLimitMessage = useCallback((chatId) => {
     const limitMessage = createMessage({
@@ -524,6 +517,7 @@ export function ProfessorPage() {
       const errorText = error?.code === 'quota_blocked'
         ? error.message
         : 'O serviço de IA está instável agora. Tente novamente em alguns segundos.'
+      const canRetry = error?.code !== 'quota_blocked'
 
       commitChats((previous) => previous.map((chat) => (
         chat.id === chatAtSend.id
@@ -531,7 +525,14 @@ export function ProfessorPage() {
               ...chat,
               messages: [
                 ...chat.messages,
-                createMessage({ sender: 'ai', status: 'error', text: errorText }),
+                createMessage({
+                  sender: 'ai',
+                  status: 'error',
+                  action: canRetry ? 'retry' : undefined,
+                  text: errorText,
+                  retryText: canRetry ? cleanText : '',
+                  retryOf: canRetry ? retryOf || errorText : '',
+                }),
               ],
               updatedAt: new Date().toISOString(),
             }
@@ -591,22 +592,24 @@ export function ProfessorPage() {
     window.speechSynthesis.speak(utterance)
   }
 
-  const handleRegenerate = (messageId) => {
+  const handleRetryFailure = (messageId) => {
     const messageIndex = activeMessages.findIndex((message) => message.id === messageId)
     if (messageIndex < 0) return
+    const failedMessage = activeMessages[messageIndex]
     const previousUserIndex = activeMessages
       .slice(0, messageIndex)
       .map((message, index) => ({ message, index }))
       .reverse()
       .find((entry) => entry.message.sender === 'user')?.index
     const previousUser = Number.isInteger(previousUserIndex) ? activeMessages[previousUserIndex] : null
-    if (!previousUser) return
+    const retryText = failedMessage.retryText || previousUser?.text || ''
+    if (!retryText) return
     void sendToProfessor({
-      text: previousUser.text,
+      text: retryText,
       chatId: activeChat.id,
-      historyMessagesOverride: activeMessages.slice(0, previousUserIndex),
+      historyMessagesOverride: activeMessages.slice(0, Number.isInteger(previousUserIndex) ? previousUserIndex : messageIndex),
       regenerateMessageId: messageId,
-      retryOf: activeMessages[messageIndex]?.text || '',
+      retryOf: failedMessage.retryOf || failedMessage.text || '',
     })
   }
 
@@ -675,19 +678,18 @@ export function ProfessorPage() {
         </button>
 
         <div className="prof-current-title">
-          {isEditingTitle ? (
+          {editingChatId === activeChat.id && !historyOpen ? (
             <input
               ref={titleInputRef}
-              value={activeChat.title}
-              onChange={(event) => updateChatTitle(activeChat.id, event.target.value)}
-              onBlur={() => setIsEditingTitle(false)}
+              value={titleDraft}
+              onChange={(event) => setTitleDraft(event.target.value.slice(0, 80))}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault()
-                  setIsEditingTitle(false)
+                  saveChatTitle(activeChat.id)
                 }
                 if (event.key === 'Escape') {
-                  setIsEditingTitle(false)
+                  cancelEditingChatTitle()
                 }
               }}
               aria-label="Nome do chat atual"
@@ -701,11 +703,17 @@ export function ProfessorPage() {
           <button
             type="button"
             className="prof-icon-btn"
-            onClick={() => setIsEditingTitle(true)}
-            aria-label="Editar nome do chat atual"
-            title="Editar nome"
+            onClick={() => {
+              if (editingChatId === activeChat.id && !historyOpen) {
+                saveChatTitle(activeChat.id)
+              } else {
+                startEditingChatTitle(activeChat)
+              }
+            }}
+            aria-label={editingChatId === activeChat.id && !historyOpen ? 'Salvar nome do chat atual' : 'Editar nome do chat atual'}
+            title={editingChatId === activeChat.id && !historyOpen ? 'Salvar nome' : 'Editar nome'}
           >
-            {iconSvg('pencil')}
+            {iconSvg(editingChatId === activeChat.id && !historyOpen ? 'check' : 'pencil')}
           </button>
           <button
             type="button"
@@ -744,42 +752,74 @@ export function ProfessorPage() {
             </button>
 
             <div className="prof-chat-list">
-              {chats.map((chat) => (
-                <div
-                  key={chat.id}
-                  className={`prof-chat-list-item ${chat.id === activeChat.id ? 'active' : ''}`}
-                >
-                  <button
-                    type="button"
-                    className="prof-chat-open"
-                    onClick={() => {
-                      setActiveChatId(chat.id)
-                      setHistoryOpen(false)
-                      setIsEditingTitle(false)
-                    }}
-                    aria-label={`Abrir ${chat.title}`}
+              {chats.map((chat) => {
+                const isTitleEditing = editingChatId === chat.id
+
+                return (
+                  <div
+                    key={chat.id}
+                    className={`prof-chat-list-item ${chat.id === activeChat.id ? 'active' : ''}`}
                   >
-                    <span>{chat.title || 'Novo chat'}</span>
-                    <small>{chat.messages.length} mensagens</small>
-                  </button>
-                  {chat.id === activeChat.id && (
-                    <input
-                      className="prof-title-input"
-                      value={chat.title}
-                      onChange={(event) => updateChatTitle(chat.id, event.target.value)}
-                      aria-label="Editar nome do chat"
-                    />
-                  )}
-                  <button
-                    type="button"
-                    className="prof-delete-chat"
-                    onClick={() => deleteChat(chat.id)}
-                    aria-label={`Excluir ${chat.title}`}
-                  >
-                    {iconSvg('trash')}
-                  </button>
-                </div>
-              ))}
+                    {isTitleEditing ? (
+                      <input
+                        ref={titleInputRef}
+                        className="prof-title-input"
+                        value={titleDraft}
+                        onChange={(event) => setTitleDraft(event.target.value.slice(0, 80))}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault()
+                            saveChatTitle(chat.id)
+                          }
+                          if (event.key === 'Escape') {
+                            cancelEditingChatTitle()
+                          }
+                        }}
+                        aria-label="Editar nome do chat"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="prof-chat-open"
+                        onClick={() => {
+                          setActiveChatId(chat.id)
+                          setHistoryOpen(false)
+                          cancelEditingChatTitle()
+                        }}
+                        aria-label={`Abrir ${chat.title}`}
+                      >
+                        <span>{chat.title || 'Novo chat'}</span>
+                        <small>{chat.messages.length} mensagens</small>
+                      </button>
+                    )}
+
+                    <div className="prof-chat-actions">
+                      <button
+                        type="button"
+                        className="prof-icon-btn"
+                        onClick={() => {
+                          if (isTitleEditing) {
+                            saveChatTitle(chat.id)
+                          } else {
+                            startEditingChatTitle(chat)
+                          }
+                        }}
+                        aria-label={isTitleEditing ? `Salvar ${chat.title}` : `Editar ${chat.title}`}
+                      >
+                        {iconSvg(isTitleEditing ? 'check' : 'pencil')}
+                      </button>
+                      <button
+                        type="button"
+                        className="prof-delete-chat"
+                        onClick={() => deleteChat(chat.id)}
+                        aria-label={`Excluir ${chat.title}`}
+                      >
+                        {iconSvg('trash')}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </section>
         </div>
@@ -800,7 +840,7 @@ export function ProfessorPage() {
           {activeMessages.map((message) => {
             const hasQuiz = message.questions?.length > 0
             const displayText = hasQuiz
-              ? 'Preparei um quiz com 5 perguntas. Responda uma por vez no pop-up interativo abaixo.'
+              ? 'Preparei um quiz com 5 perguntas. Responda uma por vez no card interativo abaixo.'
               : message.text
 
             return (
@@ -848,10 +888,12 @@ export function ProfessorPage() {
                     {iconSvg('volume')}
                     {speakingId === message.id ? 'Parar' : 'Ler'}
                   </button>
-                  <button type="button" onClick={() => handleRegenerate(message.id)} disabled={isTyping}>
-                    {iconSvg('refresh')}
-                    Regenerar
-                  </button>
+                  {message.action === 'retry' && (
+                    <button type="button" onClick={() => handleRetryFailure(message.id)} disabled={isTyping}>
+                      {iconSvg('refresh')}
+                      Tentar de novo
+                    </button>
+                  )}
                   <button type="button" onClick={() => handleCopy({ ...message, text: displayText })}>
                     {iconSvg(copiedId === message.id ? 'check' : 'copy')}
                     {copiedId === message.id ? 'Copiado' : 'Copiar'}

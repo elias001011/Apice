@@ -158,6 +158,7 @@ const PROFESSOR_TOOL_DEFINITIONS = [
                 enunciado: { type: 'string' },
                 opcoes: {
                   type: 'array',
+                  description: 'Quatro textos completos das alternativas. Nunca use apenas A, B, C ou D como alternativa.',
                   minItems: 4,
                   maxItems: 4,
                   items: { type: 'string' },
@@ -1279,6 +1280,7 @@ function buildProfessorSystemPrompt({ chatTitle, shouldGenerateTitle, responsePr
     'USO DE TOOLS:',
     '- Se o aluno pedir prática, exercícios, questões, simulado curto, quiz ou treino, chame a tool "criar_questoes_interativas".',
     '- A tool de questões deve criar exatamente 5 questões, cada uma com exatamente 4 alternativas.',
+    '- As alternativas precisam ser textos completos de resposta. Nunca envie alternativas como apenas "A", "B", "C" ou "D".',
     '- Quando chamar "criar_questoes_interativas", não liste as questões dentro de "response"; escreva no máximo uma frase curta convidando o aluno a abrir o quiz.',
     '- Se a resposta depender de atualidades, dados recentes, fontes, leis, números ou acontecimentos que podem ter mudado, chame a tool "pesquisar_web".',
     '- Se uma resposta conceitual puder ser resolvida sem fonte recente, responda direto.',
@@ -1302,17 +1304,64 @@ function buildProfessorSystemPrompt({ chatTitle, shouldGenerateTitle, responsePr
 }
 
 function normalizeProfessorOptionText(value) {
-  return String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, 500)
+  const raw = typeof value === 'object' && value
+    ? value.texto ?? value.text ?? value.label ?? value.value ?? value.conteudo ?? value.resposta ?? value.alternativa
+    : value
+  const text = String(raw ?? '').trim().replace(/\s+/g, ' ').slice(0, 500)
+  const withoutLetter = text.replace(/^[A-Da-d]\s*[).:-]\s*/, '').trim()
+  const normalized = withoutLetter || text
+  return /^[A-Da-d]$/.test(normalized) ? '' : normalized
+}
+
+function extractProfessorQuestionOptions(question) {
+  const rawCollections = [
+    question?.opcoes,
+    question?.alternativas,
+    question?.options,
+    question?.alternatives,
+    question?.choices,
+  ]
+
+  for (const collection of rawCollections) {
+    if (Array.isArray(collection)) {
+      const options = collection.map(normalizeProfessorOptionText).filter(Boolean).slice(0, 4)
+      if (options.length === 4) return options
+    }
+
+    if (collection && typeof collection === 'object') {
+      const options = ['a', 'b', 'c', 'd']
+        .map((letter) => collection[letter] ?? collection[letter.toUpperCase()])
+        .map(normalizeProfessorOptionText)
+        .filter(Boolean)
+        .slice(0, 4)
+      if (options.length === 4) return options
+    }
+  }
+
+  return ['a', 'b', 'c', 'd']
+    .map((letter) => (
+      question?.[letter]
+      ?? question?.[letter.toUpperCase()]
+      ?? question?.[`opcao${letter.toUpperCase()}`]
+      ?? question?.[`alternativa${letter.toUpperCase()}`]
+      ?? question?.[`option${letter.toUpperCase()}`]
+    ))
+    .map(normalizeProfessorOptionText)
+    .filter(Boolean)
+    .slice(0, 4)
 }
 
 function normalizeProfessorToolQuestions(rawQuestions) {
-  return ensureArray(rawQuestions)
+  const questionList = Array.isArray(rawQuestions)
+    ? rawQuestions
+    : isPlainObject(rawQuestions)
+      ? Object.values(rawQuestions)
+      : []
+
+  return questionList
     .map((question, index) => {
       const enunciado = String(question?.enunciado ?? question?.pergunta ?? question?.statement ?? '').trim().slice(0, 1200)
-      const opcoes = ensureArray(question?.opcoes ?? question?.alternativas ?? question?.options)
-        .map((option) => normalizeProfessorOptionText(option?.texto ?? option?.text ?? option))
-        .filter(Boolean)
-        .slice(0, 4)
+      const opcoes = extractProfessorQuestionOptions(question)
 
       if (!enunciado || opcoes.length !== 4) return null
 
@@ -1360,10 +1409,10 @@ function suppressProfessorQuizEcho(response, questions = []) {
   }).length
 
   if (numberedLines >= 3 || optionMarkers >= 6 || echoedStatements >= 2) {
-    return 'Preparei um quiz interativo com 5 perguntas. Responda uma por vez no pop-up do quiz.'
+    return 'Preparei um quiz interativo com 5 perguntas. Responda uma por vez no card do quiz.'
   }
 
-  return text || 'Preparei um quiz interativo com 5 perguntas. Responda uma por vez no pop-up do quiz.'
+  return text || 'Preparei um quiz interativo com 5 perguntas. Responda uma por vez no card do quiz.'
 }
 
 function normalizeProfessorReplyPayload(result, extras = {}) {
@@ -1519,7 +1568,7 @@ async function runGroqProfessorWithTools({
     content: [
       'Agora responda ao aluno com JSON válido.',
       'Use "response" para o texto final.',
-      collectedQuestions.length > 0 ? 'Não reescreva nenhuma questão nem alternativa no texto: o pop-up de quiz será exibido separado. Use só uma frase curta.' : '',
+      collectedQuestions.length > 0 ? 'Não reescreva nenhuma questão nem alternativa no texto: o card de quiz será exibido separado. Use só uma frase curta.' : '',
       collectedSources.length > 0 ? 'Cite no texto que você usou pesquisa factual, sem inventar fontes além das recebidas.' : '',
     ].filter(Boolean).join('\n'),
   })

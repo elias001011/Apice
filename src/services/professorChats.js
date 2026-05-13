@@ -23,6 +23,54 @@ function trimText(value, maxLength = 1000) {
   return String(value ?? '').trim().slice(0, maxLength)
 }
 
+function normalizeQuestionOptionText(value) {
+  const raw = typeof value === 'object' && value
+    ? value.texto ?? value.text ?? value.label ?? value.value ?? value.conteudo ?? value.resposta ?? value.alternativa
+    : value
+  const text = trimText(raw, 500).replace(/\s+/g, ' ')
+  const withoutLetter = text.replace(/^[A-Da-d]\s*[).:-]\s*/, '').trim()
+  const normalized = withoutLetter || text
+  return /^[A-Da-d]$/.test(normalized) ? '' : normalized
+}
+
+function extractQuestionOptions(question) {
+  const rawCollections = [
+    question?.opcoes,
+    question?.alternativas,
+    question?.options,
+    question?.alternatives,
+    question?.choices,
+  ]
+
+  for (const collection of rawCollections) {
+    if (Array.isArray(collection)) {
+      const options = collection.map(normalizeQuestionOptionText).filter(Boolean).slice(0, 4)
+      if (options.length === 4) return options
+    }
+
+    if (collection && typeof collection === 'object') {
+      const options = ['a', 'b', 'c', 'd']
+        .map((letter) => collection[letter] ?? collection[letter.toUpperCase()])
+        .map(normalizeQuestionOptionText)
+        .filter(Boolean)
+        .slice(0, 4)
+      if (options.length === 4) return options
+    }
+  }
+
+  return ['a', 'b', 'c', 'd']
+    .map((letter) => (
+      question?.[letter]
+      ?? question?.[letter.toUpperCase()]
+      ?? question?.[`opcao${letter.toUpperCase()}`]
+      ?? question?.[`alternativa${letter.toUpperCase()}`]
+      ?? question?.[`option${letter.toUpperCase()}`]
+    ))
+    .map(normalizeQuestionOptionText)
+    .filter(Boolean)
+    .slice(0, 4)
+}
+
 function nowIso() {
   return new Date().toISOString()
 }
@@ -69,6 +117,17 @@ export function normalizeProfessorMessage(rawMessage, index = 0) {
     normalized.action = 'create_chat'
   }
 
+  if (rawMessage.action === 'retry' && rawMessage.status === 'error') {
+    normalized.action = 'retry'
+  }
+
+  if (normalized.status === 'error') {
+    const retryText = trimText(rawMessage.retryText, PROFESSOR_MAX_INPUT_CHARS)
+    const retryOf = trimText(rawMessage.retryOf, 12000)
+    if (retryText) normalized.retryText = retryText
+    if (retryOf) normalized.retryOf = retryOf
+  }
+
   if (Array.isArray(rawMessage.sources)) {
     normalized.sources = rawMessage.sources
       .map((source) => ({
@@ -88,21 +147,16 @@ export function normalizeProfessorMessage(rawMessage, index = 0) {
 }
 
 export function normalizeProfessorQuestions(rawQuestions) {
-  if (!Array.isArray(rawQuestions)) return []
+  const questionList = Array.isArray(rawQuestions)
+    ? rawQuestions
+    : rawQuestions && typeof rawQuestions === 'object'
+      ? Object.values(rawQuestions)
+      : []
 
-  return rawQuestions
+  return questionList
     .map((question, index) => {
       const statement = trimText(question?.enunciado ?? question?.statement ?? question?.pergunta, 1200)
-      const rawOptions = Array.isArray(question?.opcoes)
-        ? question.opcoes
-        : Array.isArray(question?.options)
-          ? question.options
-          : []
-
-      const options = rawOptions
-        .map((option) => trimText(option?.texto ?? option?.text ?? option, 500))
-        .filter(Boolean)
-        .slice(0, 4)
+      const options = extractQuestionOptions(question)
 
       if (!statement || options.length !== 4) return null
 
@@ -239,6 +293,8 @@ export function compactProfessorChatsForCloud(chats, limit = PROFESSOR_MAX_CLOUD
           createdAt: message.createdAt,
           ...(message.status ? { status: message.status } : {}),
           ...(message.action ? { action: message.action } : {}),
+          ...(message.retryText ? { retryText: trimText(message.retryText, PROFESSOR_MAX_INPUT_CHARS) } : {}),
+          ...(message.retryOf ? { retryOf: trimText(message.retryOf, 12000) } : {}),
           ...(message.sources?.length ? { sources: message.sources.slice(0, 6) } : {}),
           ...(message.questions?.length ? { questions: message.questions } : {}),
         })),
