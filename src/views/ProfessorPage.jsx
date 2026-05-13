@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { chamarProfessorIA } from '../services/aiService.js'
 import { clearProfessorHandoff, loadProfessorHandoff, normalizeProfessorHandoff } from '../services/professorHandoff.js'
 import {
@@ -144,6 +144,8 @@ function iconSvg(kind) {
   switch (kind) {
     case 'plus':
       return <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+    case 'pencil':
+      return <svg viewBox="0 0 24 24"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></svg>
     case 'trash':
       return <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15" /><path d="M10 11v6M14 11v6" /></svg>
     case 'send':
@@ -168,69 +170,150 @@ function iconSvg(kind) {
 }
 
 function QuestionSet({ messageId, questions = [], answers, onAnswer }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [currentIndex, setCurrentIndex] = useState(0)
+
   if (!questions.length) return null
 
+  const totalQuestions = questions.length
   const answeredCount = questions.filter((question) => Number.isInteger(answers?.[question.id])).length
   const score = questions.reduce((total, question) => {
     return total + (answers?.[question.id] === question.correta ? 1 : 0)
   }, 0)
-  const finished = answeredCount === questions.length
+  const finished = answeredCount === totalQuestions
+  const currentQuestion = questions[Math.min(currentIndex, totalQuestions - 1)]
+  const selected = currentQuestion ? answers?.[currentQuestion.id] : undefined
+  const hasAnswer = Number.isInteger(selected)
+  const isResultSlide = currentIndex >= totalQuestions
+  const firstUnansweredIndex = questions.findIndex((question) => !Number.isInteger(answers?.[question.id]))
+  const progressValue = isResultSlide
+    ? 100
+    : Math.round(((currentIndex + (hasAnswer ? 1 : 0)) / totalQuestions) * 100)
+
+  const openQuiz = () => {
+    setCurrentIndex(finished ? totalQuestions : Math.max(0, firstUnansweredIndex))
+    setIsOpen(true)
+  }
+
+  const chooseAnswer = (questionId, optionIndex) => {
+    if (Number.isInteger(answers?.[questionId])) return
+    onAnswer(messageId, questionId, optionIndex)
+  }
 
   return (
-    <section className="prof-question-card" aria-label="Questões interativas">
-      <div className="prof-question-head">
+    <>
+      <section className="prof-quiz-launch-card" aria-label="Quiz interativo">
         <div>
-          <span>Treino interativo</span>
-          <strong>{finished ? `${score}/${questions.length} acertos` : `${answeredCount}/${questions.length} respondidas`}</strong>
+          <span>Quiz interativo</span>
+          <strong>{finished ? `${score}/${totalQuestions} acertos` : `${answeredCount}/${totalQuestions} respondidas`}</strong>
         </div>
-        <small>4 alternativas por questão</small>
-      </div>
+        <button type="button" onClick={openQuiz}>
+          {finished ? 'Ver resultado' : answeredCount > 0 ? 'Continuar quiz' : 'Abrir quiz'}
+        </button>
+      </section>
 
-      <div className="prof-question-list">
-        {questions.map((question, index) => {
-          const selected = answers?.[question.id]
-          const hasAnswer = Number.isInteger(selected)
-
-          return (
-            <article className="prof-question-item" key={question.id}>
-              <div className="prof-question-number">Questão {index + 1}</div>
-              <p className="prof-question-statement">{question.enunciado}</p>
-              <div className="prof-question-options">
-                {question.opcoes.map((option, optionIndex) => {
-                  const isSelected = selected === optionIndex
-                  const isCorrect = question.correta === optionIndex
-                  const stateClass = hasAnswer
-                    ? isCorrect
-                      ? 'is-correct'
-                      : isSelected
-                        ? 'is-wrong'
-                        : ''
-                    : ''
-
-                  return (
-                    <button
-                      key={`${question.id}-${optionIndex}`}
-                      type="button"
-                      className={`prof-question-option ${isSelected ? 'is-selected' : ''} ${stateClass}`}
-                      onClick={() => onAnswer(messageId, question.id, optionIndex)}
-                    >
-                      <span>{String.fromCharCode(65 + optionIndex)}</span>
-                      <em>{option}</em>
-                    </button>
-                  )
-                })}
+      {isOpen && (
+        <div className="prof-quiz-overlay" role="dialog" aria-modal="true" aria-label="Quiz interativo">
+          <button type="button" className="prof-quiz-backdrop" aria-label="Fechar quiz" onClick={() => setIsOpen(false)} />
+          <section className="prof-quiz-modal">
+            <header className="prof-quiz-modal-head">
+              <div>
+                <span>{isResultSlide ? 'Resultado' : `Questão ${currentIndex + 1} de ${totalQuestions}`}</span>
+                <strong>Quiz interativo</strong>
               </div>
-              {hasAnswer && (
-                <div className="prof-question-feedback">
-                  <strong>{selected === question.correta ? 'Boa.' : 'Quase.'}</strong>
-                  <span>{question.explicacao || `A alternativa correta é ${String.fromCharCode(65 + question.correta)}.`}</span>
+              <button type="button" className="prof-icon-btn" onClick={() => setIsOpen(false)} aria-label="Fechar quiz">
+                {iconSvg('close')}
+              </button>
+            </header>
+
+            <div className="prof-quiz-progress" aria-hidden="true">
+              <span style={{ width: `${progressValue}%` }} />
+            </div>
+
+            {isResultSlide ? (
+              <div className="prof-quiz-result">
+                <span>{score}/{totalQuestions}</span>
+                <h3>{score === totalQuestions ? 'Mandou muito bem.' : 'Resultado do treino'}</h3>
+                <p>Você acertou {score} de {totalQuestions} perguntas. As respostas ficam salvas neste chat.</p>
+                <div className="prof-quiz-review">
+                  {questions.map((question, index) => {
+                    const answer = answers?.[question.id]
+                    const correct = answer === question.correta
+                    return (
+                      <div key={question.id} className={correct ? 'is-correct' : 'is-wrong'}>
+                        <strong>Questão {index + 1}: {correct ? 'correta' : 'revisar'}</strong>
+                        <span>Resposta correta: {String.fromCharCode(65 + question.correta)}. {question.explicacao}</span>
+                      </div>
+                    )
+                  })}
                 </div>
+              </div>
+            ) : (
+              <article className="prof-quiz-slide">
+                <p className="prof-question-statement">{currentQuestion.enunciado}</p>
+                <div className="prof-question-options">
+                  {currentQuestion.opcoes.map((option, optionIndex) => {
+                    const isSelected = selected === optionIndex
+                    const shouldReveal = finished
+                    const isCorrect = currentQuestion.correta === optionIndex
+                    const stateClass = shouldReveal
+                      ? isCorrect
+                        ? 'is-correct'
+                        : isSelected
+                          ? 'is-wrong'
+                          : ''
+                      : isSelected
+                        ? 'is-selected'
+                        : ''
+
+                    return (
+                      <button
+                        key={`${currentQuestion.id}-${optionIndex}`}
+                        type="button"
+                        className={`prof-question-option ${stateClass}`}
+                        onClick={() => chooseAnswer(currentQuestion.id, optionIndex)}
+                        disabled={hasAnswer}
+                      >
+                        <span>{String.fromCharCode(65 + optionIndex)}</span>
+                        <em>{option}</em>
+                      </button>
+                    )
+                  })}
+                </div>
+                {hasAnswer && !finished && (
+                  <p className="prof-quiz-lock-note">Resposta marcada. Ela não pode ser alterada neste quiz.</p>
+                )}
+              </article>
+            )}
+
+            <footer className="prof-quiz-footer">
+              <button
+                type="button"
+                className="prof-quiz-secondary"
+                onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))}
+                disabled={currentIndex === 0}
+              >
+                Voltar
+              </button>
+              {isResultSlide ? (
+                <button type="button" className="prof-quiz-primary" onClick={() => setIsOpen(false)}>
+                  Fechar
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="prof-quiz-primary"
+                  onClick={() => setCurrentIndex((index) => Math.min(totalQuestions, index + 1))}
+                  disabled={!hasAnswer}
+                >
+                  {currentIndex === totalQuestions - 1 ? 'Ver pontuação' : 'Próxima'}
+                </button>
               )}
-            </article>
-          )
-        })}
-      </div>
-    </section>
+            </footer>
+          </section>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -243,11 +326,13 @@ export function ProfessorPage() {
   const [copiedId, setCopiedId] = useState('')
   const [speakingId, setSpeakingId] = useState('')
   const [isListening, setIsListening] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [questionAnswers, setQuestionAnswers] = useState({})
   const [queuedHandoff] = useState(() => normalizeProfessorHandoff(location.state?.handoff) || loadProfessorHandoff())
   const threadRef = useRef(null)
   const textareaRef = useRef(null)
+  const titleInputRef = useRef(null)
   const recognitionRef = useRef(null)
   const handoffConsumedRef = useRef(false)
 
@@ -267,9 +352,16 @@ export function ProfessorPage() {
     commitChats((previous) => [chat, ...previous])
     setActiveChatId(chat.id)
     setInputText('')
-    setSidebarOpen(false)
+    setHistoryOpen(false)
+    setIsEditingTitle(false)
     return chat
   }, [commitChats])
+
+  useEffect(() => {
+    if (!isEditingTitle) return
+    titleInputRef.current?.focus()
+    titleInputRef.current?.select()
+  }, [isEditingTitle])
 
   useEffect(() => {
     if (activeChatId && chats.some((chat) => chat.id === activeChatId)) return
@@ -279,7 +371,7 @@ export function ProfessorPage() {
   useEffect(() => {
     const thread = threadRef.current
     if (!thread) return
-    thread.scrollTo({ top: thread.scrollHeight, behavior: 'smooth' })
+    thread.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [activeChatId, activeMessages.length, isTyping])
 
   useEffect(() => {
@@ -555,102 +647,174 @@ export function ProfessorPage() {
   }
 
   const handleAnswer = (messageId, questionId, optionIndex) => {
-    setQuestionAnswers((previous) => ({
-      ...previous,
-      [messageId]: {
-        ...(previous[messageId] || {}),
-        [questionId]: optionIndex,
-      },
-    }))
+    setQuestionAnswers((previous) => {
+      const messageAnswers = previous[messageId] || {}
+      if (Number.isInteger(messageAnswers[questionId])) return previous
+
+      return {
+        ...previous,
+        [messageId]: {
+          ...messageAnswers,
+          [questionId]: optionIndex,
+        },
+      }
+    })
   }
 
   return (
     <div className="prof-page">
-      <aside className={`prof-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="Histórico do Professor IA">
-        <div className="prof-sidebar-top">
-          <Link to="/home" className="prof-brand">Ápice</Link>
-          <button type="button" className="prof-icon-btn mobile-only" onClick={() => setSidebarOpen(false)} aria-label="Fechar histórico">
-            {iconSvg('close')}
-          </button>
-        </div>
-
-        <button type="button" className="prof-new-chat" onClick={createNewChat}>
-          {iconSvg('plus')}
-          Novo chat
+      <section className="prof-control-card" aria-label="Controles do chat do Professor IA">
+        <button
+          type="button"
+          className="prof-history-trigger"
+          onClick={() => setHistoryOpen(true)}
+          aria-haspopup="dialog"
+        >
+          {iconSvg('menu')}
+          Histórico
         </button>
 
-        <div className="prof-chat-list">
-          {chats.map((chat) => (
-            <div
-              key={chat.id}
-              className={`prof-chat-list-item ${chat.id === activeChat.id ? 'active' : ''}`}
-            >
-              <button
-                type="button"
-                className="prof-chat-open"
-                onClick={() => {
-                  setActiveChatId(chat.id)
-                  setSidebarOpen(false)
-                }}
-                aria-label={`Abrir ${chat.title}`}
-              >
-                <span>{chat.title || 'Novo chat'}</span>
-                <small>{chat.messages.length} mensagens</small>
-              </button>
-              {chat.id === activeChat.id && (
-                <input
-                  className="prof-title-input"
-                  value={chat.title}
-                  onChange={(event) => updateChatTitle(chat.id, event.target.value)}
-                  aria-label="Editar nome do chat"
-                />
-              )}
-              <button
-                type="button"
-                className="prof-delete-chat"
-                onClick={() => deleteChat(chat.id)}
-                aria-label={`Excluir ${chat.title}`}
-              >
-                {iconSvg('trash')}
-              </button>
-            </div>
-          ))}
+        <div className="prof-current-title">
+          {isEditingTitle ? (
+            <input
+              ref={titleInputRef}
+              value={activeChat.title}
+              onChange={(event) => updateChatTitle(activeChat.id, event.target.value)}
+              onBlur={() => setIsEditingTitle(false)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  setIsEditingTitle(false)
+                }
+                if (event.key === 'Escape') {
+                  setIsEditingTitle(false)
+                }
+              }}
+              aria-label="Nome do chat atual"
+            />
+          ) : (
+            <span>{activeChat.title || 'Novo chat'}</span>
+          )}
         </div>
-      </aside>
 
-      {sidebarOpen && <button type="button" className="prof-sidebar-backdrop" aria-label="Fechar histórico" onClick={() => setSidebarOpen(false)} />}
-
-      <section className="prof-main-panel">
-        <header className="prof-topbar">
-          <button type="button" className="prof-icon-btn" onClick={() => setSidebarOpen(true)} aria-label="Abrir histórico">
-            {iconSvg('menu')}
+        <div className="prof-control-actions">
+          <button
+            type="button"
+            className="prof-icon-btn"
+            onClick={() => setIsEditingTitle(true)}
+            aria-label="Editar nome do chat atual"
+            title="Editar nome"
+          >
+            {iconSvg('pencil')}
           </button>
-          <div>
-            <span>Professor IA</span>
-            <strong>{activeChat.title}</strong>
-          </div>
-          <button type="button" className="prof-icon-btn" onClick={createNewChat} aria-label="Criar novo chat">
+          <button
+            type="button"
+            className="prof-icon-btn"
+            onClick={createNewChat}
+            aria-label="Criar novo chat"
+            title="Novo chat"
+          >
             {iconSvg('plus')}
           </button>
-        </header>
+        </div>
+      </section>
 
-        <main className="prof-thread" ref={threadRef} aria-live="polite">
+      {historyOpen && (
+        <div className="prof-history-overlay" role="dialog" aria-modal="true" aria-label="Histórico de chats do Professor IA">
+          <button
+            type="button"
+            className="prof-history-backdrop"
+            aria-label="Fechar histórico"
+            onClick={() => setHistoryOpen(false)}
+          />
+          <section className="prof-history-modal">
+            <header className="prof-history-modal-head">
+              <div>
+                <span>Histórico</span>
+                <strong>Conversas do Professor</strong>
+              </div>
+              <button type="button" className="prof-icon-btn" onClick={() => setHistoryOpen(false)} aria-label="Fechar histórico">
+                {iconSvg('close')}
+              </button>
+            </header>
+
+            <button type="button" className="prof-new-chat" onClick={createNewChat}>
+              {iconSvg('plus')}
+              Novo chat
+            </button>
+
+            <div className="prof-chat-list">
+              {chats.map((chat) => (
+                <div
+                  key={chat.id}
+                  className={`prof-chat-list-item ${chat.id === activeChat.id ? 'active' : ''}`}
+                >
+                  <button
+                    type="button"
+                    className="prof-chat-open"
+                    onClick={() => {
+                      setActiveChatId(chat.id)
+                      setHistoryOpen(false)
+                      setIsEditingTitle(false)
+                    }}
+                    aria-label={`Abrir ${chat.title}`}
+                  >
+                    <span>{chat.title || 'Novo chat'}</span>
+                    <small>{chat.messages.length} mensagens</small>
+                  </button>
+                  {chat.id === activeChat.id && (
+                    <input
+                      className="prof-title-input"
+                      value={chat.title}
+                      onChange={(event) => updateChatTitle(chat.id, event.target.value)}
+                      aria-label="Editar nome do chat"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    className="prof-delete-chat"
+                    onClick={() => deleteChat(chat.id)}
+                    aria-label={`Excluir ${chat.title}`}
+                  >
+                    {iconSvg('trash')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
+
+      <main className="prof-thread" ref={threadRef} aria-live="polite">
           {activeMessages.length === 0 && (
-            <section className="prof-empty-state">
-              <span>Professor IA</span>
-              <h1>Explique, treine ou revise qualquer ponto do ENEM.</h1>
-              <p>Peça uma explicação, um resumo, um plano de estudo ou um treino com questões interativas.</p>
-            </section>
+            <article className="prof-message is-ai is-welcome">
+              <div className="prof-message-card">
+                <div className="prof-message-kicker">Professor IA</div>
+                <ProfessorMarkdown
+                  text={`# Como posso te ajudar hoje?\n\nPeça uma explicação direta, um resumo organizado, um plano de estudo ou um treino com questões interativas.\n\nTambém posso pesquisar na web quando fizer sentido e estruturar a resposta com títulos, subtítulos e passos claros.`}
+                />
+              </div>
+            </article>
           )}
 
-          {activeMessages.map((message) => (
+          {activeMessages.map((message) => {
+            const hasQuiz = message.questions?.length > 0
+            const displayText = hasQuiz
+              ? 'Preparei um quiz com 5 perguntas. Responda uma por vez no pop-up interativo abaixo.'
+              : message.text
+
+            return (
             <article
               key={message.id}
               className={`prof-message ${message.sender === 'user' ? 'is-user' : 'is-ai'} ${message.status ? `is-${message.status}` : ''}`}
             >
               <div className="prof-message-card">
                 <div className="prof-message-kicker">{message.sender === 'user' ? 'Você' : 'Professor IA'}</div>
-                <ProfessorMarkdown text={message.text} />
+                {hasQuiz ? (
+                  <p className="prof-quiz-note">{displayText}</p>
+                ) : (
+                  <ProfessorMarkdown text={displayText} />
+                )}
                 {message.action === 'create_chat' && (
                   <button type="button" className="prof-inline-create" onClick={createNewChat}>
                     Crie outro
@@ -680,7 +844,7 @@ export function ProfessorPage() {
 
               {message.sender === 'ai' && (
                 <div className="prof-message-actions" aria-label="Ações da resposta">
-                  <button type="button" onClick={() => handleSpeak(message)}>
+                  <button type="button" onClick={() => handleSpeak({ ...message, text: displayText })}>
                     {iconSvg('volume')}
                     {speakingId === message.id ? 'Parar' : 'Ler'}
                   </button>
@@ -688,14 +852,15 @@ export function ProfessorPage() {
                     {iconSvg('refresh')}
                     Regenerar
                   </button>
-                  <button type="button" onClick={() => handleCopy(message)}>
+                  <button type="button" onClick={() => handleCopy({ ...message, text: displayText })}>
                     {iconSvg(copiedId === message.id ? 'check' : 'copy')}
                     {copiedId === message.id ? 'Copiado' : 'Copiar'}
                   </button>
                 </div>
               )}
             </article>
-          ))}
+            )
+          })}
 
           {isTyping && (
             <article className="prof-message is-ai">
@@ -750,7 +915,6 @@ export function ProfessorPage() {
             {iconSvg('send')}
           </button>
         </form>
-      </section>
     </div>
   )
 }

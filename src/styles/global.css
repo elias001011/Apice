@@ -254,11 +254,6 @@ body {
   z-index: 1;
 }
 
-.app-shell--professor {
-  min-height: 100dvh;
-  overflow: hidden;
-}
-
 /* Camada fixa do app para fundo gradiente sutil. */
 .app-scene {
   position: fixed;
@@ -910,12 +905,6 @@ html[data-fx="blur"] .nav-inner {
   width: 100%;
   margin: 0 auto;
   min-height: calc(100vh - var(--tab-h));
-}
-
-.main--professor {
-  min-height: 100dvh;
-  padding: 0;
-  max-width: none;
 }
 
 .view-container {

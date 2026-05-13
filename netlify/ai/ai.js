@@ -140,7 +140,7 @@ const PROFESSOR_TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'criar_questoes_interativas',
-      description: 'Cria um mini-card interativo com 5 questões e 4 alternativas selecionáveis para o aluno praticar.',
+      description: 'Cria um quiz interativo com 5 questões e 4 alternativas selecionáveis para o aluno praticar.',
       parameters: {
         type: 'object',
         properties: {
@@ -1279,6 +1279,7 @@ function buildProfessorSystemPrompt({ chatTitle, shouldGenerateTitle, responsePr
     'USO DE TOOLS:',
     '- Se o aluno pedir prática, exercícios, questões, simulado curto, quiz ou treino, chame a tool "criar_questoes_interativas".',
     '- A tool de questões deve criar exatamente 5 questões, cada uma com exatamente 4 alternativas.',
+    '- Quando chamar "criar_questoes_interativas", não liste as questões dentro de "response"; escreva no máximo uma frase curta convidando o aluno a abrir o quiz.',
     '- Se a resposta depender de atualidades, dados recentes, fontes, leis, números ou acontecimentos que podem ter mudado, chame a tool "pesquisar_web".',
     '- Se uma resposta conceitual puder ser resolvida sem fonte recente, responda direto.',
     '',
@@ -1346,6 +1347,25 @@ function normalizeProfessorSources(rawSources) {
     .slice(0, 8)
 }
 
+function suppressProfessorQuizEcho(response, questions = []) {
+  const text = normalizePromptContent(response)
+  if (!questions.length) return text
+
+  const normalizedText = normalizeText(text)
+  const numberedLines = (text.match(/(?:^|\n)\s*\d+[.)]\s+/g) || []).length
+  const optionMarkers = (text.match(/(?:^|\n|\s)[A-D][).]\s+/g) || []).length
+  const echoedStatements = questions.filter((question) => {
+    const statement = normalizeText(question?.enunciado || '').slice(0, 80)
+    return statement && normalizedText.includes(statement)
+  }).length
+
+  if (numberedLines >= 3 || optionMarkers >= 6 || echoedStatements >= 2) {
+    return 'Preparei um quiz interativo com 5 perguntas. Responda uma por vez no pop-up do quiz.'
+  }
+
+  return text || 'Preparei um quiz interativo com 5 perguntas. Responda uma por vez no pop-up do quiz.'
+}
+
 function normalizeProfessorReplyPayload(result, extras = {}) {
   const parsed = typeof result === 'string'
     ? (safeJsonParse(result) || { response: result })
@@ -1373,9 +1393,10 @@ function normalizeProfessorReplyPayload(result, extras = {}) {
     ...ensureArray(parsed.sources ?? parsed.fontes),
     ...ensureArray(extras.sources),
   ])
+  const finalResponse = suppressProfessorQuizEcho(response, questions)
 
   return {
-    response: response || 'Não consegui estruturar uma resposta útil agora. Tente reformular a pergunta em uma frase mais específica.',
+    response: finalResponse || 'Não consegui estruturar uma resposta útil agora. Tente reformular a pergunta em uma frase mais específica.',
     title: String(parsed.title ?? parsed.titulo ?? extras.title ?? '').trim().slice(0, 80),
     questions,
     sources,
@@ -1479,7 +1500,7 @@ async function runGroqProfessorWithTools({
         content: JSON.stringify({
           ok: questions.length === 5,
           total: questions.length,
-          instrucoes: 'O card interativo foi criado. Na resposta final, explique rapidamente como o aluno deve usar o card.',
+          instrucoes: 'O quiz interativo foi criado. Na resposta final, não liste as perguntas nem as alternativas; escreva apenas uma frase curta convidando o aluno a abrir o quiz.',
         }),
       })
       continue
@@ -1498,7 +1519,7 @@ async function runGroqProfessorWithTools({
     content: [
       'Agora responda ao aluno com JSON válido.',
       'Use "response" para o texto final.',
-      collectedQuestions.length > 0 ? 'Não reescreva todas as questões no texto: o card interativo será exibido separado.' : '',
+      collectedQuestions.length > 0 ? 'Não reescreva nenhuma questão nem alternativa no texto: o pop-up de quiz será exibido separado. Use só uma frase curta.' : '',
       collectedSources.length > 0 ? 'Cite no texto que você usou pesquisa factual, sem inventar fontes além das recebidas.' : '',
     ].filter(Boolean).join('\n'),
   })
@@ -2020,6 +2041,7 @@ export async function generateProfessorReply({
     '',
     'Fallback sem tools:',
     '- Se o aluno pediu questões, inclua uma chave "questions" com exatamente 5 questões de 4 opções no JSON final.',
+    '- Quando incluir "questions", não liste as perguntas dentro de "response"; use apenas uma frase curta avisando que o quiz foi criado.',
     '- Se o aluno pediu dados recentes e você não tiver certeza, diga que não conseguiu pesquisar agora em vez de inventar.',
   ].join('\n')
 
