@@ -67,7 +67,13 @@ function parseExternalId(externalId) {
 }
 
 function getCheckoutUrl(checkout) {
-  return safeText(checkout?.url || checkout?.checkoutUrl || '')
+  return safeText(
+    checkout?.url
+    || checkout?.checkoutUrl
+    || checkout?.checkout?.url
+    || checkout?.data?.url
+    || '',
+  )
 }
 
 function getCheckoutStatus(checkout) {
@@ -86,6 +92,8 @@ function getSubscriptionId(checkout) {
     checkout?.subscriptionId
     || checkout?.subscription_id
     || checkout?.subscription?.id
+    || checkout?.checkout?.subscriptionId
+    || checkout?.checkout?.subscription?.id
     || checkout?.data?.subscription?.id
     || '',
   )
@@ -97,6 +105,14 @@ function formatAbacateError(payload) {
 
   const nested = safeText(payload.error?.message || payload.data?.error || payload.data?.message)
   if (nested) return nested
+
+  const issueMessage = safeText(
+    payload.error?.issues?.[0]?.message
+    || payload.errors?.[0]?.message
+    || payload.issues?.[0]?.message
+    || payload.data?.errors?.[0]?.message,
+  )
+  if (issueMessage) return issueMessage
 
   const direct = safeText(
     typeof payload.error === 'string' ? payload.error : payload.message || payload.details,
@@ -169,12 +185,6 @@ async function createCustomerId(customerInput) {
     })
     return safeText(result?.data?.id)
   } catch (error) {
-    const hasOptionalDocumentData = Boolean(payload.taxId || payload.cellphone)
-    if (!hasOptionalDocumentData) {
-      console.warn('[abacatepay] Customer v2 não foi criado. Checkout seguirá sem customerId:', error.message)
-      return ''
-    }
-
     try {
       const retryPayload = {
         email: payload.email,
@@ -200,7 +210,7 @@ async function createCustomerId(customerInput) {
         })
         return safeText(wrappedRetry?.data?.id)
       } catch (wrappedError) {
-        console.warn('[abacatepay] Customer v2 não foi criado após retry. Checkout seguirá sem customerId:', retryError.message, wrappedError.message)
+        console.warn('[abacatepay] Customer v2 não foi criado após retry. Checkout seguirá sem customerId:', error.message, retryError.message, wrappedError.message)
       }
       return ''
     }
@@ -326,6 +336,7 @@ async function createCheckout(req, authUser, headers) {
   const planKey = safeText(body?.planKey)
   const requestedTrial = Boolean(body?.isTrial)
   let shouldApplyTrial = requestedTrial
+  let trialAlreadyUsedInCloud = false
   const plan = getPricingPlanByKey(planKey)
 
   if (!plan || !plan.productId) {
@@ -354,6 +365,7 @@ async function createCheckout(req, authUser, headers) {
 
     if (cloudStatus.hasUsedTrial) {
       console.warn('[abacatepay] Trial já usado. Checkout seguirá como pago.')
+      trialAlreadyUsedInCloud = true
       shouldApplyTrial = false
     }
   }
@@ -381,7 +393,7 @@ async function createCheckout(req, authUser, headers) {
       customerTaxId,
     })
 
-    const result = await abacateFetch(ABACATE_SUBSCRIPTION_CREATE_PATH, {
+    const createSubscription = (isTrial) => abacateFetch(ABACATE_SUBSCRIPTION_CREATE_PATH, {
       method: 'POST',
       body: buildCheckoutPayload({
         plan,
@@ -390,10 +402,35 @@ async function createCheckout(req, authUser, headers) {
         completionUrl,
         userId,
         timestamp,
-        isTrial: shouldApplyTrial,
+        isTrial,
         customerId,
       }),
     })
+
+    let trialCouponUnavailable = false
+    let result = null
+
+    try {
+      result = await createSubscription(shouldApplyTrial)
+    } catch (error) {
+      if (!shouldApplyTrial) {
+        throw error
+      }
+
+      trialCouponUnavailable = true
+      shouldApplyTrial = false
+      console.warn('[abacatepay] Falha ao criar checkout com cupom de trial. Tentando novamente sem cupom:', error.message)
+
+      try {
+        result = await createSubscription(false)
+      } catch (retryError) {
+        const retryMessage = retryError.message || 'Falha ao criar checkout sem cupom'
+        const originalMessage = error.message || 'desconhecido'
+        retryError.message = `${retryMessage} (também falhou após remover o cupom ${TRIAL_COUPON_CODE}; erro original: ${originalMessage})`
+        retryError.details = retryError.details || error.details
+        throw retryError
+      }
+    }
 
     const checkout = result?.data || {}
     const checkoutUrl = getCheckoutUrl(checkout)
@@ -407,7 +444,7 @@ async function createCheckout(req, authUser, headers) {
       success: true,
       gateway: 'abacatepay-v2',
       checkoutMode: 'subscription',
-      checkoutId: checkout.id || '',
+      checkoutId: checkout.id || checkout.checkout?.id || '',
       subscriptionId: getSubscriptionId(checkout),
       checkoutUrl,
       externalId,
@@ -419,7 +456,8 @@ async function createCheckout(req, authUser, headers) {
       trialDays: plan.trialDays,
       isTrial: shouldApplyTrial,
       requestedTrial,
-      trialAlreadyUsed: requestedTrial && !shouldApplyTrial,
+      trialAlreadyUsed: trialAlreadyUsedInCloud,
+      trialCouponUnavailable,
       checkout,
     }), {
       status: 200,

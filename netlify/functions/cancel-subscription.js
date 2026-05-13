@@ -191,6 +191,10 @@ async function downgradeUserToFreeInBlob(userId, extraBilling = {}) {
         status: 'free',
         planKey: '',
         subscriptionActive: false,
+        trialUsedAt: currentState.billing?.trialUsedAt
+          || currentState.billing?.trialStartedAt
+          || extraBilling.trialEndedAt
+          || new Date().toISOString(),
         cancelledAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
@@ -223,9 +227,44 @@ async function handleCancel(req, authUser, headers) {
   const checkoutId = safeText(body?.checkoutId)
   const externalId = safeText(body?.externalId)
   const subscriptionId = safeText(body?.subscriptionId)
+  const localBillingStatus = safeText(body?.status || body?.billingStatus).toLowerCase()
+  const localTrialKind = safeText(body?.trialKind)
 
   if (!checkoutId && !externalId && !subscriptionId) {
-    return new Response(JSON.stringify({ error: 'subscriptionId, checkoutId ou externalId é obrigatório' }), { status: 400, headers })
+    if (localBillingStatus === 'paid') {
+      return new Response(JSON.stringify({
+        error: 'Não encontramos um ID remoto da assinatura para cancelar na AbacatePay. Aguarde a confirmação do checkout ou fale com o suporte.',
+      }), { status: 400, headers })
+    }
+
+    const trialEndedAt = new Date().toISOString()
+    const localOnlyBilling = {
+      checkoutId: '',
+      externalId: '',
+      subscriptionId: '',
+      remoteStatus: 'LOCAL_ONLY',
+      trialEndedAt,
+    }
+    if (localTrialKind) {
+      localOnlyBilling.trialKind = localTrialKind
+    }
+
+    const userDowngraded = await downgradeUserToFreeInBlob(userId, localOnlyBilling)
+
+    return new Response(JSON.stringify({
+      success: true,
+      cancelled: false,
+      localOnly: true,
+      message: 'Período temporário encerrado nesta conta.',
+      billingStatus: 'LOCAL_ONLY',
+      billingId: '',
+      subscriptionId: '',
+      userDowngraded,
+      cloudSyncEnabled: userDowngraded,
+    }), {
+      status: 200,
+      headers,
+    })
   }
 
   try {

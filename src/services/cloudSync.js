@@ -17,8 +17,70 @@
 
 import { authFetch } from './authFetch.js'
 import { buildAccountSnapshot, applyAccountSnapshot } from './accountSnapshot.js'
+import { getBillingState, normalizeBillingState, saveBillingState } from './billingState.js'
 
 const CLOUD_SYNC_KEY = 'apice:cloud-sync:last-pull:v1'
+
+function hasMeaningfulBilling(state) {
+  return Boolean(
+    state
+    && typeof state === 'object'
+    && (
+      state.status !== 'free'
+      || state.planKey
+      || state.trialUsedAt
+      || state.trialStartedAt
+      || state.trialEndsAt
+      || state.paidAt
+      || state.checkoutId
+      || state.externalId
+      || state.subscriptionId
+    ),
+  )
+}
+
+function billingStatesMatch(localState, cloudState) {
+  const relevantKeys = [
+    'status',
+    'planKey',
+    'trialKind',
+    'trialUsedAt',
+    'trialStartedAt',
+    'trialEndsAt',
+    'paidAt',
+    'checkoutId',
+    'externalId',
+    'subscriptionId',
+  ]
+
+  return relevantKeys.every((key) => (
+    String(localState?.[key] ?? '') === String(cloudState?.[key] ?? '')
+  ))
+}
+
+function applyServerBillingAfterPush(serverState) {
+  if (!serverState || typeof serverState !== 'object' || !serverState.billing) return
+
+  try {
+    const cloudBilling = normalizeBillingState(serverState.billing)
+    const localBilling = getBillingState()
+
+    if (!hasMeaningfulBilling(cloudBilling) && !hasMeaningfulBilling(localBilling)) {
+      return
+    }
+
+    if (billingStatesMatch(localBilling, cloudBilling)) {
+      return
+    }
+
+    // O backend é autoridade para billing. Aplicamos só esse recorte para evitar
+    // o loop de eventos causado por reaplicar o snapshot inteiro após cada push.
+    saveBillingState(cloudBilling)
+    console.log('[cloudSync] Billing sincronizado com estado autorizado da nuvem')
+  } catch (error) {
+    console.warn('[cloudSync] Não foi possível aplicar billing autorizado:', error?.message || error)
+  }
+}
 
 /**
  * Retorna o user atual (para checar se está logado).
@@ -57,7 +119,7 @@ export async function pullStateFromCloud() {
     if (!data.state) {
       // Sem estado na nuvem — primeiro uso ou conta zerada
       console.log('[cloudSync] Nenhum estado na nuvem')
-      return false
+      return null
     }
 
     // Aplica o estado da nuvem com MERGE INTELIGENTE
@@ -111,9 +173,7 @@ export async function pushStateToCloud(user) {
     }
 
     const data = await res.json()
-    if (data?.state && typeof data.state === 'object') {
-      applyAccountSnapshot(data.state)
-    }
+    applyServerBillingAfterPush(data?.state)
     console.log(`[cloudSync] Estado salvo na nuvem (${data.sizeBytes || 'unknown'} bytes)`)
     return true
   } catch (error) {

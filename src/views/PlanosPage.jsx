@@ -308,11 +308,16 @@ export function PlanosPage() {
         subscriptionId,
       })
 
+      let checkoutFlashText = `Checkout do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação do período de acesso.`
+      if (data.trialCouponUnavailable) {
+        checkoutFlashText = `Não conseguimos aplicar automaticamente o cupom FREE TEST na AbacatePay. Abrimos o checkout pago do plano ${plan.label}.`
+      } else if (data.trialAlreadyUsed) {
+        checkoutFlashText = `O teste grátis já foi usado nesta conta. Abrimos o checkout pago do plano ${plan.label}.`
+      }
+
       setFlash({
         tone: 'info',
-        text: data.trialAlreadyUsed
-          ? `O teste grátis já foi usado nesta conta. Abrimos o checkout pago do plano ${plan.label}.`
-          : `Checkout do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação do período de acesso.`,
+        text: checkoutFlashText,
       })
 
       await new Promise((resolve) => window.setTimeout(resolve, 120))
@@ -359,6 +364,9 @@ export function PlanosPage() {
           checkoutId: billingState.checkoutId || '',
           externalId: billingState.externalId || '',
           subscriptionId: billingState.subscriptionId || '',
+          status: billingState.status || '',
+          trialKind: billingState.trialKind || '',
+          planKey: billingState.planKey || '',
         }),
       })
 
@@ -370,12 +378,19 @@ export function PlanosPage() {
 
       // Atualiza estado local
       if (data.userDowngraded) {
-        // Limpa billing state para free
-        localStorage.removeItem('apice:billing-state:v1')
-        localStorage.removeItem('apice:plan:tier')
-        window.dispatchEvent(new CustomEvent('apice:billing-state-updated'))
-        window.dispatchEvent(new CustomEvent('apice:account-state-updated'))
-        window.dispatchEvent(new CustomEvent('apice:free-plan-usage-updated'))
+        const cancelledAt = new Date().toISOString()
+        saveBillingState({
+          status: 'free',
+          planKey: '',
+          trialKind: billingState.trialKind || (billingState.trialStartedAt ? 'standard' : ''),
+          trialUsedAt: billingState.trialUsedAt || billingState.trialStartedAt || cancelledAt,
+          trialStartedAt: billingState.trialStartedAt || '',
+          trialEndsAt: billingState.trialEndsAt || '',
+          paidAt: '',
+          checkoutId: '',
+          externalId: '',
+          subscriptionId: '',
+        })
 
         setFlash({
           tone: data.requiresManualRefund ? 'warning' : 'success',
