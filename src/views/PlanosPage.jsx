@@ -78,7 +78,8 @@ export function PlanosPage() {
 
     const checkoutId = params.get('checkoutId') || billingState.checkoutId || ''
     const externalId = params.get('externalId') || billingState.externalId || ''
-    const verificationKey = `${billingAction}:${checkoutId || externalId}:${location.search}`
+    const subscriptionId = params.get('subscriptionId') || billingState.subscriptionId || ''
+    const verificationKey = `${billingAction}:${checkoutId || externalId || subscriptionId}:${location.search}`
     if (verificationKeyRef.current === verificationKey) return
     verificationKeyRef.current = verificationKey
 
@@ -117,7 +118,7 @@ export function PlanosPage() {
             planKey,
             checkoutId: data.checkout?.id || checkoutId,
             externalId: data.externalId || externalId,
-            subscriptionId: data.checkout?.id || '',
+            subscriptionId: data.subscriptionId || data.checkout?.subscriptionId || data.checkout?.subscription?.id || subscriptionId,
             paidAt: new Date().toISOString(),
           })
           setFlash({
@@ -150,13 +151,13 @@ export function PlanosPage() {
     return () => {
       cancelled = true
     }
-  }, [billingState.checkoutId, billingState.externalId, billingState.planKey, location.search, navigate])
+  }, [billingState.checkoutId, billingState.externalId, billingState.planKey, billingState.subscriptionId, location.search, navigate])
 
   const activePlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
   const trialAlreadyUsed = hasUsedTrial()
   const trialCurrentlyActive = isTrialActive()
 
-  const activeAccessLabel = false ? 'x' : 'Teste grátis'
+  const activeAccessLabel = 'Teste grátis'
   const activeAccessLabelLower = activeAccessLabel.toLowerCase()
   const trialEnded = trialAlreadyUsed && !trialCurrentlyActive && billingState.status !== 'paid'
   const quotaRow = quotaInfo || getQuotaInfo()
@@ -182,12 +183,6 @@ export function PlanosPage() {
     }
 
     if (trialCurrentlyActive) {
-      if (false) {
-        return activePlan
-          ? `Premium temporário ativo no plano ${activePlan.label}.`
-          : 'Teste grátis ativo por 7 dias.'
-      }
-
       return activePlan
         ? `Teste grátis ativo no plano ${activePlan.label}.`
         : `Teste grátis ativo por ${TRIAL_DAYS} dias.`
@@ -274,6 +269,7 @@ export function PlanosPage() {
 
       const checkoutUrl = data.checkoutUrl || data.checkout?.url || data.url || ''
       const checkoutId = data.checkoutId || data.checkout?.id || data.id || ''
+      const subscriptionId = data.subscriptionId || data.checkout?.subscriptionId || data.checkout?.subscription?.id || ''
       if (!checkoutUrl) {
         throw new Error(getAbacatePayErrorMessage(data, 'A AbacatePay não retornou a URL de checkout.'))
       }
@@ -281,6 +277,7 @@ export function PlanosPage() {
       saveBillingState({
         checkoutId,
         externalId: data.externalId,
+        subscriptionId,
       })
 
       setFlash({
@@ -316,9 +313,7 @@ export function PlanosPage() {
 
     const cancelPrompt = billingState.status === 'paid'
       ? 'Tem certeza que deseja cancelar sua assinatura? Seu acesso ao plano pago continuará até o fim do período já pago. Após isso, sua conta voltará para o plano gratuito.'
-      : false
-        ? 'Tem certeza que deseja encerrar seu premium temporário? Sua conta voltará para o plano gratuito imediatamente.'
-        : 'Tem certeza que deseja encerrar seu teste grátis? Sua conta voltará para o plano gratuito imediatamente.'
+      : 'Tem certeza que deseja encerrar seu teste grátis? Sua conta voltará para o plano gratuito imediatamente.'
 
     if (!confirm(cancelPrompt)) {
       return
@@ -333,6 +328,7 @@ export function PlanosPage() {
         body: JSON.stringify({
           checkoutId: billingState.checkoutId || '',
           externalId: billingState.externalId || '',
+          subscriptionId: billingState.subscriptionId || '',
         }),
       })
 
@@ -357,9 +353,7 @@ export function PlanosPage() {
             ? 'Assinatura cancelada. Como o pagamento já foi processado, solicite reembolso pelo email suporte@apice.com. Seu acesso continua até o fim do período.'
             : billingState.status === 'paid'
               ? 'Assinatura cancelada com sucesso. Sua conta voltará ao plano gratuito.'
-              : false
-                ? 'Premium temporário encerrado com sucesso. Sua conta voltou ao plano gratuito.'
-                : 'Teste grátis encerrado com sucesso. Sua conta voltou ao plano gratuito.',
+              : 'Teste grátis encerrado com sucesso. Sua conta voltou ao plano gratuito.',
         })
       } else {
         setFlash({
@@ -464,7 +458,7 @@ export function PlanosPage() {
             A conta gratuita continua com 5 usos de IA por dia. Ao pagar, a cota sobe para 10 usos diários.
             Contas criadas nesta atualização recebem premium temporário por 30 dias.
             O teste grátis manual continua com 7 dias e só pode ser ativado uma vez por conta.
-            No checkout, o cupom <strong>FREE TEST</strong> libera esses 7 dias de premium.
+            No checkout, o cupom <strong>FREE TEST</strong> é aplicado automaticamente quando a conta ainda pode usar o teste.
           </p>
 
           {isGuest && (
@@ -548,9 +542,7 @@ export function PlanosPage() {
                     <span className="management-value" data-status={billingState.status}>
                       {billingState.status === 'paid'
                         ? 'Pago'
-                        : false
-                          ? 'Premium temporário ativo'
-                          : 'Teste grátis ativo'}
+                        : 'Teste grátis ativo'}
                     </span>
                   </div>
                   {trialCurrentlyActive && trialEndLabel && (
@@ -565,6 +557,12 @@ export function PlanosPage() {
                       <span className="management-value mono">{billingState.checkoutId}</span>
                     </div>
                   )}
+                  {billingState.subscriptionId && (
+                    <div className="management-row">
+                      <span className="management-key">Assinatura ID:</span>
+                      <span className="management-value mono">{billingState.subscriptionId}</span>
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -577,9 +575,7 @@ export function PlanosPage() {
                 <div className="management-hint">
                   {billingState.status === 'paid'
                     ? 'O cancelamento impede renovações futuras. Seu acesso continua ativo até o fim do período já pago.'
-                    : false
-                      ? `Encerrar o teste grátis agora volta a conta para gratuito imediatamente.`
-                      : `Este teste grátis dura ${TRIAL_DAYS} dias. Encerrar agora volta a conta para gratuito imediatamente.`}
+                    : `Este teste grátis dura ${TRIAL_DAYS} dias. Encerrar agora volta a conta para gratuito imediatamente.`}
                 </div>
               </div>
             </div>
@@ -653,8 +649,8 @@ export function PlanosPage() {
                   </div>
 
                   <div className="plan-card-note">
-                    {plan.billingLabel}. Depois do período temporário, o checkout usa o produto da AbacatePay já cadastrado.
-                    Para ativar o teste grátis de 7 dias, use o cupom <strong>FREE TEST</strong> no checkout.
+                    {plan.billingLabel}. O checkout v2 usa o produto recorrente da AbacatePay já cadastrado.
+                    Quando disponível, o teste grátis aplica o cupom <strong>FREE TEST</strong> automaticamente.
                   </div>
 
                   <div className="plan-card-list">

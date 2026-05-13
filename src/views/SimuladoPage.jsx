@@ -10,8 +10,8 @@ import '../styles/simulado.css'
 
 const AREAS = getAreasDisponiveis()
 const MIN_Q = 3
-const MAX_Q = 30
-const PRESETS = [3, 5, 10, 15, 20, 30]
+const MAX_Q = 90
+const PRESETS = [3, 5, 10, 15, 30, 45, 60, 90]
 const MAX_AI_Q = 15
 
 // ── inline markdown para textos das questões ──────────────────────────────────
@@ -206,6 +206,9 @@ export function SimuladoPage() {
   const [examData, setExamData] = useState(null)
   const [currentQ, setCurrentQ] = useState(0)
   const [answers, setAnswers] = useState({})
+  const [reviewQuestions, setReviewQuestions] = useState({})
+  const [examNotice, setExamNotice] = useState(null)
+  const [reviewWarningSeen, setReviewWarningSeen] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
   const [error, setError] = useState(null)
   const [selectedArea, setSelectedArea] = useState(null)
@@ -218,16 +221,17 @@ export function SimuladoPage() {
       if (window.confirm('Você tem um simulado em andamento. Deseja continuar de onde parou?')) {
         setExamData(saved.examData); setSelectedArea(saved.selectedArea)
         setSelectedDiscs(saved.selectedDiscs || []); setCurrentQ(saved.currentQ || 0)
-        setAnswers(saved.answers || {}); setQuantidade(clamp(saved.quantidade || 10)); setStep('exam')
+        setAnswers(saved.answers || {}); setReviewQuestions(saved.reviewQuestions || {})
+        setQuantidade(clamp(saved.quantidade || 10)); setStep('exam')
       }
     }
   }, [])
 
   useEffect(() => {
     if (step === 'exam' && examData) {
-      salvarProgresso({ step: 'exam', examData, selectedArea, selectedDiscs, currentQ, answers, quantidade })
+      salvarProgresso({ step: 'exam', examData, selectedArea, selectedDiscs, currentQ, answers, reviewQuestions, quantidade })
     }
-  }, [step, examData, currentQ, answers, selectedArea, selectedDiscs, quantidade])
+  }, [step, examData, currentQ, answers, reviewQuestions, selectedArea, selectedDiscs, quantidade])
 
   const handleAreaChange = (aId) => { setSelectedArea(aId); setSelectedDiscs([]) }
   const toggleDisc = (id) => setSelectedDiscs(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id])
@@ -242,19 +246,68 @@ export function SimuladoPage() {
       if (!data?.questoes?.length) throw new Error('Não foi possível gerar questões.')
       // Conta como 1 uso de IA independente da fonte
       consumeFreePlan('otherAiRequest')
-      setExamData(data); setStep('exam'); setCurrentQ(0); setAnswers({}); setShowFeedback(false)
+      setExamData(data); setStep('exam'); setCurrentQ(0); setAnswers({}); setReviewQuestions({})
+      setExamNotice(null); setReviewWarningSeen(false); setShowFeedback(false)
       limparProgresso()
     } catch (err) {
       setError(err.message || 'Erro ao gerar simulado.'); setStep('setup')
     } finally { endBusy() }
   }
 
-  const handleSelect = (letter) => { if (showFeedback) return; setAnswers({ ...answers, [examData.questoes[currentQ].id]: letter }) }
-  const handleConfirm = () => setShowFeedback(true)
+  const handleSelect = (letter) => {
+    if (showFeedback) return
+    setExamNotice(null)
+    setAnswers({ ...answers, [examData.questoes[currentQ].id]: letter })
+  }
+
+  const handleConfirm = () => {
+    setExamNotice(null)
+    setShowFeedback(true)
+  }
+
+  const toggleReviewQuestion = (questionId) => {
+    setReviewWarningSeen(false)
+    setExamNotice(null)
+    setReviewQuestions((current) => {
+      const next = { ...current }
+      if (next[questionId]) {
+        delete next[questionId]
+      } else {
+        next[questionId] = true
+      }
+      return next
+    })
+  }
 
   const handleNext = () => {
     if (currentQ < examData.questoes.length - 1) { setCurrentQ(currentQ + 1); setShowFeedback(false) }
     else {
+      const unansweredIndex = examData.questoes.findIndex(q => !answers[q.id])
+      if (unansweredIndex >= 0) {
+        const remaining = examData.questoes.filter(q => !answers[q.id]).length
+        setExamNotice({
+          type: 'warning',
+          text: `Ainda faltam ${remaining} questão(ões) sem resposta. Responda tudo antes de finalizar.`,
+        })
+        setCurrentQ(unansweredIndex)
+        setShowFeedback(false)
+        return
+      }
+
+      const reviewIndexes = examData.questoes
+        .map((question, index) => reviewQuestions[question.id] ? index : -1)
+        .filter(index => index >= 0)
+      if (reviewIndexes.length > 0 && !reviewWarningSeen) {
+        setReviewWarningSeen(true)
+        setExamNotice({
+          type: 'review',
+          text: `Você marcou ${reviewIndexes.length} questão(ões) para revisar mais tarde. Confira antes de avançar ou clique em “Ver resultado final” novamente para concluir mesmo assim.`,
+        })
+        setCurrentQ(reviewIndexes[0])
+        setShowFeedback(false)
+        return
+      }
+
       const total = examData.questoes.length
       const acertos = examData.questoes.filter(q => answers[q.id] === q.correta).length
       const pct = total > 0 ? Math.round((acertos / total) * 100) : 0
@@ -272,7 +325,8 @@ export function SimuladoPage() {
 
   const handleNew = () => {
     setStep('setup'); setExamData(null); setSelectedArea(null); setSelectedDiscs([])
-    setCurrentQ(0); setAnswers({}); setShowFeedback(false); setQuantidade(10); limparProgresso()
+    setCurrentQ(0); setAnswers({}); setReviewQuestions({}); setExamNotice(null); setReviewWarningSeen(false)
+    setShowFeedback(false); setQuantidade(10); limparProgresso()
   }
 
   const discs = selectedArea ? getDisciplinasByArea(selectedArea) : []
@@ -448,7 +502,9 @@ export function SimuladoPage() {
     const q = examData.questoes[currentQ]
     const sel = answers[q.id]
     const prog = ((currentQ + 1) / examData.questoes.length) * 100
-    const answeredCount = Object.keys(answers).length
+    const answeredCount = examData.questoes.filter(question => answers[question.id]).length
+    const reviewCount = examData.questoes.filter(question => reviewQuestions[question.id]).length
+    const markedForReview = Boolean(reviewQuestions[q.id])
     const isLastQuestion = currentQ >= examData.questoes.length - 1
 
     return (
@@ -458,6 +514,14 @@ export function SimuladoPage() {
             <span className="simulado-kicker">Simulado em andamento</span>
             <h2>{examData.area}</h2>
             <p>{answeredCount}/{examData.questoes.length} respondidas</p>
+            <button
+              type="button"
+              className={`simulado-review-toggle ${markedForReview ? 'active' : ''}`}
+              onClick={() => toggleReviewQuestion(q.id)}
+            >
+              <span aria-hidden="true" />
+              {markedForReview ? 'Marcada para revisar' : 'Marcar como revisar mais tarde'}
+            </button>
 
             <div className="simulado-progress-card">
               <div>
@@ -472,12 +536,13 @@ export function SimuladoPage() {
             <div className="question-map" aria-label="Mapa de questões">
               {examData.questoes.map((question, index) => {
                 const answered = Boolean(answers[question.id])
+                const review = Boolean(reviewQuestions[question.id])
                 const active = index === currentQ
                 return (
                   <button
                     key={question.id}
                     type="button"
-                    className={`question-map-dot ${active ? 'active' : ''} ${answered ? 'answered' : ''}`}
+                    className={`question-map-dot ${active ? 'active' : ''} ${answered ? 'answered' : ''} ${review ? 'review' : ''}`}
                     onClick={() => {
                       setCurrentQ(index)
                       setShowFeedback(false)
@@ -489,6 +554,12 @@ export function SimuladoPage() {
                 )
               })}
             </div>
+
+            {reviewCount > 0 && (
+              <div className="simulado-review-count">
+                {reviewCount} para revisar
+              </div>
+            )}
 
             {examData.alerta && (
               <div className="simulado-alert">
@@ -507,6 +578,12 @@ export function SimuladoPage() {
               </div>
               <span className="question-count">{currentQ + 1}/{examData.questoes.length}</span>
             </div>
+
+            {examNotice && (
+              <div className={`simulado-exam-notice ${examNotice.type || 'warning'}`}>
+                {examNotice.text}
+              </div>
+            )}
 
             {q.textoBase && (
               <div className="question-text-base">

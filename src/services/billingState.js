@@ -88,22 +88,6 @@ function normalizeTrialKind(value) {
   return TRIAL_KIND_ALIASES[normalized] || ''
 }
 
-function extractUserCreatedAt(user) {
-  const candidates = [
-    user?.created_at,
-    user?.createdAt,
-    user?.user_metadata?.created_at,
-    user?.user_metadata?.createdAt,
-  ]
-
-  for (const candidate of candidates) {
-    const normalized = normalizeIsoDate(candidate)
-    if (normalized) return normalized
-  }
-
-  return ''
-}
-
 function buildDefaultState() {
   const iso = nowIso()
   return {

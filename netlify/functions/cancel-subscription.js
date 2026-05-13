@@ -3,35 +3,67 @@ import { requireAuth } from './utils/auth.js'
 import { buildCheckoutCorsHeaders } from './utils/cors.js'
 
 /**
- * Endpoint para cancelar assinatura/cobrança no AbacatePay
+ * Cancela uma assinatura recorrente na AbacatePay API v2.
  *
- * COMO FUNCIONA:
- * - Usuário autenticado pode solicitar cancelamento
- * - Backend tenta cancelar no AbacatePay via API
- * - Atualiza blob do usuário no Netlify Blobs para 'free'
- * - NÃO atualiza user_metadata (evita JWT inchado)
- *
- * IMPORTANTE:
- * - AbacatePay V1 é 'billing one-time' (pagamento único por período)
- * - Não tem 'cancelar' no sentido tradicional, mas podemos:
- *   1. Invalidar checkout pendente (se não pago ainda)
- *   2. Marcar usuário como 'free' no blob
- *   3. Registrar solicitação de cancelamento/reembolso
+ * Requer no Netlify:
+ * - ABACATE_V2: chave de API v2 da AbacatePay
  */
 
 const ABACATE_API_BASE = 'https://api.abacatepay.com'
+const ABACATE_SUBSCRIPTION_LIST_PATH = '/v2/subscriptions/list'
+const ABACATE_SUBSCRIPTION_CANCEL_PATH = '/v2/subscriptions/cancel'
 const BLOB_STORE_NAME = 'user-state'
+const ACTIVE_STATUSES = new Set(['PAID', 'ACTIVE'])
+const INACTIVE_STATUSES = new Set(['CANCELLED', 'REFUNDED', 'EXPIRED'])
 
 function getApiKey() {
-  const key = String(process.env.ABACATE_PAY ?? '').trim()
+  const key = String(process.env.ABACATE_V2 ?? process.env.ABACATE_PAY ?? '').trim()
   if (!key) {
-    console.error('[cancel-subscription] ABACATE_PAY não está configurada')
+    console.error('[cancel-subscription] ABACATE_V2 não está configurada')
   }
   return key
 }
 
 function safeText(value) {
   return String(value ?? '').trim()
+}
+
+function formatAbacateError(payload) {
+  if (typeof payload === 'string') return payload
+  if (!payload || typeof payload !== 'object') return ''
+  const nested = safeText(payload.error?.message || payload.data?.error || payload.data?.message)
+  if (nested) return nested
+  return safeText(typeof payload.error === 'string' ? payload.error : payload.message || payload.details)
+}
+
+async function abacateFetch(path, { method = 'GET', body } = {}) {
+  const apiKey = getApiKey()
+  if (!apiKey) {
+    throw new Error('ABACATE_V2 não configurada')
+  }
+
+  const response = await fetch(`${ABACATE_API_BASE}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+
+  const contentType = response.headers.get('content-type') || ''
+  const payload = contentType.includes('application/json')
+    ? await response.json().catch(() => ({}))
+    : await response.text().catch(() => '')
+
+  if (!response.ok) {
+    const error = new Error(formatAbacateError(payload) || 'Falha ao comunicar com a AbacatePay.')
+    error.status = response.status
+    error.details = payload
+    throw error
+  }
+
+  return payload
 }
 
 async function getStore() {
@@ -43,78 +75,103 @@ async function getStore() {
   }
 }
 
-async function cancelAbacateBilling(checkoutId, externalId) {
-  /**
-   * Tenta cancelar cobrança no AbacatePay
-   * V1 não tem endpoint de cancelamento direto, mas podemos:
-   * 1. Verificar status do checkout
-   * 2. Se não pago, marcar como expirado/inválido
-   * 3. Se pago, registrar solicitação de cancelamento
-   */
-  const apiKey = getApiKey()
-  if (!apiKey) {
-    throw new Error('ABACATE_PAY não configurada')
-  }
-
-  // Verifica status atual do checkout
-  const query = new URLSearchParams()
-  if (checkoutId) query.set('id', checkoutId)
-  if (externalId) query.set('externalId', externalId)
-
-  const checkResponse = await fetch(
-    `${ABACATE_API_BASE}/v1/billing/list?${query.toString()}`,
-    {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-    },
+function extractSubscriptionId(record) {
+  return safeText(
+    record?.subscriptionId
+    || record?.subscription_id
+    || record?.subscription?.id
+    || record?.data?.subscription?.id
+    || '',
   )
+}
 
-  if (!checkResponse.ok) {
-    throw new Error('Falha ao verificar cobrança no AbacatePay')
+async function findSubscriptionCheckout({ checkoutId, externalId }) {
+  const query = new URLSearchParams()
+  query.set('limit', '100')
+  if (checkoutId) query.set('id', checkoutId)
+  if (!checkoutId && externalId) query.set('externalId', externalId)
+
+  const result = await abacateFetch(`${ABACATE_SUBSCRIPTION_LIST_PATH}?${query.toString()}`)
+  const records = Array.isArray(result?.data) ? result.data : []
+
+  if (checkoutId) {
+    return records.find((item) => safeText(item?.id) === checkoutId) || records[0] || null
   }
 
-  const result = await checkResponse.json()
-  const billing = Array.isArray(result?.data) ? result.data[0] : null
-
-  if (!billing) {
-    throw new Error('Cobrança não encontrada no AbacatePay')
+  if (externalId) {
+    return records.find((item) => safeText(item?.externalId) === externalId) || records[0] || null
   }
 
-  const status = String(billing?.status ?? '').toUpperCase()
+  return records[0] || null
+}
 
-  // Se já está pago, não podemos cancelar via API V1
-  if (['PAID', 'ACTIVE', 'CONFIRMED'].includes(status)) {
-    console.warn('[cancel-subscription] Cobrança já está paga. Status:', status)
-    return {
-      success: true,
-      cancelled: false,
-      message: 'Cobrança já está paga. Cancelamento requer solicitação manual de reembolso.',
-      billingStatus: status,
-      billingId: billing.id,
+async function resolveSubscriptionId({ subscriptionId, checkoutId, externalId }) {
+  if (subscriptionId) {
+    return { subscriptionId, checkout: null, source: 'local-state' }
+  }
+
+  if (checkoutId.startsWith('subs_')) {
+    return { subscriptionId: checkoutId, checkout: null, source: 'checkoutId-as-subscriptionId' }
+  }
+
+  const checkout = await findSubscriptionCheckout({ checkoutId, externalId })
+  const resolvedSubscriptionId = extractSubscriptionId(checkout)
+  if (resolvedSubscriptionId) {
+    return { subscriptionId: resolvedSubscriptionId, checkout, source: 'subscription-list' }
+  }
+
+  return { subscriptionId: '', checkout, source: checkout ? 'subscription-list-without-subscription-id' : 'not-found' }
+}
+
+async function cancelAbacateSubscription({ subscriptionId, checkoutId, externalId }) {
+  const resolved = await resolveSubscriptionId({ subscriptionId, checkoutId, externalId })
+  const checkoutStatus = String(resolved.checkout?.status ?? '').toUpperCase()
+
+  if (!resolved.subscriptionId) {
+    if (checkoutStatus && INACTIVE_STATUSES.has(checkoutStatus)) {
+      return {
+        success: true,
+        cancelled: true,
+        message: 'Assinatura já estava encerrada na AbacatePay.',
+        billingStatus: checkoutStatus,
+        billingId: safeText(resolved.checkout?.id),
+        subscriptionId: '',
+      }
     }
+
+    if (checkoutStatus && !ACTIVE_STATUSES.has(checkoutStatus)) {
+      return {
+        success: true,
+        cancelled: false,
+        message: 'Checkout de assinatura ainda não está ativo. A conta será encerrada localmente.',
+        billingStatus: checkoutStatus,
+        billingId: safeText(resolved.checkout?.id),
+        subscriptionId: '',
+      }
+    }
+
+    throw new Error('Não foi possível localizar o ID da assinatura v2. Aguarde o webhook de confirmação ou tente novamente em alguns instantes.')
   }
 
-  // Se está pendente, apenas logamos (V1 não tem cancelamento via API)
-  console.warn('[cancel-subscription] AbacatePay V1 não suporta cancelamento via API.')
-  console.warn('[cancel-subscription] Billing ID:', billing.id, 'Status:', status)
+  const result = await abacateFetch(ABACATE_SUBSCRIPTION_CANCEL_PATH, {
+    method: 'POST',
+    body: { id: resolved.subscriptionId },
+  })
+
+  const data = result?.data || {}
+  const status = String(data?.status ?? checkoutStatus ?? '').toUpperCase()
 
   return {
     success: true,
-    cancelled: false,
-    message: 'AbacatePay V1 não suporta cancelamento via API. Usuário marcado como free.',
-    billingStatus: status,
-    billingId: billing.id,
-    requiresManualRefund: status === 'PAID',
+    cancelled: true,
+    message: 'Assinatura cancelada na AbacatePay.',
+    billingStatus: status || 'CANCELLED',
+    billingId: safeText(data?.id || resolved.checkout?.id),
+    subscriptionId: resolved.subscriptionId,
   }
 }
 
-async function downgradeUserToFreeInBlob(userId) {
-  /**
-   * Atualiza blob do usuário para 'free' no Netlify Blobs
-   * NÃO atualiza user_metadata (evita JWT inchado)
-   */
+async function downgradeUserToFreeInBlob(userId, extraBilling = {}) {
   const store = await getStore()
   if (!store) {
     console.warn('[cancel-subscription] Blob store não disponível. Downgrade cloud desabilitado.')
@@ -124,13 +181,13 @@ async function downgradeUserToFreeInBlob(userId) {
   try {
     const blobKey = `user-state:${userId}`
     const existingData = await store.get(blobKey, { type: 'json' })
-
     const currentState = existingData && typeof existingData === 'object' ? existingData : {}
 
     const updatedState = {
       ...currentState,
       billing: {
         ...(currentState.billing || {}),
+        ...extraBilling,
         status: 'free',
         planKey: '',
         subscriptionActive: false,
@@ -165,24 +222,28 @@ async function handleCancel(req, authUser, headers) {
 
   const checkoutId = safeText(body?.checkoutId)
   const externalId = safeText(body?.externalId)
+  const subscriptionId = safeText(body?.subscriptionId)
 
-  if (!checkoutId && !externalId) {
-    return new Response(JSON.stringify({ error: 'checkoutId ou externalId é obrigatório' }), { status: 400, headers })
+  if (!checkoutId && !externalId && !subscriptionId) {
+    return new Response(JSON.stringify({ error: 'subscriptionId, checkoutId ou externalId é obrigatório' }), { status: 400, headers })
   }
 
   try {
-    // 1. Tenta cancelar no AbacatePay
-    const abacateResult = await cancelAbacateBilling(checkoutId, externalId)
-
-    // 2. Downgrade do usuário para free no blob
-    const userDowngraded = await downgradeUserToFreeInBlob(userId)
+    const abacateResult = await cancelAbacateSubscription({ subscriptionId, checkoutId, externalId })
+    const userDowngraded = await downgradeUserToFreeInBlob(userId, {
+      checkoutId,
+      externalId,
+      subscriptionId: abacateResult.subscriptionId || subscriptionId,
+      remoteStatus: abacateResult.billingStatus,
+    })
 
     return new Response(JSON.stringify({
       success: true,
       cancelled: abacateResult.cancelled,
       message: abacateResult.message,
-      requiresManualRefund: abacateResult.requiresManualRefund || false,
       billingStatus: abacateResult.billingStatus,
+      billingId: abacateResult.billingId,
+      subscriptionId: abacateResult.subscriptionId || subscriptionId,
       userDowngraded,
       cloudSyncEnabled: userDowngraded,
     }), {
@@ -193,6 +254,7 @@ async function handleCancel(req, authUser, headers) {
     console.error('[cancel-subscription] Erro:', error)
     return new Response(JSON.stringify({
       error: error?.message || 'Falha ao cancelar assinatura',
+      details: error?.details || null,
     }), {
       status: error?.status || 500,
       headers,
@@ -211,7 +273,6 @@ export default async function handler(req, context) {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers })
   }
 
-  // Requer autenticação
   const auth = requireAuth(req, context, headers)
   if (auth instanceof Response) return auth
 
