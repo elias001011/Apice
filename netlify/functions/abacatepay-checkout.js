@@ -253,7 +253,7 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
 }
 
 async function getUserTrialStatusFromCloud(userId) {
-  if (!userId) return { hasUsedTrial: false }
+  if (!userId) return { hasUsedTrial: false, activeTrial: false, trialState: null }
 
   try {
     const { getStore } = await import('@netlify/blobs')
@@ -261,32 +261,50 @@ async function getUserTrialStatusFromCloud(userId) {
 
     if (!store) {
       console.warn('[abacatepay] Blob store não disponível. Trial cloud validation desabilitada.')
-      return { hasUsedTrial: false }
+      return { hasUsedTrial: false, activeTrial: false, trialState: null }
     }
 
     const blobKey = `user-state:${userId}`
     const userData = await store.get(blobKey, { type: 'json' })
 
     if (!userData || typeof userData !== 'object') {
-      return { hasUsedTrial: false }
+      return { hasUsedTrial: false, activeTrial: false, trialState: null }
     }
 
     const billing = userData.billing || {}
-    const hasUsedTrial = Boolean(
+    const trialStartedAt = safeText(userData.trialStartedAt || billing.trialStartedAt)
+    const trialEndsAt = safeText(userData.trialEndsAt || billing.trialEndsAt)
+    const trialKind = safeText(userData.trialKind || billing.trialKind) || 'standard'
+    const trialEndsAtMs = Date.parse(trialEndsAt)
+    const activeTrial = billing.status === 'trial'
+      && Number.isFinite(trialEndsAtMs)
+      && trialEndsAtMs > Date.now()
+    const anyTrialRecord = Boolean(
       userData.trialUsedAt ||
-      userData.trialStartedAt ||
-      userData.trialEndsAt ||
+      trialStartedAt ||
+      trialEndsAt ||
       billing.trialUsedAt ||
-      billing.trialStartedAt ||
-      billing.trialEndsAt ||
       userData.planStatus === 'trial' ||
       billing.status === 'trial',
     )
+    const hasUsedTrial = anyTrialRecord && !activeTrial
 
-    return { hasUsedTrial }
+    return {
+      hasUsedTrial,
+      activeTrial,
+      trialState: activeTrial
+        ? {
+          status: 'trial',
+          planKey: safeText(billing.planKey || userData.planKey),
+          trialKind,
+          trialStartedAt,
+          trialEndsAt,
+        }
+        : null,
+    }
   } catch (error) {
     console.warn('[abacatepay] Erro ao verificar trial no blob:', error.message)
-    return { hasUsedTrial: false }
+    return { hasUsedTrial: false, activeTrial: false, trialState: null }
   }
 }
 
@@ -306,7 +324,8 @@ async function createCheckout(req, authUser, headers) {
   }
 
   const planKey = safeText(body?.planKey)
-  const isTrial = Boolean(body?.isTrial)
+  const requestedTrial = Boolean(body?.isTrial)
+  let shouldApplyTrial = requestedTrial
   const plan = getPricingPlanByKey(planKey)
 
   if (!plan || !plan.productId) {
@@ -320,14 +339,22 @@ async function createCheckout(req, authUser, headers) {
   const customerCellphone = safeText(body?.customerCellphone ?? body?.phone ?? body?.cellphone)
   const customerTaxId = safeText(body?.customerTaxId ?? body?.taxId ?? body?.cpf ?? body?.cnpj)
 
-  if (isTrial) {
+  if (requestedTrial) {
     const cloudStatus = await getUserTrialStatusFromCloud(userId)
-    if (cloudStatus.hasUsedTrial) {
-      console.warn('[abacatepay] Tentativa de reutilizar trial bloqueada.')
+    if (cloudStatus.activeTrial) {
+      console.warn('[abacatepay] Checkout ignorado: usuário já tem trial ativo na nuvem.')
       return new Response(JSON.stringify({
-        error: 'O teste grátis já foi usado nesta conta. Assine um plano para continuar.',
-        hasUsedTrial: true,
-      }), { status: 403, headers })
+        success: true,
+        activeTrial: true,
+        message: 'Você já tem um período temporário ativo nesta conta.',
+        planKey: cloudStatus.trialState?.planKey || plan.key,
+        trialState: cloudStatus.trialState,
+      }), { status: 200, headers })
+    }
+
+    if (cloudStatus.hasUsedTrial) {
+      console.warn('[abacatepay] Trial já usado. Checkout seguirá como pago.')
+      shouldApplyTrial = false
     }
   }
 
@@ -363,7 +390,7 @@ async function createCheckout(req, authUser, headers) {
         completionUrl,
         userId,
         timestamp,
-        isTrial,
+        isTrial: shouldApplyTrial,
         customerId,
       }),
     })
@@ -390,7 +417,9 @@ async function createCheckout(req, authUser, headers) {
       totalPrice: plan.totalPrice,
       billingLabel: plan.billingLabel,
       trialDays: plan.trialDays,
-      isTrial,
+      isTrial: shouldApplyTrial,
+      requestedTrial,
+      trialAlreadyUsed: requestedTrial && !shouldApplyTrial,
       checkout,
     }), {
       status: 200,

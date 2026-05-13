@@ -671,12 +671,12 @@ const radarCss = `
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
-    transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.1s, opacity 0.2s, box-shadow 0.2s;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.1s, opacity 0.2s;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    box-shadow: 0 10px 22px rgba(8, 9, 4, 0.05);
+    box-shadow: none;
   }
 
   html[data-card-gradients="on"] .tema-save-btn {

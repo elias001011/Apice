@@ -267,6 +267,34 @@ export function PlanosPage() {
         throw new Error(getAbacatePayErrorMessage(data, 'Não foi possível criar o checkout.'))
       }
 
+      if (data.activeTrial && data.trialState) {
+        const trialEndsAt = data.trialState.trialEndsAt || ''
+        saveBillingState({
+          status: 'trial',
+          planKey: data.trialState.planKey || plan.key,
+          trialKind: data.trialState.trialKind || 'standard',
+          trialStartedAt: data.trialState.trialStartedAt || new Date().toISOString(),
+          trialEndsAt,
+        })
+
+        const trialEndsDate = trialEndsAt ? new Date(trialEndsAt) : null
+        const trialEndsLabel = trialEndsDate && Number.isFinite(trialEndsDate.getTime())
+          ? trialEndsDate.toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+          })
+          : ''
+
+        setFlash({
+          tone: 'info',
+          text: trialEndsLabel
+            ? `Você já tem um período temporário ativo até ${trialEndsLabel}. Não abrimos outro checkout de teste.`
+            : 'Você já tem um período temporário ativo. Não abrimos outro checkout de teste.',
+        })
+        return
+      }
+
       const checkoutUrl = data.checkoutUrl || data.checkout?.url || data.url || ''
       const checkoutId = data.checkoutId || data.checkout?.id || data.id || ''
       const subscriptionId = data.subscriptionId || data.checkout?.subscriptionId || data.checkout?.subscription?.id || ''
@@ -282,7 +310,9 @@ export function PlanosPage() {
 
       setFlash({
         tone: 'info',
-        text: `Checkout do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação do período de acesso.`,
+        text: data.trialAlreadyUsed
+          ? `O teste grátis já foi usado nesta conta. Abrimos o checkout pago do plano ${plan.label}.`
+          : `Checkout do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação do período de acesso.`,
       })
 
       await new Promise((resolve) => window.setTimeout(resolve, 120))
@@ -1220,14 +1250,13 @@ const planosCss = `
     font-size: 0.95rem;
     font-weight: 700;
     cursor: pointer;
-    box-shadow: 0 8px 22px rgba(var(--accent-rgb), 0.24);
-    transition: transform 0.18s ease, background 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: none;
+    transition: background 0.2s ease, opacity 0.2s ease;
   }
 
   .plan-cta-btn:hover:not(:disabled) {
     background: var(--accent2);
-    transform: translateY(-1px);
-    box-shadow: 0 10px 26px rgba(var(--accent-rgb), 0.32);
+    box-shadow: none;
   }
 
   .plan-cta-btn:disabled {

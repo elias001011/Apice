@@ -297,15 +297,15 @@ const upgradeModalCss = `
     align-items: center;
     justify-content: center;
     gap: 8px;
-    transition: all 0.2s;
-    box-shadow: 0 6px 20px rgba(var(--accent-rgb), 0.3);
+    transition: background 0.2s, transform 0.1s;
+    box-shadow: none;
     margin-bottom: 12px;
   }
 
   .upgrade-cta-btn:hover {
     background: var(--accent2);
-    transform: translateY(-2px);
-    box-shadow: 0 10px 28px rgba(var(--accent-rgb), 0.4);
+    transform: none;
+    box-shadow: none;
   }
 
   html[data-fx="none"] .upgrade-cta-btn {

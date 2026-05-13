@@ -834,12 +834,13 @@ html[data-fx="blur"] .nav-inner {
 }
 
 .confirm-actions .btn-primary.danger {
-  background: linear-gradient(135deg, var(--red), #ff7171);
+  background: var(--red);
   color: #fff;
+  box-shadow: none;
 }
 
 .confirm-actions .btn-primary.danger:hover {
-  background: linear-gradient(135deg, #ff6b6b, var(--red));
+  background: #d93f3f;
 }
 
 @media (max-width: 640px) {

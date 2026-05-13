@@ -7,6 +7,7 @@ import process from 'node:process'
  * Eventos principais v2:
  * - checkout.completed
  * - subscription.completed
+ * - subscription.trial_started
  * - subscription.renewed
  * - subscription.cancelled
  *
@@ -26,6 +27,10 @@ const SUCCESS_EVENTS = new Set([
   'subscription.created',
 ])
 
+const TRIAL_EVENTS = new Set([
+  'subscription.trial_started',
+])
+
 const CANCEL_EVENTS = new Set([
   'subscription.cancelled',
   'checkout.refunded',
@@ -35,6 +40,19 @@ const CANCEL_EVENTS = new Set([
 
 function safeText(value) {
   return String(value ?? '').trim()
+}
+
+function normalizeIsoDate(value) {
+  const text = safeText(value)
+  if (!text) return ''
+  const date = new Date(text)
+  if (!Number.isFinite(date.getTime())) return ''
+  return date.toISOString()
+}
+
+function getTrialDays(metadata) {
+  const days = Math.round(Number(metadata?.trialDays || metadata?.trial_days || 7))
+  return Number.isFinite(days) && days > 0 ? Math.min(days, 60) : 7
 }
 
 function parseExternalId(externalId) {
@@ -158,7 +176,8 @@ async function updateBillingInBlob(userId, planKey, billingUpdate, eventId = '')
     const blobKey = `user-state:${userId}`
     const existingData = await store.get(blobKey, { type: 'json' })
     const currentState = existingData && typeof existingData === 'object' ? existingData : {}
-    const nextStatus = billingUpdate.status === 'free' ? 'free' : 'paid'
+    const billingStatus = safeText(billingUpdate.status) || 'paid'
+    const planStatus = billingStatus === 'free' ? 'free' : billingStatus
     const previousEvents = Array.isArray(currentState.billing?.processedWebhookEventIds)
       ? currentState.billing.processedWebhookEventIds.filter(Boolean)
       : []
@@ -180,9 +199,9 @@ async function updateBillingInBlob(userId, planKey, billingUpdate, eventId = '')
         processedWebhookEventIds,
         updatedAt: new Date().toISOString(),
       },
-      planStatus: nextStatus,
-      planTier: nextStatus === 'free' ? 'free' : 'paid',
-      planKey: nextStatus === 'free' ? '' : (planKey || currentState.planKey || 'monthly'),
+      planStatus,
+      planTier: billingStatus === 'free' ? 'free' : 'paid',
+      planKey: billingStatus === 'free' ? '' : (planKey || currentState.planKey || 'monthly'),
       savedAt: new Date().toISOString(),
     }
 
@@ -239,6 +258,52 @@ export async function handler(req) {
     if (!userId) {
       console.warn('[payment-webhook] userId não encontrado no metadata/externalId.')
       return new Response(JSON.stringify({ success: true, message: 'Ignorado: userId não encontrado' }), { status: 200 })
+    }
+
+    if (TRIAL_EVENTS.has(event)) {
+      const trialDays = getTrialDays(metadata)
+      const nowIso = new Date().toISOString()
+      const trialStartedAt = normalizeIsoDate(
+        metadata.trialStartedAt
+        || metadata.trial_started_at
+        || objects.subscription?.trialStartedAt
+        || objects.subscription?.trial_started_at
+        || objects.data?.trialStartedAt
+        || objects.data?.createdAt,
+      ) || nowIso
+      const trialEndsAt = normalizeIsoDate(
+        metadata.trialEndsAt
+        || metadata.trial_ends_at
+        || objects.subscription?.trialEndsAt
+        || objects.subscription?.trial_ends_at
+        || objects.data?.trialEndsAt,
+      ) || new Date(new Date(trialStartedAt).getTime() + (trialDays * 24 * 60 * 60 * 1000)).toISOString()
+
+      const billingUpdate = {
+        status: 'trial',
+        planKey,
+        trialKind: 'standard',
+        trialUsedAt: trialStartedAt,
+        trialStartedAt,
+        trialEndsAt,
+        gateway: 'abacatepay-v2',
+        subscriptionActive: true,
+        checkoutId,
+        externalId,
+        subscriptionId,
+        lastWebhookEvent: event,
+      }
+
+      const blobUpdated = await updateBillingInBlob(userId, planKey, billingUpdate, eventId)
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Trial da assinatura registrado',
+        blobUpdated,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     if (SUCCESS_EVENTS.has(event)) {

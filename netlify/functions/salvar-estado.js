@@ -75,6 +75,7 @@ export default async function handler(req, context) {
         ok: true,
         savedAt: new Date().toISOString(),
         sizeBytes,
+        state: secureState,
       }),
       { status: 200, headers }
     )

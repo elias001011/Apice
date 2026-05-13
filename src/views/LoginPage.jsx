@@ -263,7 +263,7 @@ const loginCss = `
 
   .login-wrap {
     width: 100%;
-    max-width: 480px;
+    max-width: 560px;
     position: relative;
     z-index: 1;
     background: var(--bg2);
@@ -349,7 +349,7 @@ const loginCss = `
     background: var(--bg2);
     border: 1.5px solid var(--border2);
     border-radius: 24px;
-    padding: 2rem;
+    padding: 2rem 2.25rem;
   }
 
   .login-input-group {
@@ -418,7 +418,6 @@ const loginCss = `
 
   .guest-cta-btn {
     position: relative;
-    overflow: hidden;
     display: grid;
     grid-template-columns: 42px minmax(0, 1fr) auto;
     align-items: center;
@@ -427,39 +426,28 @@ const loginCss = `
     padding: 14px 16px;
     border-radius: 18px;
     border: 1px solid rgba(var(--accent-rgb), 0.28);
-    background:
-      linear-gradient(180deg, rgba(var(--accent-rgb), 0.14), rgba(255, 255, 255, 0.02)),
-      linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
+    background: color-mix(in srgb, var(--accent) 14%, var(--bg3));
     color: var(--text);
-    box-shadow: 0 12px 30px rgba(8, 9, 4, 0.08);
+    box-shadow: none;
     font: inherit;
     text-align: left;
     cursor: pointer;
     transition:
-      transform 0.2s ease,
-      box-shadow 0.2s ease,
       border-color 0.2s ease,
       background 0.2s ease;
   }
 
   .guest-cta-btn::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.12) 50%, transparent 80%);
-    transform: translateX(-120%);
-    transition: transform 0.55s ease;
-    pointer-events: none;
+    content: none;
   }
 
   .guest-cta-btn:hover:not(:disabled) {
-    transform: translateY(-1px);
     border-color: rgba(var(--accent-rgb), 0.48);
-    box-shadow: 0 16px 36px rgba(8, 9, 4, 0.12);
+    background: color-mix(in srgb, var(--accent) 20%, var(--bg3));
   }
 
   .guest-cta-btn:hover:not(:disabled)::before {
-    transform: translateX(120%);
+    transform: none;
   }
 
   .guest-cta-btn:active:not(:disabled) {
@@ -469,7 +457,7 @@ const loginCss = `
   .guest-cta-btn:disabled {
     opacity: 0.7;
     cursor: not-allowed;
-    box-shadow: 0 8px 18px rgba(8, 9, 4, 0.05);
+    box-shadow: none;
   }
 
   .guest-cta-badge {

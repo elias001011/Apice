@@ -111,6 +111,9 @@ export async function pushStateToCloud(user) {
     }
 
     const data = await res.json()
+    if (data?.state && typeof data.state === 'object') {
+      applyAccountSnapshot(data.state)
+    }
     console.log(`[cloudSync] Estado salvo na nuvem (${data.sizeBytes || 'unknown'} bytes)`)
     return true
   } catch (error) {
