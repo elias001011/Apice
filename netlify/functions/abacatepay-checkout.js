@@ -304,7 +304,9 @@ async function abacateFetch(path, { method = 'GET', body } = {}) {
 function buildCustomerPayload({ userId, userEmail, customerName, customerCellphone, customerTaxId }) {
   const email = safeText(userEmail) || `${safeText(userId) || 'usuario'}@apice.internal`
   const payload = {
-    email,
+    data: {
+      email,
+    },
     metadata: {
       app: 'apice',
       userId: safeText(userId),
@@ -312,13 +314,13 @@ function buildCustomerPayload({ userId, userEmail, customerName, customerCellpho
   }
 
   const name = safeText(customerName)
-  if (name) payload.name = name
+  if (name) payload.data.name = name
 
   const cellphone = safeText(customerCellphone)
-  if (cellphone) payload.cellphone = cellphone
+  if (cellphone) payload.data.cellphone = cellphone
 
   const taxId = safeText(customerTaxId)
-  if (taxId) payload.taxId = taxId
+  if (taxId) payload.data.taxId = taxId
 
   return payload
 }
@@ -335,8 +337,10 @@ async function createCustomerId(customerInput) {
   } catch (error) {
     try {
       const retryPayload = {
-        email: payload.email,
-        ...(payload.name ? { name: payload.name } : {}),
+        data: {
+          email: payload.data.email,
+          ...(payload.data.name ? { name: payload.data.name } : {}),
+        },
         metadata: payload.metadata,
       }
       const retry = await abacateFetch(ABACATE_CUSTOMER_CREATE_PATH, {
@@ -345,21 +349,7 @@ async function createCustomerId(customerInput) {
       })
       return safeText(retry?.data?.id)
     } catch (retryError) {
-      try {
-        const wrappedRetry = await abacateFetch(ABACATE_CUSTOMER_CREATE_PATH, {
-          method: 'POST',
-          body: {
-            data: {
-              email: payload.email,
-              ...(payload.name ? { name: payload.name } : {}),
-            },
-            metadata: payload.metadata,
-          },
-        })
-        return safeText(wrappedRetry?.data?.id)
-      } catch (wrappedError) {
-        console.warn('[abacatepay] Customer v2 não foi criado após retry. Checkout seguirá sem customerId:', error.message, retryError.message, wrappedError.message)
-      }
+      console.warn('[abacatepay] Customer v2 não foi criado após retry. Checkout seguirá sem customerId:', error.message, retryError.message)
       return ''
     }
   }

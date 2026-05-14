@@ -353,6 +353,10 @@ export async function refreshUserSummaryFromHistory({ force = false } = {}) {
     return currentSummary
   }
 
+  if (!isPerformanceAiAnalysisEnabled()) {
+    return currentSummary
+  }
+
   const localSummary = buildLocalPerformanceSummary(performanceIndex)
   const canGenerateAi = shouldGenerateAiSummary(performanceIndex, currentSummary, { force })
 
