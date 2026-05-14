@@ -243,8 +243,8 @@ export function PlanosPage() {
         return
       }
 
-      // We call the real checkout even for trials now
-      const trialRequested = trialAvailable
+      // Apenas o plano mensal oferece os 7 dias de teste grátis, como solicitado
+      const trialRequested = trialAvailable && plan.key === 'monthly'
 
       console.log('[planos] trialAvailable:', trialAvailable, '| trialAlreadyUsed:', trialAlreadyUsed, '| billingState.status:', billingState.status, '| isTrial:', trialRequested)
 
