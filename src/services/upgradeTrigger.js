@@ -236,7 +236,7 @@ export const PRICING_PLANS = [
   {
     key: 'annual',
     label: 'Anual',
-    productId: 'prod_PRxWqM0BCQtrL4JxARqSHYFM',
+    productId: 'prod_EjA1dwgzNKNMj0fyGmtuStWE',
     totalPrice: 142.80,
     pricePerMonth: 11.90,
     billingLabel: 'Cobrança anual depois do teste grátis',

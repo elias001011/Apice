@@ -37,29 +37,17 @@ export function sanitizeState(incomingState, existingState, user) {
         school: safeText(user?.metadata?.school),
     };
 
-    // 1. Se NÃO existe estado de billing no backend, inicializamos o trial na nuvem
+    // 1. Se NÃO existe estado de billing no backend, inicializamos como 'free'
     if (!existingState || !existingState.billing || typeof existingState.billing !== 'object') {
-        const signupTime = safeDate(user?.payload?.created_at) || safeDate(user?.payload?.createdAt) || safeDate(user?.metadata?.created_at) || Date.now();
-        const cutoffTime = Date.parse(WELCOME_PREMIUM_CUTOFF_ISO);
-
-        const isWelcomeEligible = signupTime >= cutoffTime;
-        const defaultDays = isWelcomeEligible ? WELCOME_PREMIUM_DAYS : 7;
-        const kind = isWelcomeEligible ? 'welcome' : 'standard';
-
-        const startedAt = new Date().toISOString();
-        const endsAt = new Date(Date.now() + defaultDays * 24 * 60 * 60 * 1000).toISOString();
-
-        // Sobrescrevemos o trial que o front possa tentar ter forjado com o do servidor.
+        // Inicializa o usuário sem teste grátis automático.
+        // O teste grátis de 7 dias será obtido ativamente via gateway da AbacatePay.
         incomingState.billing = {
-            status: 'trial',
-            trialKind: kind,
-            trialStartedAt: startedAt,
-            trialEndsAt: endsAt,
+            status: 'free',
             planKey: '',
             updatedAt: new Date().toISOString(),
         };
-        incomingState.planStatus = 'trial';
-        incomingState.planTier = 'paid'; // Trial gets access to paid features
+        incomingState.planStatus = 'free';
+        incomingState.planTier = 'free';
         
         return incomingState;
     }
