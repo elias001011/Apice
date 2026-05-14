@@ -209,7 +209,7 @@ export function SimuladoPage() {
   const [reviewQuestions, setReviewQuestions] = useState({})
   const [examNotice, setExamNotice] = useState(null)
   const [reviewWarningSeen, setReviewWarningSeen] = useState(false)
-  const [showFeedback, setShowFeedback] = useState(false)
+  const [confirmedAnswers, setConfirmedAnswers] = useState({})
   const [pendingModal, setPendingModal] = useState(null)
   const [error, setError] = useState(null)
   const [selectedArea, setSelectedArea] = useState(null)
@@ -223,6 +223,7 @@ export function SimuladoPage() {
         setExamData(saved.examData); setSelectedArea(saved.selectedArea)
         setSelectedDiscs(saved.selectedDiscs || []); setCurrentQ(saved.currentQ || 0)
         setAnswers(saved.answers || {}); setReviewQuestions(saved.reviewQuestions || {})
+        setConfirmedAnswers(saved.confirmedAnswers || {})
         setQuantidade(clamp(saved.quantidade || 10)); setStep('exam')
       }
     }
@@ -230,9 +231,9 @@ export function SimuladoPage() {
 
   useEffect(() => {
     if (step === 'exam' && examData) {
-      salvarProgresso({ step: 'exam', examData, selectedArea, selectedDiscs, currentQ, answers, reviewQuestions, quantidade })
+      salvarProgresso({ step: 'exam', examData, selectedArea, selectedDiscs, currentQ, answers, reviewQuestions, confirmedAnswers, quantidade })
     }
-  }, [step, examData, currentQ, answers, reviewQuestions, selectedArea, selectedDiscs, quantidade])
+  }, [step, examData, currentQ, answers, reviewQuestions, confirmedAnswers, selectedArea, selectedDiscs, quantidade])
 
   const handleAreaChange = (aId) => { setSelectedArea(aId); setSelectedDiscs([]) }
   const toggleDisc = (id) => setSelectedDiscs(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id])
@@ -247,8 +248,8 @@ export function SimuladoPage() {
       if (!data?.questoes?.length) throw new Error('Não foi possível gerar questões.')
       // Conta como 1 uso de IA independente da fonte
       consumeFreePlan('otherAiRequest')
-      setExamData(data); setStep('exam'); setCurrentQ(0); setAnswers({}); setReviewQuestions({})
-      setExamNotice(null); setReviewWarningSeen(false); setShowFeedback(false); setPendingModal(null)
+      setExamData(data); setStep('exam'); setCurrentQ(0); setAnswers({}); setReviewQuestions({}); setConfirmedAnswers({})
+      setExamNotice(null); setReviewWarningSeen(false); setPendingModal(null)
       limparProgresso()
     } catch (err) {
       setError(err.message || 'Erro ao gerar simulado.'); setStep('setup')
@@ -256,17 +257,27 @@ export function SimuladoPage() {
   }
 
   const handleSelect = (letter) => {
-    if (showFeedback) return
+    if (confirmedAnswers[examData.questoes[currentQ].id]) return
     setExamNotice(null)
     setAnswers({ ...answers, [examData.questoes[currentQ].id]: letter })
   }
 
   const handleConfirm = () => {
+    const qId = examData.questoes[currentQ].id
+    setConfirmedAnswers(prev => ({ ...prev, [qId]: true }))
+    setReviewQuestions(prev => {
+      if (prev[qId]) {
+        const next = { ...prev }
+        delete next[qId]
+        return next
+      }
+      return prev
+    })
     setExamNotice(null)
-    setShowFeedback(true)
   }
 
   const toggleReviewQuestion = (questionId) => {
+    if (confirmedAnswers[questionId]) return // não deixa marcar pra revisão se já confirmou
     setReviewWarningSeen(false)
     setExamNotice(null)
     setReviewQuestions((current) => {
@@ -280,19 +291,10 @@ export function SimuladoPage() {
     })
   }
 
-  /** Encontra o próximo índice sem resposta a partir do índice atual (circular) */
-  const findNextUnanswered = (fromIndex) => {
-    const total = examData.questoes.length
-    for (let offset = 1; offset <= total; offset++) {
-      const idx = (fromIndex + offset) % total
-      if (!answers[examData.questoes[idx].id]) return idx
-    }
-    return -1
-  }
-
   /** Finaliza o simulado e salva no histórico */
   const finalizeExam = () => {
     const total = examData.questoes.length
+    // Só conta como acerto se estiver respondida e for igual à correta (mesmo se não tiver confirmado, conta a marcação)
     const acertos = examData.questoes.filter(q => answers[q.id] === q.correta).length
     const pct = total > 0 ? Math.round((acertos / total) * 100) : 0
     const perf = pct >= 80 ? 'Excelente' : pct >= 60 ? 'Bom' : pct >= 40 ? 'Regular' : 'Precisa melhorar'
@@ -308,23 +310,38 @@ export function SimuladoPage() {
   }
 
   const handleNext = () => {
-    // Se não estamos na última questão, navegar para a próxima pendente
     if (currentQ < examData.questoes.length - 1) {
-      // Tentar encontrar a próxima questão sem resposta
-      const nextUnanswered = findNextUnanswered(currentQ)
-      if (nextUnanswered >= 0) {
-        setCurrentQ(nextUnanswered)
-      } else {
-        // Todas respondidas — avançar para a próxima questão sequencial
-        setCurrentQ(currentQ + 1)
+      let nextTarget = -1
+      // Busca a próxima pendente ou em revisão pra frente
+      for (let i = currentQ + 1; i < examData.questoes.length; i++) {
+        const id = examData.questoes[i].id
+        if (!confirmedAnswers[id] || reviewQuestions[id]) {
+          nextTarget = i
+          break
+        }
       }
-      setShowFeedback(false)
+      // Se não achou pra frente, busca do início
+      if (nextTarget === -1) {
+        for (let i = 0; i < currentQ; i++) {
+          const id = examData.questoes[i].id
+          if (!confirmedAnswers[id] || reviewQuestions[id]) {
+            nextTarget = i
+            break
+          }
+        }
+      }
+
+      if (nextTarget >= 0) {
+        setCurrentQ(nextTarget)
+      } else {
+        setCurrentQ(examData.questoes.length - 1)
+      }
       return
     }
 
-    // Estamos na última questão — verificar pendências antes de finalizar
+    // Última questão - verifica pendências
     const unansweredIndexes = examData.questoes
-      .map((q, i) => !answers[q.id] ? i : -1)
+      .map((q, i) => !confirmedAnswers[q.id] ? i : -1)
       .filter(i => i >= 0)
 
     if (unansweredIndexes.length > 0) {
@@ -349,7 +366,6 @@ export function SimuladoPage() {
       return
     }
 
-    // Tudo respondido e revisado — finalizar
     finalizeExam()
   }
 
@@ -357,22 +373,20 @@ export function SimuladoPage() {
     if (!pendingModal) return
     if (action === 'go') {
       setCurrentQ(pendingModal.firstIndex)
-      setShowFeedback(false)
       setPendingModal(null)
     } else if (action === 'proceed') {
       if (pendingModal.type === 'review') {
         setReviewWarningSeen(true)
       }
       setPendingModal(null)
-      // Se tinha questões para revisar e o usuário disse prosseguir, finalizar
       finalizeExam()
     }
   }
 
   const handleNew = () => {
     setStep('setup'); setExamData(null); setSelectedArea(null); setSelectedDiscs([])
-    setCurrentQ(0); setAnswers({}); setReviewQuestions({}); setExamNotice(null); setReviewWarningSeen(false)
-    setShowFeedback(false); setQuantidade(10); setPendingModal(null); limparProgresso()
+    setCurrentQ(0); setAnswers({}); setReviewQuestions({}); setConfirmedAnswers({}); setExamNotice(null); setReviewWarningSeen(false)
+    setQuantidade(10); setPendingModal(null); limparProgresso()
   }
 
   const discs = selectedArea ? getDisciplinasByArea(selectedArea) : []
@@ -577,6 +591,7 @@ export function SimuladoPage() {
   if (step === 'exam' && examData) {
     const q = examData.questoes[currentQ]
     const sel = answers[q.id]
+    const isConfirmed = Boolean(confirmedAnswers[q.id])
     const prog = ((currentQ + 1) / examData.questoes.length) * 100
     const answeredCount = examData.questoes.filter(question => answers[question.id]).length
     const reviewCount = examData.questoes.filter(question => reviewQuestions[question.id]).length
@@ -676,14 +691,14 @@ export function SimuladoPage() {
               {Object.entries(q.alternativas || {}).map(([letter, text]) => {
                 let cls = 'option-item'
                 if (sel === letter) cls += ' selected'
-                if (showFeedback) {
+                if (isConfirmed) {
                   cls += ' disabled'
                   if (letter === q.correta) cls += ' correct'
                   else if (sel === letter) cls += ' wrong'
                 }
                 return (
                   <button key={letter} type="button" className={cls}
-                    onClick={() => handleSelect(letter)} disabled={showFeedback}>
+                    onClick={() => handleSelect(letter)} disabled={isConfirmed}>
                     <div className="option-letter">{letter}</div>
                     <div className="option-text"><SimuladoText text={text} /></div>
                   </button>
@@ -691,7 +706,7 @@ export function SimuladoPage() {
               })}
             </div>
 
-            {showFeedback && (
+            {isConfirmed && (
               <div className={`feedback-box anim anim-d1 ${sel === q.correta ? 'is-correct' : 'is-wrong'}`}>
                 <div className="feedback-title">
                   {sel === q.correta ? 'Resposta correta' : 'Resposta incorreta'}
@@ -706,12 +721,19 @@ export function SimuladoPage() {
               </div>
             )}
 
-            {!showFeedback && (
+            {!isConfirmed && (
               <div className="question-footer">
-                <span>{sel ? 'Alternativa selecionada. Confirme para ver a explicação.' : 'Escolha uma alternativa para continuar.'}</span>
-                <button type="button" className="btn-primary question-action" onClick={handleConfirm} disabled={!sel}>
-                  Confirmar resposta
-                </button>
+                <span className="question-footer-hint">
+                  {sel ? 'Alternativa selecionada. Você pode avançar agora ou confirmar para ver a explicação.' : 'Escolha uma alternativa para continuar.'}
+                </span>
+                <div className="question-footer-actions">
+                  <button type="button" className="btn-ghost question-action" onClick={handleNext}>
+                    {isLastQuestion ? 'Ver resultado final' : 'Avançar sem confirmar'}
+                  </button>
+                  <button type="button" className="btn-primary question-action" onClick={handleConfirm} disabled={!sel}>
+                    Confirmar resposta
+                  </button>
+                </div>
               </div>
             )}
           </section>

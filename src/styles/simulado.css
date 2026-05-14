@@ -856,20 +856,51 @@
 
 .question-footer {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 1rem;
   border-top: 1px solid var(--border);
-  padding-top: 1rem;
+  padding-top: 1.25rem;
 }
 
-.question-footer span {
+@media (min-width: 640px) {
+  .question-footer {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.question-footer-hint {
   color: var(--text3);
   font-size: 0.86rem;
+  line-height: 1.4;
+  flex: 1;
+}
+
+.question-footer-actions {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .question-footer-actions {
+    width: auto;
+  }
 }
 
 .question-action {
-  min-width: 190px;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .question-action {
+    flex: none;
+    min-width: 170px;
+  }
 }
 
 .result-card {

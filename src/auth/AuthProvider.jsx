@@ -597,6 +597,12 @@ export function AuthProvider({ children }) {
     clearLocalCloudSync()
     syncLockRef.current = false
     setUser(null)
+    
+    // Força recarregamento total para limpar qualquer estado mantido na memória do React
+    // Isso garante que a conta 2 não herde dados da conta 1 através de componentes não desmontados
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login'
+    }
   }
 
   const deleteAccount = async () => {
