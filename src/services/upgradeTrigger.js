@@ -212,7 +212,7 @@ export const PRICING_PLANS = [
   {
     key: 'monthly',
     label: 'Mensal',
-    productId: 'prod_wHATFUYZASYUJfSYytySyLrn',
+    productId: 'prod_NkmfS5y5xD0Ah4ZhzUDc1BY4',
     totalPrice: 19.90,
     pricePerMonth: 19.90,
     billingLabel: 'Cobrança mensal depois do teste grátis',
