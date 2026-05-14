@@ -3,7 +3,7 @@
  * 
  * COMO FUNCIONA:
  * - 3 gatilhos de upgrade: cota bloqueada, convite suave, feature premium
- * - Cota gratuita: 5 usos/dia | Cota paga: 10 usos/dia
+ * - Cota gratuita: 5 usos/dia | Cota paga: 20 usos/dia
  * - Planos: Mensal (R$19,90), Semestral (R$89,40), Anual (R$142,80)
  * 
  * PRODUCT IDs (AbacatePay API v2):
@@ -169,7 +169,7 @@ export function getUpgradeModalContent(reason, featureLabel = '') {
 
 // ── Benefícios do plano pago ─────────────────────────────────────────────────
 export const PAID_PLAN_BENEFITS = [
-  { icon: '🔟', label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia` },
+  { icon: '⚡', label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia` },
   { icon: '💳', label: 'Checkout pago pela AbacatePay API v2' },
   { icon: '🧠', label: 'As mesmas ferramentas do app com mais folga' },
   { icon: '☁️', label: 'Histórico e preferências sincronizados por conta' },

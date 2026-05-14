@@ -11,6 +11,8 @@ import {
   subscribeBillingState,
 } from '../services/billingState.js'
 import {
+  AI_DAILY_LIMIT,
+  PAID_AI_DAILY_LIMIT,
   getFreePlanUsageRows,
   subscribeFreePlanUsage,
 } from '../services/freePlanUsage.js'
@@ -424,7 +426,7 @@ export function PlanosPage() {
           <div className="planos-kicker">Planos e cobrança</div>
           <h1 className="planos-title">Mais folga para a IA com assinatura paga</h1>
           <p className="planos-subtitle">
-            A conta gratuita continua com 5 usos de IA por dia. Ao pagar, a cota sobe para 10 usos diários.
+            A conta gratuita continua com {AI_DAILY_LIMIT} usos de IA por dia. Ao pagar, a cota sobe para {PAID_AI_DAILY_LIMIT} usos diários.
             O checkout usa a AbacatePay API v2 para cobrança recorrente. Se houver cupom autorizado,
             ele é informado diretamente na gateway, sem período gratuito automático no app.
           </p>
@@ -563,12 +565,12 @@ export function PlanosPage() {
 
           <div className="planos-change-grid">
             <div className="planos-change-card">
-              <div className="planos-change-number">5 → 10</div>
+              <div className="planos-change-number">{AI_DAILY_LIMIT} → {PAID_AI_DAILY_LIMIT}</div>
               <div className="planos-change-text">Usos de IA por dia. Cada ação nova continua contando como 1 uso.</div>
             </div>
             <div className="planos-change-card">
-              <div className="planos-change-number">Sem limites</div>
-              <div className="planos-change-text">Acesso total a todas as funcionalidades do app sem bloqueios.</div>
+              <div className="planos-change-number">Ferramentas</div>
+              <div className="planos-change-text">Acesso total às funcionalidades do app com uma cota diária maior.</div>
             </div>
             <div className="planos-change-card">
               <div className="planos-change-number">Suporte VIP</div>
@@ -623,7 +625,7 @@ export function PlanosPage() {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      <span>10 usos de IA por dia</span>
+                      <span>{PAID_AI_DAILY_LIMIT} usos de IA por dia</span>
                     </div>
                     <div className="plan-card-item">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -707,7 +709,7 @@ export function PlanosPage() {
             <div className="faq-item">
               <div className="faq-q">O que muda entre os períodos mensal, semestral e anual?</div>
               <div className="faq-a">
-                Muda apenas a forma de cobrança e o valor total. A cota diária continua em 10 usos de IA por dia no plano pago.
+                Muda apenas a forma de cobrança e o valor total. A cota diária continua em {PAID_AI_DAILY_LIMIT} usos de IA por dia no plano pago.
               </div>
             </div>
           </div>

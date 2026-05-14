@@ -304,9 +304,7 @@ async function abacateFetch(path, { method = 'GET', body } = {}) {
 function buildCustomerPayload({ userId, userEmail, customerName, customerCellphone, customerTaxId }) {
   const email = safeText(userEmail) || `${safeText(userId) || 'usuario'}@apice.internal`
   const payload = {
-    data: {
-      email,
-    },
+    email,
     metadata: {
       app: 'apice',
       userId: safeText(userId),
@@ -314,15 +312,27 @@ function buildCustomerPayload({ userId, userEmail, customerName, customerCellpho
   }
 
   const name = safeText(customerName)
-  if (name) payload.data.name = name
+  if (name) payload.name = name
 
   const cellphone = safeText(customerCellphone)
-  if (cellphone) payload.data.cellphone = cellphone
+  if (cellphone) payload.cellphone = cellphone
 
   const taxId = safeText(customerTaxId)
-  if (taxId) payload.data.taxId = taxId
+  if (taxId) payload.taxId = taxId
 
   return payload
+}
+
+function buildLegacyCustomerPayload(payload) {
+  return {
+    data: {
+      email: payload.email,
+      ...(payload.name ? { name: payload.name } : {}),
+      ...(payload.cellphone ? { cellphone: payload.cellphone } : {}),
+      ...(payload.taxId ? { taxId: payload.taxId } : {}),
+    },
+    metadata: payload.metadata,
+  }
 }
 
 async function createCustomerId(customerInput) {
@@ -336,13 +346,7 @@ async function createCustomerId(customerInput) {
     return safeText(result?.data?.id)
   } catch (error) {
     try {
-      const retryPayload = {
-        data: {
-          email: payload.data.email,
-          ...(payload.data.name ? { name: payload.data.name } : {}),
-        },
-        metadata: payload.metadata,
-      }
+      const retryPayload = buildLegacyCustomerPayload(payload)
       const retry = await abacateFetch(ABACATE_CUSTOMER_CREATE_PATH, {
         method: 'POST',
         body: retryPayload,
@@ -412,6 +416,7 @@ function buildCheckoutPayload({
     planKey: payload.metadata.planKey,
     mode,
     productId: plan.productId,
+    expectedCycle: normalizeCycle(plan.abacateCycle),
   }))
 
   return payload
@@ -469,6 +474,16 @@ async function createCheckout(req, authUser, headers) {
     })
 
     const { product, validationWarning } = await validateSubscriptionProduct(plan)
+    console.log('[abacatepay] Produto validado para assinatura:', JSON.stringify({
+      planKey: plan.key,
+      productId: plan.productId,
+      status: safeText(product?.status) || '(sem PRODUCT:READ)',
+      cycle: safeText(product?.cycle) || '(sem PRODUCT:READ)',
+      expectedCycle: normalizeCycle(plan.abacateCycle),
+      devMode: Boolean(product?.devMode),
+      customerId: customerId || '(checkout vai coletar dados)',
+    }))
+
     const { coupons: allowedCoupons, source: couponsSource } = await resolveCheckoutCoupons()
 
     const result = await abacateFetch(ABACATE_SUBSCRIPTION_CREATE_PATH, {
@@ -519,8 +534,8 @@ async function createCheckout(req, authUser, headers) {
       } : null,
       productValidationWarning: validationWarning,
       checkoutHint: isDevModeCheckout(checkout, product)
-        ? 'Checkout em Dev mode: use o cartão 4242 4242 4242 4242, validade futura e CVV 123 para simular aprovação.'
-        : '',
+        ? 'Checkout em Dev mode: cartões reais podem falhar no charge/create/card. Use 4242 4242 4242 4242, validade futura e CVV 123 para simular aprovação.'
+        : 'Checkout de assinatura criado. O cycle fica no produto da AbacatePay e não é enviado no payload do checkout.',
       totalPrice: plan.totalPrice,
       billingLabel: plan.billingLabel,
       checkout,

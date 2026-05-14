@@ -11,7 +11,7 @@ const USAGE_UPDATE_EVENT = 'apice:free-plan-usage-updated'
 
 export const AI_DAILY_LIMIT = 5
 export const GUEST_AI_DAILY_LIMIT = 2
-export const PAID_AI_DAILY_LIMIT = 10
+export const PAID_AI_DAILY_LIMIT = 20
 export const MANUAL_AI_DAILY_LIMIT = PAID_AI_DAILY_LIMIT
 
 export const FREE_PLAN_LIMITS = {

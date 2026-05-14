@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './landing.css';
+import { AI_DAILY_LIMIT, PAID_AI_DAILY_LIMIT } from '../../services/freePlanUsage.js';
 
 // Assets
 import imageHero from '../../assets/hero.png';
@@ -285,8 +286,8 @@ const LandingPage = () => {
       <section id="pricing" className="lp-pricing" ref={r6}>
         <div className={`lp-section-header${v6 ? ' anim-in' : ' anim-hidden'}`}>
           <span className="lp-section-badge">PLANOS</span>
-          <h2>Desbloqueie seu potencial <span>sem limites</span></h2>
-          <p>5 usos/dia grátis. Upgrade quando estiver pronto.</p>
+          <h2>Desbloqueie seu potencial <span>com mais folga</span></h2>
+          <p>{AI_DAILY_LIMIT} usos/dia grátis. Upgrade quando estiver pronto.</p>
         </div>
         <div className={`lp-billing-toggle${v6 ? ' anim-in' : ' anim-hidden'}`} style={{ animationDelay: '0.1s' }}>
           <button className={`lp-toggle-option${billingPeriod === 'monthly' ? ' active' : ''}`} onClick={() => setBillingPeriod('monthly')}>Mensal</button>
@@ -298,11 +299,11 @@ const LandingPage = () => {
             <div className="lp-plan-card">
               <div className="lp-plan-header"><h3>Grátis</h3><p>Para começar</p><div className="lp-plan-price"><span className="lp-plan-price-value">R$ 0</span><span className="lp-plan-price-period">/mês</span></div></div>
               <ul className="lp-plan-features">
-                <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>5 usos de IA/dia</span></li>
+                <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>{AI_DAILY_LIMIT} usos de IA/dia</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>Corretor INEP</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>Radar limitado</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>Histórico</span></li>
-                <li className="lp-feature-disabled"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span>10 usos/dia</span></li>
+                <li className="lp-feature-disabled"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span>{PAID_AI_DAILY_LIMIT} usos/dia</span></li>
               </ul>
               <button className="lp-plan-cta" onClick={() => window.location.href = '/cadastro'}>Começar grátis</button>
             </div>
@@ -311,9 +312,9 @@ const LandingPage = () => {
             <div className="lp-plan-card">
               {billingPeriod === 'annual' && <div className="lp-plan-popular-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Mais escolhido</div>}
               {billingPeriod === 'semiannual' && <div className="lp-plan-popular-badge">Economia de R$ 30</div>}
-              <div className="lp-plan-header"><h3>Premium {selectedPlan.label}</h3><p>Sem limites</p><div className="lp-plan-price"><span className="lp-plan-price-value">{selectedPlan.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span><span className="lp-plan-price-period">/{selectedPlan.billingPeriodLabel}</span></div><div className="lp-plan-price-note">{selectedPlan.pricePerMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês em média</div></div>
+              <div className="lp-plan-header"><h3>Premium {selectedPlan.label}</h3><p>{PAID_AI_DAILY_LIMIT} usos/dia</p><div className="lp-plan-price"><span className="lp-plan-price-value">{selectedPlan.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span><span className="lp-plan-price-period">/{selectedPlan.billingPeriodLabel}</span></div><div className="lp-plan-price-note">{selectedPlan.pricePerMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês em média</div></div>
               <ul className="lp-plan-features">
-                <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>10 usos de IA/dia</span></li>
+                <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>{PAID_AI_DAILY_LIMIT} usos de IA/dia</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>Checkout pago pela AbacatePay</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>Radar completo</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>Correção detalhada</span></li>
@@ -325,7 +326,7 @@ const LandingPage = () => {
           </div>
         </div>
         <div className={`lp-change-grid${v6 ? ' anim-in' : ' anim-hidden'}`} style={{ animationDelay: '0.35s' }}>
-          <div className="lp-change-card"><div className="lp-change-number">5 → 10</div><div className="lp-change-text">Usos de IA/dia</div></div>
+          <div className="lp-change-card"><div className="lp-change-number">{AI_DAILY_LIMIT} → {PAID_AI_DAILY_LIMIT}</div><div className="lp-change-text">Usos de IA/dia</div></div>
           <div className="lp-change-card"><div className="lp-change-number">V2</div><div className="lp-change-text">AbacatePay</div></div>
           <div className="lp-change-card"><div className="lp-change-number">24/7</div><div className="lp-change-text">Disponível sempre</div></div>
           <div className="lp-change-card"><div className="lp-change-number">INEP</div><div className="lp-change-text">100% alinhado</div></div>
