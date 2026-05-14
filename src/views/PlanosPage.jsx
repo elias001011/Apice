@@ -264,6 +264,7 @@ export function PlanosPage() {
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok) {
+        console.error('[planos] Checkout falhou. Status:', response.status, '| Resposta completa:', JSON.stringify(data))
         throw new Error(getAbacatePayErrorMessage(data, 'Não foi possível criar o checkout.'))
       }
 
