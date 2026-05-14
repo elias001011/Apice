@@ -503,11 +503,19 @@ async function createCheckout(req, authUser, headers) {
 
       checkoutMode = 'checkout'
       subscriptionFallback = true
-      creation = await createWithCouponFallback({
-        path: ABACATE_CHECKOUT_CREATE_PATH,
-        mode: 'checkout',
-        applyTrial: shouldApplyTrial,
-      })
+      try {
+        creation = await createWithCouponFallback({
+          path: ABACATE_CHECKOUT_CREATE_PATH,
+          mode: 'checkout',
+          applyTrial: shouldApplyTrial,
+        })
+      } catch (fallbackError) {
+        console.error('[abacatepay] Fallback também falhou:', fallbackError.message)
+        // O fallback mascara o erro real da assinatura. Vamos propagar o erro original da assinatura
+        // para que o usuário possa ver o que realmente deu errado na requisição primária.
+        subscriptionError.message = `Erro Original (Sub): ${subscriptionError.message} | Erro Fallback: ${fallbackError.message}`
+        throw subscriptionError
+      }
     }
 
     const { result, trialApplied, trialCouponUnavailable } = creation
