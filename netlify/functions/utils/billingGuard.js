@@ -1,6 +1,10 @@
 export const WELCOME_PREMIUM_DAYS = 30;
 export const WELCOME_PREMIUM_CUTOFF_ISO = '2026-04-15T22:55:09-03:00';
 
+function safeText(value) {
+    return String(value ?? '').trim();
+}
+
 function safeDate(d) {
     if (!d) return null;
     const time = Date.parse(d);
@@ -15,6 +19,23 @@ export function sanitizeState(incomingState, existingState, user) {
     if (!incomingState) {
         incomingState = { version: 18 };
     }
+
+    const userId = safeText(user?.id || user?.sub || user?.payload?.sub);
+    const existingOwnerId = safeText(existingState?.accountOwnerId || existingState?.ownerId);
+    if (existingOwnerId && userId && existingOwnerId !== userId) {
+        console.warn('[billingGuard] Estado com ownerId divergente ignorado para evitar mistura entre contas.');
+        incomingState = { version: incomingState.version || 21 };
+        existingState = null;
+    }
+
+    incomingState.accountOwnerId = userId;
+    incomingState.profile = {
+        ...(incomingState.profile && typeof incomingState.profile === 'object' ? incomingState.profile : {}),
+        email: safeText(user?.email),
+        full_name: safeText(user?.fullName || user?.metadata?.full_name),
+        first_name: safeText(user?.metadata?.first_name),
+        school: safeText(user?.metadata?.school),
+    };
 
     // 1. Se NÃO existe estado de billing no backend, inicializamos o trial na nuvem
     if (!existingState || !existingState.billing || typeof existingState.billing !== 'object') {

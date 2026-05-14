@@ -309,7 +309,9 @@ export function PlanosPage() {
       })
 
       let checkoutFlashText = `Checkout do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação do período de acesso.`
-      if (data.trialCouponUnavailable) {
+      if (data.subscriptionFallback) {
+        checkoutFlashText = `Checkout do plano ${plan.label} aberto. Usamos o checkout comum da AbacatePay porque o checkout recorrente não foi aceito para este produto.`
+      } else if (data.trialCouponUnavailable) {
         checkoutFlashText = `Não conseguimos aplicar automaticamente o cupom FREE TEST na AbacatePay. Abrimos o checkout pago do plano ${plan.label}.`
       } else if (data.trialAlreadyUsed) {
         checkoutFlashText = `O teste grátis já foi usado nesta conta. Abrimos o checkout pago do plano ${plan.label}.`
@@ -376,8 +378,9 @@ export function PlanosPage() {
         throw new Error(data?.error || 'Não foi possível cancelar a assinatura.')
       }
 
-      // Atualiza estado local
-      if (data.userDowngraded) {
+      // Atualiza estado local mesmo quando o acesso era apenas local/gifted
+      const shouldDowngradeLocally = Boolean(data.userDowngraded || data.localOnly || data.cancelled || data.success)
+      if (shouldDowngradeLocally) {
         const cancelledAt = new Date().toISOString()
         saveBillingState({
           status: 'free',
@@ -393,10 +396,12 @@ export function PlanosPage() {
         })
 
         setFlash({
-          tone: data.requiresManualRefund ? 'warning' : 'success',
+          tone: (data.requiresManualRefund || data.requiresManualCancellation) ? 'warning' : 'success',
           text: data.requiresManualRefund
             ? 'Assinatura cancelada. Como o pagamento já foi processado, solicite reembolso pelo email suporte@apice.com. Seu acesso continua até o fim do período.'
-            : billingState.status === 'paid'
+            : data.requiresManualCancellation
+              ? 'Acesso premium encerrado nesta conta. Não encontramos uma assinatura remota para cancelar automaticamente; se existir cobrança no cartão, fale com o suporte.'
+              : billingState.status === 'paid'
               ? 'Assinatura cancelada com sucesso. Sua conta voltará ao plano gratuito.'
               : 'Teste grátis encerrado com sucesso. Sua conta voltou ao plano gratuito.',
         })

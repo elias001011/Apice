@@ -182,19 +182,30 @@ async function downgradeUserToFreeInBlob(userId, extraBilling = {}) {
     const blobKey = `user-state:${userId}`
     const existingData = await store.get(blobKey, { type: 'json' })
     const currentState = existingData && typeof existingData === 'object' ? existingData : {}
+    const currentBilling = currentState.billing && typeof currentState.billing === 'object'
+      ? currentState.billing
+      : {}
+    const trialUsedAt = currentBilling.trialUsedAt
+      || currentBilling.trialStartedAt
+      || extraBilling.trialUsedAt
+      || extraBilling.trialStartedAt
+      || extraBilling.trialEndedAt
+      || ''
 
     const updatedState = {
       ...currentState,
+      accountOwnerId: userId,
       billing: {
-        ...(currentState.billing || {}),
+        ...currentBilling,
         ...extraBilling,
         status: 'free',
         planKey: '',
+        paidAt: '',
+        checkoutId: '',
+        externalId: '',
+        subscriptionId: '',
         subscriptionActive: false,
-        trialUsedAt: currentState.billing?.trialUsedAt
-          || currentState.billing?.trialStartedAt
-          || extraBilling.trialEndedAt
-          || new Date().toISOString(),
+        ...(trialUsedAt ? { trialUsedAt } : {}),
         cancelledAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
@@ -231,19 +242,15 @@ async function handleCancel(req, authUser, headers) {
   const localTrialKind = safeText(body?.trialKind)
 
   if (!checkoutId && !externalId && !subscriptionId) {
-    if (localBillingStatus === 'paid') {
-      return new Response(JSON.stringify({
-        error: 'Não encontramos um ID remoto da assinatura para cancelar na AbacatePay. Aguarde a confirmação do checkout ou fale com o suporte.',
-      }), { status: 400, headers })
-    }
-
     const trialEndedAt = new Date().toISOString()
     const localOnlyBilling = {
       checkoutId: '',
       externalId: '',
       subscriptionId: '',
       remoteStatus: 'LOCAL_ONLY',
-      trialEndedAt,
+    }
+    if (localBillingStatus !== 'paid') {
+      localOnlyBilling.trialEndedAt = trialEndedAt
     }
     if (localTrialKind) {
       localOnlyBilling.trialKind = localTrialKind
@@ -255,7 +262,10 @@ async function handleCancel(req, authUser, headers) {
       success: true,
       cancelled: false,
       localOnly: true,
-      message: 'Período temporário encerrado nesta conta.',
+      requiresManualCancellation: localBillingStatus === 'paid',
+      message: localBillingStatus === 'paid'
+        ? 'Acesso premium local encerrado nesta conta. Nenhuma assinatura remota foi localizada para cancelar na AbacatePay.'
+        : 'Período temporário encerrado nesta conta.',
       billingStatus: 'LOCAL_ONLY',
       billingId: '',
       subscriptionId: '',

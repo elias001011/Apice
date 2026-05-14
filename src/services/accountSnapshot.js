@@ -100,7 +100,7 @@ const ANIMATIONS_ENABLED_KEY = 'apice:animationsEnabled'
 const CARD_HOVER_ENABLED_KEY = 'apice:cardHoverEffects'
 
 // Versão atual do schema do snapshot. Incrementar quando houver breaking changes.
-export const CURRENT_SCHEMA_VERSION = 20
+export const CURRENT_SCHEMA_VERSION = 21
 // Versões mínimas compatíveis (abaixo disso, os dados são considerados corrompidos/incompatíveis)
 export const MIN_COMPATIBLE_VERSION = 15
 
@@ -291,6 +291,7 @@ export function buildAccountSnapshot(user) {
 
   return {
     version: CURRENT_SCHEMA_VERSION,
+    accountOwnerId: String(user?.id || user?.sub || '').trim(),
     profile: readProfileSnapshot(user),
     historyCount: loadEssayHistoryCount(),
     history: cloudHistory,
@@ -386,6 +387,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
 
   const snapshot = {
     version: Number(rawSnapshot.version ?? CURRENT_SCHEMA_VERSION) || CURRENT_SCHEMA_VERSION,
+    accountOwnerId: String(rawSnapshot.accountOwnerId ?? rawSnapshot.ownerId ?? '').trim(),
     profile: readProfileSnapshot({
       user_metadata: rawSnapshot.profile || {},
       email: rawSnapshot.profile?.email || '',

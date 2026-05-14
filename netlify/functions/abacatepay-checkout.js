@@ -22,6 +22,7 @@ const ABACATE_API_BASE = 'https://api.abacatepay.com'
 const ABACATE_CUSTOMER_CREATE_PATH = '/v2/customers/create'
 const ABACATE_SUBSCRIPTION_CREATE_PATH = '/v2/subscriptions/create'
 const ABACATE_SUBSCRIPTION_LIST_PATH = '/v2/subscriptions/list'
+const ABACATE_CHECKOUT_CREATE_PATH = '/v2/checkouts/create'
 const ABACATE_CHECKOUT_LIST_PATH = '/v2/checkouts/list'
 
 const TRIAL_COUPON_CODE = 'FREE TEST'
@@ -51,11 +52,12 @@ function buildExternalId({ userId, planKey, timestamp }) {
   const safeUserId = safeText(userId).replace(/[^a-zA-Z0-9_-]/g, '')
   const safePlanKey = safeText(planKey).replace(/[^a-zA-Z0-9_-]/g, '')
   const safeTimestamp = safeText(timestamp).replace(/[^0-9]/g, '')
-  return ['apice', safeUserId || 'account', safePlanKey || 'plan', safeTimestamp || Date.now()].join(':')
+  return ['apice', safePlanKey || 'plan', safeTimestamp || Date.now(), safeUserId || 'account'].join('_')
 }
 
 function parseExternalId(externalId) {
-  const parts = safeText(externalId).split(':')
+  const text = safeText(externalId)
+  const parts = text.split(':')
   if (parts.length >= 4 && parts[0] === 'apice') {
     return {
       userId: parts[1] || '',
@@ -63,6 +65,16 @@ function parseExternalId(externalId) {
       timestamp: parts[3] || '',
     }
   }
+
+  const safeParts = text.split('_')
+  if (safeParts.length >= 4 && safeParts[0] === 'apice') {
+    return {
+      userId: safeParts.slice(3).join('_') || '',
+      planKey: safeParts[1] || '',
+      timestamp: safeParts[2] || '',
+    }
+  }
+
   return { userId: '', planKey: '', timestamp: '' }
 }
 
@@ -122,13 +134,35 @@ function formatAbacateError(payload) {
   return ''
 }
 
+function stringifyDetails(details) {
+  if (!details) return ''
+  if (typeof details === 'string') return details
+  try {
+    return JSON.stringify(details)
+  } catch {
+    return ''
+  }
+}
+
+function shouldTryOneTimeCheckoutFallback(error) {
+  if (![400, 422].includes(Number(error?.status))) return false
+
+  const detailText = `${safeText(error?.message)} ${stringifyDetails(error?.details)}`.toLowerCase()
+  if (!detailText) return true
+
+  return /cycle|ciclo|assinatura|subscription|produto|product|method|m[eé]todo|card|cart[aã]o|checkout/.test(detailText)
+}
+
 async function abacateFetch(path, { method = 'GET', body } = {}) {
   const apiKey = getApiKey()
   if (!apiKey) {
     throw new Error('ABACATE_V2 não foi configurada no ambiente. Verifique as variáveis de ambiente no Netlify.')
   }
 
-  const response = await fetch(`${ABACATE_API_BASE}${path}`, {
+  const fullUrl = `${ABACATE_API_BASE}${path}`
+  console.log(`[abacatepay] ${method} ${fullUrl}`, body ? JSON.stringify(body).slice(0, 800) : '(sem body)')
+
+  const response = await fetch(fullUrl, {
     method,
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -143,6 +177,7 @@ async function abacateFetch(path, { method = 'GET', body } = {}) {
     : await response.text().catch(() => '')
 
   if (!response.ok) {
+    console.error(`[abacatepay] HTTP ${response.status} em ${path}. Resposta completa:`, JSON.stringify(payload).slice(0, 1500))
     const message = formatAbacateError(payload) || 'Falha na integração com a AbacatePay.'
     const error = new Error(message)
     error.status = response.status
@@ -217,7 +252,8 @@ async function createCustomerId(customerInput) {
   }
 }
 
-function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, timestamp, isTrial, customerId }) {
+function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, timestamp, isTrial, customerId, mode = 'subscription' }) {
+  const isSubscription = mode === 'subscription'
   const payload = {
     items: [
       {
@@ -225,13 +261,14 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
         quantity: 1,
       },
     ],
-    methods: ['CARD'],
+    methods: isSubscription ? ['CARD'] : ['PIX', 'CARD'],
     returnUrl: returnUrl.toString(),
     completionUrl: completionUrl.toString(),
     externalId,
     metadata: {
       app: 'apice',
       gateway: 'abacatepay-v2',
+      checkoutMode: mode,
       planKey: plan.key,
       planLabel: plan.label,
       trialDays: plan.trialDays,
@@ -246,16 +283,22 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
   }
 
   if (isTrial) {
+    // AbacatePay v2 espera array de strings com o código do cupom
     payload.coupons = [TRIAL_COUPON_CODE]
     console.log('[abacatepay] Cupom de trial aplicado:', TRIAL_COUPON_CODE)
   }
 
-  console.log('[abacatepay] Payload v2 final (resumido):', JSON.stringify({
+  console.log('[abacatepay] Payload v2 COMPLETO:', JSON.stringify({
+    items: payload.items,
+    methods: payload.methods,
+    returnUrl: payload.returnUrl,
+    completionUrl: payload.completionUrl,
+    externalId: payload.externalId,
+    customerId: payload.customerId || '(sem customer)',
+    coupons: payload.coupons || [],
     planKey: payload.metadata.planKey,
-    endpoint: ABACATE_SUBSCRIPTION_CREATE_PATH,
-    itemCount: payload.items.length,
-    hasCustomerId: Boolean(payload.customerId),
-    hasCoupons: Boolean(payload.coupons?.length),
+    mode,
+    productId: plan.productId,
     isTrial: Boolean(payload.metadata.isTrial),
   }))
 
@@ -393,7 +436,7 @@ async function createCheckout(req, authUser, headers) {
       customerTaxId,
     })
 
-    const createSubscription = (isTrial) => abacateFetch(ABACATE_SUBSCRIPTION_CREATE_PATH, {
+    const createPaymentCheckout = ({ path, mode, isTrial }) => abacateFetch(path, {
       method: 'POST',
       body: buildCheckoutPayload({
         plan,
@@ -404,33 +447,71 @@ async function createCheckout(req, authUser, headers) {
         timestamp,
         isTrial,
         customerId,
+        mode,
       }),
     })
 
-    let trialCouponUnavailable = false
-    let result = null
-
-    try {
-      result = await createSubscription(shouldApplyTrial)
-    } catch (error) {
-      if (!shouldApplyTrial) {
-        throw error
-      }
-
-      trialCouponUnavailable = true
-      shouldApplyTrial = false
-      console.warn('[abacatepay] Falha ao criar checkout com cupom de trial. Tentando novamente sem cupom:', error.message)
-
+    const createWithCouponFallback = async ({ path, mode, applyTrial }) => {
       try {
-        result = await createSubscription(false)
-      } catch (retryError) {
-        const retryMessage = retryError.message || 'Falha ao criar checkout sem cupom'
-        const originalMessage = error.message || 'desconhecido'
-        retryError.message = `${retryMessage} (também falhou após remover o cupom ${TRIAL_COUPON_CODE}; erro original: ${originalMessage})`
-        retryError.details = retryError.details || error.details
-        throw retryError
+        return {
+          result: await createPaymentCheckout({ path, mode, isTrial: applyTrial }),
+          trialApplied: applyTrial,
+          trialCouponUnavailable: false,
+        }
+      } catch (error) {
+        if (!applyTrial) {
+          throw error
+        }
+
+        console.warn('[abacatepay] Falha ao criar checkout com cupom de trial. Tentando novamente sem cupom:', error.message)
+
+        try {
+          return {
+            result: await createPaymentCheckout({ path, mode, isTrial: false }),
+            trialApplied: false,
+            trialCouponUnavailable: true,
+          }
+        } catch (retryError) {
+          const retryMessage = retryError.message || 'Falha ao criar checkout sem cupom'
+          const originalMessage = error.message || 'desconhecido'
+          retryError.message = `${retryMessage} (também falhou após remover o cupom ${TRIAL_COUPON_CODE}; erro original: ${originalMessage})`
+          retryError.details = retryError.details || error.details
+          throw retryError
+        }
       }
     }
+
+    let checkoutMode = 'subscription'
+    let subscriptionFallback = false
+    let creation = null
+
+    try {
+      creation = await createWithCouponFallback({
+        path: ABACATE_SUBSCRIPTION_CREATE_PATH,
+        mode: 'subscription',
+        applyTrial: shouldApplyTrial,
+      })
+    } catch (subscriptionError) {
+      if (!shouldTryOneTimeCheckoutFallback(subscriptionError)) {
+        throw subscriptionError
+      }
+
+      console.warn(
+        '[abacatepay] Checkout de assinatura falhou. Tentando checkout comum para manter abertura de pagamento:',
+        subscriptionError.message,
+      )
+
+      checkoutMode = 'checkout'
+      subscriptionFallback = true
+      creation = await createWithCouponFallback({
+        path: ABACATE_CHECKOUT_CREATE_PATH,
+        mode: 'checkout',
+        applyTrial: shouldApplyTrial,
+      })
+    }
+
+    const { result, trialApplied, trialCouponUnavailable } = creation
+    shouldApplyTrial = trialApplied
 
     const checkout = result?.data || {}
     const checkoutUrl = getCheckoutUrl(checkout)
@@ -443,9 +524,10 @@ async function createCheckout(req, authUser, headers) {
     return new Response(JSON.stringify({
       success: true,
       gateway: 'abacatepay-v2',
-      checkoutMode: 'subscription',
+      checkoutMode,
+      subscriptionFallback,
       checkoutId: checkout.id || checkout.checkout?.id || '',
-      subscriptionId: getSubscriptionId(checkout),
+      subscriptionId: checkoutMode === 'subscription' ? getSubscriptionId(checkout) : '',
       checkoutUrl,
       externalId,
       customerId,
@@ -464,7 +546,7 @@ async function createCheckout(req, authUser, headers) {
       headers,
     })
   } catch (error) {
-    console.error('[abacatepay] Erro ao criar checkout v2:', error)
+    console.error('[abacatepay] Erro ao criar checkout v2:', error.message, '| Status:', error.status, '| Details:', JSON.stringify(error.details || {}).slice(0, 1000))
     throw error
   }
 }

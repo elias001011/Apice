@@ -210,6 +210,7 @@ export function SimuladoPage() {
   const [examNotice, setExamNotice] = useState(null)
   const [reviewWarningSeen, setReviewWarningSeen] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
+  const [pendingModal, setPendingModal] = useState(null)
   const [error, setError] = useState(null)
   const [selectedArea, setSelectedArea] = useState(null)
   const [selectedDiscs, setSelectedDiscs] = useState([])
@@ -247,7 +248,7 @@ export function SimuladoPage() {
       // Conta como 1 uso de IA independente da fonte
       consumeFreePlan('otherAiRequest')
       setExamData(data); setStep('exam'); setCurrentQ(0); setAnswers({}); setReviewQuestions({})
-      setExamNotice(null); setReviewWarningSeen(false); setShowFeedback(false)
+      setExamNotice(null); setReviewWarningSeen(false); setShowFeedback(false); setPendingModal(null)
       limparProgresso()
     } catch (err) {
       setError(err.message || 'Erro ao gerar simulado.'); setStep('setup')
@@ -279,54 +280,99 @@ export function SimuladoPage() {
     })
   }
 
+  /** Encontra o próximo índice sem resposta a partir do índice atual (circular) */
+  const findNextUnanswered = (fromIndex) => {
+    const total = examData.questoes.length
+    for (let offset = 1; offset <= total; offset++) {
+      const idx = (fromIndex + offset) % total
+      if (!answers[examData.questoes[idx].id]) return idx
+    }
+    return -1
+  }
+
+  /** Finaliza o simulado e salva no histórico */
+  const finalizeExam = () => {
+    const total = examData.questoes.length
+    const acertos = examData.questoes.filter(q => answers[q.id] === q.correta).length
+    const pct = total > 0 ? Math.round((acertos / total) * 100) : 0
+    const perf = pct >= 80 ? 'Excelente' : pct >= 60 ? 'Bom' : pct >= 40 ? 'Regular' : 'Precisa melhorar'
+    saveSimuladoHistoryEntry({
+      id: `${Date.now()}`, data: new Date().toISOString(),
+      titulo: `Simulado de ${selectedArea}`, area: selectedArea, disciplinas: selectedDiscs,
+      fonte: 'enem-api', quantidade: total, acertos, total, percentual: pct, performance: perf,
+      estatisticas: examData.estatisticas, limiteIAAplicado: examData.estatisticas.ia > 0,
+      alerta: examData.alerta, geradoEm: examData.geradoEm,
+    })
+    setPendingModal(null)
+    setStep('result'); limparProgresso()
+  }
+
   const handleNext = () => {
-    if (currentQ < examData.questoes.length - 1) { setCurrentQ(currentQ + 1); setShowFeedback(false) }
-    else {
-      const unansweredIndex = examData.questoes.findIndex(q => !answers[q.id])
-      if (unansweredIndex >= 0) {
-        const remaining = examData.questoes.filter(q => !answers[q.id]).length
-        setExamNotice({
-          type: 'warning',
-          text: `Ainda faltam ${remaining} questão(ões) sem resposta. Responda tudo antes de finalizar.`,
-        })
-        setCurrentQ(unansweredIndex)
-        setShowFeedback(false)
-        return
+    // Se não estamos na última questão, navegar para a próxima pendente
+    if (currentQ < examData.questoes.length - 1) {
+      // Tentar encontrar a próxima questão sem resposta
+      const nextUnanswered = findNextUnanswered(currentQ)
+      if (nextUnanswered >= 0) {
+        setCurrentQ(nextUnanswered)
+      } else {
+        // Todas respondidas — avançar para a próxima questão sequencial
+        setCurrentQ(currentQ + 1)
       }
+      setShowFeedback(false)
+      return
+    }
 
-      const reviewIndexes = examData.questoes
-        .map((question, index) => reviewQuestions[question.id] ? index : -1)
-        .filter(index => index >= 0)
-      if (reviewIndexes.length > 0 && !reviewWarningSeen) {
-        setReviewWarningSeen(true)
-        setExamNotice({
-          type: 'review',
-          text: `Você marcou ${reviewIndexes.length} questão(ões) para revisar mais tarde. Confira antes de avançar ou clique em “Ver resultado final” novamente para concluir mesmo assim.`,
-        })
-        setCurrentQ(reviewIndexes[0])
-        setShowFeedback(false)
-        return
-      }
+    // Estamos na última questão — verificar pendências antes de finalizar
+    const unansweredIndexes = examData.questoes
+      .map((q, i) => !answers[q.id] ? i : -1)
+      .filter(i => i >= 0)
 
-      const total = examData.questoes.length
-      const acertos = examData.questoes.filter(q => answers[q.id] === q.correta).length
-      const pct = total > 0 ? Math.round((acertos / total) * 100) : 0
-      const perf = pct >= 80 ? 'Excelente' : pct >= 60 ? 'Bom' : pct >= 40 ? 'Regular' : 'Precisa melhorar'
-      saveSimuladoHistoryEntry({
-        id: `${Date.now()}`, data: new Date().toISOString(),
-        titulo: `Simulado de ${selectedArea}`, area: selectedArea, disciplinas: selectedDiscs,
-        fonte: 'enem-api', quantidade: total, acertos, total, percentual: pct, performance: perf,
-        estatisticas: examData.estatisticas, limiteIAAplicado: examData.estatisticas.ia > 0,
-        alerta: examData.alerta, geradoEm: examData.geradoEm,
+    if (unansweredIndexes.length > 0) {
+      setPendingModal({
+        type: 'unanswered',
+        count: unansweredIndexes.length,
+        firstIndex: unansweredIndexes[0],
       })
-      setStep('result'); limparProgresso()
+      return
+    }
+
+    const reviewIndexes = examData.questoes
+      .map((q, i) => reviewQuestions[q.id] ? i : -1)
+      .filter(i => i >= 0)
+
+    if (reviewIndexes.length > 0 && !reviewWarningSeen) {
+      setPendingModal({
+        type: 'review',
+        count: reviewIndexes.length,
+        firstIndex: reviewIndexes[0],
+      })
+      return
+    }
+
+    // Tudo respondido e revisado — finalizar
+    finalizeExam()
+  }
+
+  const handlePendingAction = (action) => {
+    if (!pendingModal) return
+    if (action === 'go') {
+      setCurrentQ(pendingModal.firstIndex)
+      setShowFeedback(false)
+      setPendingModal(null)
+    } else if (action === 'proceed') {
+      if (pendingModal.type === 'review') {
+        setReviewWarningSeen(true)
+      }
+      setPendingModal(null)
+      // Se tinha questões para revisar e o usuário disse prosseguir, finalizar
+      finalizeExam()
     }
   }
 
   const handleNew = () => {
     setStep('setup'); setExamData(null); setSelectedArea(null); setSelectedDiscs([])
     setCurrentQ(0); setAnswers({}); setReviewQuestions({}); setExamNotice(null); setReviewWarningSeen(false)
-    setShowFeedback(false); setQuantidade(10); limparProgresso()
+    setShowFeedback(false); setQuantidade(10); setPendingModal(null); limparProgresso()
   }
 
   const discs = selectedArea ? getDisciplinasByArea(selectedArea) : []
@@ -479,6 +525,36 @@ export function SimuladoPage() {
             )}
           </div>
         </div>
+
+        {pendingModal && (
+          <div className="simulado-pending-overlay" onClick={() => setPendingModal(null)}>
+            <div className="simulado-pending-modal anim anim-d1" onClick={e => e.stopPropagation()}>
+              <div className="simulado-pending-icon">
+                {pendingModal.type === 'unanswered' ? '⚠️' : '🔍'}
+              </div>
+              <h3>
+                {pendingModal.type === 'unanswered'
+                  ? `${pendingModal.count} questão(ões) sem resposta`
+                  : `${pendingModal.count} questão(ões) marcada(s) para revisar`
+                }
+              </h3>
+              <p>
+                {pendingModal.type === 'unanswered'
+                  ? 'Você ainda não respondeu todas as questões. Deseja ir para as pendentes ou finalizar com as respostas atuais?'
+                  : 'Você marcou questões para revisão. Deseja revisá-las antes de ver o resultado?'
+                }
+              </p>
+              <div className="simulado-pending-actions">
+                <button type="button" className="btn-primary" onClick={() => handlePendingAction('go')}>
+                  {pendingModal.type === 'unanswered' ? 'Ir para pendentes' : 'Revisar questões'}
+                </button>
+                <button type="button" className="btn-ghost" onClick={() => handlePendingAction('proceed')}>
+                  {pendingModal.type === 'unanswered' ? 'Finalizar mesmo assim' : 'Prosseguir sem revisar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }

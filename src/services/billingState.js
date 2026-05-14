@@ -46,6 +46,9 @@ const TRIAL_KIND_ALIASES = {
   standard: 'standard',
   trial: 'standard',
   default: 'standard',
+  welcome: 'welcome',
+  gifted: 'welcome',
+  gift: 'welcome',
 }
 
 function canUseStorage() {

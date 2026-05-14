@@ -56,7 +56,8 @@ function getTrialDays(metadata) {
 }
 
 function parseExternalId(externalId) {
-  const parts = safeText(externalId).split(':')
+  const text = safeText(externalId)
+  const parts = text.split(':')
   if (parts.length >= 4 && parts[0] === 'apice') {
     return {
       userId: parts[1] || '',
@@ -64,6 +65,16 @@ function parseExternalId(externalId) {
       timestamp: parts[3] || '',
     }
   }
+
+  const safeParts = text.split('_')
+  if (safeParts.length >= 4 && safeParts[0] === 'apice') {
+    return {
+      userId: safeParts.slice(3).join('_') || '',
+      planKey: safeParts[1] || '',
+      timestamp: safeParts[2] || '',
+    }
+  }
+
   return { userId: '', planKey: '', timestamp: '' }
 }
 
@@ -193,6 +204,7 @@ async function updateBillingInBlob(userId, planKey, billingUpdate, eventId = '')
 
     const updatedState = {
       ...currentState,
+      accountOwnerId: userId,
       billing: {
         ...(currentState.billing || {}),
         ...billingUpdate,
