@@ -6,13 +6,9 @@ import {
   getBillingState,
   getBillingStatusDescription,
   getBillingStatusLabel,
-  hasUsedTrial,
   markPlanPaid,
-  isTrialActive,
-
   saveBillingState,
   subscribeBillingState,
-  TRIAL_DAYS,
 } from '../services/billingState.js'
 import {
   getFreePlanUsageRows,
@@ -154,12 +150,6 @@ export function PlanosPage() {
   }, [billingState.checkoutId, billingState.externalId, billingState.planKey, billingState.subscriptionId, location.search, navigate])
 
   const activePlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
-  const trialAlreadyUsed = hasUsedTrial()
-  const trialCurrentlyActive = isTrialActive()
-
-  const activeAccessLabel = 'Teste grátis'
-  const activeAccessLabelLower = activeAccessLabel.toLowerCase()
-  const trialEnded = trialAlreadyUsed && !trialCurrentlyActive && billingState.status !== 'paid'
   const quotaRow = quotaInfo || getQuotaInfo()
   const activeLimit = quotaRow.limit || getFreePlanUsageRows()[0]?.limit || 5
   const trialEndDate = billingState.trialEndsAt ? new Date(billingState.trialEndsAt) : null
@@ -173,38 +163,17 @@ export function PlanosPage() {
   const statusLabel = isGuest ? 'Convidado' : getBillingStatusLabel(billingState.status)
   const statusDescription = isGuest
     ? `Modo convidado ativo. A IA aqui fica limitada a ${quotaRow.limit} solicitações por dia e os dados ficam só neste navegador até criar uma conta nova.`
-    : trialEnded && trialEndLabel
-      ? `${billingState.trialKind === 'welcome' ? 'Premium temporário' : 'Teste grátis'} encerrado em ${trialEndLabel}`
-      : getBillingStatusDescription(billingState.status)
+    : getBillingStatusDescription(billingState.status)
 
   const currentStateText = (() => {
     if (isGuest) {
       return `Modo convidado ativo. A IA fica limitada a ${quotaRow.limit} solicitações por dia neste navegador e os dados não sincronizam na nuvem até você criar uma conta nova.`
     }
 
-    if (trialCurrentlyActive) {
-      return activePlan
-        ? `Teste grátis ativo no plano ${activePlan.label}.`
-        : `Teste grátis ativo por ${TRIAL_DAYS} dias.`
-    }
-
-    if (trialEnded) {
-      const endedLabel = billingState.trialKind === 'welcome' ? 'premium temporário' : 'teste grátis'
-      return trialEndLabel
-        ? `Seu ${endedLabel} terminou em ${trialEndLabel}. Agora você pode assinar qualquer plano para continuar.`
-        : `Seu ${endedLabel} terminou. Agora você pode assinar qualquer plano para continuar.`
-    }
-
     if (billingState.status === 'paid') {
       return activePlan
         ? `Plano pago ativo no período ${activePlan.label}.`
         : 'Plano pago ativo.'
-    }
-
-    if (trialAlreadyUsed) {
-      return billingState.trialKind === 'welcome'
-        ? 'O premium temporário já foi usado nesta conta. A próxima ativação paga começa após o checkout.'
-        : 'O teste grátis já foi usado nesta conta. A próxima ativação paga começa após o checkout.'
     }
 
     return `Conta gratuita com ${activeLimit} usos de IA por dia.`
@@ -231,24 +200,6 @@ export function PlanosPage() {
     setFlash(null)
 
     try {
-      const trialActive = isTrialActive()
-
-      if (trialActive) {
-        const activeTrialPlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
-        const trialEndDate = billingState.trialEndsAt ? new Date(billingState.trialEndsAt) : null
-        const trialEndLabel = trialEndDate && Number.isFinite(trialEndDate.getTime())
-          ? trialEndDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
-          : ''
-          
-        setFlash({
-          tone: 'warning',
-          text: activeTrialPlan && activeTrialPlan.key !== plan.key
-            ? `Você já tem um plano temporário ativo (${activeTrialPlan.label}). Troque de plano só depois do fim do período ativo${trialEndLabel ? `, em ${trialEndLabel}` : ''}.`
-            : `Seu plano temporário ${plan.label} já está ativo${trialEndLabel ? ` até ${trialEndLabel}` : ''}.`,
-        })
-        return
-      }
-
       const response = await authFetch('/.netlify/functions/abacatepay-checkout', {
         method: 'POST',
         body: JSON.stringify({
@@ -269,34 +220,6 @@ export function PlanosPage() {
         throw new Error(getAbacatePayErrorMessage(data, 'Não foi possível criar o checkout.'))
       }
 
-      if (data.activeTrial && data.trialState) {
-        const trialEndsAt = data.trialState.trialEndsAt || ''
-        saveBillingState({
-          status: 'trial',
-          planKey: data.trialState.planKey || plan.key,
-          trialKind: data.trialState.trialKind || 'standard',
-          trialStartedAt: data.trialState.trialStartedAt || new Date().toISOString(),
-          trialEndsAt,
-        })
-
-        const trialEndsDate = trialEndsAt ? new Date(trialEndsAt) : null
-        const trialEndsLabel = trialEndsDate && Number.isFinite(trialEndsDate.getTime())
-          ? trialEndsDate.toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: 'long',
-            year: 'numeric',
-          })
-          : ''
-
-        setFlash({
-          tone: 'info',
-          text: trialEndsLabel
-            ? `Você já tem um período temporário ativo até ${trialEndsLabel}. Não abrimos outro checkout de teste.`
-            : 'Você já tem um período temporário ativo. Não abrimos outro checkout de teste.',
-        })
-        return
-      }
-
       const checkoutUrl = data.checkoutUrl || data.checkout?.url || data.url || ''
       const checkoutId = data.checkoutId || data.checkout?.id || data.id || ''
       const subscriptionId = data.subscriptionId || data.checkout?.subscriptionId || data.checkout?.subscription?.id || ''
@@ -310,14 +233,7 @@ export function PlanosPage() {
         subscriptionId,
       })
 
-      let checkoutFlashText = `Checkout do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação do período de acesso.`
-      if (data.subscriptionFallback) {
-        checkoutFlashText = `Checkout do plano ${plan.label} aberto. Usamos o checkout comum da AbacatePay porque o checkout recorrente não foi aceito para este produto.`
-      } else if (data.trialCouponUnavailable) {
-        checkoutFlashText = `Não conseguimos aplicar automaticamente o cupom FREE TEST na AbacatePay. Abrimos o checkout pago do plano ${plan.label}.`
-      } else if (data.trialAlreadyUsed) {
-        checkoutFlashText = `O teste grátis já foi usado nesta conta. Abrimos o checkout pago do plano ${plan.label}.`
-      }
+      const checkoutFlashText = `Checkout do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação do período de acesso.`
 
       setFlash({
         tone: 'info',
@@ -350,9 +266,7 @@ export function PlanosPage() {
       return
     }
 
-    const cancelPrompt = billingState.status === 'paid'
-      ? 'Tem certeza que deseja cancelar sua assinatura? Seu acesso ao plano pago continuará até o fim do período já pago. Após isso, sua conta voltará para o plano gratuito.'
-      : 'Tem certeza que deseja encerrar seu teste grátis? Sua conta voltará para o plano gratuito imediatamente.'
+    const cancelPrompt = 'Tem certeza que deseja cancelar sua assinatura? Seu acesso ao plano pago continuará até o fim do período já pago. Após isso, sua conta voltará para o plano gratuito.'
 
     if (!confirm(cancelPrompt)) {
       return
@@ -403,9 +317,7 @@ export function PlanosPage() {
             ? 'Assinatura cancelada. Como o pagamento já foi processado, solicite reembolso pelo email suporte@apice.com. Seu acesso continua até o fim do período.'
             : data.requiresManualCancellation
               ? 'Acesso premium encerrado nesta conta. Não encontramos uma assinatura remota para cancelar automaticamente; se existir cobrança no cartão, fale com o suporte.'
-              : billingState.status === 'paid'
-              ? 'Assinatura cancelada com sucesso. Sua conta voltará ao plano gratuito.'
-              : 'Teste grátis encerrado com sucesso. Sua conta voltou ao plano gratuito.',
+              : 'Assinatura cancelada com sucesso. Sua conta voltará ao plano gratuito.',
         })
       } else {
         setFlash({

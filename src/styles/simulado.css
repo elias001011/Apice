@@ -614,16 +614,20 @@
 }
 
 .question-map-dot.answered {
-  border-color: rgba(var(--accent-rgb), 0.36);
-  background: rgba(var(--accent-rgb), 0.08);
+  border-color: rgba(34, 197, 94, 0.48);
+  background: rgba(34, 197, 94, 0.08);
+  color: var(--text);
+}
+
+.question-map-dot.unanswered {
+  border-color: rgba(217, 140, 31, 0.48);
+  background: rgba(217, 140, 31, 0.08);
   color: var(--text);
 }
 
 .question-map-dot.review {
-  border-color: rgba(139, 92, 246, 0.72);
-  background:
-    linear-gradient(180deg, rgba(139, 92, 246, 0.14), rgba(139, 92, 246, 0.06)),
-    var(--bg);
+  border-color: rgba(217, 140, 31, 0.48);
+  background: rgba(217, 140, 31, 0.08);
   color: var(--text);
 }
 
@@ -680,6 +684,7 @@
     radial-gradient(circle at 100% 0%, rgba(var(--accent-rgb), 0.06), transparent 30%),
     linear-gradient(150deg, color-mix(in srgb, var(--bg2) 96%, transparent), var(--bg2));
   padding: clamp(1rem, 3vw, 1.5rem);
+  overflow: hidden;
 }
 
 .question-topline {
@@ -833,6 +838,9 @@
   border-radius: 20px;
   background: var(--bg3);
   padding: 1rem;
+  margin: 0 calc(-1 * clamp(1rem, 3vw, 1.5rem));
+  padding: 1rem clamp(1rem, 3vw, 1.5rem);
+  border-radius: 0;
 }
 
 .feedback-box.is-correct {
@@ -861,6 +869,9 @@
   gap: 1rem;
   border-top: 1px solid var(--border);
   padding-top: 1.25rem;
+  margin: 0 calc(-1 * clamp(1rem, 3vw, 1.5rem));
+  padding: 1.25rem clamp(1rem, 3vw, 1.5rem) 0;
+  padding-bottom: 0;
 }
 
 @media (min-width: 640px) {

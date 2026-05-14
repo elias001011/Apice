@@ -310,38 +310,35 @@ export function SimuladoPage() {
   }
 
   const handleNext = () => {
-    if (currentQ < examData.questoes.length - 1) {
-      let nextTarget = -1
-      // Busca a próxima pendente ou em revisão pra frente
-      for (let i = currentQ + 1; i < examData.questoes.length; i++) {
+    // Busca próxima questão não confirmada
+    let nextTarget = -1
+    for (let i = currentQ + 1; i < examData.questoes.length; i++) {
+      const id = examData.questoes[i].id
+      if (!confirmedAnswers[id]) {
+        nextTarget = i
+        break
+      }
+    }
+    // Se não achou pra frente, busca do início
+    if (nextTarget === -1) {
+      for (let i = 0; i < currentQ; i++) {
         const id = examData.questoes[i].id
-        if (!confirmedAnswers[id] || reviewQuestions[id]) {
+        if (!confirmedAnswers[id]) {
           nextTarget = i
           break
         }
       }
-      // Se não achou pra frente, busca do início
-      if (nextTarget === -1) {
-        for (let i = 0; i < currentQ; i++) {
-          const id = examData.questoes[i].id
-          if (!confirmedAnswers[id] || reviewQuestions[id]) {
-            nextTarget = i
-            break
-          }
-        }
-      }
+    }
 
-      if (nextTarget >= 0) {
-        setCurrentQ(nextTarget)
-      } else {
-        setCurrentQ(examData.questoes.length - 1)
-      }
+    // Se achou uma não confirmada, vai pra lá
+    if (nextTarget >= 0) {
+      setCurrentQ(nextTarget)
       return
     }
 
-    // Última questão - verifica pendências
+    // Todas confirmadas - verifica pendências antes de finalizar
     const unansweredIndexes = examData.questoes
-      .map((q, i) => !confirmedAnswers[q.id] ? i : -1)
+      .map((q, i) => !answers[q.id] ? i : -1)
       .filter(i => i >= 0)
 
     if (unansweredIndexes.length > 0) {
@@ -375,7 +372,16 @@ export function SimuladoPage() {
       setCurrentQ(pendingModal.firstIndex)
       setPendingModal(null)
     } else if (action === 'proceed') {
-      if (pendingModal.type === 'review') {
+      if (pendingModal.type === 'unanswered') {
+        // Marca questoes sem resposta como erradas
+        const newAnswers = { ...answers }
+        examData.questoes.forEach((q) => {
+          if (!answers[q.id]) {
+            newAnswers[q.id] = 'X' // Marca como errada
+          }
+        })
+        setAnswers(newAnswers)
+      } else if (pendingModal.type === 'review') {
         setReviewWarningSeen(true)
       }
       setPendingModal(null)
@@ -626,14 +632,20 @@ export function SimuladoPage() {
 
             <div className="question-map" aria-label="Mapa de questões">
               {examData.questoes.map((question, index) => {
+                const confirmed = Boolean(confirmedAnswers[question.id])
                 const answered = Boolean(answers[question.id])
                 const review = Boolean(reviewQuestions[question.id])
                 const active = index === currentQ
+                let dotClass = 'question-map-dot'
+                if (active) dotClass += ' active'
+                if (confirmed) dotClass += ' answered'
+                else if (answered) dotClass += ' unanswered'
+                if (review) dotClass += ' review'
                 return (
                   <button
                     key={question.id}
                     type="button"
-                    className={`question-map-dot ${active ? 'active' : ''} ${answered ? 'answered' : ''} ${review ? 'review' : ''}`}
+                    className={dotClass}
                     onClick={() => {
                       setCurrentQ(index)
                     }}

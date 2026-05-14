@@ -4,7 +4,7 @@
  * COMO FUNCIONA:
  * - 3 gatilhos de upgrade: cota bloqueada, convite suave, feature premium
  * - Cota gratuita: 5 usos/dia | Cota paga: 10 usos/dia
- * - Teste grátis: 7 dias únicos na primeira ativação
+
  * - Planos: Mensal (R$19,90), Semestral (R$89,40), Anual (R$142,80)
  * 
  * PRODUCT IDs (AbacatePay API v2):
@@ -56,7 +56,7 @@ function getQuotaBlockedCopy() {
     return {
       icon: '🚀',
       title: 'Sua cota gratuita acabou',
-      subtitle: `Você usou os ${AI_DAILY_LIMIT} usos gratuitos de IA de hoje. No plano pago, a cota sobe para ${PAID_AI_DAILY_LIMIT} usos por dia, com teste grátis de 7 dias na primeira ativação.`,
+      subtitle: `Você usou os ${AI_DAILY_LIMIT} usos gratuitos de IA de hoje. No plano pago, a cota sobe para ${PAID_AI_DAILY_LIMIT} usos por dia.`,
     }
   }
 
@@ -151,7 +151,7 @@ export function getUpgradeModalContent(reason, featureLabel = '') {
       return {
         icon: '⭐',
         title: 'Você está evoluindo rápido',
-        subtitle: `O plano pago sobe sua cota para ${PAID_AI_DAILY_LIMIT} usos de IA por dia e ainda começa com 7 dias de teste grátis na primeira ativação.`,
+        subtitle: `O plano pago sobe sua cota para ${PAID_AI_DAILY_LIMIT} usos de IA por dia.`,
       }
     case UPGRADE_REASONS.PREMIUM_FEATURE:
       return {
@@ -163,7 +163,7 @@ export function getUpgradeModalContent(reason, featureLabel = '') {
       return {
         icon: '✨',
         title: 'Conheça os planos do Ápice',
-        subtitle: `A conta gratuita oferece ${AI_DAILY_LIMIT} usos de IA por dia. No plano pago, a cota sobe para ${PAID_AI_DAILY_LIMIT} e você ainda ganha 7 dias de teste grátis na primeira ativação.`,
+        subtitle: `A conta gratuita oferece ${AI_DAILY_LIMIT} usos de IA por dia. No plano pago, a cota sobe para ${PAID_AI_DAILY_LIMIT}.`,
       }
   }
 }
@@ -171,7 +171,7 @@ export function getUpgradeModalContent(reason, featureLabel = '') {
 // ── Benefícios do plano pago ─────────────────────────────────────────────────
 export const PAID_PLAN_BENEFITS = [
   { icon: '🔟', label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia` },
-  { icon: '🎁', label: '7 dias de teste grátis na primeira ativação' },
+
   { icon: '🧠', label: 'As mesmas ferramentas do app com mais folga' },
   { icon: '☁️', label: 'Histórico e preferências sincronizados por conta' },
   { icon: '📅', label: 'Cobrança mensal, semestral ou anual' },
@@ -189,13 +189,13 @@ export const FREE_PLAN_FEATURES = [
   { label: 'Histórico de redações', included: true },
   { label: 'Personalização de aparência', included: true },
   { label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia`, included: false },
-  { label: 'Teste grátis de 7 dias', included: false },
+
 ]
 
 // ── Features do plano pago (para comparação) ─────────────────────────────────
 export const PAID_PLAN_FEATURES = [
   { label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia`, included: true },
-  { label: 'Teste grátis de 7 dias na primeira ativação', included: true },
+
   { label: 'Mesmas funções do app com mais folga', included: true },
   { label: 'Histórico, aparência e preferências por conta', included: true },
   { label: 'Cobrança recorrente conforme o período escolhido', included: true },
@@ -215,10 +215,9 @@ export const PRICING_PLANS = [
     productId: 'prod_NkmfS5y5xD0Ah4ZhzUDc1BY4',
     totalPrice: 19.90,
     pricePerMonth: 19.90,
-    billingLabel: 'Cobrança mensal depois do teste grátis',
+    billingLabel: 'Cobrança mensal',
     billingPeriodLabel: 'a cada mês',
     discount: null,
-    trialDays: 7,
     recommended: false,
   },
   {
@@ -227,10 +226,9 @@ export const PRICING_PLANS = [
     productId: 'prod_NhxEgLzexPQh5PqXdjeXRkZx',
     totalPrice: 89.40,
     pricePerMonth: 14.90,
-    billingLabel: 'Cobrança semestral depois do teste grátis',
+    billingLabel: 'Cobrança semestral',
     billingPeriodLabel: 'a cada 6 meses',
     discount: 'Economia no semestre',
-    trialDays: 7,
     recommended: false,
   },
   {
@@ -239,10 +237,9 @@ export const PRICING_PLANS = [
     productId: 'prod_EjA1dwgzNKNMj0fyGmtuStWE',
     totalPrice: 142.80,
     pricePerMonth: 11.90,
-    billingLabel: 'Cobrança anual depois do teste grátis',
+    billingLabel: 'Cobrança anual',
     billingPeriodLabel: 'a cada 12 meses',
     discount: 'Melhor custo-benefício',
-    trialDays: 7,
     recommended: true,
   },
 ]
