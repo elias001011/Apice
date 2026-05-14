@@ -14,6 +14,9 @@ import { buildCheckoutCorsHeaders } from './utils/cors.js'
  * 5. Frontend verifica o status via GET nesta funcao
  * 6. Webhook v2 reforca a sincronizacao em nuvem
  *
+ * O fluxo e pago. Cupons podem ser liberados no checkout via
+ * ABACATE_CHECKOUT_COUPONS/ABACATE_ALLOWED_COUPONS, sem teste grátis automático.
+ *
  * Requer no Netlify:
  * - ABACATE_V2: chave de API v2 da AbacatePay
  */
@@ -22,10 +25,8 @@ const ABACATE_API_BASE = 'https://api.abacatepay.com'
 const ABACATE_CUSTOMER_CREATE_PATH = '/v2/customers/create'
 const ABACATE_SUBSCRIPTION_CREATE_PATH = '/v2/subscriptions/create'
 const ABACATE_SUBSCRIPTION_LIST_PATH = '/v2/subscriptions/list'
-const ABACATE_CHECKOUT_CREATE_PATH = '/v2/checkouts/create'
 const ABACATE_CHECKOUT_LIST_PATH = '/v2/checkouts/list'
 
-const TRIAL_COUPON_CODE = 'FREE TEST'
 const PAID_STATUSES = new Set(['PAID', 'ACTIVE', 'COMPLETED'])
 
 function getApiKey() {
@@ -76,6 +77,17 @@ function parseExternalId(externalId) {
   }
 
   return { userId: '', planKey: '', timestamp: '' }
+}
+
+function getAllowedCheckoutCoupons() {
+  const raw = safeText(process.env.ABACATE_CHECKOUT_COUPONS || process.env.ABACATE_ALLOWED_COUPONS)
+  if (!raw) return []
+
+  return raw
+    .split(/[,\n;]/)
+    .map((coupon) => coupon.trim())
+    .filter(Boolean)
+    .slice(0, 50)
 }
 
 function getCheckoutUrl(checkout) {
@@ -132,25 +144,6 @@ function formatAbacateError(payload) {
   if (direct) return direct
 
   return ''
-}
-
-function stringifyDetails(details) {
-  if (!details) return ''
-  if (typeof details === 'string') return details
-  try {
-    return JSON.stringify(details)
-  } catch {
-    return ''
-  }
-}
-
-function shouldTryOneTimeCheckoutFallback(error) {
-  if (![400, 422].includes(Number(error?.status))) return false
-
-  const detailText = `${safeText(error?.message)} ${stringifyDetails(error?.details)}`.toLowerCase()
-  if (!detailText) return true
-
-  return /cycle|ciclo|assinatura|subscription|produto|product|method|m[eé]todo|card|cart[aã]o|checkout/.test(detailText)
 }
 
 async function abacateFetch(path, { method = 'GET', body } = {}) {
@@ -254,18 +247,11 @@ async function createCustomerId(customerInput) {
 
 function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, timestamp, customerId, mode = 'subscription' }) {
   const isSubscription = mode === 'subscription'
+  const allowedCoupons = getAllowedCheckoutCoupons()
   const payload = {
     items: [
       {
         id: plan.productId,
-        productId: plan.productId,
-        quantity: 1,
-      },
-    ],
-    products: [
-      {
-        id: plan.productId,
-        productId: plan.productId,
         quantity: 1,
       },
     ],
@@ -281,11 +267,16 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
       planLabel: plan.label,
       userId,
       createdAt: timestamp,
+      couponsEnabled: allowedCoupons.length > 0,
     },
   }
 
   if (customerId) {
     payload.customerId = customerId
+  }
+
+  if (allowedCoupons.length > 0) {
+    payload.coupons = allowedCoupons
   }
 
   console.log('[abacatepay] Payload v2 COMPLETO:', JSON.stringify({
@@ -295,6 +286,7 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
     completionUrl: payload.completionUrl,
     externalId: payload.externalId,
     customerId: payload.customerId || '(sem customer)',
+    coupons: payload.coupons || [],
     planKey: payload.metadata.planKey,
     mode,
     productId: plan.productId,
@@ -303,69 +295,12 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
   return payload
 }
 
-async function getUserTrialStatusFromCloud(userId) {
-  if (!userId) return { hasUsedTrial: false, activeTrial: false, trialState: null }
-
-  try {
-    const { getStore } = await import('@netlify/blobs')
-    const store = await getStore({ name: 'user-state', consistency: 'strong' })
-
-    if (!store) {
-      console.warn('[abacatepay] Blob store não disponível. Trial cloud validation desabilitada.')
-      return { hasUsedTrial: false, activeTrial: false, trialState: null }
-    }
-
-    const blobKey = `user-state:${userId}`
-    const userData = await store.get(blobKey, { type: 'json' })
-
-    if (!userData || typeof userData !== 'object') {
-      return { hasUsedTrial: false, activeTrial: false, trialState: null }
-    }
-
-    const billing = userData.billing || {}
-    const trialStartedAt = safeText(userData.trialStartedAt || billing.trialStartedAt)
-    const trialEndsAt = safeText(userData.trialEndsAt || billing.trialEndsAt)
-    const trialKind = safeText(userData.trialKind || billing.trialKind) || 'standard'
-    const trialEndsAtMs = Date.parse(trialEndsAt)
-    const activeTrial = billing.status === 'trial'
-      && Number.isFinite(trialEndsAtMs)
-      && trialEndsAtMs > Date.now()
-    const anyTrialRecord = Boolean(
-      userData.trialUsedAt ||
-      trialStartedAt ||
-      trialEndsAt ||
-      billing.trialUsedAt ||
-      userData.planStatus === 'trial' ||
-      billing.status === 'trial',
-    )
-    const hasUsedTrial = anyTrialRecord && !activeTrial
-
-    return {
-      hasUsedTrial,
-      activeTrial,
-      trialState: activeTrial
-        ? {
-          status: 'trial',
-          planKey: safeText(billing.planKey || userData.planKey),
-          trialKind,
-          trialStartedAt,
-          trialEndsAt,
-        }
-        : null,
-    }
-  } catch (error) {
-    console.warn('[abacatepay] Erro ao verificar trial no blob:', error.message)
-    return { hasUsedTrial: false, activeTrial: false, trialState: null }
-  }
-}
-
 async function createCheckout(req, authUser, headers) {
   let body = {}
   try {
     body = await req.json()
     console.log('[abacatepay] Body recebido (resumido):', JSON.stringify({
       planKey: body?.planKey || '',
-      isTrial: Boolean(body?.isTrial),
       hasCustomerName: Boolean(safeText(body?.customerName || body?.fullName)),
       hasCustomerCellphone: Boolean(safeText(body?.customerCellphone || body?.phone || body?.cellphone)),
       hasCustomerTaxId: Boolean(safeText(body?.customerTaxId || body?.taxId || body?.cpf || body?.cnpj)),
@@ -411,7 +346,7 @@ async function createCheckout(req, authUser, headers) {
       customerTaxId,
     })
 
-    const createPaymentCheckout = ({ path, mode }) => abacateFetch(path, {
+    const result = await abacateFetch(ABACATE_SUBSCRIPTION_CREATE_PATH, {
       method: 'POST',
       body: buildCheckoutPayload({
         plan,
@@ -421,47 +356,13 @@ async function createCheckout(req, authUser, headers) {
         userId,
         timestamp,
         customerId,
-        mode,
+        mode: 'subscription',
       }),
     })
 
-    let checkoutMode = 'subscription'
-    let subscriptionFallback = false
-    let result = null
-
-    try {
-      result = await createPaymentCheckout({
-        path: ABACATE_SUBSCRIPTION_CREATE_PATH,
-        mode: 'subscription',
-      })
-    } catch (subscriptionError) {
-      if (!shouldTryOneTimeCheckoutFallback(subscriptionError)) {
-        throw subscriptionError
-      }
-
-      console.warn(
-        '[abacatepay] Checkout de assinatura falhou. Tentando checkout comum para manter abertura de pagamento:',
-        subscriptionError.message,
-      )
-
-      checkoutMode = 'checkout'
-      subscriptionFallback = true
-      try {
-        result = await createPaymentCheckout({
-          path: ABACATE_CHECKOUT_CREATE_PATH,
-          mode: 'checkout',
-        })
-      } catch (fallbackError) {
-        console.error('[abacatepay] Fallback também falhou:', fallbackError.message)
-        // O fallback mascara o erro real da assinatura. Vamos propagar o erro original da assinatura
-        // para que o usuário possa ver o que realmente deu errado na requisição primária.
-        subscriptionError.message = `Erro Original (Sub): ${subscriptionError.message} | Erro Fallback: ${fallbackError.message}`
-        throw subscriptionError
-      }
-    }
-
     const checkout = result?.data || {}
     const checkoutUrl = getCheckoutUrl(checkout)
+    const allowedCoupons = getAllowedCheckoutCoupons()
 
     if (!checkoutUrl) {
       console.error('[abacatepay] Checkout v2 criado sem URL:', JSON.stringify(checkout))
@@ -471,13 +372,14 @@ async function createCheckout(req, authUser, headers) {
     return new Response(JSON.stringify({
       success: true,
       gateway: 'abacatepay-v2',
-      checkoutMode,
-      subscriptionFallback,
+      checkoutMode: 'subscription',
+      subscriptionFallback: false,
       checkoutId: checkout.id || checkout.checkout?.id || '',
-      subscriptionId: checkoutMode === 'subscription' ? getSubscriptionId(checkout) : '',
+      subscriptionId: getSubscriptionId(checkout),
       checkoutUrl,
       externalId,
       customerId,
+      couponsEnabled: allowedCoupons.length > 0,
       planKey: plan.key,
       productId: plan.productId,
       totalPrice: plan.totalPrice,

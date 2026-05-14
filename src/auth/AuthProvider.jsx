@@ -41,18 +41,32 @@ const ACCOUNT_LOCAL_STATE_KEYS = [
   'apice:free-plan-usage:v1',
   'apice:historico',
   'apice:historico:total',
+  'apice:historico:total:v1',
   'apice:simulado:historico:v1',
   'apice:simulado:historico:total:v1',
+  'apice:simulado_progresso:v2',
   'apice:user-summary',
+  'apice:user-summary:v1',
   'apice:radar-favorites',
+  'apice:radar-favorites:v1',
   'apice:radar-state',
+  'apice:radar-state:v1',
+  'apice:radar-state:v2',
   'apice:enem-manual-date',
+  'apice:enem-date',
   'apice:ai-response-preference',
+  'apice:ai-response-preference:v1',
   'apice:avatar-settings',
+  'apice:avatar-settings:v1',
   'apice:notificacoes',
+  'apice:notificacoes:v1',
   'apice:conquistas',
+  'apice:conquistas:v1',
   'apice:weather:location:v1',
+  'apice:corretor:draft:v3',
   'apice:professor-chats:v1',
+  'apice:professor:conversations',
+  'apice:professor:handoff:v1',
 ]
 
 function pickSafeUserMetadata(metadata) {
@@ -222,6 +236,9 @@ function clearLocalAccountState() {
     'apice:simulado-historico-updated',
     'apice:radar-favorites-updated',
     'apice:radar-state-updated',
+    'apice:enem-date-updated',
+    'apice:ai-response-preferences-updated',
+    'apice:avatar-settings-updated',
     'apice:user-summary-updated',
     'apice:notificacoes-updated',
     'apice:conquistas-updated',
@@ -580,6 +597,17 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     const currentUser = auth.currentUser()
     if (currentUser) {
+      if (!isGuest) {
+        syncLockRef.current = true
+        try {
+          await pushStateToCloud(currentUser)
+        } catch (err) {
+          console.warn('[AuthProvider] Não foi possível salvar estado na nuvem antes do logout:', err?.message || err)
+        } finally {
+          syncLockRef.current = false
+        }
+      }
+
       try {
         await currentUser.logout()
       } catch (err) {

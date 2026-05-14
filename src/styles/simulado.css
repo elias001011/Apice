@@ -679,6 +679,8 @@
 .question-card {
   display: grid;
   gap: 1.1rem;
+  min-width: 0;
+  overflow: hidden;
   border-radius: 28px;
   background:
     radial-gradient(circle at 100% 0%, rgba(var(--accent-rgb), 0.06), transparent 30%),
@@ -867,6 +869,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 1rem;
+  min-width: 0;
   border-top: 1px solid var(--border);
   padding-top: 1.25rem;
   margin: 0 calc(-1 * clamp(1rem, 3vw, 1.5rem));
@@ -891,8 +894,11 @@
 
 .question-footer-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.75rem;
   width: 100%;
+  min-width: 0;
 }
 
 @media (min-width: 640px) {
@@ -902,14 +908,17 @@
 }
 
 .question-action {
-  flex: 1;
+  flex: 1 1 190px;
   min-width: 0;
-  white-space: nowrap;
+  width: auto;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
 }
 
 @media (min-width: 640px) {
   .question-action {
-    flex: none;
+    flex: 0 1 auto;
     min-width: 170px;
   }
 }
@@ -971,7 +980,7 @@
 }
 
 .result-stats {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .result-alert {
@@ -1099,6 +1108,10 @@
   .result-link {
     width: 100%;
   }
+
+  .question-footer-actions {
+    flex-direction: column;
+  }
 }
 
 /* ── PENDING QUESTIONS MODAL ── */
@@ -1129,7 +1142,17 @@
 }
 
 .simulado-pending-icon {
-  font-size: 2.5rem;
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  border-radius: 50%;
+  background: rgba(217, 140, 31, 0.12);
+  color: var(--amber);
+  font-size: 1.45rem;
+  font-weight: 950;
   line-height: 1;
 }
 
@@ -1162,4 +1185,136 @@
   border-radius: 14px;
   width: 100%;
   justify-content: center;
+}
+
+/* Aparência global aplicada também aos containers internos do simulado. */
+html.layout-compact :is(
+  .simulado-hero,
+  .simulado-summary-card,
+  .simulado-setup-panel,
+  .setup-section,
+  .area-card--big,
+  .disciplina-card,
+  .quantidade-display,
+  .loading-box,
+  .simulado-exam-rail,
+  .simulado-progress-card,
+  .simulado-review-toggle,
+  .question-map-dot,
+  .question-card,
+  .question-text-base,
+  .option-item,
+  .feedback-box,
+  .result-card,
+  .result-review,
+  .simulado-pending-modal
+) {
+  border-radius: var(--radius);
+}
+
+html.layout-compact :is(
+  .simulado-hero,
+  .simulado-summary-card,
+  .simulado-setup-panel,
+  .setup-section,
+  .question-card,
+  .result-card,
+  .loading-box,
+  .simulado-exam-rail
+) {
+  padding: 1rem;
+}
+
+html.layout-compact :is(
+  .simulado-builder,
+  .simulado-setup-panel,
+  .simulado-exam-shell,
+  .question-card,
+  .options-list,
+  .result-card
+) {
+  gap: 0.75rem;
+}
+
+html[data-card-hover="off"] :is(
+  .area-card--big:hover,
+  .simulado-hero:hover,
+  .simulado-summary-card:hover,
+  .simulado-exam-rail:hover,
+  .question-card:hover,
+  .result-card:hover
+) {
+  transform: none !important;
+  box-shadow: none !important;
+  border-color: var(--border) !important;
+}
+
+html[data-fx="none"] :is(
+  .setup-section,
+  .area-card--big,
+  .disciplina-card,
+  .quantidade-display,
+  .simulado-progress-card,
+  .simulado-review-toggle,
+  .question-map-dot,
+  .question-text-base,
+  .option-item,
+  .feedback-box,
+  .result-review,
+  .result-review-item,
+  .simulado-pending-modal
+),
+html[data-fx="gradients"][data-card-gradients="off"] :is(
+  .setup-section,
+  .area-card--big,
+  .disciplina-card,
+  .quantidade-display,
+  .simulado-progress-card,
+  .simulado-review-toggle,
+  .question-map-dot,
+  .question-text-base,
+  .option-item,
+  .feedback-box,
+  .result-review,
+  .result-review-item,
+  .simulado-pending-modal
+) {
+  background: var(--bg2) !important;
+  background-image: none !important;
+}
+
+html[data-fx="gradients"][data-card-gradients="on"] :is(
+  .setup-section,
+  .area-card--big,
+  .disciplina-card,
+  .quantidade-display,
+  .simulado-progress-card,
+  .question-text-base,
+  .option-item,
+  .feedback-box,
+  .result-review,
+  .simulado-pending-modal
+) {
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.018), transparent 72%), var(--bg2) !important;
+  border-color: rgba(var(--accent-rgb), 0.08) !important;
+  box-shadow: var(--surface-shadow-sm, 0 4px 12px rgba(8, 9, 4, 0.06)) !important;
+}
+
+html[data-fx="blur"] :is(
+  .setup-section,
+  .area-card--big,
+  .disciplina-card,
+  .quantidade-display,
+  .simulado-progress-card,
+  .question-text-base,
+  .option-item,
+  .feedback-box,
+  .result-review,
+  .simulado-pending-modal
+) {
+  background: var(--floating-surface) !important;
+  border-color: var(--floating-border) !important;
+  box-shadow: var(--floating-shadow) !important;
+  backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
+  -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
 }

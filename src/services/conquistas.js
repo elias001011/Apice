@@ -12,10 +12,10 @@ export const TODAS_CONQUISTAS = [
     secret: false,
   },
   {
-    id: 'curioso',
-    icon: '🔍',
-    title: 'Curioso',
-    desc: 'Use o Radar 1000 pela primeira vez',
+    id: 'constante',
+    icon: '📌',
+    title: 'Constante',
+    desc: 'Crie 5 redações',
     secret: false,
   },
   {
@@ -26,10 +26,24 @@ export const TODAS_CONQUISTAS = [
     secret: false,
   },
   {
-    id: 'explorador',
-    icon: '🧭',
-    title: 'Explorador',
-    desc: 'Consulte 10 temas diferentes no Radar',
+    id: 'lapidador',
+    icon: '💎',
+    title: 'Lapidador',
+    desc: 'Crie 25 redações',
+    secret: false,
+  },
+  {
+    id: 'centuriao',
+    icon: '🏆',
+    title: 'Centurião',
+    desc: 'Crie 100 redações',
+    secret: false,
+  },
+  {
+    id: 'alto-nivel',
+    icon: '📈',
+    title: 'Alto nível',
+    desc: 'Tire 800 ou mais em uma redação',
     secret: false,
   },
   {
@@ -40,10 +54,31 @@ export const TODAS_CONQUISTAS = [
     secret: false,
   },
   {
-    id: 'centuriao',
-    icon: '🏆',
-    title: 'Centurião',
-    desc: 'Crie 100 redações',
+    id: 'curioso',
+    icon: '🔍',
+    title: 'Curioso',
+    desc: 'Use o Radar 1000 pela primeira vez',
+    secret: false,
+  },
+  {
+    id: 'observador',
+    icon: '🧠',
+    title: 'Observador',
+    desc: 'Consulte 3 temas no Radar 1000',
+    secret: false,
+  },
+  {
+    id: 'explorador',
+    icon: '🧭',
+    title: 'Explorador',
+    desc: 'Consulte 10 temas diferentes no Radar',
+    secret: false,
+  },
+  {
+    id: 'estrategista',
+    icon: '♟️',
+    title: 'Estrategista',
+    desc: 'Consulte 25 temas no Radar 1000',
     secret: false,
   },
   // Secretas
@@ -66,6 +101,20 @@ export const TODAS_CONQUISTAS = [
     icon: '⚡',
     title: 'Relâmpago',
     desc: 'Complete 3 redações no mesmo dia',
+    secret: true,
+  },
+  {
+    id: 'secreto-4',
+    icon: '💫',
+    title: 'Quase perfeito',
+    desc: 'Tire 980 ou mais em uma redação',
+    secret: true,
+  },
+  {
+    id: 'secreto-5',
+    icon: '🔥',
+    title: 'Ritmo intenso',
+    desc: 'Complete 5 redações no mesmo dia',
     secret: true,
   },
 ]
@@ -180,9 +229,13 @@ export function subscribeConquistaDesbloqueada(handler) {
  */
 export function checkConquistasRedacao({ totalEssays = 1, nota = 0 } = {}) {
   if (totalEssays >= 1) desbloquearConquista('viajante')
+  if (totalEssays >= 5) desbloquearConquista('constante')
   if (totalEssays >= 10) desbloquearConquista('dedicado')
+  if (totalEssays >= 25) desbloquearConquista('lapidador')
   if (totalEssays >= 100) desbloquearConquista('centuriao')
+  if (nota >= 800) desbloquearConquista('alto-nivel')
   if (nota >= 900) desbloquearConquista('perfeccionista')
+  if (nota >= 980) desbloquearConquista('secreto-4')
   if (nota >= 1000) desbloquearConquista('secreto-1')
 
   // Noturno: redação após meia-noite
@@ -202,6 +255,7 @@ function checkRelampago() {
     const count = raw.day === today ? (Number(raw.count) || 0) + 1 : 1
     localStorage.setItem(key, JSON.stringify({ day: today, count }))
     if (count >= 3) desbloquearConquista('secreto-3')
+    if (count >= 5) desbloquearConquista('secreto-5')
   } catch {
     // ignore
   }
@@ -212,5 +266,7 @@ function checkRelampago() {
  */
 export function checkConquistasRadar({ totalSearches = 0 } = {}) {
   if (totalSearches >= 1) desbloquearConquista('curioso')
+  if (totalSearches >= 3) desbloquearConquista('observador')
   if (totalSearches >= 10) desbloquearConquista('explorador')
+  if (totalSearches >= 25) desbloquearConquista('estrategista')
 }

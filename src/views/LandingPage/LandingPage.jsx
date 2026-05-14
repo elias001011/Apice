@@ -135,7 +135,7 @@ const LandingPage = () => {
           <h1>Desbloqueie seu potencial máximo no ENEM com IA</h1>
           <p className="lp-hero-subtitle">Corretor de redação instantâneo, Radar de temas e análise de desempenho — tudo num só lugar.</p>
           <div className="lp-hero-actions">
-            <button className="lp-btn-primary" onClick={() => window.location.href = '/cadastro'}>Começar grátis — 7 dias de teste<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg></button>
+            <button className="lp-btn-primary" onClick={() => window.location.href = '/cadastro'}>Começar grátis<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg></button>
             <button className="lp-btn-ghost" onClick={() => document.getElementById('demo')?.scrollIntoView({ behavior: 'smooth' })}>Testar grátis</button>
           </div>
           {enemCountdown && (
@@ -169,7 +169,7 @@ const LandingPage = () => {
       {/* ═══ DEMO INTERATIVA ═══ */}
       <section id="demo" className="lp-demo-tools" ref={r2}>
         <div className={`lp-section-header${v2 ? ' anim-in' : ' anim-hidden'}`}>
-          <span className="lp-section-badge">TESTE GRÁTIS</span>
+          <span className="lp-section-badge">DEMO GRÁTIS</span>
           <h2>Comece a usar de forma <span>100% gratuita</span></h2>
           <p>Use o Mini-Radar e o Corretor simplificado. Para ver a análise completa, crie sua conta grátis.</p>
         </div>
@@ -229,7 +229,7 @@ const LandingPage = () => {
 
       {/* ═══ CTA MID ═══ */}
       <div className={`lp-cta-strip${v3 ? ' anim-in' : ' anim-hidden'}`} style={{ animationDelay: '0.2s' }}>
-        <span>Comece com 7 dias de teste grátis, sem compromisso</span>
+        <span>Comece grátis e faça upgrade quando precisar de mais IA</span>
         <button className="lp-btn-primary" onClick={() => window.location.href = '/cadastro'}>Começar agora<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg></button>
       </div>
 
@@ -314,19 +314,19 @@ const LandingPage = () => {
               <div className="lp-plan-header"><h3>Premium {selectedPlan.label}</h3><p>Sem limites</p><div className="lp-plan-price"><span className="lp-plan-price-value">{selectedPlan.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span><span className="lp-plan-price-period">/{selectedPlan.billingPeriodLabel}</span></div><div className="lp-plan-price-note">{selectedPlan.pricePerMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês em média</div></div>
               <ul className="lp-plan-features">
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>10 usos de IA/dia</span></li>
-                <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>7 dias grátis</span></li>
+                <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>Checkout pago pela AbacatePay</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>Radar completo</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>Correção detalhada</span></li>
                 <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>Cancele quando quiser</span></li>
               </ul>
-              <button className="lp-plan-cta lp-plan-cta-primary" onClick={() => window.location.href = '/planos'}>Começar teste grátis<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg></button>
-              <p className="lp-plan-hint">7 dias grátis na primeira ativação</p>
+              <button className="lp-plan-cta lp-plan-cta-primary" onClick={() => window.location.href = '/planos'}>Assinar agora<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg></button>
+              <p className="lp-plan-hint">Cupons autorizados entram no checkout</p>
             </div>
           </div>
         </div>
         <div className={`lp-change-grid${v6 ? ' anim-in' : ' anim-hidden'}`} style={{ animationDelay: '0.35s' }}>
           <div className="lp-change-card"><div className="lp-change-number">5 → 10</div><div className="lp-change-text">Usos de IA/dia</div></div>
-          <div className="lp-change-card"><div className="lp-change-number">7 dias</div><div className="lp-change-text">Teste grátis</div></div>
+          <div className="lp-change-card"><div className="lp-change-number">V2</div><div className="lp-change-text">AbacatePay</div></div>
           <div className="lp-change-card"><div className="lp-change-number">24/7</div><div className="lp-change-text">Disponível sempre</div></div>
           <div className="lp-change-card"><div className="lp-change-number">INEP</div><div className="lp-change-text">100% alinhado</div></div>
         </div>

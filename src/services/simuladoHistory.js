@@ -24,6 +24,7 @@ function normalizeStats(stats) {
   if (!stats || typeof stats !== 'object') {
     return {
       bancoLocal: 0,
+      api: 0,
       reais: 0,
       ia: 0,
     }
@@ -31,6 +32,7 @@ function normalizeStats(stats) {
 
   return {
     bancoLocal: Math.max(0, Math.round(toNumber(stats.bancoLocal, 0))),
+    api: Math.max(0, Math.round(toNumber(stats.api, Math.max(0, toNumber(stats.reais, 0) - toNumber(stats.bancoLocal, 0))))),
     reais: Math.max(0, Math.round(toNumber(stats.reais, 0))),
     ia: Math.max(0, Math.round(toNumber(stats.ia, 0))),
   }

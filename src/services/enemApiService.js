@@ -10,6 +10,12 @@ const CACHE_TTL = 1000 * 60 * 60 // 1 hora
 const DEFAULT_EXAM_YEARS = [2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015]
 const MAX_API_LIMIT = 50
 const MAX_API_YEARS_PER_FETCH = 4
+const AREA_PAGE_OFFSETS = {
+  Linguagens: [0],
+  Humanas: [45, 40, 50],
+  Natureza: [90, 85, 95],
+  Matematica: [135, 130, 140],
+}
 
 const AREA_MAP = {
   Linguagens: {
@@ -501,6 +507,11 @@ function resolveYearList(years) {
   return buildFallbackYears()
 }
 
+function resolveAreaOffsets(area, language = '') {
+  if (language) return [0]
+  return AREA_PAGE_OFFSETS[area] || [0, 45, 90, 135]
+}
+
 export async function fetchQuestoes({ area, ano, limit = 50, offset = 0, disciplina } = {}) {
   const yearValue = Number(ano)
   if (!Number.isFinite(yearValue)) {
@@ -582,12 +593,13 @@ export async function fetchQuestoesAleatorias({ area, quantidade = 5, disciplina
   const collected = []
   let rateLimited = false
 
-  const fetchBatch = async (year, fetchDiscipline = '') => {
+  const fetchBatch = async (year, fetchDiscipline = '', offset = 0) => {
     try {
       const batch = await fetchQuestoes({
         area,
         ano: year,
         limit: MAX_API_LIMIT,
+        offset,
         disciplina: fetchDiscipline || disciplina,
       })
 
@@ -609,18 +621,24 @@ export async function fetchQuestoesAleatorias({ area, quantidade = 5, disciplina
   if (shouldUseLanguageFilter) {
     for (const year of orderedYears) {
       if (rateLimited) break
-      await fetchBatch(year, disciplina)
+      await fetchBatch(year, disciplina, 0)
       if (rateLimited) break
       if (uniqueQuestions(collected).length >= requestedQuantidade) {
         break
       }
     }
   } else {
+    const offsets = resolveAreaOffsets(area, '')
     for (const year of orderedYears) {
       if (rateLimited) break
-      await fetchBatch(year)
-      if (rateLimited) break
-      if (uniqueQuestions(collected).length >= requestedQuantidade) {
+      for (const offset of offsets) {
+        await fetchBatch(year, '', offset)
+        if (rateLimited) break
+        if (uniqueQuestions(collected).length >= requestedQuantidade) {
+          break
+        }
+      }
+      if (rateLimited || uniqueQuestions(collected).length >= requestedQuantidade) {
         break
       }
     }

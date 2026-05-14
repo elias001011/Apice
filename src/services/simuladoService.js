@@ -1,7 +1,7 @@
 /**
  * Serviço de simulados integrado com o banco local e a API oficial enem.dev.
- * Prioriza o banco local de questões reais, depois a API oficial
- * e usa IA só como fallback para completar o que faltar.
+ * Prioriza a API oficial, usa IA só como fallback limitado
+ * e completa o restante com o banco local quando necessário.
  */
 
 import { authFetch } from './authFetch.js'
@@ -46,42 +46,26 @@ export async function gerarSimulado({
   let questoesApi = []
   let resultadoIA = { questoes: [] }
 
-  // Tenta primeiro o banco local de questões reais.
+  // Tenta primeiro a API oficial. Ela é a fonte preferida para maximizar
+  // questões reais do ENEM antes de qualquer fallback.
   if (fonte !== 'ia') {
     try {
-      questoesLocais = await buscarQuestoesEmFonte({
-        fetcher: buscarQuestoesAleatorias,
-        area,
-        disciplinas: disciplinasSelecionadas,
-        quantidade,
-        origem: 'banco local',
-      })
-
-      const quantidadeRestante = Math.max(quantidade - questoesLocais.length, 0)
-
-      if (quantidadeRestante > 0) {
-        questoesApi = await buscarQuestoesEmFonte({
+      questoesApi = await buscarQuestoesEmFonte({
         fetcher: fetchFromEnemApi,
         area,
         disciplinas: disciplinasSelecionadas,
-        quantidade: quantidadeRestante,
+        quantidade,
         origem: 'API oficial',
       })
-      }
 
-      // Salva no banco local para uso futuro
-      if (questoesApi.length > 0) {
-        await popularBancoQuestoes(questoesApi)
-      }
-      
-      console.log(`[simuladoService] Banco local: ${questoesLocais.length} | API oficial: ${questoesApi.length}`)
+      console.log(`[simuladoService] API oficial: ${questoesApi.length}`)
     } catch (error) {
-      console.warn('[simuladoService] Falha ao buscar questões reais:', error.message)
+      console.warn('[simuladoService] Falha ao buscar questões na API oficial:', error.message)
     }
   }
 
-  // Se precisa de mais questões, gera com IA.
-  const quantidadeFaltante = quantidade - questoesLocais.length - questoesApi.length
+  // Se precisa de mais questões, gera com IA até o limite configurado.
+  const quantidadeFaltante = quantidade - questoesApi.length
   
   if ((fonte === 'ia' || fonte === 'mista') && quantidadeFaltante > 0) {
     try {
@@ -110,11 +94,36 @@ export async function gerarSimulado({
 
   const questoesIA = Array.isArray(resultadoIA.questoes) ? resultadoIA.questoes : []
 
+  const quantidadeFaltanteAposIA = quantidade - questoesApi.length - questoesIA.length
+  if (fonte !== 'ia' && quantidadeFaltanteAposIA > 0) {
+    try {
+      questoesLocais = await buscarQuestoesEmFonte({
+        fetcher: buscarQuestoesAleatorias,
+        area,
+        disciplinas: disciplinasSelecionadas,
+        quantidade: quantidadeFaltanteAposIA,
+        origem: 'banco local',
+      })
+      if (questoesLocais.length > 0) {
+        alertas.push(`Completamos ${questoesLocais.length} questão(ões) com o banco local para reduzir o uso da IA.`)
+      }
+      console.log(`[simuladoService] Banco local: ${questoesLocais.length}`)
+    } catch (error) {
+      console.warn('[simuladoService] Falha ao buscar questões locais:', error.message)
+    }
+  }
+
+  // Salva questões oficiais no banco local para próximos simulados/offline,
+  // depois das consultas locais para evitar duplicar o mesmo lote no resultado.
+  if (questoesApi.length > 0) {
+    await popularBancoQuestoes(questoesApi)
+  }
+
   // Combina e embaralha questões
   const todasQuestoes = dedupeQuestoes([
-    ...questoesLocais,
     ...questoesApi,
     ...questoesIA,
+    ...questoesLocais,
   ])
   
   if (todasQuestoes.length === 0) {
@@ -142,6 +151,7 @@ export async function gerarSimulado({
     quantidadeMaximaIA: MAX_SIMULADO_AI_QUESTIONS,
     estatisticas: {
       bancoLocal: questoesLocais.length,
+      api: questoesApi.length,
       reais: questoesLocais.length + questoesApi.length,
       ia: questoesIA.length,
     },

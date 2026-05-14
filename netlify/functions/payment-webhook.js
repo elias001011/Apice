@@ -167,6 +167,19 @@ function pickSubscriptionId(objects) {
   )
 }
 
+function pickAccessEndsAt(objects, metadata) {
+  return normalizeIsoDate(
+    metadata?.accessEndsAt
+    || metadata?.currentPeriodEnd
+    || metadata?.current_period_end
+    || objects.subscription?.currentPeriodEnd
+    || objects.subscription?.current_period_end
+    || objects.checkout?.currentPeriodEnd
+    || objects.data?.currentPeriodEnd
+    || '',
+  )
+}
+
 async function getStore() {
   try {
     const { getStore: getStoreFn } = await import('@netlify/blobs')
@@ -344,23 +357,44 @@ export async function handler(req) {
     }
 
     if (CANCEL_EVENTS.has(event)) {
-      const billingUpdate = {
-        status: 'free',
-        planKey: '',
-        gateway: 'abacatepay-v2',
-        subscriptionActive: false,
-        checkoutId,
-        externalId,
-        subscriptionId,
-        cancelledAt: new Date().toISOString(),
-        lastWebhookEvent: event,
-      }
+      const isPeriodEndCancellation = event === 'subscription.cancelled'
+      const nowIso = new Date().toISOString()
+      const accessEndsAt = pickAccessEndsAt(objects, metadata)
+      const billingUpdate = isPeriodEndCancellation
+        ? {
+            status: 'paid',
+            planKey,
+            gateway: 'abacatepay-v2',
+            subscriptionActive: false,
+            cancelAtPeriodEnd: true,
+            cancellationRequestedAt: nowIso,
+            cancelledAt: nowIso,
+            ...(accessEndsAt ? { accessEndsAt } : {}),
+            checkoutId,
+            externalId,
+            subscriptionId,
+            lastWebhookEvent: event,
+          }
+        : {
+            status: 'free',
+            planKey: '',
+            gateway: 'abacatepay-v2',
+            subscriptionActive: false,
+            cancelAtPeriodEnd: false,
+            checkoutId,
+            externalId,
+            subscriptionId,
+            cancelledAt: nowIso,
+            lastWebhookEvent: event,
+          }
 
       const blobUpdated = await updateBillingInBlob(userId, planKey, billingUpdate, eventId)
 
       return new Response(JSON.stringify({
         success: true,
-        message: 'Usuário atualizado para FREE',
+        message: isPeriodEndCancellation
+          ? 'Assinatura marcada para encerrar no fim do período'
+          : 'Usuário atualizado para FREE',
         blobUpdated,
       }), {
         status: 200,

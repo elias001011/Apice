@@ -94,11 +94,6 @@ import {
   mergeProfessorChats,
 } from './professorChats.js'
 
-const LAYOUT_MODE_KEY = 'apice:layoutMode'
-const CONTAINER_SIZE_KEY = 'apice:containerSize'
-const ANIMATIONS_ENABLED_KEY = 'apice:animationsEnabled'
-const CARD_HOVER_ENABLED_KEY = 'apice:cardHoverEffects'
-
 // Versão atual do schema do snapshot. Incrementar quando houver breaking changes.
 export const CURRENT_SCHEMA_VERSION = 21
 // Versões mínimas compatíveis (abaixo disso, os dados são considerados corrompidos/incompatíveis)
@@ -458,17 +453,19 @@ export function applyAccountSnapshot(snapshot) {
     const keysToRemove = [
       'apice:billing-state:v1', 'apice:plan:tier',
       'apice:free-plan-usage:v1',
-      'apice:historico', 'apice:historico:total',
-      'apice:simulado:historico:v1', 'apice:simulado:historico:total:v1',
-      'apice:user-summary',
-      'apice:radar-favorites', 'apice:radar-state',
-      'apice:enem-manual-date',
-      'apice:ai-response-preference',
-      'apice:avatar-settings',
-      'apice:notificacoes',
-      'apice:conquistas',
+      'apice:historico', 'apice:historico:total', 'apice:historico:total:v1',
+      'apice:simulado:historico:v1', 'apice:simulado:historico:total:v1', 'apice:simulado_progresso:v2',
+      'apice:user-summary', 'apice:user-summary:v1',
+      'apice:radar-favorites', 'apice:radar-favorites:v1',
+      'apice:radar-state', 'apice:radar-state:v1', 'apice:radar-state:v2',
+      'apice:enem-manual-date', 'apice:enem-date',
+      'apice:ai-response-preference', 'apice:ai-response-preference:v1',
+      'apice:avatar-settings', 'apice:avatar-settings:v1',
+      'apice:notificacoes', 'apice:notificacoes:v1',
+      'apice:conquistas', 'apice:conquistas:v1',
       'apice:weather:location:v1',
-      'apice:professor-chats:v1',
+      'apice:corretor:draft:v3',
+      'apice:professor-chats:v1', 'apice:professor:conversations', 'apice:professor:handoff:v1',
     ]
     keysToRemove.forEach(key => {
       try { localStorage.removeItem(key) } catch {

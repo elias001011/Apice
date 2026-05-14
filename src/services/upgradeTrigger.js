@@ -4,7 +4,6 @@
  * COMO FUNCIONA:
  * - 3 gatilhos de upgrade: cota bloqueada, convite suave, feature premium
  * - Cota gratuita: 5 usos/dia | Cota paga: 10 usos/dia
-
  * - Planos: Mensal (R$19,90), Semestral (R$89,40), Anual (R$142,80)
  * 
  * PRODUCT IDs (AbacatePay API v2):
@@ -171,7 +170,7 @@ export function getUpgradeModalContent(reason, featureLabel = '') {
 // ── Benefícios do plano pago ─────────────────────────────────────────────────
 export const PAID_PLAN_BENEFITS = [
   { icon: '🔟', label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia` },
-
+  { icon: '💳', label: 'Checkout pago pela AbacatePay API v2' },
   { icon: '🧠', label: 'As mesmas ferramentas do app com mais folga' },
   { icon: '☁️', label: 'Histórico e preferências sincronizados por conta' },
   { icon: '📅', label: 'Cobrança mensal, semestral ou anual' },
@@ -189,13 +188,13 @@ export const FREE_PLAN_FEATURES = [
   { label: 'Histórico de redações', included: true },
   { label: 'Personalização de aparência', included: true },
   { label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia`, included: false },
-
+  { label: 'Checkout pago com cupons autorizados na gateway', included: false },
 ]
 
 // ── Features do plano pago (para comparação) ─────────────────────────────────
 export const PAID_PLAN_FEATURES = [
   { label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia`, included: true },
-
+  { label: 'Cobrança recorrente pela AbacatePay API v2', included: true },
   { label: 'Mesmas funções do app com mais folga', included: true },
   { label: 'Histórico, aparência e preferências por conta', included: true },
   { label: 'Cobrança recorrente conforme o período escolhido', included: true },
@@ -215,7 +214,7 @@ export const PRICING_PLANS = [
     productId: 'prod_NkmfS5y5xD0Ah4ZhzUDc1BY4',
     totalPrice: 19.90,
     pricePerMonth: 19.90,
-    billingLabel: 'Cobrança mensal',
+    billingLabel: 'Cobrança mensal recorrente',
     billingPeriodLabel: 'a cada mês',
     discount: null,
     recommended: false,
@@ -226,7 +225,7 @@ export const PRICING_PLANS = [
     productId: 'prod_NhxEgLzexPQh5PqXdjeXRkZx',
     totalPrice: 89.40,
     pricePerMonth: 14.90,
-    billingLabel: 'Cobrança semestral',
+    billingLabel: 'Cobrança semestral recorrente',
     billingPeriodLabel: 'a cada 6 meses',
     discount: 'Economia no semestre',
     recommended: false,
@@ -237,7 +236,7 @@ export const PRICING_PLANS = [
     productId: 'prod_EjA1dwgzNKNMj0fyGmtuStWE',
     totalPrice: 142.80,
     pricePerMonth: 11.90,
-    billingLabel: 'Cobrança anual',
+    billingLabel: 'Cobrança anual recorrente',
     billingPeriodLabel: 'a cada 12 meses',
     discount: 'Melhor custo-benefício',
     recommended: true,

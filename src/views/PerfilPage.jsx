@@ -24,11 +24,7 @@ import {
   getFreePlanUsageRows,
   subscribeFreePlanUsage,
 } from '../services/freePlanUsage.js'
-import {
-  getBillingStatusLabel,
-  TRIAL_DAYS,
-
-} from '../services/billingState.js'
+import { getBillingStatusLabel } from '../services/billingState.js'
 import { usePwaInstall } from '../pwa/usePwaInstall.js'
 import { useTheme } from '../theme/ThemeProvider.jsx'
 import { ConfirmDialog } from '../ui/ConfirmDialog.jsx'
@@ -880,27 +876,28 @@ export function PerfilPage() {
 
 
   const quotaHelpMessage = [
-    'Cada vez que o app precisa gerar um resultado novo com IA, 1 uso é consumido.',
+    'Sua cota é consumida quando o app precisa criar uma resposta nova para você.',
     '',
     isGuest
-      ? `Modo convidado: ${quotaRow.limit} solicitações por dia, com cota separada neste navegador e validação no servidor para reduzir abuso.`
+      ? `Modo convidado: ${quotaRow.limit} solicitações por dia, salvas apenas neste navegador e validadas no servidor para reduzir abuso.`
       : 'Conta gratuita: 5 usos por dia.',
-    `Conta paga, teste grátis ativo ou premium temporário: ${PAID_AI_DAILY_LIMIT} usos por dia.`,
+    `Conta paga: ${PAID_AI_DAILY_LIMIT} usos por dia.`,
     '',
-    'Cada um destes pontos conta como 1 uso quando você:',
+    'Conta como 1 uso quando você:',
     '- gera um tema dinâmico',
     '- corrige uma redação',
-    '- faz uma chamada direta de IA',
+    '- conversa com o Professor IA',
+    '- monta um simulado novo',
     '- procura novos temas no Radar 1000',
     '- abre "Ver detalhes" em um tema que ainda não está salvo na sua conta',
     '- deixa o app atualizar o resumo automático do seu desempenho',
     '',
-    'Não conta quando o conteúdo já existe salvo localmente ou na sua conta e o app só reapresenta esse dado.',
-    'A contagem zera automaticamente na virada do dia no seu navegador.',
+    'Não conta abrir telas, ajustar aparência, reler histórico ou ver de novo um resultado que já está salvo.',
+    'A API do ENEM e o banco local ajudam a reduzir chamadas internas de IA nos simulados, mas o pedido ainda entra como uma solicitação do app.',
+    'A contagem zera automaticamente na virada do dia.',
     '',
-    `O teste grátis dura ${TRIAL_DAYS} dias e só pode ser usado uma vez por conta.`,
-    `Use o teste grátis de 7 dias para acessar todos os recursos premium.`,
-    'Se você mudar de conta, o cache daquela conta muda junto. Se o detalhe do radar ou outro resultado não estiver salvo nessa conta, o app precisa gerar de novo e isso volta a consumir cota.',
+    'O fluxo de assinatura atual é pago pela AbacatePay. Cupons autorizados são informados no checkout da gateway.',
+    'Se você mudar de conta, o cache muda junto. Se um detalhe do Radar ou outro resultado não existir naquela conta, o app precisa gerar de novo e isso pode consumir cota.',
   ].join('\n')
 
   const handleInstallPwa = async () => {
@@ -1287,9 +1284,9 @@ export function PerfilPage() {
         <div className="meu-plano-left">
           <div className="meu-plano-label">Plano Atual</div>
           <div className="meu-plano-tier">
-            {isGuest ? 'Modo convidado' : billingStatus === 'free' ? 'Gratuito' : billingStatus === 'trial' ? 'Teste grátis' : 'Pago'}
+            {isGuest ? 'Modo convidado' : billingStatus === 'free' ? 'Gratuito' : billingStatus === 'trial' ? 'Temporário' : 'Pago'}
             <span className={`meu-plano-tier-badge ${isGuest || billingStatus === 'free' ? '' : 'pro'}`}>
-              {isGuest ? 'Convidado' : billingStatus === 'free' ? 'Free' : billingStatus === 'trial' ? 'Trial' : 'Pago'}
+              {isGuest ? 'Convidado' : billingStatus === 'free' ? 'Free' : billingStatus === 'trial' ? 'Temp' : 'Pago'}
             </span>
           </div>
           {(billingStatus === 'free' || isGuest) && (

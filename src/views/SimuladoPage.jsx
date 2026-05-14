@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { authFetch } from '../services/authFetch.js'
-import { loadAiResponsePreferenceText } from '../services/aiResponsePreferences.js'
 import { saveSimuladoHistoryEntry } from '../services/simuladoHistory.js'
-import { fetchQuestoesAleatorias, getDisciplinasByArea, getAreasDisponiveis } from '../services/enemApiService.js'
+import { getDisciplinasByArea, getAreasDisponiveis } from '../services/enemApiService.js'
+import { gerarSimulado, MAX_SIMULADO_AI_QUESTIONS } from '../services/simuladoService.js'
 import { consumeFreePlan } from '../services/freePlanUsage.js'
 import { useAppBusy } from '../ui/AppBusyContext.jsx'
 import '../styles/simulado.css'
@@ -12,7 +11,7 @@ const AREAS = getAreasDisponiveis()
 const MIN_Q = 3
 const MAX_Q = 90
 const PRESETS = [3, 5, 10, 15, 30, 45, 60, 90]
-const MAX_AI_Q = 15
+const MAX_AI_Q = MAX_SIMULADO_AI_QUESTIONS
 
 // ── inline markdown para textos das questões ──────────────────────────────────
 function inlineMd(text) {
@@ -97,83 +96,26 @@ function buildPerformance(percentual) {
 }
 
 async function gerarSimuladoEnem({ area, disciplinas, quantidade }) {
-  const responsePreference = loadAiResponsePreferenceText()
-  const alertas = []
-  let questoesApi = []
+  const data = await gerarSimulado({
+    area,
+    disciplinas,
+    quantidade,
+    fonte: 'mista',
+  })
 
-  // 1. Tenta a API ENEM
-  try {
-    const disc = disciplinas.length > 0 ? disciplinas[0] : ''
-    const batch = await fetchQuestoesAleatorias({ area, quantidade, disciplina: disc })
-    questoesApi = Array.isArray(batch) ? batch : []
-  } catch (err) {
-    console.warn('[simulado] API ENEM falhou:', err.message)
-  }
-
-  // 2. Se API não fechou o total, completa com IA (máx 15)
-  const faltando = quantidade - questoesApi.length
-  let questoesIA = []
-
-  if (faltando > 0) {
-    const quantIA = Math.min(faltando, MAX_AI_Q)
-    if (faltando > MAX_AI_Q) {
-      alertas.push(`A IA foi limitada a ${MAX_AI_Q} questões. Total final: ${questoesApi.length + quantIA}.`)
-    }
-    try {
-      const res = await authFetch('/.netlify/functions/gerar-simulado', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          area, disciplinas, quantidade: quantIA,
-          ...(responsePreference ? { responsePreference } : {}),
-          useSearch: true,
-        }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (Array.isArray(data?.questoes)) {
-          questoesIA = data.questoes
-          if (data.alerta) alertas.push(data.alerta)
-        }
-      }
-    } catch (err) {
-      console.warn('[simulado] IA falhou:', err.message)
-    }
-  }
-
-  const todas = dedup([...questoesApi, ...questoesIA])
-  if (todas.length === 0) {
+  const selecionadas = Array.isArray(data?.questoes) ? data.questoes : []
+  if (selecionadas.length === 0) {
     throw new Error('Não foi possível gerar questões. Verifique sua conexão e tente novamente.')
   }
 
-  const selecionadas = shuffle(todas).slice(0, quantidade)
   return {
-    area, disciplinas,
+    area: data.area || area,
+    disciplinas: Array.isArray(data.disciplinas) ? data.disciplinas : disciplinas,
     questoes: selecionadas,
-    geradoEm: new Date().toISOString(),
-    alerta: alertas.join(' ').trim(),
-    estatisticas: { reais: questoesApi.length, ia: questoesIA.length, bancoLocal: 0 },
+    geradoEm: data.geradoEm || new Date().toISOString(),
+    alerta: String(data.alerta || '').trim(),
+    estatisticas: data.estatisticas || { api: 0, reais: 0, ia: 0, bancoLocal: 0 },
   }
-}
-
-function dedup(arr) {
-  const seen = new Set()
-  return arr.filter(q => {
-    if (!q) return false
-    const key = String(q.id || q.enunciado || '').trim()
-    if (!key || seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-}
-
-function shuffle(arr) {
-  const a = [...arr]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
 }
 
 const STORAGE_KEY = 'apice:simulado_progresso:v2'
@@ -301,7 +243,7 @@ export function SimuladoPage() {
     saveSimuladoHistoryEntry({
       id: `${Date.now()}`, data: new Date().toISOString(),
       titulo: `Simulado de ${selectedArea}`, area: selectedArea, disciplinas: selectedDiscs,
-      fonte: 'enem-api', quantidade: total, acertos, total, percentual: pct, performance: perf,
+      fonte: 'mista', quantidade: total, acertos, total, percentual: pct, performance: perf,
       estatisticas: examData.estatisticas, limiteIAAplicado: examData.estatisticas.ia > 0,
       alerta: examData.alerta, geradoEm: examData.geradoEm,
     })
@@ -336,16 +278,16 @@ export function SimuladoPage() {
       return
     }
 
-    // Todas confirmadas - verifica pendências antes de finalizar
-    const unansweredIndexes = examData.questoes
-      .map((q, i) => !answers[q.id] ? i : -1)
+    // Última questão - o resultado só fica disponível após confirmar todas.
+    const unconfirmedIndexes = examData.questoes
+      .map((q, i) => !confirmedAnswers[q.id] ? i : -1)
       .filter(i => i >= 0)
 
-    if (unansweredIndexes.length > 0) {
+    if (unconfirmedIndexes.length > 0) {
       setPendingModal({
-        type: 'unanswered',
-        count: unansweredIndexes.length,
-        firstIndex: unansweredIndexes[0],
+        type: 'unconfirmed',
+        count: unconfirmedIndexes.length,
+        firstIndex: unconfirmedIndexes[0],
       })
       return
     }
@@ -372,16 +314,12 @@ export function SimuladoPage() {
       setCurrentQ(pendingModal.firstIndex)
       setPendingModal(null)
     } else if (action === 'proceed') {
-      if (pendingModal.type === 'unanswered') {
-        // Marca questoes sem resposta como erradas
-        const newAnswers = { ...answers }
-        examData.questoes.forEach((q) => {
-          if (!answers[q.id]) {
-            newAnswers[q.id] = 'X' // Marca como errada
-          }
-        })
-        setAnswers(newAnswers)
-      } else if (pendingModal.type === 'review') {
+      if (pendingModal.type === 'unconfirmed') {
+        setCurrentQ(pendingModal.firstIndex)
+        setPendingModal(null)
+        return
+      }
+      if (pendingModal.type === 'review') {
         setReviewWarningSeen(true)
       }
       setPendingModal(null)
@@ -399,6 +337,61 @@ export function SimuladoPage() {
   const selectedAreaConfig = getAreaConfig(selectedArea)
   const selectedDiscLabels = getDisciplineLabels(selectedArea, selectedDiscs)
   const estimatedMinutes = Math.max(5, Math.round(quantidade * 3))
+  const renderPendingModal = () => {
+    if (!pendingModal) return null
+
+    const modalCopy = {
+      unconfirmed: {
+        icon: '!',
+        title: `${pendingModal.count} questão(ões) sem confirmação`,
+        text: 'Não é possível ver o resultado final antes de confirmar todas as questões. Volte para a primeira pendência e confirme sua resposta.',
+        primary: 'Ir para confirmar',
+        secondary: 'Continuar no simulado',
+      },
+      unanswered: {
+        icon: '!',
+        title: `${pendingModal.count} questão(ões) sem resposta`,
+        text: 'Você ainda não respondeu todas as questões. Deseja ir para as pendentes ou finalizar com as respostas atuais?',
+        primary: 'Ir para pendentes',
+        secondary: 'Finalizar mesmo assim',
+      },
+      review: {
+        icon: '?',
+        title: `${pendingModal.count} questão(ões) marcada(s) para revisar`,
+        text: 'Você marcou questões para revisão. Deseja revisá-las antes de ver o resultado?',
+        primary: 'Revisar questões',
+        secondary: 'Prosseguir sem revisar',
+      },
+    }[pendingModal.type] || null
+
+    if (!modalCopy) return null
+
+    return (
+      <div className="simulado-pending-overlay" onClick={() => setPendingModal(null)}>
+        <div className="simulado-pending-modal anim anim-d1" onClick={e => e.stopPropagation()}>
+          <div className="simulado-pending-icon">{modalCopy.icon}</div>
+          <h3>{modalCopy.title}</h3>
+          <p>{modalCopy.text}</p>
+          <div className="simulado-pending-actions">
+            <button type="button" className="btn-primary" onClick={() => handlePendingAction('go')}>
+              {modalCopy.primary}
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => (
+                pendingModal.type === 'unconfirmed'
+                  ? setPendingModal(null)
+                  : handlePendingAction('proceed')
+              )}
+            >
+              {modalCopy.secondary}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // ── SETUP ─────────────────────────────────────────────────────────────────
   if (step === 'setup') {
@@ -546,35 +539,7 @@ export function SimuladoPage() {
           </div>
         </div>
 
-        {pendingModal && (
-          <div className="simulado-pending-overlay" onClick={() => setPendingModal(null)}>
-            <div className="simulado-pending-modal anim anim-d1" onClick={e => e.stopPropagation()}>
-              <div className="simulado-pending-icon">
-                {pendingModal.type === 'unanswered' ? '⚠️' : '🔍'}
-              </div>
-              <h3>
-                {pendingModal.type === 'unanswered'
-                  ? `${pendingModal.count} questão(ões) sem resposta`
-                  : `${pendingModal.count} questão(ões) marcada(s) para revisar`
-                }
-              </h3>
-              <p>
-                {pendingModal.type === 'unanswered'
-                  ? 'Você ainda não respondeu todas as questões. Deseja ir para as pendentes ou finalizar com as respostas atuais?'
-                  : 'Você marcou questões para revisão. Deseja revisá-las antes de ver o resultado?'
-                }
-              </p>
-              <div className="simulado-pending-actions">
-                <button type="button" className="btn-primary" onClick={() => handlePendingAction('go')}>
-                  {pendingModal.type === 'unanswered' ? 'Ir para pendentes' : 'Revisar questões'}
-                </button>
-                <button type="button" className="btn-ghost" onClick={() => handlePendingAction('proceed')}>
-                  {pendingModal.type === 'unanswered' ? 'Finalizar mesmo assim' : 'Prosseguir sem revisar'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {renderPendingModal()}
       </div>
     )
   }
@@ -749,6 +714,7 @@ export function SimuladoPage() {
             )}
           </section>
         </div>
+        {renderPendingModal()}
       </div>
     )
   }
@@ -800,8 +766,12 @@ export function SimuladoPage() {
           {examData.estatisticas && (
             <div className="result-stats">
               <div className="stat-item">
-                <span className="stat-value">{examData.estatisticas.reais}</span>
-                <span className="stat-label">Questões reais (API ENEM)</span>
+                <span className="stat-value">{examData.estatisticas.api ?? Math.max(0, (examData.estatisticas.reais || 0) - (examData.estatisticas.bancoLocal || 0))}</span>
+                <span className="stat-label">API ENEM</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-value">{examData.estatisticas.bancoLocal || 0}</span>
+                <span className="stat-label">Banco local</span>
               </div>
               <div className="stat-item">
                 <span className="stat-value">{examData.estatisticas.ia}</span>

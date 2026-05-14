@@ -35,6 +35,10 @@ function hasMeaningfulBilling(state) {
       || state.checkoutId
       || state.externalId
       || state.subscriptionId
+      || state.cancelAtPeriodEnd
+      || state.cancellationRequestedAt
+      || state.cancelledAt
+      || state.accessEndsAt
     ),
   )
 }
@@ -51,6 +55,12 @@ function billingStatesMatch(localState, cloudState) {
     'checkoutId',
     'externalId',
     'subscriptionId',
+    'subscriptionActive',
+    'cancelAtPeriodEnd',
+    'cancellationRequestedAt',
+    'cancelledAt',
+    'accessEndsAt',
+    'remoteStatus',
   ]
 
   return relevantKeys.every((key) => (

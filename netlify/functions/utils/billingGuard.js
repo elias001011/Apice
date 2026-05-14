@@ -5,12 +5,6 @@ function safeText(value) {
     return String(value ?? '').trim();
 }
 
-function safeDate(d) {
-    if (!d) return null;
-    const time = Date.parse(d);
-    return isNaN(time) ? null : time;
-}
-
 /**
  * Filtra e protege o plano e a cota do usuário no backend.
  * Garante que o frontend não possa escalar privilégios ou forjar status Pago/Premium.
@@ -39,8 +33,8 @@ export function sanitizeState(incomingState, existingState, user) {
 
     // 1. Se NÃO existe estado de billing no backend, inicializamos como 'free'
     if (!existingState || !existingState.billing || typeof existingState.billing !== 'object') {
-        // Inicializa o usuário sem teste grátis automático.
-        // O teste grátis de 7 dias será obtido ativamente via gateway da AbacatePay.
+        // Inicializa o usuário sem acesso temporário automático.
+        // O upgrade atual é pago via gateway da AbacatePay.
         incomingState.billing = {
             status: 'free',
             planKey: '',
