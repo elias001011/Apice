@@ -4,7 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Termos e Políticas | Ápice - IA Educacional</title>
+    <meta name="description" content="Termos de uso e Política de Privacidade do Ápice, plataforma educacional com recursos de inteligência artificial para estudos.">
+    <meta name="robots" content="index, follow">
+    <title>Termos de Uso e Política de Privacidade | Ápice</title>
+    <link rel="canonical" href="https://policies--apice-ai.netlify.app/">
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,17 +17,18 @@
 <body>
     <header class="header">
         <div class="container">
-            <a href="/" class="logo-container" style="text-decoration: none;">
+            <a href="https://estudeapice.online" class="logo-container" style="text-decoration: none;">
                 <div class="logo-icon">
                     <img src="Icon.svg" alt="Ápice Logo" style="width: 32px; height: 32px; object-fit: contain;">
                 </div>
                 <span class="logo-text">Ápice</span>
             </a>
             <nav class="nav">
+                <a href="#resumo">Resumo</a>
                 <a href="#privacidade">Privacidade</a>
-                <a href="#lgpd">Direitos</a>
-                <a href="#termos">Termos de Uso</a>
-                <a href="mailto:elias.juriatti@outlook.com" class="btn-support">Fale Conosco</a>
+                <a href="#termos">Termos</a>
+                <a href="#responsabilidade">Responsabilidade</a>
+                <a href="mailto:elias.juriatti@outlook.com" class="btn-support">Contato</a>
             </nav>
         </div>
     </header>
@@ -33,135 +37,191 @@
         <aside class="toc">
             <h2>Nesta página</h2>
             <ul>
-                <li><a href="#privacidade">1. Política de Privacidade</a>
+                <li><a href="#resumo">1. Resumo transparente</a></li>
+                <li><a href="#privacidade">2. Política de Privacidade</a>
                     <ul>
-                        <li><a href="#coleta">1.1 Coleta de Dados</a></li>
-                        <li><a href="#sincronizacao">1.2 Armazenamento</a></li>
-                        <li><a href="#ia-terceiros">1.3 Processamento por IA</a></li>
+                        <li><a href="#dados-coletados">Dados coletados</a></li>
+                        <li><a href="#uso-dados">Como usamos</a></li>
+                        <li><a href="#terceiros">Serviços de terceiros</a></li>
+                        <li><a href="#armazenamento">Armazenamento</a></li>
                     </ul>
                 </li>
-                <li><a href="#lgpd">2. Direitos (LGPD)</a></li>
-                <li><a href="#termos">3. Termos de Uso</a>
+                <li><a href="#lgpd">3. Direitos LGPD</a></li>
+                <li><a href="#termos">4. Termos de Uso</a>
                     <ul>
-                        <li><a href="#finalidade">3.1 Uso Aceitável</a></li>
-                        <li><a href="#propriedade">3.2 Direitos Autorais</a></li>
-                        <li><a href="#contas">3.3 Limites (Fair Use)</a></li>
+                        <li><a href="#contas-limites">Contas e limites</a></li>
+                        <li><a href="#pagamentos">Pagamentos</a></li>
+                        <li><a href="#uso-aceitavel">Uso aceitável</a></li>
                     </ul>
                 </li>
-                <li><a href="#responsabilidade">4. Isenção Legal (AS IS)</a></li>
-                <li><a href="#opensource">5. Sobre o Projeto</a></li>
+                <li><a href="#responsabilidade">5. Limitações e isenções</a></li>
+                <li><a href="#alteracoes">6. Alterações</a></li>
+                <li><a href="#contato">7. Contato</a></li>
             </ul>
         </aside>
 
         <section class="content-body">
             <div class="hero">
-                <h1>Termos e Políticas</h1>
-                <p>Transparência total sobre como cuidamos dos seus dados e ajudamos a transformar sua escrita para o
-                    ENEM e vestibulares.</p>
+                <h1>Termos de Uso e Política de Privacidade</h1>
+                <p>Última atualização: 14 de maio de 2026. Este documento explica, de forma direta, como o Ápice funciona, quais dados usamos, quais terceiros participam da operação e quais são os limites da plataforma.</p>
             </div>
 
-            <article id="privacidade" class="policy-section">
-                <h2>1. Política de Privacidade</h2>
-                <p>Nesta política, explicamos como a equipe do Ápice ("nós", "nosso") coleta, usa e protege suas
-                    informações. Nosso compromisso primário é com a sua privacidade e com a segurança do seu ambiente de
-                    estudo.</p>
-
-                <h3 id="coleta">1.1 Coleta de Dados</h3>
-                <p>Coletamos estritamente o necessário para o funcionamento pedagógico da plataforma:</p>
+            <article id="resumo" class="policy-section">
+                <h2>1. Resumo Transparente</h2>
+                <div class="highlight-box">
+                    <p><strong>O Ápice é uma ferramenta educacional de apoio.</strong> Ele usa inteligência artificial para gerar correções, temas, simulados, radar de temas, resumos e respostas do Professor IA. A IA pode errar, omitir contexto ou gerar respostas imprecisas. O resultado deve ser usado como apoio de estudo, não como avaliação oficial.</p>
+                </div>
                 <ul class="list">
-                    <li><strong>Autenticação:</strong> Nome e e-mail (via provedor de login) para identificação da
-                        conta.</li>
-                    <li><strong>Estado da Aplicação (apice_state):</strong> Snapshot JSON com histórico de redações,
-                        notas, conquistas e preferências.</li>
+                    <li><strong>Domínios do serviço:</strong> usamos o domínio principal <a href="https://estudeapice.online">estudeapice.online</a>, o domínio Netlify de produção <a href="https://apice-ai.netlify.app">apice-ai.netlify.app</a>, ambientes de desenvolvimento como <a href="https://dev--apice-ai.netlify.app">dev--apice-ai.netlify.app</a> e esta página de políticas.</li>
+                    <li><strong>Cotas atuais:</strong> modo convidado com 2 solicitações de IA por dia, conta gratuita com 5 solicitações de IA por dia e conta paga com 20 solicitações de IA por dia. Esses limites podem mudar para manter o serviço sustentável.</li>
+                    <li><strong>Pagamentos:</strong> assinaturas e checkouts são processados pela AbacatePay. Não armazenamos dados completos de cartão.</li>
+                    <li><strong>Terceiros:</strong> usamos serviços como Netlify, AbacatePay, Groq, OpenRouter, Google Gemini, xAI/Grok, Hugging Face e OpenWeatherMap, conforme disponibilidade, configuração e recurso usado.</li>
+                    <li><strong>Sem venda de dados:</strong> não vendemos seus dados pessoais. Compartilhamos dados apenas quando necessário para operar o app, processar pagamentos, gerar respostas de IA, cumprir obrigações legais ou proteger a plataforma.</li>
+                </ul>
+            </article>
+
+            <hr class="divider">
+
+            <article id="privacidade" class="policy-section">
+                <h2>2. Política de Privacidade</h2>
+                <p>Esta Política de Privacidade se aplica ao uso do Ápice. Ao criar conta, usar o modo convidado, contratar plano ou interagir com recursos de IA, você concorda com o tratamento de dados descrito aqui.</p>
+
+                <h3 id="dados-coletados">2.1 Dados que Podemos Coletar</h3>
+                <ul class="list">
+                    <li><strong>Dados de conta:</strong> nome, sobrenome, e-mail, identificadores de autenticação, escola informada pelo usuário e preferências de perfil.</li>
+                    <li><strong>Dados educacionais:</strong> redações enviadas, temas, materiais de apoio, feedbacks, notas simuladas, histórico de simulados, chats com o Professor IA, favoritos do Radar, preferências de resposta da IA, conquistas e resumos de desempenho.</li>
+                    <li><strong>Dados de uso e cota:</strong> contagem diária de solicitações de IA, tipo de recurso utilizado, data de uso, status de bloqueio de cota e informações necessárias para evitar abuso.</li>
+                    <li><strong>Dados de pagamento e assinatura:</strong> plano escolhido, status da assinatura, IDs de checkout, IDs de assinatura, IDs externos, data de pagamento, cancelamento e eventos recebidos por webhook. Dados sensíveis de cartão são tratados pela AbacatePay.</li>
+                    <li><strong>Dados técnicos:</strong> logs de erro, endereço IP, user agent, dados de navegador, identificador local de sessão convidada, registros de segurança e informações de funcionamento das funções serverless.</li>
+                    <li><strong>Localização aproximada para clima:</strong> quando você usa recursos de clima/cidade, podemos consultar informações de cidade e coordenadas aproximadas para retornar previsão ou qualidade do ar.</li>
                 </ul>
 
-                <h3 id="sincronizacao">1.2 Sincronização e Armazenamento</h3>
-                <p>O Ápice utiliza o <em>Netlify Identity</em> para gerenciar autenticações de forma segura. Seus dados
-                    de progresso ficam vinculados diretamente à sua conta e são sincronizados na nuvem. <strong>Não
-                        vendemos ou compartilhamos seus dados com terceiros para fins comerciais.</strong></p>
+                <h3 id="uso-dados">2.2 Como Usamos Esses Dados</h3>
+                <ul class="list">
+                    <li>Autenticar usuários e manter sessões.</li>
+                    <li>Salvar histórico, preferências, progresso e estado da conta.</li>
+                    <li>Gerar correções, respostas, simulados, temas, análises e recomendações educacionais.</li>
+                    <li>Controlar cotas diárias, planos pagos, cancelamentos, webhooks e prevenção de fraude.</li>
+                    <li>Melhorar estabilidade, segurança, desempenho e experiência do usuário.</li>
+                    <li>Cumprir obrigações legais, responder solicitações de titulares e proteger direitos do projeto e dos usuários.</li>
+                </ul>
 
-                <h3 id="ia-terceiros">1.3 Processamento por Inteligência Artificial</h3>
-                <p>Para gerar as correções, seus textos são processados temporariamente por APIs de IA (como Groq,
-                    Gemini, xAI). Os textos são enviados de forma <strong>desassociada</strong> do seu nome completo
-                    sempre que possível, com o fim exclusivo de gerar o retorno pedagógico.</p>
+                <h3 id="terceiros">2.3 Serviços de Terceiros</h3>
+                <p>O Ápice depende de provedores externos para funcionar. Esses serviços podem receber dados necessários para cumprir sua função, de acordo com suas próprias políticas e termos.</p>
+                <ul class="list">
+                    <li><strong>Netlify:</strong> hospedagem, deploy, funções serverless, autenticação, armazenamento e logs operacionais.</li>
+                    <li><strong>AbacatePay:</strong> criação de clientes, checkout, assinaturas, cupons, cobrança recorrente, confirmação de pagamento, cancelamento e webhooks.</li>
+                    <li><strong>Provedores de IA:</strong> Groq, OpenRouter, Google Gemini, xAI/Grok, Hugging Face e outros provedores compatíveis podem processar prompts, redações, histórico recente e instruções necessárias para gerar respostas.</li>
+                    <li><strong>OpenWeatherMap:</strong> consulta de cidade, clima e qualidade do ar quando recursos climáticos são usados.</li>
+                    <li><strong>Google Fonts e infraestrutura de navegador:</strong> carregamento de fontes e recursos públicos da interface.</li>
+                </ul>
+                <p>Os provedores usados podem mudar, ser desativados ou substituídos conforme custo, disponibilidade, qualidade, segurança e necessidade técnica. Sempre que possível, enviamos apenas o conteúdo necessário para a tarefa.</p>
+
+                <h3 id="armazenamento">2.4 Armazenamento, Sincronização e Retenção</h3>
+                <ul class="list">
+                    <li><strong>No navegador:</strong> parte do estado fica em localStorage, incluindo preferências, histórico local, cota diária e modo convidado.</li>
+                    <li><strong>Na nuvem:</strong> contas autenticadas podem sincronizar snapshots de progresso, billing, histórico compacto e preferências por meio da infraestrutura do app.</li>
+                    <li><strong>Redações e conteúdo:</strong> tentamos compactar e limitar o que vai para a nuvem quando possível, mas textos enviados à IA precisam ser processados para gerar a resposta solicitada.</li>
+                    <li><strong>Pagamentos:</strong> registros de assinatura e eventos podem ser mantidos pelo tempo necessário para suporte, auditoria, prevenção de fraude e obrigações legais.</li>
+                    <li><strong>Exclusão:</strong> você pode solicitar exclusão de conta e dados. Alguns registros mínimos podem ser preservados quando houver obrigação legal, prevenção de abuso, contestação de pagamento ou necessidade de segurança.</li>
+                </ul>
+
+                <h3 id="seguranca">2.5 Segurança e Transferência Internacional</h3>
+                <p>Adotamos medidas razoáveis para proteger dados, mas nenhum sistema online é totalmente imune a falhas. Como usamos provedores globais, dados podem ser processados fora do Brasil, sempre vinculados à finalidade operacional do serviço.</p>
             </article>
 
             <hr class="divider">
 
             <article id="lgpd" class="policy-section">
-                <h2>2. Seus Direitos (LGPD)</h2>
-                <p>Em conformidade com a Lei Geral de Proteção de Dados, você possui os seguintes direitos a qualquer
-                    momento:</p>
+                <h2>3. Seus Direitos pela LGPD</h2>
+                <p>Nos termos da Lei Geral de Proteção de Dados, você pode solicitar, quando aplicável:</p>
                 <ul class="list">
-                    <li><strong>Acesso:</strong> Solicitar uma cópia das suas redações e dados salvos.</li>
-                    <li><strong>Correção:</strong> Atualizar informações incorretas no seu perfil.</li>
-                    <li><strong>Direito ao Esquecimento:</strong> Solicitar a exclusão permanente da sua conta e de
-                        todos os dados atrelados a ela em nossos servidores.</li>
+                    <li>Confirmação da existência de tratamento de dados.</li>
+                    <li>Acesso aos dados pessoais tratados.</li>
+                    <li>Correção de dados incompletos, inexatos ou desatualizados.</li>
+                    <li>Anonimização, bloqueio ou eliminação de dados desnecessários ou tratados em desconformidade.</li>
+                    <li>Portabilidade, quando tecnicamente possível e regulamentada.</li>
+                    <li>Informação sobre compartilhamento com terceiros.</li>
+                    <li>Revogação de consentimento, quando o tratamento depender de consentimento.</li>
+                    <li>Exclusão de dados tratados com base em consentimento, respeitadas obrigações legais e hipóteses de retenção permitidas.</li>
                 </ul>
+                <p>Para exercer esses direitos, envie uma solicitação pelo e-mail indicado ao final desta página. Podemos pedir informações adicionais para confirmar sua identidade e evitar acesso indevido.</p>
             </article>
 
             <hr class="divider">
 
             <article id="termos" class="policy-section">
-                <h2>3. Termos de Uso</h2>
-                <p>Ao criar uma conta e utilizar o Ápice, você concorda com as diretrizes de convivência e limitações
-                    técnicas aqui descritas.</p>
+                <h2>4. Termos de Uso</h2>
+                <p>Ao usar o Ápice, você declara que leu e aceita estes Termos. Se você for menor de idade, use a plataforma com ciência e supervisão de seus responsáveis legais.</p>
 
-                <h3 id="finalidade">3.1 Finalidade e Uso Aceitável</h3>
-                <p>O Ápice é uma ferramenta de apoio voltada à preparação para o ENEM e vestibulares. É terminantemente
-                    proibido o <strong>Sequestro de IA (Prompt Injection)</strong>: qualquer tentativa de burlar as
-                    instruções para forçar a IA a agir fora do escopo educacional resultará em banimento.</p>
+                <h3 id="finalidade">4.1 Finalidade Educacional</h3>
+                <p>O Ápice oferece ferramentas de apoio para estudo, escrita, revisão, simulados e organização de desempenho. A plataforma não é órgão oficial do ENEM, não representa o INEP, não garante aprovação, não garante nota específica e não substitui professores, instituições de ensino ou avaliação humana.</p>
 
-                <h3 id="propriedade">3.2 Propriedade Intelectual</h3>
-                <p><strong>A sua redação é sua.</strong> Você mantém os direitos autorais sobre os textos originais
-                    submetidos à plataforma. Você nos concede apenas a licença para processar e exibir esse texto em seu
-                    próprio perfil.</p>
+                <h3 id="contas-limites">4.2 Contas, Cotas e Plano Premium</h3>
+                <ul class="list">
+                    <li>Você deve fornecer informações verdadeiras e manter sua conta segura.</li>
+                    <li>O modo convidado é local, limitado e pode perder dados se o navegador for limpo.</li>
+                    <li>As cotas atuais são: 2 usos de IA por dia no modo convidado, 5 usos de IA por dia no plano gratuito e 20 usos de IA por dia no plano pago.</li>
+                    <li>Cada chamada nova de IA pode consumir cota, incluindo correção de redação, Professor IA, tema dinâmico, Radar, detalhes, simulado gerado por IA e análise de desempenho por IA.</li>
+                    <li>Podemos alterar limites, pausar recursos, bloquear abusos ou ajustar planos para preservar custos, segurança e estabilidade.</li>
+                    <li>É proibido criar múltiplas contas, automatizar acessos ou usar meios artificiais para burlar cotas.</li>
+                </ul>
 
-                <h3 id="contas">3.3 Contas e Limites (Fair Use)</h3>
-                <p>Como o processamento de IA tem custos de infraestrutura, é permitida apenas <strong>uma (1) conta por
-                        aluno</strong>. A criação de contas falsas (farm) para burlar cotas diárias de correção é
-                    considerada fraude.</p>
+                <h3 id="pagamentos">4.3 Pagamentos, Assinaturas e Cancelamento</h3>
+                <ul class="list">
+                    <li>O plano pago é processado pela AbacatePay API v2, com cobrança recorrente conforme o período escolhido: mensal, semestral ou anual.</li>
+                    <li>Cupons podem existir, mas só são válidos quando autorizados e aceitos no checkout.</li>
+                    <li>Não há período gratuito automático garantido pelo app. Qualquer promoção depende das condições informadas no momento da contratação.</li>
+                    <li>O cancelamento impede renovações futuras quando processado corretamente. O acesso pode continuar até o fim do período já pago, conforme regra exibida no app e status retornado pela gateway.</li>
+                    <li>Reembolsos, estornos, recusas de cartão e disputas podem depender da AbacatePay, das operadoras de pagamento, da legislação aplicável e das circunstâncias concretas.</li>
+                </ul>
+
+                <h3 id="uso-aceitavel">4.4 Uso Aceitável</h3>
+                <p>Você concorda em não usar o Ápice para:</p>
+                <ul class="list">
+                    <li>Enviar conteúdo ilegal, discriminatório, violento, ofensivo, sexual envolvendo menores, difamatório ou que viole direitos de terceiros.</li>
+                    <li>Inserir dados pessoais sensíveis de terceiros sem base legal ou autorização.</li>
+                    <li>Tentar invadir, explorar vulnerabilidades, derrubar, automatizar, raspar dados ou prejudicar a infraestrutura.</li>
+                    <li>Executar prompt injection, jailbreak, engenharia reversa abusiva ou tentativas de desviar a IA para fora da finalidade educacional.</li>
+                    <li>Revender acesso, compartilhar credenciais, fraudar pagamentos ou explorar brechas de cota.</li>
+                </ul>
+
+                <h3 id="propriedade">4.5 Conteúdo e Propriedade Intelectual</h3>
+                <p>Suas redações e textos originais continuam sendo seus. Você concede ao Ápice uma licença limitada para armazenar, processar, exibir e enviar esse conteúdo aos provedores necessários para entregar os recursos solicitados. A marca, interface, organização, código, textos institucionais e elementos visuais do Ápice pertencem aos seus respectivos titulares, salvo indicação em contrário.</p>
             </article>
 
             <hr class="divider">
 
             <article id="responsabilidade" class="policy-section">
-                <h2>4. Isenção de Responsabilidade</h2>
+                <h2>5. Limitações, Isenções e Responsabilidade</h2>
 
                 <div class="highlight-box legal-warning">
-                    <p><strong>AVISO LEGAL (AS IS):</strong> O Ápice é um software fornecido <strong>"COMO
-                            ESTÁ"</strong>, sem garantias de qualquer natureza, sejam elas expressas ou implícitas.</p>
+                    <p><strong>Serviço fornecido "como está".</strong> O Ápice é oferecido com esforços razoáveis de qualidade e segurança, mas sem garantia de disponibilidade contínua, ausência de erros, compatibilidade permanente, precisão absoluta ou resultado acadêmico específico.</p>
                 </div>
 
-                <p>Ao utilizar esta plataforma educacional, você entende e aceita que:</p>
                 <ul class="list">
-                    <li><strong>Limitações da IA:</strong> Modelos de linguagem podem falhar ou apresentar "alucinações"
-                        (inventar regras ou errar critérios do ENEM). A revisão final é responsabilidade do estudante.
-                    </li>
-                    <li><strong>Não substitui o professor:</strong> Somos uma ferramenta de auxílio e não garantimos que
-                        a nota simulada será a mesma obtida em exames oficiais.</li>
-                    <li><strong>Disponibilidade:</strong> Não garantimos que o serviço estará 100% livre de interrupções
-                        ou perda de dados. Recomendamos manter cópias locais das suas melhores redações.</li>
+                    <li><strong>IA pode errar:</strong> respostas de modelos de linguagem podem conter alucinações, critérios imprecisos, fontes incompletas, notas divergentes e recomendações inadequadas.</li>
+                    <li><strong>Responsabilidade do usuário:</strong> revise criticamente qualquer resposta antes de confiar nela, copiar, estudar ou tomar decisões.</li>
+                    <li><strong>Sem garantia de aprovação:</strong> o uso do Ápice não garante nota, vaga, aprovação, desempenho mínimo ou equivalência com correções oficiais.</li>
+                    <li><strong>Sem conselho profissional:</strong> o app não oferece orientação jurídica, médica, psicológica, financeira ou profissional. Conteúdo gerado pela IA não deve ser tratado como aconselhamento especializado.</li>
+                    <li><strong>Terceiros podem falhar:</strong> provedores de IA, pagamento, hospedagem, autenticação, clima e rede podem ficar indisponíveis, alterar regras, recusar requisições ou retornar erros.</li>
+                    <li><strong>Backups:</strong> mantenha cópias próprias das redações e materiais importantes. Não garantimos recuperação de todos os dados em caso de falha, limpeza do navegador, abuso, erro de provedor ou incidente técnico.</li>
+                    <li><strong>Limite legal:</strong> na máxima extensão permitida pela lei, não seremos responsáveis por danos indiretos, perda de chance, perda de dados, lucros cessantes, falhas de terceiros ou decisões tomadas com base em respostas da IA. Nada neste documento exclui direitos que a legislação brasileira não permita excluir.</li>
                 </ul>
             </article>
 
             <hr class="divider">
 
-            <article id="opensource" class="policy-section">
-                <h2>5. Natureza do Projeto e Open Source</h2>
-                <p>O Ápice é uma iniciativa independente e de caráter <strong>voluntário</strong>, mantida por uma dupla
-                    de desenvolvedores focados em democratizar o acesso à educação através da tecnologia.</p>
-                <p>Embora disponibilizado como serviço gratuito, nosso código-base tem natureza <em>Open Source</em>.
-                    Nos reservamos o direito de alterar limites de uso, suspender contas abusivas ou descontinuar o
-                    serviço para garantir a sustentabilidade técnica e financeira do projeto.</p>
+            <article id="alteracoes" class="policy-section">
+                <h2>6. Alterações nestes Termos</h2>
+                <p>Podemos atualizar estes Termos e esta Política para refletir mudanças técnicas, legais, comerciais ou de funcionamento do Ápice. Quando a alteração for relevante, poderemos destacar a atualização no app ou exigir novo aceite. O uso contínuo da plataforma após alterações indica concordância com a versão vigente.</p>
             </article>
 
             <hr class="divider">
 
             <article id="contato" class="policy-section">
-                <h2>6. Suporte e Contato</h2>
-                <p>Para dúvidas, suporte técnico ou solicitação de exclusão de conta/dados, fale diretamente com a
-                    equipe:</p>
+                <h2>7. Suporte e Contato</h2>
+                <p>Para dúvidas, suporte técnico, solicitações de privacidade, exclusão de conta ou questões relacionadas a pagamentos, fale com a equipe:</p>
                 <p style="margin-top: 10px;">
                     <a href="mailto:elias.juriatti@outlook.com"
                         style="color: var(--accent); font-weight: 600; text-decoration: none;">elias.juriatti@outlook.com</a>
