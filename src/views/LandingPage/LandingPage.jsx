@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './landing.css';
 import { AI_DAILY_LIMIT, PAID_AI_DAILY_LIMIT } from '../../services/freePlanUsage.js';
+import { POLICY_URL } from '../../services/policyConsent.js';
 
 // Assets
 import imageHero from '../../assets/hero.png';
@@ -199,7 +200,7 @@ const LandingPage = () => {
       </section>
 
       {/* ═══ GAMIFICAÇÃO ═══ */}
-      <section className="lp-gamification" ref={r3}>
+      <section id="features" className="lp-gamification" ref={r3}>
         <div className={`lp-section-header${v3 ? ' anim-in' : ' anim-hidden'}`}>
           <span className="lp-section-badge">GAMIFICAÇÃO</span>
           <h2>Evolução que <span>vicia</span></h2>
@@ -334,14 +335,14 @@ const LandingPage = () => {
       </section>
 
       {/* ═══ FAQ ═══ */}
-      <section className="lp-faq" ref={r7}>
+      <section id="faq" className="lp-faq" ref={r7}>
         <div className={`lp-section-header${v7 ? ' anim-in' : ' anim-hidden'}`}><span className="lp-section-badge">FAQ</span><h2>Perguntas frequentes</h2></div>
         <div className="lp-faq-list">
           {[
             { q: 'A IA corrige igual ao corretor humano?', a: 'Sim. Treinado com os critérios do INEP 2025 e nas 5 competências da redação ENEM. A nota é detalhada por competência em segundos.' },
             { q: 'Os temas do Radar são de 2025/2026?', a: 'Sim. O Radar analisa tendências atuais e prevê os temas com maior probabilidade baseado em dados reais.' },
             { q: 'Posso cancelar a qualquer momento?', a: 'Sim, sem fidelidade ou multa. O acesso continua até o fim do período pago.' },
-            { q: 'Meus dados estão seguros?', a: 'Autenticação segura com Supabase Auth, dados criptografados. Redações não são compartilhadas.' },
+            { q: 'Meus dados estão seguros?', a: 'Usamos autenticação protegida e só enviamos aos provedores o que é necessário para gerar os recursos solicitados.' },
             { q: 'O que conta como uso de IA?', a: 'Cada resultado novo: correção, Professor IA, Radar e resumo automático.' },
           ].map((item, i) => (
             <div className={`lp-faq-item${v7 ? ' anim-in' : ' anim-hidden'}`} style={{ animationDelay: `${0.1 + i * 0.08}s` }} key={i}>
@@ -366,8 +367,8 @@ const LandingPage = () => {
         <div className={`lp-footer-grid${v9 ? ' anim-in' : ' anim-hidden'}`}>
           <div className="lp-footer-brand"><div className="lp-logo">Áp<em>i</em>ce</div><p>Preparação para o ENEM com inteligência artificial.</p></div>
           <div className="lp-footer-col"><h4>Produto</h4><a href="#demo">Testar grátis</a><a href="#pricing">Preços</a><a href="#features">Recursos</a></div>
-          <div className="lp-footer-col"><h4>Empresa</h4><a href="/sobre">Sobre</a><a href="#">Blog</a></div>
-          <div className="lp-footer-col"><h4>Legal</h4><a href="#">Privacidade</a><a href="#">Termos</a></div>
+          <div className="lp-footer-col"><h4>Empresa</h4><a href="#features">Sobre</a><a href="#faq">Dúvidas</a></div>
+          <div className="lp-footer-col"><h4>Legal</h4><a href={POLICY_URL} target="_blank" rel="noreferrer">Privacidade</a><a href={POLICY_URL} target="_blank" rel="noreferrer">Termos</a></div>
         </div>
         <div className="lp-footer-bottom">
           <div className="lp-developed-logos">
