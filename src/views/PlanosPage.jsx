@@ -243,9 +243,19 @@ export function PlanosPage() {
         subscriptionId,
       })
 
+      const isDevCheckout = Boolean(data.devMode || data.checkout?.devMode || data.product?.devMode)
       let checkoutFlashText = `Checkout pago do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação da assinatura.`
+      if (isDevCheckout) {
+        checkoutFlashText = `Checkout de teste do plano ${plan.label} aberto. Na AbacatePay, use 4242 4242 4242 4242, validade futura e CVV 123 para aprovar; outros cartões podem gerar erro 400 no card.`
+      }
       if (data.couponsEnabled) {
         checkoutFlashText = `Checkout pago do plano ${plan.label} aberto. O campo de cupom fica disponível na AbacatePay para cupons autorizados.`
+        if (isDevCheckout) {
+          checkoutFlashText = `Checkout de teste do plano ${plan.label} aberto com cupom habilitado. Use o cartão 4242 4242 4242 4242, validade futura e CVV 123 para simular aprovação.`
+        }
+      }
+      if (data.productValidationWarning && !isDevCheckout) {
+        checkoutFlashText = `${checkoutFlashText} ${data.productValidationWarning}`
       }
 
       setFlash({
@@ -253,7 +263,7 @@ export function PlanosPage() {
         text: checkoutFlashText,
       })
 
-      await new Promise((resolve) => window.setTimeout(resolve, 120))
+      await new Promise((resolve) => window.setTimeout(resolve, isDevCheckout ? 1800 : 120))
       window.location.assign(checkoutUrl)
     } catch (error) {
       setFlash({
@@ -566,7 +576,7 @@ export function PlanosPage() {
             </div>
             <div className="planos-change-card">
               <div className="planos-change-number">1 uso</div>
-              <div className="planos-change-text">Tema, corretor, Radar, detalhes e resumo automático contam igual.</div>
+              <div className="planos-change-text">Tema, corretor, Radar, detalhes e análise por IA ativada contam igual.</div>
             </div>
             <div className="planos-change-card">
               <div className="planos-change-number">{activePlan?.label || 'Conta'}</div>
@@ -678,7 +688,7 @@ export function PlanosPage() {
               <div className="faq-q">O que conta como uso de IA?</div>
               <div className="faq-a">
                 Cada resultado novo conta como 1 uso: tema dinâmico, correção de redação, Professor IA,
-                simulado novo, busca do Radar, ver detalhes do Radar e resumo automático.
+                simulado novo, busca do Radar, ver detalhes do Radar e análise de desempenho por IA quando ativada.
               </div>
             </div>
             <div className="faq-item">

@@ -32,10 +32,11 @@ export default async function handler(req, context) {
     const body = await req.json().catch(() => ({}))
     const historyIndex = Array.isArray(body?.historyIndex) ? body.historyIndex : []
     const historyCount = Number.isFinite(Number(body?.historyCount)) ? Number(body.historyCount) : historyIndex.length
+    const performanceIndex = body?.performanceIndex && typeof body.performanceIndex === 'object' ? body.performanceIndex : null
     const responsePreference = body?.responsePreference ?? null
 
-    if (historyIndex.length === 0) {
-      return new Response(JSON.stringify({ error: 'historyIndex é obrigatório' }), { status: 400, headers })
+    if (!performanceIndex && historyIndex.length === 0) {
+      return new Response(JSON.stringify({ error: 'performanceIndex ou historyIndex é obrigatório' }), { status: 400, headers })
     }
 
     // ── Input Validation ────────────────────────────────────────────────
@@ -46,6 +47,9 @@ export default async function handler(req, context) {
 
     const serializedHistory = JSON.stringify(historyIndex)
     checks.push(validateStringLength('historyIndex (total)', serializedHistory, INPUT_LIMITS.historyTotal))
+    if (performanceIndex) {
+      checks.push(validateStringLength('performanceIndex (total)', JSON.stringify(performanceIndex), INPUT_LIMITS.historyTotal))
+    }
 
     for (const check of checks) {
       if (!check.valid) return validationErrorResponse(check.error, headers)
@@ -65,6 +69,7 @@ export default async function handler(req, context) {
     const result = await generateUserSummary({
       historyIndex,
       historyCount,
+      performanceIndex,
       responsePreference,
     })
 

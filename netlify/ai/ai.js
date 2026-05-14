@@ -2223,20 +2223,60 @@ export async function generateDynamicTheme({ responsePreference } = {}) {
   }
 }
 
-function buildUserSummarySystemPrompt(historyIndex, responsePreference) {
+function normalizePerformanceIndex(rawIndex, historyIndex = [], historyCount = historyIndex.length) {
+  const safeIndex = isPlainObject(rawIndex) ? rawIndex : {}
+  const redacoes = isPlainObject(safeIndex.redacoes) ? safeIndex.redacoes : {}
+  const simulados = isPlainObject(safeIndex.simulados) ? safeIndex.simulados : {}
+  const professor = isPlainObject(safeIndex.professor) ? safeIndex.professor : {}
+
+  return {
+    version: Number.isFinite(Number(safeIndex.version)) ? Number(safeIndex.version) : 2,
+    redacoes: {
+      total: Number.isFinite(Number(redacoes.total)) ? Number(redacoes.total) : historyCount,
+      recentes: ensureArray(redacoes.recentes).length > 0 ? ensureArray(redacoes.recentes).slice(0, 5) : ensureArray(historyIndex).slice(0, 5),
+      mediaRecente: Number.isFinite(Number(redacoes.mediaRecente)) ? Number(redacoes.mediaRecente) : 0,
+      melhorRecente: Number.isFinite(Number(redacoes.melhorRecente)) ? Number(redacoes.melhorRecente) : 0,
+    },
+    simulados: {
+      total: Number.isFinite(Number(simulados.total)) ? Number(simulados.total) : 0,
+      recentes: ensureArray(simulados.recentes).slice(0, 5),
+      mediaRecente: Number.isFinite(Number(simulados.mediaRecente)) ? Number(simulados.mediaRecente) : 0,
+      melhorRecente: Number.isFinite(Number(simulados.melhorRecente)) ? Number(simulados.melhorRecente) : 0,
+    },
+    professor: {
+      interacoes: Number.isFinite(Number(professor.interacoes)) ? Number(professor.interacoes) : 0,
+      quizzesCriados: Number.isFinite(Number(professor.quizzesCriados)) ? Number(professor.quizzesCriados) : 0,
+      quizzesConcluidos: Number.isFinite(Number(professor.quizzesConcluidos)) ? Number(professor.quizzesConcluidos) : 0,
+      questoesRespondidas: Number.isFinite(Number(professor.questoesRespondidas)) ? Number(professor.questoesRespondidas) : 0,
+      acertos: Number.isFinite(Number(professor.acertos)) ? Number(professor.acertos) : 0,
+      aproveitamento: Number.isFinite(Number(professor.aproveitamento)) ? Number(professor.aproveitamento) : 0,
+      quizzesPerfeitos: Number.isFinite(Number(professor.quizzesPerfeitos)) ? Number(professor.quizzesPerfeitos) : 0,
+    },
+    totalAtividades: Number.isFinite(Number(safeIndex.totalAtividades))
+      ? Number(safeIndex.totalAtividades)
+      : (Number(redacoes.total || historyCount) || 0) + (Number(simulados.total) || 0) + (Number(professor.interacoes) || 0),
+    dataSignature: String(safeIndex.dataSignature ?? '').trim(),
+  }
+}
+
+function buildUserSummarySystemPrompt(performanceIndex, responsePreference) {
   const lines = [
-    'Você é um analista curto e direto do desempenho de escrita de um estudante do ENEM.',
-    'Use apenas o JSON recebido e não invente dados que não estejam evidentes no histórico.',
+    'Você é um analista curto e direto do desempenho de um estudante do ENEM.',
+    'Use apenas o JSON recebido e não invente dados que não estejam evidentes no índice.',
     'Seu trabalho é gerar uma análise breve, prática e útil para monitorar evolução.',
-    'Foque em padrões de escrita, erros recorrentes, pontos fortes e o principal foco de treino.',
+    'Considere redações, simulados e uso do Professor IA quando esses dados existirem.',
+    'Foque em padrões recorrentes, pontos fortes e o principal foco de treino.',
     'Responda somente com JSON válido e siga exatamente este formato:',
     '{',
     '  "resumo": "uma análise curta em até duas frases",',
     '  "forcas": ["até 3 pontos fortes"],',
     '  "errosRecorrentes": ["até 3 erros recorrentes"],',
-    '  "foco": "um foco objetivo para as próximas redações",',
+    '  "foco": "um foco objetivo para o próximo treino",',
     '  "geradoEm": "ISO-8601",',
     '  "totalRedacoes": 0,',
+    '  "totalSimulados": 0,',
+    '  "totalProfessorInteractions": 0,',
+    '  "totalAtividades": 0,',
     '  "origem": "ai"',
     '}',
     '',
@@ -2244,17 +2284,19 @@ function buildUserSummarySystemPrompt(historyIndex, responsePreference) {
     '- Seja direto.',
     '- Não copie redações inteiras.',
     '- Se houver poucos dados, faça uma análise cautelosa e explícita.',
-    '- Priorize clareza, repertório, argumentação, coesão e gramática.',
+    '- Para redações, priorize clareza, repertório, argumentação, coesão e gramática.',
+    '- Para simulados, use áreas, acertos e percentuais; não deduza conteúdo ausente.',
+    '- Para Professor IA, use só volume de interações e resultados de quiz.',
     '',
-    'Índice resumido das últimas redações:',
-    JSON.stringify(historyIndex, null, 2),
+    'Índice compacto de desempenho:',
+    JSON.stringify(performanceIndex, null, 2),
   ]
 
   appendResponsePreference(lines, responsePreference)
   return lines.join('\n')
 }
 
-function normalizeUserSummaryPayload(result, historyCount) {
+function normalizeUserSummaryPayload(result, performanceIndex, historyCount) {
   const forcas = ensureArray(result?.forcas)
     .map((item) => String(item ?? '').trim())
     .filter(Boolean)
@@ -2266,12 +2308,15 @@ function normalizeUserSummaryPayload(result, historyCount) {
     .slice(0, 3)
 
   return {
-    resumo: String(result?.resumo ?? '').trim() || 'Análise automática baseada nas últimas redações.',
+    resumo: String(result?.resumo ?? '').trim() || 'Análise automática baseada no desempenho recente.',
     forcas,
     errosRecorrentes,
-    foco: String(result?.foco ?? '').trim() || 'Continuar reforçando clareza, repertório e correção gramatical.',
+    foco: String(result?.foco ?? '').trim() || 'Continuar reforçando os pontos mais instáveis do treino recente.',
     geradoEm: String(result?.geradoEm ?? new Date().toISOString()).trim() || new Date().toISOString(),
-    totalRedacoes: Number.isFinite(Number(result?.totalRedacoes)) ? Number(result.totalRedacoes) : historyCount,
+    totalRedacoes: Number.isFinite(Number(result?.totalRedacoes)) ? Number(result.totalRedacoes) : performanceIndex.redacoes.total || historyCount,
+    totalSimulados: Number.isFinite(Number(result?.totalSimulados)) ? Number(result.totalSimulados) : performanceIndex.simulados.total || 0,
+    totalProfessorInteractions: Number.isFinite(Number(result?.totalProfessorInteractions)) ? Number(result.totalProfessorInteractions) : performanceIndex.professor.interacoes || 0,
+    totalAtividades: Number.isFinite(Number(result?.totalAtividades)) ? Number(result.totalAtividades) : performanceIndex.totalAtividades || 0,
     origem: String(result?.origem ?? 'ai').trim() || 'ai',
   }
 }
@@ -2292,11 +2337,18 @@ function uniqueStrings(items = []) {
   return out
 }
 
-function buildFallbackUserSummaryPayload(historyIndex = [], totalRedacoes = historyIndex.length) {
-  const entries = Array.isArray(historyIndex) ? historyIndex : []
+function buildFallbackUserSummaryPayload(performanceIndex, historyIndex = [], totalRedacoes = historyIndex.length) {
+  const entries = ensureArray(performanceIndex?.redacoes?.recentes).length > 0
+    ? ensureArray(performanceIndex.redacoes.recentes)
+    : ensureArray(historyIndex)
+  const simulados = ensureArray(performanceIndex?.simulados?.recentes)
+  const professor = isPlainObject(performanceIndex?.professor) ? performanceIndex.professor : {}
   const notes = entries
     .map((item) => Number(item?.nota))
     .filter((nota) => Number.isFinite(nota))
+  const simuladoScores = simulados
+    .map((item) => Number(item?.percentual))
+    .filter((value) => Number.isFinite(value))
 
   const average = notes.length > 0
     ? Math.round(notes.reduce((sum, value) => sum + value, 0) / notes.length)
@@ -2310,6 +2362,10 @@ function buildFallbackUserSummaryPayload(historyIndex = [], totalRedacoes = hist
       .flatMap((item) => ensureArray(item?.competencias))
       .filter((competencia) => Number.isFinite(Number(competencia?.nota)) && Number(competencia.nota) >= 800)
       .map((competencia) => competencia?.nome),
+    ...simulados
+      .filter((item) => Number(item?.percentual) >= 70)
+      .map((item) => `bom desempenho em ${item?.area || 'simulados'}`),
+    Number(professor?.aproveitamento) >= 70 ? 'bom aproveitamento nos quizzes do Professor' : '',
   ]).slice(0, 3)
 
   const recurringIssues = uniqueStrings([
@@ -2319,44 +2375,64 @@ function buildFallbackUserSummaryPayload(historyIndex = [], totalRedacoes = hist
       .flatMap((item) => ensureArray(item?.competencias))
       .filter((competencia) => Number.isFinite(Number(competencia?.nota)) && Number(competencia.nota) <= 650)
       .map((competencia) => competencia?.nome),
+    ...simulados
+      .filter((item) => Number(item?.percentual) < 60)
+      .map((item) => `revisar ${item?.area || 'conteúdos de simulado'}`),
+    Number(professor?.questoesRespondidas) > 0 && Number(professor?.aproveitamento) < 60 ? 'reforçar quizzes do Professor' : '',
   ]).slice(0, 3)
 
-  const mainFocus = recurringIssues[0] || 'coesão, repertório e gramática'
+  const mainFocus = recurringIssues[0] || 'constância entre redação, simulados e revisão guiada'
+  const totalSimulados = Number(performanceIndex?.simulados?.total) || 0
+  const totalProfessorInteractions = Number(professor?.interacoes) || 0
+  const simuladoAverage = simuladoScores.length > 0
+    ? Math.round(simuladoScores.reduce((sum, value) => sum + value, 0) / simuladoScores.length)
+    : 0
 
-  const resumo = totalRedacoes <= 1
-    ? `Resumo local inicial: nota ${best || 0}/1000.`
-    : `Resumo local das últimas ${totalRedacoes} redações: média ${average || 0}/1000 e melhor nota ${best || 0}/1000.`
+  const parts = []
+  if (totalRedacoes > 0) {
+    parts.push(totalRedacoes <= 1
+      ? `Redações: nota recente ${best || 0}/1000.`
+      : `Redações: média recente ${average || 0}/1000 e melhor nota ${best || 0}/1000.`)
+  }
+  if (totalSimulados > 0) {
+    parts.push(`Simulados: média recente ${simuladoAverage || 0}%.`)
+  }
+  if (totalProfessorInteractions > 0) {
+    parts.push(`Professor IA: ${totalProfessorInteractions} interações registradas.`)
+  }
 
   const resumoFinal = strengths.length > 0
-    ? `${resumo} Pontos fortes mais visíveis: ${strengths.join(', ')}. Foco principal agora: ${mainFocus}.`
-    : `${resumo} Foco principal agora: ${mainFocus}.`
+    ? `${parts.join(' ')} Pontos fortes mais visíveis: ${strengths.join(', ')}. Foco principal agora: ${mainFocus}.`
+    : `${parts.join(' ')} Foco principal agora: ${mainFocus}.`
 
   return {
-    resumo: resumoFinal.trim(),
+    resumo: resumoFinal.trim() || 'Análise local baseada nas atividades recentes.',
     forcas: strengths,
     errosRecorrentes: recurringIssues,
     foco: `Reforçar ${mainFocus}.`,
     geradoEm: new Date().toISOString(),
     totalRedacoes,
-    origem: 'fallback',
+    totalSimulados,
+    totalProfessorInteractions,
+    totalAtividades: Number(performanceIndex?.totalAtividades) || totalRedacoes + totalSimulados + totalProfessorInteractions,
+    origem: 'local',
   }
 }
 
 export async function generateUserSummary({
   historyIndex = [],
   historyCount = historyIndex.length,
+  performanceIndex = null,
   responsePreference,
 } = {}) {
   const safeHistoryIndex = Array.isArray(historyIndex) ? historyIndex.slice(0, 5) : []
   const totalRedacoes = Number.isFinite(Number(historyCount)) ? Number(historyCount) : safeHistoryIndex.length
-  const systemPrompt = buildUserSummarySystemPrompt(safeHistoryIndex, responsePreference)
+  const safePerformanceIndex = normalizePerformanceIndex(performanceIndex, safeHistoryIndex, totalRedacoes)
+  const systemPrompt = buildUserSummarySystemPrompt(safePerformanceIndex, responsePreference)
   const userMessages = [
     {
       role: 'user',
-      content: JSON.stringify({
-        totalRedacoes,
-        historico: safeHistoryIndex,
-      }, null, 2),
+      content: JSON.stringify(safePerformanceIndex, null, 2),
     },
   ]
 
@@ -2368,7 +2444,7 @@ export async function generateUserSummary({
       modelVariant: 'secondary',
     })
 
-    return normalizeUserSummaryPayload(result, totalRedacoes)
+    return normalizeUserSummaryPayload(result, safePerformanceIndex, totalRedacoes)
   } catch (secondaryError) {
     console.error('[AI][summary] Groq secondary failed:', secondaryError?.message || secondaryError)
 
@@ -2380,7 +2456,7 @@ export async function generateUserSummary({
         modelVariant: 'primary',
       })
 
-      return normalizeUserSummaryPayload(result, totalRedacoes)
+      return normalizeUserSummaryPayload(result, safePerformanceIndex, totalRedacoes)
     } catch (primaryError) {
       console.error('[AI][summary] Groq primary failed, falling back to pipeline:', primaryError?.message || primaryError)
 
@@ -2389,14 +2465,13 @@ export async function generateUserSummary({
           systemPrompt,
           userMessages,
         }, {
-          historyIndex: safeHistoryIndex,
-          totalRedacoes,
+          performanceIndex: safePerformanceIndex,
         })
 
-        return normalizeUserSummaryPayload(result, totalRedacoes)
+        return normalizeUserSummaryPayload(result, safePerformanceIndex, totalRedacoes)
       } catch (pipelineError) {
         console.error('[AI][summary] Pipeline fallback failed, using local summary:', pipelineError?.message || pipelineError)
-        return buildFallbackUserSummaryPayload(safeHistoryIndex, totalRedacoes)
+        return buildFallbackUserSummaryPayload(safePerformanceIndex, safeHistoryIndex, totalRedacoes)
       }
     }
   }

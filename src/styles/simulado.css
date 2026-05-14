@@ -923,10 +923,11 @@
 }
 
 .question-action {
-  flex: 1 1 190px;
+  flex: 0 0 auto;
   min-width: 0;
   width: auto;
   max-width: 100%;
+  min-height: 44px;
   white-space: normal;
   text-align: center;
 }
@@ -1126,6 +1127,13 @@
 
   .question-footer-actions {
     flex-direction: column;
+  }
+
+  .question-footer-actions .question-action {
+    flex: none;
+    min-height: 44px;
+    padding-top: 12px;
+    padding-bottom: 12px;
   }
 }
 

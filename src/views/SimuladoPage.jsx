@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { saveSimuladoHistoryEntry } from '../services/simuladoHistory.js'
+import { loadSimuladoHistoryCount, saveSimuladoHistoryEntry } from '../services/simuladoHistory.js'
 import { getDisciplinasByArea, getAreasDisponiveis } from '../services/enemApiService.js'
 import { gerarSimulado, MAX_SIMULADO_AI_QUESTIONS } from '../services/simuladoService.js'
 import { consumeFreePlan } from '../services/freePlanUsage.js'
+import { checkConquistasSimulado } from '../services/conquistas.js'
+import { refreshUserSummaryFromHistory } from '../services/userSummary.js'
 import { useAppBusy } from '../ui/AppBusyContext.jsx'
 import '../styles/simulado.css'
 
@@ -281,13 +283,23 @@ export function SimuladoPage() {
     const acertos = examData.questoes.filter(q => answers[q.id] === q.correta).length
     const pct = total > 0 ? Math.round((acertos / total) * 100) : 0
     const perf = pct >= 80 ? 'Excelente' : pct >= 60 ? 'Bom' : pct >= 40 ? 'Regular' : 'Precisa melhorar'
-    saveSimuladoHistoryEntry({
+    const savedEntry = saveSimuladoHistoryEntry({
       id: `${Date.now()}`, data: new Date().toISOString(),
       titulo: `Simulado de ${selectedArea}`, area: selectedArea, disciplinas: selectedDiscs,
       fonte: 'mista', quantidade: total, acertos, total, percentual: pct, performance: perf,
       estatisticas: examData.estatisticas, limiteIAAplicado: examData.estatisticas.ia > 0,
       alerta: examData.alerta, geradoEm: examData.geradoEm,
     })
+    if (savedEntry) {
+      checkConquistasSimulado({
+        totalSimulados: loadSimuladoHistoryCount(),
+        totalQuestoes: total,
+        acertos,
+        percentual: pct,
+        estatisticas: examData.estatisticas,
+      })
+      void refreshUserSummaryFromHistory()
+    }
     setPendingModal(null)
     setStep('result'); limparProgresso()
   }

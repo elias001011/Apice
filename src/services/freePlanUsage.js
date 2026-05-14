@@ -34,7 +34,7 @@ export const FREE_PLAN_LIMITS = {
     label: 'Radar: ver detalhes',
   },
   userSummary: {
-    label: 'Resumo automático',
+    label: 'Análise de desempenho por IA',
   },
   otherAiRequest: {
     label: 'Outras chamadas de IA',

@@ -16,6 +16,10 @@ const CATEGORIES = {
     label: 'Simulados e Histórico',
     keys: ['apice:simulado:historico:v1', 'apice:simulado:historico:total:v1'],
   },
+  PROFESSOR: {
+    label: 'Professor IA',
+    keys: ['apice:professor-chats:v1', 'apice:professor:conversations', 'apice:professor-activity:v1'],
+  },
   RADAR: {
     label: 'Radar e Temas Salvos',
     keys: ['apice:radar-favorites:v1', 'apice:radar-state:v2'],
@@ -35,7 +39,7 @@ const CATEGORIES = {
   },
   ACCOUNT: {
     label: 'Perfil e Instruções da IA',
-    keys: ['apice:avatar-settings:v1', 'apice:ai-response-preferences:v1', 'apice:notificacoes:v1', 'apice:user-policy:v1'],
+    keys: ['apice:avatar-settings:v1', 'apice:ai-response-preferences:v1', 'apice:performance-ai-analysis:v1', 'apice:notificacoes:v1', 'apice:user-policy:v1'],
   },
   PROGRESS: {
     label: 'Conquistas e Desempenho',
@@ -61,6 +65,9 @@ function emitUpdateEvents() {
     'apice:radar-favorites-updated',
     'apice:radar-state-updated',
     'apice:user-summary-updated',
+    'apice:professor-chats-updated',
+    'apice:professor-activity-updated',
+    'apice:performance-ai-analysis-updated',
     'apice:notificacoes-updated',
     'apice:conquistas-updated',
     'apice:account-state-updated', // This triggers the cloud sync
@@ -132,6 +139,11 @@ export function parseBackupFile(jsonString) {
         } else if (id === 'SIMULADOS') {
           const history = JSON.parse(backup.data['apice:simulado:historico:v1'] || '[]')
           detail = `${history.length} simulados encontrados.`
+        } else if (id === 'PROFESSOR') {
+          const chats = JSON.parse(backup.data['apice:professor-chats:v1'] || '[]')
+          const activity = JSON.parse(backup.data['apice:professor-activity:v1'] || '{}')
+          const interactions = Number(activity?.totalInteractions || 0)
+          detail = `${Array.isArray(chats) ? chats.length : 0} chats e ${interactions} interações.`
         }
         
         availableCategories.push({

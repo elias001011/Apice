@@ -56,6 +56,7 @@ const ACCOUNT_LOCAL_STATE_KEYS = [
   'apice:enem-date',
   'apice:ai-response-preference',
   'apice:ai-response-preference:v1',
+  'apice:performance-ai-analysis:v1',
   'apice:avatar-settings',
   'apice:avatar-settings:v1',
   'apice:notificacoes',
@@ -67,6 +68,7 @@ const ACCOUNT_LOCAL_STATE_KEYS = [
   'apice:professor-chats:v1',
   'apice:professor:conversations',
   'apice:professor:handoff:v1',
+  'apice:professor-activity:v1',
 ]
 
 function pickSafeUserMetadata(metadata) {
@@ -238,11 +240,13 @@ function clearLocalAccountState() {
     'apice:radar-state-updated',
     'apice:enem-date-updated',
     'apice:ai-response-preferences-updated',
+    'apice:performance-ai-analysis-updated',
     'apice:avatar-settings-updated',
     'apice:user-summary-updated',
     'apice:notificacoes-updated',
     'apice:conquistas-updated',
     'apice:professor-chats-updated',
+    'apice:professor-activity-updated',
     'apice:account-state-updated',
     'apice:weather-preferences-updated',
   ]
@@ -508,10 +512,12 @@ export function AuthProvider({ children }) {
       'apice:theme-updated',
       'apice:user-summary-updated',
       'apice:ai-response-preferences-updated',
+      'apice:performance-ai-analysis-updated',
       'apice:avatar-settings-updated',
       'apice:notificacoes-updated',
       'apice:conquistas-updated',
       'apice:professor-chats-updated',
+      'apice:professor-activity-updated',
     ]
 
     events.forEach(event => {

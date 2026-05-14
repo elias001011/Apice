@@ -27,8 +27,10 @@ const ABACATE_SUBSCRIPTION_CREATE_PATH = '/v2/subscriptions/create'
 const ABACATE_SUBSCRIPTION_LIST_PATH = '/v2/subscriptions/list'
 const ABACATE_CHECKOUT_LIST_PATH = '/v2/checkouts/list'
 const ABACATE_COUPON_LIST_PATH = '/v2/coupons/list'
+const ABACATE_PRODUCT_GET_PATH = '/v2/products/get'
 
 const PAID_STATUSES = new Set(['PAID', 'ACTIVE', 'COMPLETED'])
+const SUBSCRIPTION_PRODUCT_CYCLES = new Set(['WEEKLY', 'MONTHLY', 'SEMIANNUALLY', 'ANNUALLY', 'YEARLY'])
 
 function getApiKey() {
   const key = String(process.env.ABACATE_V2 ?? process.env.ABACATE_PAY ?? '').trim()
@@ -96,6 +98,18 @@ function shouldAutoListCoupons() {
   return raw !== '0' && raw !== 'false' && raw !== 'off'
 }
 
+function shouldValidateProducts() {
+  const raw = safeText(process.env.ABACATE_VALIDATE_PRODUCTS).toLowerCase()
+  return raw !== '0' && raw !== 'false' && raw !== 'off'
+}
+
+function normalizeCycle(value) {
+  const cycle = safeText(value).toUpperCase()
+  if (cycle === 'YEARLY') return 'ANNUALLY'
+  if (cycle === 'SEMIANNUAL' || cycle === 'SEMI_ANNUALLY') return 'SEMIANNUALLY'
+  return cycle
+}
+
 function isCouponRedeemable(coupon) {
   const status = safeText(coupon?.status).toUpperCase()
   const maxRedeems = Number(coupon?.maxRedeems)
@@ -143,6 +157,55 @@ async function resolveCheckoutCoupons() {
   }
 }
 
+async function getProductSnapshot(productId) {
+  if (!shouldValidateProducts()) return null
+
+  try {
+    const query = new URLSearchParams()
+    query.set('id', productId)
+    const result = await abacateFetch(`${ABACATE_PRODUCT_GET_PATH}?${query.toString()}`, { method: 'GET' })
+    return result?.data && typeof result.data === 'object' ? result.data : null
+  } catch (error) {
+    if (error.status === 401 || error.status === 403) {
+      console.warn('[abacatepay] Chave sem PRODUCT:READ; pulando validação do produto:', error.message)
+      return null
+    }
+
+    throw error
+  }
+}
+
+async function validateSubscriptionProduct(plan) {
+  const product = await getProductSnapshot(plan.productId)
+  if (!product) {
+    return {
+      product: null,
+      validationWarning: 'Produto não validado. Adicione PRODUCT:READ à chave da AbacatePay para detectar ciclo/status antes do checkout.',
+    }
+  }
+
+  const status = safeText(product.status).toUpperCase()
+  const cycle = normalizeCycle(product.cycle)
+  const expectedCycle = normalizeCycle(plan.abacateCycle)
+
+  if (status && status !== 'ACTIVE') {
+    throw new Error(`Produto AbacatePay ${plan.productId} está com status ${status}. Ative o produto antes de vender este plano.`)
+  }
+
+  if (!SUBSCRIPTION_PRODUCT_CYCLES.has(cycle)) {
+    throw new Error(`Produto AbacatePay ${plan.productId} não tem ciclo de assinatura. Crie/aponte para um produto com cycle MONTHLY, SEMIANNUALLY ou ANNUALLY.`)
+  }
+
+  if (expectedCycle && cycle !== expectedCycle) {
+    throw new Error(`Produto AbacatePay ${plan.productId} está com cycle ${cycle}, mas o plano ${plan.key} espera ${expectedCycle}.`)
+  }
+
+  return {
+    product,
+    validationWarning: '',
+  }
+}
+
 function getCheckoutUrl(checkout) {
   return safeText(
     checkout?.url
@@ -155,6 +218,10 @@ function getCheckoutUrl(checkout) {
 
 function getCheckoutStatus(checkout) {
   return String(checkout?.status ?? '').toUpperCase()
+}
+
+function isDevModeCheckout(checkout, product = null) {
+  return Boolean(checkout?.devMode || checkout?.checkout?.devMode || checkout?.data?.devMode || product?.devMode)
 }
 
 function getCheckoutPlanKey(checkout, fallbackExternalId = '') {
@@ -411,6 +478,7 @@ async function createCheckout(req, authUser, headers) {
       customerTaxId,
     })
 
+    const { product, validationWarning } = await validateSubscriptionProduct(plan)
     const { coupons: allowedCoupons, source: couponsSource } = await resolveCheckoutCoupons()
 
     const result = await abacateFetch(ABACATE_SUBSCRIPTION_CREATE_PATH, {
@@ -447,10 +515,22 @@ async function createCheckout(req, authUser, headers) {
       checkoutUrl,
       externalId,
       customerId,
+      devMode: isDevModeCheckout(checkout, product),
       couponsEnabled: allowedCoupons.length > 0,
       couponsSource,
       planKey: plan.key,
       productId: plan.productId,
+      product: product ? {
+        id: safeText(product.id),
+        status: safeText(product.status),
+        cycle: safeText(product.cycle),
+        devMode: Boolean(product.devMode),
+        price: Number.isFinite(Number(product.price)) ? Number(product.price) : null,
+      } : null,
+      productValidationWarning: validationWarning,
+      checkoutHint: isDevModeCheckout(checkout, product)
+        ? 'Checkout em Dev mode: use o cartão 4242 4242 4242 4242, validade futura e CVV 123 para simular aprovação.'
+        : '',
       totalPrice: plan.totalPrice,
       billingLabel: plan.billingLabel,
       checkout,
