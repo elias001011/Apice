@@ -828,21 +828,38 @@
   color: var(--red);
 }
 
+.option-content {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
 .option-text {
   color: var(--text);
   line-height: 1.55;
+}
+
+.option-image {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  max-height: 180px;
+  object-fit: contain;
+  justify-self: start;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px;
 }
 
 .feedback-box {
   display: grid;
   gap: 0.9rem;
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 18px;
   background: var(--bg3);
   padding: 1rem;
-  margin: 0 calc(-1 * clamp(1rem, 3vw, 1.5rem));
-  padding: 1rem clamp(1rem, 3vw, 1.5rem);
-  border-radius: 0;
+  margin: 0;
 }
 
 .feedback-box.is-correct {
@@ -871,10 +888,8 @@
   gap: 1rem;
   min-width: 0;
   border-top: 1px solid var(--border);
-  padding-top: 1.25rem;
-  margin: 0 calc(-1 * clamp(1rem, 3vw, 1.5rem));
-  padding: 1.25rem clamp(1rem, 3vw, 1.5rem) 0;
-  padding-bottom: 0;
+  margin: 0;
+  padding: 1.25rem 0 0;
 }
 
 @media (min-width: 640px) {
@@ -1317,4 +1332,26 @@ html[data-fx="blur"] :is(
   box-shadow: var(--floating-shadow) !important;
   backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
   -webkit-backdrop-filter: blur(var(--floating-blur)) saturate(var(--glass-saturate)) !important;
+}
+
+/* Estados interativos precisam vencer as configurações de aparência. */
+.option-item.selected {
+  border-color: var(--accent) !important;
+  background: rgba(var(--accent-rgb), 0.14) !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.42) !important;
+}
+
+.option-item.selected .option-letter {
+  background: var(--accent) !important;
+  color: var(--bg) !important;
+}
+
+.option-item.correct {
+  border-color: rgba(34, 197, 94, 0.68) !important;
+  background: rgba(34, 197, 94, 0.12) !important;
+}
+
+.option-item.wrong {
+  border-color: rgba(225, 68, 68, 0.68) !important;
+  background: rgba(225, 68, 68, 0.12) !important;
 }

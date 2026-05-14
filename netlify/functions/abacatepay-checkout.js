@@ -26,6 +26,7 @@ const ABACATE_CUSTOMER_CREATE_PATH = '/v2/customers/create'
 const ABACATE_SUBSCRIPTION_CREATE_PATH = '/v2/subscriptions/create'
 const ABACATE_SUBSCRIPTION_LIST_PATH = '/v2/subscriptions/list'
 const ABACATE_CHECKOUT_LIST_PATH = '/v2/checkouts/list'
+const ABACATE_COUPON_LIST_PATH = '/v2/coupons/list'
 
 const PAID_STATUSES = new Set(['PAID', 'ACTIVE', 'COMPLETED'])
 
@@ -88,6 +89,58 @@ function getAllowedCheckoutCoupons() {
     .map((coupon) => coupon.trim())
     .filter(Boolean)
     .slice(0, 50)
+}
+
+function shouldAutoListCoupons() {
+  const raw = safeText(process.env.ABACATE_AUTO_LIST_COUPONS).toLowerCase()
+  return raw !== '0' && raw !== 'false' && raw !== 'off'
+}
+
+function isCouponRedeemable(coupon) {
+  const status = safeText(coupon?.status).toUpperCase()
+  const maxRedeems = Number(coupon?.maxRedeems)
+  const redeemsCount = Number(coupon?.redeemsCount)
+
+  if (status && status !== 'ACTIVE') return false
+  if (Number.isFinite(maxRedeems) && maxRedeems >= 0) {
+    return !Number.isFinite(redeemsCount) || redeemsCount < maxRedeems
+  }
+
+  return true
+}
+
+async function listActiveCouponIds() {
+  if (!shouldAutoListCoupons()) return []
+
+  try {
+    const result = await abacateFetch(`${ABACATE_COUPON_LIST_PATH}?limit=100&status=ACTIVE`, { method: 'GET' })
+    const coupons = Array.isArray(result?.data) ? result.data : []
+
+    return coupons
+      .filter(isCouponRedeemable)
+      .map((coupon) => safeText(coupon?.id || coupon?.code))
+      .filter(Boolean)
+      .slice(0, 50)
+  } catch (error) {
+    console.warn('[abacatepay] Não foi possível listar cupons ativos; checkout seguirá sem lista automática:', error.message)
+    return []
+  }
+}
+
+async function resolveCheckoutCoupons() {
+  const configuredCoupons = getAllowedCheckoutCoupons()
+  if (configuredCoupons.length > 0) {
+    return {
+      coupons: configuredCoupons,
+      source: 'env',
+    }
+  }
+
+  const listedCoupons = await listActiveCouponIds()
+  return {
+    coupons: listedCoupons,
+    source: listedCoupons.length > 0 ? 'abacatepay-list' : 'none',
+  }
 }
 
 function getCheckoutUrl(checkout) {
@@ -245,9 +298,19 @@ async function createCustomerId(customerInput) {
   }
 }
 
-function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, timestamp, customerId, mode = 'subscription' }) {
+function buildCheckoutPayload({
+  plan,
+  externalId,
+  returnUrl,
+  completionUrl,
+  userId,
+  timestamp,
+  customerId,
+  mode = 'subscription',
+  allowedCoupons = [],
+  couponsSource = 'none',
+}) {
   const isSubscription = mode === 'subscription'
-  const allowedCoupons = getAllowedCheckoutCoupons()
   const payload = {
     items: [
       {
@@ -268,6 +331,7 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
       userId,
       createdAt: timestamp,
       couponsEnabled: allowedCoupons.length > 0,
+      couponsSource,
     },
   }
 
@@ -286,7 +350,8 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
     completionUrl: payload.completionUrl,
     externalId: payload.externalId,
     customerId: payload.customerId || '(sem customer)',
-    coupons: payload.coupons || [],
+    couponsCount: allowedCoupons.length,
+    couponsSource,
     planKey: payload.metadata.planKey,
     mode,
     productId: plan.productId,
@@ -346,6 +411,8 @@ async function createCheckout(req, authUser, headers) {
       customerTaxId,
     })
 
+    const { coupons: allowedCoupons, source: couponsSource } = await resolveCheckoutCoupons()
+
     const result = await abacateFetch(ABACATE_SUBSCRIPTION_CREATE_PATH, {
       method: 'POST',
       body: buildCheckoutPayload({
@@ -357,12 +424,13 @@ async function createCheckout(req, authUser, headers) {
         timestamp,
         customerId,
         mode: 'subscription',
+        allowedCoupons,
+        couponsSource,
       }),
     })
 
     const checkout = result?.data || {}
     const checkoutUrl = getCheckoutUrl(checkout)
-    const allowedCoupons = getAllowedCheckoutCoupons()
 
     if (!checkoutUrl) {
       console.error('[abacatepay] Checkout v2 criado sem URL:', JSON.stringify(checkout))
@@ -380,6 +448,7 @@ async function createCheckout(req, authUser, headers) {
       externalId,
       customerId,
       couponsEnabled: allowedCoupons.length > 0,
+      couponsSource,
       planKey: plan.key,
       productId: plan.productId,
       totalPrice: plan.totalPrice,

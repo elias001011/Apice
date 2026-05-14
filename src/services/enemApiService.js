@@ -120,6 +120,24 @@ function shuffleArray(array) {
   return arr
 }
 
+function wait(ms) {
+  return new Promise((resolve) => globalThis.setTimeout(resolve, ms))
+}
+
+function resolveRetryDelay(response, errorDetail = '') {
+  const retryAfter = Number(response?.headers?.get?.('retry-after'))
+  if (Number.isFinite(retryAfter) && retryAfter > 0) {
+    return Math.min(10_000, retryAfter * 1000)
+  }
+
+  const match = String(errorDetail || '').match(/try again in\s+(\d+)ms/i)
+  if (match) {
+    return Math.min(10_000, Math.max(500, Number(match[1]) || 0))
+  }
+
+  return 1200
+}
+
 function uniqueQuestions(questoes = []) {
   const seen = new Set()
   const out = []
@@ -237,24 +255,79 @@ function buildRealQuestionExplanation(question, correctAlternative, correctText)
   return pieces.join(' ')
 }
 
+function normalizeAlternativeValue(value, letter = '') {
+  if (isPlainObject(value)) {
+    const text = String(value.text ?? value.label ?? value.content ?? '').trim()
+    const image = String(value.image ?? value.imageUrl ?? value.file ?? value.url ?? '').trim()
+    if (!text && !image) return null
+    return image
+      ? { text, image, alt: text || `Alternativa ${letter}` }
+      : text
+  }
+
+  const text = String(value ?? '').trim()
+  return text || null
+}
+
+function alternativeHasContent(value) {
+  if (isPlainObject(value)) {
+    return Boolean(
+      String(value.text ?? value.label ?? value.content ?? '').trim()
+      || String(value.image ?? value.imageUrl ?? value.file ?? value.url ?? '').trim(),
+    )
+  }
+
+  return Boolean(String(value ?? '').trim())
+}
+
+function getAlternativeText(value) {
+  if (isPlainObject(value)) {
+    return String(value.text ?? value.label ?? value.content ?? '').trim()
+  }
+
+  return String(value ?? '').trim()
+}
+
+function normalizeAlternativesObject(alternativas = {}) {
+  const map = {}
+
+  Object.entries(isPlainObject(alternativas) ? alternativas : {}).forEach(([rawLetter, rawValue]) => {
+    const letter = String(rawLetter ?? '').trim().toUpperCase()
+    const normalized = normalizeAlternativeValue(rawValue, letter)
+    if (letter && normalized) {
+      map[letter] = normalized
+    }
+  })
+
+  return map
+}
+
 function buildAlternativesMap(alternatives = []) {
   const map = {}
 
   for (const alternative of Array.isArray(alternatives) ? alternatives : []) {
     const letter = String(alternative?.letter ?? '').trim().toUpperCase()
     const text = String(alternative?.text ?? '').trim()
-    if (!letter || !text) continue
-    map[letter] = text
+    const image = String(alternative?.file ?? alternative?.image ?? alternative?.imageUrl ?? '').trim()
+    if (!letter || (!text && !image)) continue
+    map[letter] = image
+      ? { text, image, alt: text || `Alternativa ${letter}` }
+      : text
   }
 
   return map
 }
 
 function isNormalizedQuestion(question) {
-  return isPlainObject(question)
-    && isPlainObject(question.alternativas)
-    && Boolean(String(question.correta ?? '').trim())
-    && Boolean(String(question.enunciado ?? '').trim())
+  if (!isPlainObject(question) || !isPlainObject(question.alternativas)) return false
+
+  const correta = String(question.correta ?? '').trim().toUpperCase()
+  const alternativas = normalizeAlternativesObject(question.alternativas)
+
+  return Boolean(String(question.enunciado ?? '').trim())
+    && Boolean(correta)
+    && Object.keys(alternativas).length >= 2
+    && alternativeHasContent(alternativas[correta])
 }
 
 function normalizeApiQuestion(question, { area = '', disciplina = '', year = null } = {}) {
@@ -269,8 +342,11 @@ function normalizeApiQuestion(question, { area = '', disciplina = '', year = nul
   }
 
   if (isNormalizedQuestion(question)) {
+    const alternativas = normalizeAlternativesObject(question.alternativas)
     return {
       ...question,
+      alternativas,
+      correta: String(question.correta ?? '').trim().toUpperCase(),
       area: String(question.area ?? area ?? inferAreaFromApiDiscipline(question.discipline) ?? '').trim(),
       disciplina: String(question.disciplina ?? disciplina ?? question.language ?? question.discipline ?? '').trim(),
       ano: Number.isFinite(Number(question.ano)) ? Number(question.ano) : (Number.isFinite(Number(year)) ? Number(year) : undefined),
@@ -285,10 +361,11 @@ function normalizeApiQuestion(question, { area = '', disciplina = '', year = nul
     return null
   }
   const alternativas = buildAlternativesMap(alternativesArray)
+  if (Object.keys(alternativas).length < 2 || !alternativeHasContent(alternativas[correctAlternative])) {
+    return null
+  }
 
-  const correctAlternativeText = alternativesArray.find(
-    (alternative) => String(alternative?.letter ?? '').trim().toUpperCase() === correctAlternative,
-  )?.text || ''
+  const correctAlternativeText = getAlternativeText(alternativas[correctAlternative])
 
   const resolvedArea = String(area || inferAreaFromApiDiscipline(question.discipline) || '').trim() || 'ENEM'
   const resolvedDiscipline = String(disciplina || question.language || question.discipline || resolvedArea).trim()
@@ -368,7 +445,7 @@ function matchesAreaQuestion(question, { areaConfig, language }) {
   return true
 }
 
-async function requestJson(url, options = {}, cacheKey = '') {
+async function requestJson(url, options = {}, cacheKey = '', attempt = 0) {
   if (cacheKey) {
     const cached = getFromCache(cacheKey)
     if (cached) {
@@ -390,6 +467,13 @@ async function requestJson(url, options = {}, cacheKey = '') {
       errorDetail = errorBody?.error?.message || errorBody?.message || JSON.stringify(errorBody)
     } catch {
       errorDetail = ''
+    }
+
+    if (response.status === 429 && attempt < 2) {
+      const delay = resolveRetryDelay(response, errorDetail)
+      console.warn(`[enemApiService] Rate limit da API ENEM. Tentando novamente em ${delay}ms.`)
+      await wait(delay)
+      return requestJson(url, options, cacheKey, attempt + 1)
     }
 
     throw new Error(`ENEM API error: ${response.status} ${response.statusText}${errorDetail ? ` - ${errorDetail}` : ''}`)
@@ -540,6 +624,7 @@ export async function fetchQuestoes({ area, ano, limit = 50, offset = 0, discipl
       year: yearValue,
     }))
     .filter(Boolean)
+    .filter(isNormalizedQuestion)
 
   setCache(cacheKey, normalized)
   return normalized
@@ -592,6 +677,7 @@ export async function fetchQuestoesAleatorias({ area, quantidade = 5, disciplina
 
   const collected = []
   let rateLimited = false
+  const collectedUsableCount = () => uniqueQuestions(collected).filter(isNormalizedQuestion).length
 
   const fetchBatch = async (year, fetchDiscipline = '', offset = 0) => {
     try {
@@ -623,7 +709,7 @@ export async function fetchQuestoesAleatorias({ area, quantidade = 5, disciplina
       if (rateLimited) break
       await fetchBatch(year, disciplina, 0)
       if (rateLimited) break
-      if (uniqueQuestions(collected).length >= requestedQuantidade) {
+      if (collectedUsableCount() >= requestedQuantidade) {
         break
       }
     }
@@ -634,17 +720,17 @@ export async function fetchQuestoesAleatorias({ area, quantidade = 5, disciplina
       for (const offset of offsets) {
         await fetchBatch(year, '', offset)
         if (rateLimited) break
-        if (uniqueQuestions(collected).length >= requestedQuantidade) {
+        if (collectedUsableCount() >= requestedQuantidade) {
           break
         }
       }
-      if (rateLimited || uniqueQuestions(collected).length >= requestedQuantidade) {
+      if (rateLimited || collectedUsableCount() >= requestedQuantidade) {
         break
       }
     }
   }
 
-  const deduped = uniqueQuestions(collected).filter((question) => {
+  const deduped = uniqueQuestions(collected).filter(isNormalizedQuestion).filter((question) => {
     if (!areaConfig) return true
 
     const questionArea = normalizeText(question.area || inferAreaFromApiDiscipline(question.discipline))
@@ -661,7 +747,7 @@ export async function fetchQuestoesAleatorias({ area, quantidade = 5, disciplina
     return shuffleArray(deduped).slice(0, requestedQuantidade)
   }
 
-  const cacheFallback = collectCachedQuestions().filter((question) => {
+  const cacheFallback = collectCachedQuestions().filter(isNormalizedQuestion).filter((question) => {
     if (!areaConfig) return true
 
     const questionArea = normalizeText(question.area || inferAreaFromApiDiscipline(question.discipline))

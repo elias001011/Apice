@@ -44,6 +44,47 @@ function SimuladoText({ text, className = '' }) {
   )
 }
 
+function getAlternativePayload(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return {
+      text: String(value.text ?? value.label ?? value.content ?? '').trim(),
+      image: String(value.image ?? value.imageUrl ?? value.file ?? value.url ?? '').trim(),
+      alt: String(value.alt ?? value.text ?? value.label ?? 'Alternativa').trim(),
+    }
+  }
+
+  return {
+    text: String(value ?? '').trim(),
+    image: '',
+    alt: 'Alternativa',
+  }
+}
+
+function getAlternativeEntries(alternativas = {}) {
+  return Object.entries(alternativas || {})
+    .map(([letter, value]) => [String(letter).trim().toUpperCase(), getAlternativePayload(value)])
+    .filter(([letter, payload]) => letter && (payload.text || payload.image))
+    .sort(([a], [b]) => a.localeCompare(b))
+}
+
+function AlternativeContent({ value, letter }) {
+  const payload = getAlternativePayload(value)
+
+  return (
+    <div className="option-content">
+      {payload.text && <SimuladoText text={payload.text} className="option-text" />}
+      {payload.image && (
+        <img
+          className="option-image"
+          src={payload.image}
+          alt={payload.alt || `Alternativa ${letter}`}
+          loading="lazy"
+        />
+      )}
+    </div>
+  )
+}
+
 // ── ícones das matérias ───────────────────────────────────────────────────────
 const AREA_ICONS = {
   Linguagens: (
@@ -251,33 +292,7 @@ export function SimuladoPage() {
     setStep('result'); limparProgresso()
   }
 
-  const handleNext = () => {
-    // Busca próxima questão não confirmada
-    let nextTarget = -1
-    for (let i = currentQ + 1; i < examData.questoes.length; i++) {
-      const id = examData.questoes[i].id
-      if (!confirmedAnswers[id]) {
-        nextTarget = i
-        break
-      }
-    }
-    // Se não achou pra frente, busca do início
-    if (nextTarget === -1) {
-      for (let i = 0; i < currentQ; i++) {
-        const id = examData.questoes[i].id
-        if (!confirmedAnswers[id]) {
-          nextTarget = i
-          break
-        }
-      }
-    }
-
-    // Se achou uma não confirmada, vai pra lá
-    if (nextTarget >= 0) {
-      setCurrentQ(nextTarget)
-      return
-    }
-
+  const showFinishBlockers = () => {
     // Última questão - o resultado só fica disponível após confirmar todas.
     const unconfirmedIndexes = examData.questoes
       .map((q, i) => !confirmedAnswers[q.id] ? i : -1)
@@ -289,7 +304,7 @@ export function SimuladoPage() {
         count: unconfirmedIndexes.length,
         firstIndex: unconfirmedIndexes[0],
       })
-      return
+      return true
     }
 
     const reviewIndexes = examData.questoes
@@ -302,9 +317,19 @@ export function SimuladoPage() {
         count: reviewIndexes.length,
         firstIndex: reviewIndexes[0],
       })
+      return true
+    }
+
+    return false
+  }
+
+  const handleNext = () => {
+    if (currentQ < examData.questoes.length - 1) {
+      setCurrentQ(currentQ + 1)
       return
     }
 
+    if (showFinishBlockers()) return
     finalizeExam()
   }
 
@@ -568,6 +593,7 @@ export function SimuladoPage() {
     const reviewCount = examData.questoes.filter(question => reviewQuestions[question.id]).length
     const markedForReview = Boolean(reviewQuestions[q.id])
     const isLastQuestion = currentQ >= examData.questoes.length - 1
+    const optionEntries = getAlternativeEntries(q.alternativas)
 
     return (
       <div className="simulado-page simulado-page--exam">
@@ -663,24 +689,30 @@ export function SimuladoPage() {
               <SimuladoText text={q.enunciado} />
             </div>
 
-            <div className="options-list">
-              {Object.entries(q.alternativas || {}).map(([letter, text]) => {
-                let cls = 'option-item'
-                if (sel === letter) cls += ' selected'
-                if (isConfirmed) {
-                  cls += ' disabled'
-                  if (letter === q.correta) cls += ' correct'
-                  else if (sel === letter) cls += ' wrong'
-                }
-                return (
-                  <button key={letter} type="button" className={cls}
-                    onClick={() => handleSelect(letter)} disabled={isConfirmed}>
-                    <div className="option-letter">{letter}</div>
-                    <div className="option-text"><SimuladoText text={text} /></div>
-                  </button>
-                )
-              })}
-            </div>
+            {optionEntries.length > 0 ? (
+              <div className="options-list">
+                {optionEntries.map(([letter, payload]) => {
+                  let cls = 'option-item'
+                  if (sel === letter) cls += ' selected'
+                  if (isConfirmed) {
+                    cls += ' disabled'
+                    if (letter === q.correta) cls += ' correct'
+                    else if (sel === letter) cls += ' wrong'
+                  }
+                  return (
+                    <button key={letter} type="button" className={cls}
+                      onClick={() => handleSelect(letter)} disabled={isConfirmed}>
+                      <div className="option-letter">{letter}</div>
+                      <AlternativeContent value={payload} letter={letter} />
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="simulado-exam-notice warning">
+                Esta questão veio sem alternativas renderizáveis. Gere um novo simulado para substituir este lote.
+              </div>
+            )}
 
             {isConfirmed && (
               <div className={`feedback-box anim anim-d1 ${sel === q.correta ? 'is-correct' : 'is-wrong'}`}>
