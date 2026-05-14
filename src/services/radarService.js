@@ -11,8 +11,10 @@ import {
   canConsumeFreePlan,
   consumeFreePlan,
 } from './freePlanUsage.js'
+import { createAiRequestError } from './aiRequestError.js'
 import { loadAiResponsePreferenceText } from './aiResponsePreferences.js'
 import { authFetch } from './authFetch.js'
+import { isGuestSessionActive } from '../auth/sessionMode.js'
 
 const RADAR_SEARCH_ENDPOINT = '/.netlify/functions/gerar-radar'
 const RADAR_DETAIL_ENDPOINT = '/.netlify/functions/gerar-radar-detalhe'
@@ -21,6 +23,15 @@ function createQuotaError(message) {
   const error = new Error(message)
   error.code = 'quota_blocked'
   return error
+}
+
+function buildQuotaBlockedMessage(featureLabel) {
+  const scopeLabel = isGuestSessionActive() ? 'modo convidado' : 'cota gratuita'
+  const recoveryLabel = isGuestSessionActive()
+    ? 'Crie uma conta nova para continuar.'
+    : 'Tente mais tarde ou troque de plano.'
+
+  return `Limite do ${scopeLabel} atingido para ${featureLabel}. ${recoveryLabel}`
 }
 
 export const DEFAULT_RADAR_THEMES = [
@@ -108,7 +119,7 @@ export async function buscarRadarTemas() {
   }
 
   if (!canConsumeFreePlan('radarSearch')) {
-    throw createQuotaError('Limite do plano free atingido para radar de temas. Tente mais tarde ou troque de plano.')
+    throw createQuotaError(buildQuotaBlockedMessage('radar de temas'))
   }
 
   const responsePreference = loadAiResponsePreferenceText()
@@ -120,8 +131,7 @@ export async function buscarRadarTemas() {
   })
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error || 'Falha ao gerar radar de temas.')
+    throw await createAiRequestError(response, 'Falha ao gerar radar de temas.')
   }
 
   const data = await response.json()
@@ -164,7 +174,7 @@ export async function buscarRadarTemaDetalhe(tema) {
   }
 
   if (!canConsumeFreePlan('radarDetail')) {
-    throw createQuotaError('Limite do plano free atingido para detalhes do radar. Tente mais tarde ou troque de plano.')
+    throw createQuotaError(buildQuotaBlockedMessage('detalhes do radar'))
   }
 
   const responsePreference = loadAiResponsePreferenceText()
@@ -177,8 +187,7 @@ export async function buscarRadarTemaDetalhe(tema) {
   })
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error || 'Falha ao gerar detalhes do tema.')
+    throw await createAiRequestError(response, 'Falha ao gerar detalhes do tema.')
   }
 
   const data = await response.json()

@@ -27,8 +27,7 @@ import {
 import {
   getBillingStatusLabel,
   TRIAL_DAYS,
-  WELCOME_PREMIUM_DAYS,
-  isWelcomePremiumActive,
+
 } from '../services/billingState.js'
 import { usePwaInstall } from '../pwa/usePwaInstall.js'
 import { useTheme } from '../theme/ThemeProvider.jsx'
@@ -878,12 +877,14 @@ export function PerfilPage() {
   }
   const billingStatus = getCurrentBillingStatus()
   const billingStatusLabel = getBillingStatusLabel(billingStatus)
-  const welcomePremiumActive = isWelcomePremiumActive()
+
 
   const quotaHelpMessage = [
     'Cada vez que o app precisa gerar um resultado novo com IA, 1 uso é consumido.',
     '',
-    'Conta gratuita: 5 usos por dia.',
+    isGuest
+      ? `Modo convidado: ${quotaRow.limit} solicitações por dia, com cota separada neste navegador e validação no servidor para reduzir abuso.`
+      : 'Conta gratuita: 5 usos por dia.',
     `Conta paga, teste grátis ativo ou premium temporário: ${PAID_AI_DAILY_LIMIT} usos por dia.`,
     '',
     'Cada um destes pontos conta como 1 uso quando você:',
@@ -898,7 +899,7 @@ export function PerfilPage() {
     'A contagem zera automaticamente na virada do dia no seu navegador.',
     '',
     `O teste grátis dura ${TRIAL_DAYS} dias e só pode ser usado uma vez por conta.`,
-    `Contas novas criadas nesta atualização recebem premium temporário por ${WELCOME_PREMIUM_DAYS} dias.`,
+    `Use o teste grátis de 7 dias para acessar todos os recursos premium.`,
     'Se você mudar de conta, o cache daquela conta muda junto. Se o detalhe do radar ou outro resultado não estiver salvo nessa conta, o app precisa gerar de novo e isso volta a consumir cota.',
   ].join('\n')
 
@@ -1286,12 +1287,12 @@ export function PerfilPage() {
         <div className="meu-plano-left">
           <div className="meu-plano-label">Plano Atual</div>
           <div className="meu-plano-tier">
-            {billingStatus === 'free' ? 'Gratuito' : welcomePremiumActive ? 'Premium temporário' : billingStatus === 'trial' ? 'Teste grátis' : 'Pago'}
-            <span className={`meu-plano-tier-badge ${billingStatus === 'free' ? '' : 'pro'}`}>
-              {billingStatus === 'free' ? 'Free' : welcomePremiumActive ? `Premium ${WELCOME_PREMIUM_DAYS}d` : billingStatus === 'trial' ? 'Trial' : 'Pago'}
+            {isGuest ? 'Modo convidado' : billingStatus === 'free' ? 'Gratuito' : billingStatus === 'trial' ? 'Teste grátis' : 'Pago'}
+            <span className={`meu-plano-tier-badge ${isGuest || billingStatus === 'free' ? '' : 'pro'}`}>
+              {isGuest ? 'Convidado' : billingStatus === 'free' ? 'Free' : billingStatus === 'trial' ? 'Trial' : 'Pago'}
             </span>
           </div>
-          {billingStatus === 'free' && (
+          {(billingStatus === 'free' || isGuest) && (
             <div className="meu-plano-quota">
               <div className="meu-plano-bar">
                 <div
@@ -1305,7 +1306,11 @@ export function PerfilPage() {
             </div>
           )}
         </div>
-        {billingStatus === 'free' ? (
+        {isGuest ? (
+          <Link to="/cadastro" className="meu-plano-btn">
+            Criar conta nova
+          </Link>
+        ) : billingStatus === 'free' ? (
           <Link to="/planos" className="meu-plano-btn">
             Ver planos
           </Link>
@@ -1411,6 +1416,23 @@ export function PerfilPage() {
                   </svg>
                 </div>
                 <div className="settings-name">Histórico de redações</div>
+              </div>
+              <div className="settings-chevron" aria-hidden="true">
+                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+              </div>
+            </Link>
+
+            <Link to="/historico-simulados" className="settings-item">
+              <div className="settings-left">
+                <div className="settings-icon" aria-hidden="true">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M4 6h16" />
+                    <path d="M4 12h16" />
+                    <path d="M4 18h10" />
+                    <path d="M18 18l2 2 4-4" />
+                  </svg>
+                </div>
+                <div className="settings-name">Histórico de simulados</div>
               </div>
               <div className="settings-chevron" aria-hidden="true">
                 <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
@@ -1661,12 +1683,14 @@ export function PerfilPage() {
               <div>
                 <div className="quota-title">Cota diária de IA</div>
                 <div className="quota-subtitle">
-                  {quotaRow.limit} solicitações por dia. Conte 1 uso sempre que a IA gerar um resultado novo.
+                  {isGuest
+                    ? `${quotaRow.limit} solicitações por dia no modo convidado. Conte 1 uso sempre que a IA gerar um resultado novo.`
+                    : `${quotaRow.limit} solicitações por dia. Conte 1 uso sempre que a IA gerar um resultado novo.`}
                 </div>
               </div>
               <div className="quota-head-right">
-                <div className={`quota-plan-badge ${billingStatus === 'free' ? 'free' : 'pro'}`}>
-                  {billingStatusLabel}
+                <div className={`quota-plan-badge ${isGuest || billingStatus === 'free' ? 'free' : 'pro'}`}>
+                  {isGuest ? 'Convidado' : billingStatusLabel}
                 </div>
                 <button
                   type="button"

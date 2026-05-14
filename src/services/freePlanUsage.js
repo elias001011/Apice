@@ -3,11 +3,14 @@ import {
   getCurrentPlanTier as getAccessPlanTier,
   setBillingStatus,
 } from './billingState.js'
+import { getOrCreateGuestSessionId, isGuestSessionActive } from '../auth/sessionMode.js'
 
-const USAGE_KEY = 'apice:free-plan-usage:v1'
+const ACCOUNT_USAGE_KEY = 'apice:free-plan-usage:v1'
+const GUEST_USAGE_KEY_PREFIX = 'apice:free-plan-usage:guest'
 const USAGE_UPDATE_EVENT = 'apice:free-plan-usage-updated'
 
 export const AI_DAILY_LIMIT = 5
+export const GUEST_AI_DAILY_LIMIT = 2
 export const PAID_AI_DAILY_LIMIT = 10
 export const MANUAL_AI_DAILY_LIMIT = PAID_AI_DAILY_LIMIT
 
@@ -42,6 +45,17 @@ const COUNTED_USAGE_KEYS = Object.keys(FREE_PLAN_LIMITS)
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+}
+
+function getUsageStorageKey() {
+  if (!canUseStorage()) return ACCOUNT_USAGE_KEY
+
+  if (!isGuestSessionActive()) {
+    return ACCOUNT_USAGE_KEY
+  }
+
+  const guestSessionId = getOrCreateGuestSessionId()
+  return `${GUEST_USAGE_KEY_PREFIX}:${guestSessionId}:v1`
 }
 
 export function getAiUsageDayKey(referenceDate = new Date()) {
@@ -90,7 +104,7 @@ function readState() {
   if (!canUseStorage()) return defaultState()
 
   try {
-    const raw = localStorage.getItem(USAGE_KEY)
+    const raw = localStorage.getItem(getUsageStorageKey())
     const parsed = raw ? normalizeState(JSON.parse(raw)) : defaultState()
     if (parsed.dayKey !== todayKey()) {
       return defaultState()
@@ -103,7 +117,7 @@ function readState() {
 
 function writeState(state) {
   if (!canUseStorage()) return
-  localStorage.setItem(USAGE_KEY, JSON.stringify(state))
+  localStorage.setItem(getUsageStorageKey(), JSON.stringify(state))
   window.dispatchEvent(new CustomEvent(USAGE_UPDATE_EVENT))
 }
 
@@ -151,14 +165,26 @@ export function setPlanTier(tier) {
 }
 
 export function getCurrentPlanTier() {
+  if (isGuestSessionActive()) {
+    return 'free'
+  }
+
   return getAccessPlanTier()
 }
 
 export function getCurrentBillingStatus() {
+  if (isGuestSessionActive()) {
+    return 'free'
+  }
+
   return getBillingState().status
 }
 
 export function getCurrentAiDailyLimit() {
+  if (isGuestSessionActive()) {
+    return GUEST_AI_DAILY_LIMIT
+  }
+
   return getCurrentBillingStatus() === 'free' ? AI_DAILY_LIMIT : PAID_AI_DAILY_LIMIT
 }
 
@@ -183,6 +209,7 @@ export function getFreePlanUsageRows() {
     blocked: used >= limit,
     status,
     accessTier: getCurrentPlanTier(),
+    isGuest: isGuestSessionActive(),
     breakdown: buildAiUsageBreakdown(snapshot),
   }]
 }

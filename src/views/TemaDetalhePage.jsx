@@ -203,7 +203,7 @@ export function TemaDetalhePage() {
 
       if (isQuotaBlocked()) {
         if (active) {
-          setErrorMsg('Sua cota de IA de hoje acabou. Os detalhes salvos continuam visíveis, mas um novo detalhe precisa de quota disponível.')
+          setErrorMsg('Sua cota de IA de hoje acabou. Os detalhes salvos continuam visíveis, mas um novo detalhe precisa de cota disponível.')
           setLoading(false)
           openUpgradeModal({ reason: UPGRADE_REASONS.QUOTA_BLOCKED })
         }

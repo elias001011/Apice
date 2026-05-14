@@ -155,7 +155,7 @@
   box-shadow: 0 4px 16px rgba(200,240,96,0.2);
   font-family: inherit;
 }
-.lp-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(200,240,96,0.3); }
+.lp-btn-primary:hover { transform: translateY(-1px); box-shadow: none; }
 .lp-btn-primary:active { transform: translateY(0); }
 .lp-btn-primary svg { transition: transform 0.2s; }
 .lp-btn-primary:hover svg { transform: translateX(3px); }
@@ -410,8 +410,8 @@
 .lp-plan-features li.lp-feature-disabled svg { color: var(--lp-dim); }
 .lp-plan-cta { width: 100%; padding: 0.8rem; border-radius: var(--lp-r); font-weight: 700; font-size: 0.88rem; cursor: pointer; transition: all 0.25s; border: 1.5px solid var(--lp-border); background: var(--lp-surface); color: var(--lp-text); display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; font-family: inherit; }
 .lp-plan-cta:hover { background: var(--lp-card); border-color: var(--lp-border-h); transform: translateY(-2px); }
-.lp-plan-cta-primary { background: #c8f060; color: #0a0a0a; border: none; box-shadow: 0 4px 16px rgba(200,240,96,0.2); }
-.lp-plan-cta-primary:hover { box-shadow: 0 8px 28px rgba(200,240,96,0.3); }
+.lp-plan-cta-primary { background: #c8f060; color: #0a0a0a; border: none; box-shadow: none; }
+.lp-plan-cta-primary:hover { box-shadow: none; }
 .lp-plan-cta-primary svg { transition: transform 0.2s; }
 .lp-plan-cta-primary:hover svg { transform: translateX(3px); }
 .lp-plan-hint { font-size: 0.72rem; color: var(--lp-dim); text-align: center; margin-top: 0.1rem; }
@@ -447,6 +447,13 @@
 .lp-footer-col a { color: var(--lp-dim); text-decoration: none; font-size: 0.8rem; transition: color 0.2s; }
 .lp-footer-col a:hover { color: var(--lp-text); }
 .lp-footer-bottom { max-width: 1100px; margin: 0 auto; padding-top: 1.5rem; margin-top: 1.5rem; border-top: 1px solid var(--lp-border); text-align: center; font-size: 0.75rem; }
+
+.lp-developed-logos { display: flex; justify-content: center; margin-bottom: 1rem; }
+.lp-developed-logos a { display: inline-flex; align-items: center; justify-content: center; }
+.lp-developed-logos .lp-logo-connecta { display: block; width: 240px; max-width: 100%; height: auto; transition: width 0.3s ease; }
+@media (max-width: 768px) {
+  .lp-developed-logos .lp-logo-connecta { width: 180px; }
+}
 
 /* ═══════════════════════════════════
    RESPONSIVE — TABLET (<=900px)

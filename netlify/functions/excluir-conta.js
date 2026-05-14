@@ -108,7 +108,7 @@ async function deleteBlob(userId) {
     const blobKey = `user-state:${userId}`
     await store.delete(blobKey)
 
-    console.log(`[excluir-conta] Blob deletado para userId: ${userId}`)
+    console.log('[excluir-conta] Blob deletado.')
     return true
   } catch (error) {
     console.error('[excluir-conta] Erro ao deletar blob:', error.message)

@@ -7,14 +7,15 @@
  * - Teste grátis: 7 dias únicos na primeira ativação
  * - Planos: Mensal (R$19,90), Semestral (R$89,40), Anual (R$142,80)
  * 
- * PRODUCT IDs (AbacatePay V1):
+ * PRODUCT IDs (AbacatePay API v2):
  * - Cada produto deve existir no dashboard AbacatePay com mesmo ID
- * - V1 é 'billing one-time' (pagamento único por período)
- * - V2 é 'subscriptions' (recorrência automática) - não usado atualmente
+ * - O checkout usa /v2/subscriptions/create com items[].id apontando para esses produtos
+ * - A chave do gateway em produção deve vir de ABACATE_V2 no Netlify
  */
 
 import {
   AI_DAILY_LIMIT,
+  GUEST_AI_DAILY_LIMIT,
   PAID_AI_DAILY_LIMIT,
   getCurrentAiDailyLimit,
   getCurrentBillingStatus,
@@ -22,6 +23,7 @@ import {
   getFreePlanUsageRows,
   getFreePlanUsageSnapshot,
 } from './freePlanUsage.js'
+import { isGuestSessionActive } from '../auth/sessionMode.js'
 
 // ── Configuração de Features ─────────────────────────────────────────────────
 // Hoje o upgrade mexe em cota e faturamento, não em um bloco de features
@@ -42,6 +44,14 @@ function isPaidAccess() {
 
 function getQuotaBlockedCopy() {
   const status = getCurrentBillingStatus()
+  if (isGuestSessionActive()) {
+    return {
+      icon: '🚪',
+      title: 'Seu limite do modo convidado acabou',
+      subtitle: `Você usou as ${GUEST_AI_DAILY_LIMIT} solicitações de IA do modo convidado de hoje. Crie uma conta nova para continuar com cota separada e sincronização na nuvem.`,
+    }
+  }
+
   if (status === 'free') {
     return {
       icon: '🚀',
@@ -92,6 +102,7 @@ export function getQuotaInfo() {
     status: row.status || getCurrentBillingStatus(),
     accessTier: row.accessTier || getCurrentPlanTier(),
     isPaidAccount: isPaidAccess(),
+    isGuest: isGuestSessionActive(),
   }
 }
 
@@ -194,7 +205,7 @@ export const PAID_PLAN_FEATURES = [
 export const PREMIUM_PLAN_FEATURES = PAID_PLAN_FEATURES
 
 // ── Definição dos planos de preço ────────────────────────────────────────────
-// Cada plano deve ter um productId que existe no dashboard AbacatePay
+// Cada plano deve ter um productId que existe no dashboard AbacatePay v2
 // totalPrice é o valor total cobrado no período
 // pricePerMonth é apenas informativo (totalPrice / meses no período)
 export const PRICING_PLANS = [

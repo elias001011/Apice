@@ -77,6 +77,7 @@ export function QuotaLimitBanner() {
   if (!state.visible) return null
 
   const { quota } = state
+  const isGuest = Boolean(quota.isGuest)
 
   return (
     <section className="quota-banner" role="alert" aria-live="polite">
@@ -85,18 +86,24 @@ export function QuotaLimitBanner() {
       </div>
 
       <div className="quota-banner__content">
-        <div className="quota-banner__eyebrow">Cota diaria atingida</div>
+        <div className="quota-banner__eyebrow">
+          {isGuest ? 'Limite do modo convidado atingido' : 'Cota diária atingida'}
+        </div>
         <div className="quota-banner__title">
-          Voce ja usou {quota.used}/{quota.limit} solicitacoes de IA hoje.
+          {isGuest
+            ? `Você já usou ${quota.used}/${quota.limit} solicitações de IA no modo convidado hoje.`
+            : `Você já usou ${quota.used}/${quota.limit} solicitações de IA hoje.`}
         </div>
         <div className="quota-banner__text">
-          Atualize para o Premium para aumentar sua cota diaria e continuar usando a IA sem interrupcoes.
+          {isGuest
+            ? 'Crie uma conta nova para continuar usando a IA com cota separada, sincronização na nuvem e menos risco de abuso.'
+            : 'Atualize para o Premium para aumentar sua cota diária e continuar usando a IA sem interrupções.'}
         </div>
       </div>
 
       <div className="quota-banner__actions">
-        <NavLink to="/planos" className="quota-banner__cta">
-          Atualizar para Premium
+        <NavLink to={isGuest ? '/cadastro' : '/planos'} className="quota-banner__cta">
+          {isGuest ? 'Criar conta nova' : 'Atualizar para Premium'}
         </NavLink>
         <button
           type="button"

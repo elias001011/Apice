@@ -20,7 +20,7 @@ const VISUAL_EFFECT_OPTIONS = [
   {
     key: 'gradients',
     label: 'Gradiente',
-    sub: 'Gradientes sutis no fundo do app e nos cards de destaque. Cards comuns permanecem limpos.',
+    sub: 'Adiciona gradientes sutis apenas ao fundo do app. Cards e navegação continuam limpos.',
   },
 ]
 
@@ -149,15 +149,15 @@ export function AparenciaPage() {
               <div className="ap-fx-extra">
                 <div className="toggle-row ap-fx-toggle-row">
                   <div className="toggle-info">
-                    <div className="toggle-label">Gradiente em todos os cards</div>
+                    <div className="toggle-label">Gradientes em cards</div>
                     <div className="toggle-sub">
-                      Desative para manter os cards comuns limpos e deixar o gradiente só nos pontos de destaque.
+                      Ative para aplicar gradientes sutis em cards e elementos de navegação.
                     </div>
                   </div>
                   <button
                     className={`toggle ${cardGradientsEnabled ? 'on' : ''}`}
                     onClick={() => setCardGradientsEnabled((current) => !current)}
-                    aria-label="Alternar gradiente em todos os cards"
+                    aria-label="Alternar gradientes em cards"
                   >
                     <span className="toggle-knob" />
                   </button>

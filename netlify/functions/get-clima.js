@@ -139,7 +139,6 @@ export default async function handler(req, context) {
       qualidadeAr: airQuality,
       debug: {
         auth: 'ok',
-        userId: auth.user.id.slice(0, 12),
         timestamp: new Date().toISOString(),
         lat, lon,
       },

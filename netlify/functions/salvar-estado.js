@@ -54,7 +54,6 @@ export default async function handler(req, context) {
         JSON.stringify({
           ok: true,
           warning: 'Blob store não disponível. Use "netlify dev" para testar local.',
-          userId: auth.user.id,
         }),
         { status: 200, headers }
       )
@@ -69,13 +68,14 @@ export default async function handler(req, context) {
     })
 
     const sizeBytes = JSON.stringify(state).length
-    console.log(`[salvar-estado] Salvo para ${auth.user.id} (${sizeBytes} bytes)`)
+    console.log(`[salvar-estado] Estado salvo (${sizeBytes} bytes)`)
 
     return new Response(
       JSON.stringify({
         ok: true,
         savedAt: new Date().toISOString(),
         sizeBytes,
+        state: secureState,
       }),
       { status: 200, headers }
     )

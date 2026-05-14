@@ -1,586 +1,962 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { CATEGORIES } from '../data/mockProfessorData.js'
-import { chamarIAEspecifica, buscarContexto } from '../services/aiService.js'
+import { chamarProfessorIA } from '../services/aiService.js'
 import { clearProfessorHandoff, loadProfessorHandoff, normalizeProfessorHandoff } from '../services/professorHandoff.js'
+import {
+  PROFESSOR_MAX_CHAT_CHARS,
+  PROFESSOR_MAX_INPUT_CHARS,
+  buildProfessorTitleFromMessage,
+  createProfessorChat,
+  getProfessorChatCharCount,
+  loadProfessorChats,
+  normalizeProfessorQuestions,
+  saveProfessorChats,
+} from '../services/professorChats.js'
 import '../styles/professor.css'
 
-const STORAGE_KEY = 'apice:professor:conversations'
-const MAX_CHAT_HISTORY = 12 // Limita o historico enviado para IA
-const EMPTY_MESSAGES = []
-const PROFESSOR_PROVIDER_FALLBACKS = [
-  { provider: 'groq', modelVariant: 'secondary' },
-  { provider: 'groq', modelVariant: 'primary' },
-  { provider: 'gemini', modelVariant: 'primary' },
-  { provider: 'openrouter', modelVariant: 'primary' },
-]
+const HISTORY_MESSAGES_LIMIT = 14
 
-function safeJsonParse(value) {
-  if (!value || typeof value !== 'string') return null
-  try {
-    return JSON.parse(value)
-  } catch {
-    return null
+function createMessage({ sender, text, questions, sources, status, action, retryText, retryOf }) {
+  return {
+    id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    sender,
+    text: String(text ?? '').trim(),
+    createdAt: new Date().toISOString(),
+    ...(questions?.length ? { questions: normalizeProfessorQuestions(questions) } : {}),
+    ...(sources?.length ? { sources } : {}),
+    ...(status ? { status } : {}),
+    ...(action ? { action } : {}),
+    ...(retryText ? { retryText: String(retryText).slice(0, PROFESSOR_MAX_INPUT_CHARS) } : {}),
+    ...(retryOf ? { retryOf: String(retryOf).slice(0, 12000) } : {}),
   }
 }
 
-function extractAiText(response) {
-  if (typeof response === 'string') {
-    const trimmed = response.trim()
-    if (!trimmed) return ''
-
-    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-      const parsed = safeJsonParse(trimmed)
-      if (parsed) {
-        const nested = extractAiText(parsed)
-        if (nested) return nested
-      }
-    }
-
-    return trimmed
-  }
-
-  if (!response || typeof response !== 'object') return ''
-
-  const candidates = [
-    response.texto,
-    response.text,
-    response.content,
-    response.message,
-    response.response,
-    response.output,
-    response.answer,
-    response.reply,
-  ]
-
-  for (const candidate of candidates) {
-    if (candidate == null) continue
-
-    if (typeof candidate === 'string') {
-      const trimmed = candidate.trim()
-      if (!trimmed) continue
-
-      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-        const parsed = safeJsonParse(trimmed)
-        if (parsed) {
-          const nested = extractAiText(parsed)
-          if (nested) return nested
-        }
-      }
-
-      return trimmed
-    }
-
-    if (typeof candidate === 'object') {
-      const nested = extractAiText(candidate)
-      if (nested) return nested
-    }
-  }
-
-  return ''
+function normalizeAiText(value) {
+  if (typeof value === 'string') return value.trim()
+  if (!value || typeof value !== 'object') return ''
+  return String(value.response ?? value.text ?? value.resposta ?? value.message ?? '').trim()
 }
 
-function buildSystemPrompt(category) {
-  const lines = [
-    `Você é um professor especialista no ENEM, atuando na categoria "${category.label}".`,
-    '',
-    'DIRETRIZES:',
-  ]
+function buildHistoryPayload(messages = []) {
+  return messages
+    .filter((message) => message?.sender === 'user' || message?.sender === 'ai')
+    .filter((message) => message?.text && message.status !== 'limit')
+    .slice(-HISTORY_MESSAGES_LIMIT)
+    .map((message) => ({
+      role: message.sender === 'user' ? 'user' : 'assistant',
+      content: message.text,
+    }))
+}
 
-  if (category.id === 'duvidas') {
-    lines.push('- Explique de forma clara, passo a passo, com exemplos quando possível.')
+function splitInlineMarkdown(text) {
+  const parts = []
+  const regex = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g
+  let last = 0
+  let match
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index))
+    const token = match[0]
+    if (token.startsWith('`')) {
+      parts.push(<code key={match.index}>{token.slice(1, -1)}</code>)
+    } else if (token.startsWith('**')) {
+      parts.push(<strong key={match.index}>{token.slice(2, -2)}</strong>)
+    } else {
+      parts.push(<em key={match.index}>{token.slice(1, -1)}</em>)
+    }
+    last = match.index + token.length
   }
 
-  if (category.id === 'resumos') {
-    lines.push('- Crie resumos objetivos com os pontos mais importantes para o ENEM. Use tópicos e seja direto.')
+  if (last < text.length) parts.push(text.slice(last))
+  return parts.length > 0 ? parts : text
+}
+
+function ProfessorMarkdown({ text }) {
+  const lines = String(text ?? '').replace(/\r\n/g, '\n').split('\n')
+  const nodes = []
+  let index = 0
+
+  while (index < lines.length) {
+    const line = lines[index]
+    const trimmed = line.trim()
+
+    if (!trimmed) {
+      index += 1
+      continue
+    }
+
+    const h1 = trimmed.match(/^#\s+(.+)/)
+    const h2 = trimmed.match(/^##\s+(.+)/)
+    const h3 = trimmed.match(/^###\s+(.+)/)
+    if (h1 || h2 || h3) {
+      const Tag = h1 ? 'h2' : h2 ? 'h3' : 'h4'
+      const content = (h1 || h2 || h3)[1]
+      nodes.push(<Tag key={`h-${index}`}>{splitInlineMarkdown(content)}</Tag>)
+      index += 1
+      continue
+    }
+
+    if (/^[-*]\s+/.test(trimmed)) {
+      const items = []
+      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^[-*]\s+/, ''))
+        index += 1
+      }
+      nodes.push(
+        <ul key={`ul-${index}`}>
+          {items.map((item, itemIndex) => <li key={`${item}-${itemIndex}`}>{splitInlineMarkdown(item)}</li>)}
+        </ul>,
+      )
+      continue
+    }
+
+    if (/^\d+[.)]\s+/.test(trimmed)) {
+      const items = []
+      while (index < lines.length && /^\d+[.)]\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^\d+[.)]\s+/, ''))
+        index += 1
+      }
+      nodes.push(
+        <ol key={`ol-${index}`}>
+          {items.map((item, itemIndex) => <li key={`${item}-${itemIndex}`}>{splitInlineMarkdown(item)}</li>)}
+        </ol>,
+      )
+      continue
+    }
+
+    const paragraph = [trimmed]
+    index += 1
+    while (
+      index < lines.length
+      && lines[index].trim()
+      && !/^#{1,3}\s+/.test(lines[index].trim())
+      && !/^[-*]\s+/.test(lines[index].trim())
+      && !/^\d+[.)]\s+/.test(lines[index].trim())
+    ) {
+      paragraph.push(lines[index].trim())
+      index += 1
+    }
+    nodes.push(<p key={`p-${index}`}>{splitInlineMarkdown(paragraph.join(' '))}</p>)
   }
 
-  if (category.id === 'mapas') {
-    lines.push('- Para Mapas Mentais, responda somente com uma estrutura textual organizada, sem JSON, sem canvas, sem PDF e sem comentários técnicos.')
-  }
-
-  if (category.id === 'pratica') {
-    lines.push('- Crie questões inéditas no estilo ENEM com 5 alternativas (A-E). Após o aluno responder, dê feedback detalhado.')
-  }
-
-  lines.push(
-    '- Use linguagem acessível, mas não infantilize.',
-    '- Se não souber, seja honesto.',
-    '- Mantenha o foco no contexto do ENEM e no Brasil.',
-    '- Responda em português do Brasil.',
-  )
-
-  if (category.id === 'mapas') {
-    lines.push(
-      '',
-      'INSTRUCOES EXTRA PARA O MAPA MENTAL POR ESCRITO:',
-      '- Comece com "Tema central:" seguido do assunto principal.',
-      '- Em seguida, liste de 5 a 8 ramos principais com nomes concretos.',
-      '- Abaixo de cada ramo, use de 1 a 3 subtópicos curtos quando fizer sentido.',
-      '- Use recuo ou marcadores para deixar a hierarquia visível.',
-      '- Prefira palavras-chave e expressões curtas.',
-      '- Não escreva parágrafos longos nem use rótulos genéricos como "tópico", "item" ou "assunto".',
-      '- Entregue o texto pronto para leitura, como um mapa mental escrito.',
-    )
-  }
-
-  lines.push('', 'Histórico recente da conversa (para manter coerência):')
-  return lines.join('\n')
+  return <div className="prof-markdown">{nodes}</div>
 }
 
 function iconSvg(kind) {
   switch (kind) {
-    case 'question':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
-        </svg>
-      )
-    case 'book':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-        </svg>
-      )
-    case 'mindmap':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M3 12h6M15 12h6M12 3v6M12 15v6" />
-          <circle cx="3" cy="12" r="2" />
-          <circle cx="21" cy="12" r="2" />
-          <circle cx="12" cy="3" r="2" />
-          <circle cx="12" cy="21" r="2" />
-        </svg>
-      )
-    case 'target':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" />
-          <circle cx="12" cy="12" r="6" />
-          <circle cx="12" cy="12" r="2" />
-        </svg>
-      )
-    case 'send':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13" />
-          <polygon points="22 2 15 22 11 13 2 9 22 2" />
-        </svg>
-      )
-    case 'sendArrow':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M6 4l12 8-12 8" />
-        </svg>
-      )
+    case 'plus':
+      return <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+    case 'pencil':
+      return <svg viewBox="0 0 24 24"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></svg>
     case 'trash':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="3 6 5 6 21 6" />
-          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-          <line x1="10" y1="11" x2="10" y2="17" />
-          <line x1="14" y1="11" x2="14" y2="17" />
-        </svg>
-      )
-    case 'search':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="11" cy="11" r="8" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-      )
+      return <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15" /><path d="M10 11v6M14 11v6" /></svg>
+    case 'send':
+      return <svg viewBox="0 0 24 24"><path d="M22 2 11 13" /><path d="m22 2-7 20-4-9-9-4 20-7Z" /></svg>
+    case 'mic':
+      return <svg viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3" /></svg>
+    case 'copy':
+      return <svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+    case 'check':
+      return <svg viewBox="0 0 24 24"><path d="m20 6-11 11-5-5" /></svg>
+    case 'volume':
+      return <svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5Z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" /></svg>
+    case 'refresh':
+      return <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2" /><path d="M3 12A9 9 0 0 1 18.5 5.8" /><path d="M3 20v-6h6M21 4v6h-6" /></svg>
+    case 'menu':
+      return <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+    case 'close':
+      return <svg viewBox="0 0 24 24"><path d="m18 6-12 12M6 6l12 12" /></svg>
     default:
       return <svg viewBox="0 0 24 24" />
   }
 }
 
-function renderMessageBody(messageText, isMindmap) {
-  const text = String(messageText || '').trim()
-  if (!text) return null
+function QuestionSet({ messageId, questions = [], answers, onAnswer }) {
+  const [currentIndex, setCurrentIndex] = useState(0)
 
-  if (isMindmap) {
-    return <div className="prof-text-content prof-text-content--mindmap">{text}</div>
+  if (!questions.length) return null
+
+  const totalQuestions = questions.length
+  const answeredCount = questions.filter((question) => Number.isInteger(answers?.[question.id])).length
+  const score = questions.reduce((total, question) => {
+    return total + (answers?.[question.id] === question.correta ? 1 : 0)
+  }, 0)
+  const finished = answeredCount === totalQuestions
+  const currentQuestion = questions[Math.min(currentIndex, totalQuestions - 1)]
+  const selected = currentQuestion ? answers?.[currentQuestion.id] : undefined
+  const hasAnswer = Number.isInteger(selected)
+  const isResultSlide = currentIndex >= totalQuestions
+  const progressValue = isResultSlide
+    ? 100
+    : Math.round(((currentIndex + (hasAnswer ? 1 : 0)) / totalQuestions) * 100)
+
+  const chooseAnswer = (questionId, optionIndex) => {
+    if (Number.isInteger(answers?.[questionId])) return
+    onAnswer(messageId, questionId, optionIndex)
   }
 
   return (
-    <div className="prof-text-content">
-      {text.split('\n').map((line, index) => (
-        <p key={`${index}-${line}`}>{line}</p>
-      ))}
-    </div>
+    <section className="prof-quiz-card" aria-label="Quiz interativo">
+      <header className="prof-quiz-card-head">
+        <div>
+          <span>Quiz interativo</span>
+          <strong>{isResultSlide ? 'Pontuação final' : `Questão ${currentIndex + 1} de ${totalQuestions}`}</strong>
+        </div>
+        <small>{finished ? `${score}/${totalQuestions} acertos` : `${answeredCount}/${totalQuestions} respondidas`}</small>
+      </header>
+
+      <div className="prof-quiz-progress" aria-hidden="true">
+        <span style={{ width: `${progressValue}%` }} />
+      </div>
+
+      {isResultSlide ? (
+        <div className="prof-quiz-result">
+          <span>{score}/{totalQuestions}</span>
+          <h3>{score === totalQuestions ? 'Mandou muito bem.' : 'Resultado do treino'}</h3>
+          <p>Você acertou {score} de {totalQuestions} perguntas.</p>
+          <div className="prof-quiz-review">
+            {questions.map((question, index) => {
+              const answer = answers?.[question.id]
+              const correct = answer === question.correta
+              return (
+                <div key={question.id} className={correct ? 'is-correct' : 'is-wrong'}>
+                  <strong>Questão {index + 1}: {correct ? 'correta' : 'revisar'}</strong>
+                  <span>Resposta correta: {String.fromCharCode(65 + question.correta)}. {question.explicacao}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <article className="prof-quiz-slide">
+          <p className="prof-question-statement">{currentQuestion.enunciado}</p>
+          <div className="prof-question-options">
+            {currentQuestion.opcoes.map((option, optionIndex) => {
+              const isSelected = selected === optionIndex
+              const isCorrect = currentQuestion.correta === optionIndex
+              const stateClass = hasAnswer
+                ? isCorrect
+                  ? 'is-correct'
+                  : isSelected
+                    ? 'is-wrong'
+                    : ''
+                : ''
+
+              return (
+                <button
+                  key={`${currentQuestion.id}-${optionIndex}`}
+                  type="button"
+                  className={`prof-question-option ${stateClass}`}
+                  onClick={() => chooseAnswer(currentQuestion.id, optionIndex)}
+                  disabled={hasAnswer}
+                >
+                  <span>{String.fromCharCode(65 + optionIndex)}</span>
+                  <em>{option}</em>
+                </button>
+              )
+            })}
+          </div>
+          {hasAnswer && (
+            <p className={`prof-quiz-lock-note ${selected === currentQuestion.correta ? 'is-correct' : 'is-wrong'}`}>
+              {selected === currentQuestion.correta ? 'Resposta correta.' : 'Resposta incorreta. A correta está marcada em verde.'}
+            </p>
+          )}
+        </article>
+      )}
+
+      <footer className="prof-quiz-footer">
+        <button
+          type="button"
+          className="prof-quiz-secondary"
+          onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))}
+          disabled={currentIndex === 0}
+        >
+          Voltar
+        </button>
+        {isResultSlide ? (
+          <button type="button" className="prof-quiz-primary" onClick={() => setCurrentIndex(0)}>
+            Revisar
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="prof-quiz-primary"
+            onClick={() => setCurrentIndex((index) => Math.min(totalQuestions, index + 1))}
+            disabled={!hasAnswer}
+          >
+            {currentIndex === totalQuestions - 1 ? 'Ver pontuação' : 'Próxima'}
+          </button>
+        )}
+      </footer>
+    </section>
   )
 }
 
 export function ProfessorPage() {
   const location = useLocation()
-  const [activeCategory, setActiveCategory] = useState(CATEGORIES[0])
-  const messageIdRef = useRef(0)
-  const autoHandoffRef = useRef(false)
-
-  const [conversations, setConversations] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) return JSON.parse(saved)
-    } catch (error) {
-      console.error('Failed to load professor conversation', error)
-    }
-
-    const initial = {}
-    CATEGORIES.forEach((cat, index) => {
-      initial[cat.id] = [{ id: Date.now() + index, sender: 'ai', text: cat.welcomeMessage }]
-    })
-    return initial
-  })
-
+  const [chats, setChats] = useState(() => loadProfessorChats())
+  const [activeChatId, setActiveChatId] = useState(() => loadProfessorChats()[0]?.id)
   const [inputText, setInputText] = useState('')
-  const [isSearchEnabled, setIsSearchEnabled] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
-  const [aiError, setAiError] = useState(false)
-  const messagesWallRef = useRef(null)
+  const [copiedId, setCopiedId] = useState('')
+  const [speakingId, setSpeakingId] = useState('')
+  const [isListening, setIsListening] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [editingChatId, setEditingChatId] = useState('')
+  const [titleDraft, setTitleDraft] = useState('')
+  const [questionAnswers, setQuestionAnswers] = useState({})
   const [queuedHandoff] = useState(() => normalizeProfessorHandoff(location.state?.handoff) || loadProfessorHandoff())
+  const threadRef = useRef(null)
+  const textareaRef = useRef(null)
+  const titleInputRef = useRef(null)
+  const recognitionRef = useRef(null)
+  const handoffConsumedRef = useRef(false)
 
-  const activeMessages = Array.isArray(conversations[activeCategory.id]) ? conversations[activeCategory.id] : EMPTY_MESSAGES
+  const activeChat = chats.find((chat) => chat.id === activeChatId) || chats[0] || createProfessorChat()
+  const activeMessages = Array.isArray(activeChat.messages) ? activeChat.messages : []
+  const charCount = inputText.length
 
-  const nextMessageId = useCallback(() => {
-    const now = Date.now()
-    messageIdRef.current += 1
-    return now + messageIdRef.current
+  const commitChats = useCallback((updater) => {
+    setChats((previous) => {
+      const next = typeof updater === 'function' ? updater(previous) : updater
+      return saveProfessorChats(next)
+    })
   }, [])
 
-  const isBrowserOffline = useCallback(() => {
-    if (typeof navigator === 'undefined') return false
-    return navigator.onLine === false
-  }, [])
+  const createNewChat = useCallback(() => {
+    const chat = createProfessorChat()
+    commitChats((previous) => [chat, ...previous])
+    setActiveChatId(chat.id)
+    setInputText('')
+    setHistoryOpen(false)
+    setEditingChatId('')
+    setTitleDraft('')
+    return chat
+  }, [commitChats])
 
-  /** Rola so a lista de mensagens - evita scrollIntoView, que puxa a pagina inteira. */
-  const scrollMessagesToEnd = useCallback((behavior = 'smooth') => {
-    const wall = messagesWallRef.current
-    if (!wall) return
-    const y = wall.scrollHeight
-    if (behavior === 'smooth') {
-      wall.scrollTo({ top: y, behavior: 'smooth' })
-    } else {
-      wall.scrollTop = y
+  useEffect(() => {
+    if (!editingChatId) return
+    titleInputRef.current?.focus()
+    titleInputRef.current?.select()
+  }, [editingChatId])
+
+  useEffect(() => {
+    if (activeChatId && chats.some((chat) => chat.id === activeChatId)) return
+    setActiveChatId(chats[0]?.id || createNewChat().id)
+  }, [activeChatId, chats, createNewChat])
+
+  useEffect(() => {
+    const thread = threadRef.current
+    if (!thread) return
+    thread.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [activeChatId, activeMessages.length, isTyping])
+
+  useEffect(() => {
+    const input = textareaRef.current
+    if (!input) return
+    input.style.height = 'auto'
+    input.style.height = `${Math.min(input.scrollHeight, 220)}px`
+  }, [inputText])
+
+  useEffect(() => {
+    const updateKeyboardOffset = () => {
+      const viewport = window.visualViewport
+      const offset = viewport
+        ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+        : 0
+      document.documentElement.style.setProperty('--prof-keyboard-offset', `${Math.round(offset)}px`)
+    }
+
+    updateKeyboardOffset()
+    window.visualViewport?.addEventListener('resize', updateKeyboardOffset)
+    window.visualViewport?.addEventListener('scroll', updateKeyboardOffset)
+    window.addEventListener('resize', updateKeyboardOffset)
+
+    return () => {
+      window.visualViewport?.removeEventListener('resize', updateKeyboardOffset)
+      window.visualViewport?.removeEventListener('scroll', updateKeyboardOffset)
+      window.removeEventListener('resize', updateKeyboardOffset)
+      document.documentElement.style.removeProperty('--prof-keyboard-offset')
     }
   }, [])
 
-  useEffect(() => {
-    scrollMessagesToEnd()
-  }, [activeMessages, isTyping, scrollMessagesToEnd])
+  const startEditingChatTitle = useCallback((chat) => {
+    setEditingChatId(chat.id)
+    setTitleDraft(String(chat.title ?? '').slice(0, 80))
+  }, [])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations))
-    } catch (error) {
-      console.error('Failed to save professor conversation', error)
+  const cancelEditingChatTitle = useCallback(() => {
+    setEditingChatId('')
+    setTitleDraft('')
+  }, [])
+
+  const saveChatTitle = useCallback((chatId = editingChatId) => {
+    if (!chatId) return
+    const cleanTitle = titleDraft.trim().slice(0, 80) || 'Novo chat'
+    commitChats((previous) => previous.map((chat) => (
+      chat.id === chatId
+        ? { ...chat, title: cleanTitle, updatedAt: new Date().toISOString() }
+        : chat
+    )))
+    setEditingChatId('')
+    setTitleDraft('')
+  }, [commitChats, editingChatId, titleDraft])
+
+  const deleteChat = useCallback((chatId) => {
+    const fallbackChat = createProfessorChat()
+    commitChats((previous) => {
+      const filtered = previous.filter((chat) => chat.id !== chatId)
+      return filtered.length > 0 ? filtered : [fallbackChat]
+    })
+    if (activeChatId === chatId) {
+      const nextChat = chats.find((chat) => chat.id !== chatId) || fallbackChat
+      setActiveChatId(nextChat.id)
     }
-  }, [conversations])
+    if (editingChatId === chatId) {
+      cancelEditingChatTitle()
+    }
+  }, [activeChatId, cancelEditingChatTitle, chats, commitChats, editingChatId])
 
-  const handleSendMessage = async (messageOverride = inputText, categoryOverride = activeCategory) => {
-    const userMessage = String(messageOverride ?? '').trim()
-    const categoryAtSend = categoryOverride || activeCategory
-    if (!userMessage || isTyping) return
+  const addLimitMessage = useCallback((chatId) => {
+    const limitMessage = createMessage({
+      sender: 'ai',
+      status: 'limit',
+      action: 'create_chat',
+      text: 'Você atingiu o comprimento máximo para esse chat. Crie outro para continuar com contexto limpo.',
+    })
 
-    if (isBrowserOffline()) {
-      setAiError(true)
-      window.alert('Voce esta offline. Verifique sua conexao para continuar usando o Professor IA.')
+    commitChats((previous) => previous.map((chat) => (
+      chat.id === chatId
+        ? {
+            ...chat,
+            messages: [...chat.messages, limitMessage],
+            updatedAt: new Date().toISOString(),
+          }
+        : chat
+    )))
+  }, [commitChats])
+
+  const sendToProfessor = useCallback(async ({
+    text,
+    chatId = activeChatId,
+    chatOverride = null,
+    historyMessagesOverride = null,
+    regenerateMessageId = '',
+    retryOf = '',
+  } = {}) => {
+    const cleanText = String(text ?? inputText).trim().slice(0, PROFESSOR_MAX_INPUT_CHARS)
+    if (!cleanText || isTyping) return
+
+    const chatAtSend = chatOverride || chats.find((chat) => chat.id === chatId) || activeChat
+    const messagesBefore = Array.isArray(chatAtSend.messages) ? chatAtSend.messages : []
+    const historyMessages = Array.isArray(historyMessagesOverride) ? historyMessagesOverride : messagesBefore
+    const chatIsTooLong = getProfessorChatCharCount(chatAtSend) + cleanText.length > PROFESSOR_MAX_CHAT_CHARS
+
+    if (chatIsTooLong) {
+      addLimitMessage(chatAtSend.id)
       return
     }
 
-    const categoryId = categoryAtSend.id
-    const categoryMessages = Array.isArray(conversations[categoryId]) ? conversations[categoryId] : []
+    const firstUserMessage = !messagesBefore.some((message) => message.sender === 'user')
+    const fallbackTitle = buildProfessorTitleFromMessage(cleanText)
+    const userMessage = createMessage({ sender: 'user', text: cleanText })
 
     setInputText('')
-    setAiError(false)
-
-    setConversations((prev) => ({
-      ...prev,
-      [categoryId]: [
-        ...(Array.isArray(prev[categoryId]) ? prev[categoryId] : []),
-        { id: nextMessageId(), sender: 'user', text: userMessage },
-      ],
-    }))
-
     setIsTyping(true)
 
-    const recentMessages = categoryMessages
-      .slice(-MAX_CHAT_HISTORY)
-      .filter((msg) => msg.sender === 'user' || msg.sender === 'ai')
-      .map((msg) => ({
-        role: msg.sender === 'user' ? 'user' : 'assistant',
-        content: msg.text,
-      }))
+    commitChats((previous) => {
+      const source = previous.some((chat) => chat.id === chatAtSend.id)
+        ? previous
+        : [chatAtSend, ...previous]
 
-    const systemPrompt = buildSystemPrompt(categoryAtSend)
+      return source.map((chat) => {
+        if (chat.id !== chatAtSend.id) return chat
 
-    let searchContextText = ''
-    if (isSearchEnabled) {
-      try {
-        const searchResult = await buscarContexto(userMessage)
-        if (searchResult) {
-          const cardsText = (searchResult.cards || [])
-            .map((card) => `- ${card.titulo}: ${card.texto} (${card.fonte})`)
-            .join('\n')
+        const nextMessages = regenerateMessageId
+          ? chat.messages.filter((message) => message.id !== regenerateMessageId)
+          : [...chat.messages, userMessage]
 
-          searchContextText = [
-            '',
-            '--- CONTEXTO FACTUAL PESQUISADO (USE ISSO PARA ENRIQUECER A RESPOSTA) ---',
-            `Resumo: ${searchResult.resumo || 'Sem resumo.'}`,
-            'Dados relevantes:',
-            cardsText || 'Nenhum dado especifico encontrado.',
-            '-------------------------------------------------------------------------',
-            '',
-          ].join('\n')
+        return {
+          ...chat,
+          title: firstUserMessage && chat.title === 'Novo chat' ? fallbackTitle : chat.title,
+          messages: nextMessages,
+          updatedAt: new Date().toISOString(),
         }
-      } catch (error) {
-        console.error('Falha na busca de contexto:', error)
-      }
-    }
-
-    const finalSystemPrompt = systemPrompt + (searchContextText ? `\n\n${searchContextText}` : '')
-
-    const userMessages = [
-      ...recentMessages,
-      { role: 'user', content: userMessage },
-    ]
-
-    const callProfessorIa = async () => {
-      const errors = []
-
-      for (const config of PROFESSOR_PROVIDER_FALLBACKS) {
-        try {
-          return await chamarIAEspecifica({
-            provider: config.provider,
-            modelVariant: config.modelVariant,
-            systemPrompt: finalSystemPrompt,
-            userMessages,
-          })
-        } catch (error) {
-          errors.push(error)
-          console.warn(
-            `Falha no provider ${config.provider} (${config.modelVariant}) para Professor IA.`,
-            error,
-          )
-        }
-      }
-
-      const lastError = errors[errors.length - 1]
-      throw lastError || new Error('Nenhum provedor respondeu no Professor IA.')
-    }
+      })
+    })
 
     try {
-      const response = await callProfessorIa()
-      const aiText = extractAiText(response)
+      const response = await chamarProfessorIA({
+        message: cleanText,
+        history: buildHistoryPayload(historyMessages),
+        chatTitle: chatAtSend.title,
+        shouldGenerateTitle: firstUserMessage,
+        retryOf,
+      })
 
-      if (!aiText) {
-        throw new Error('Resposta vazia da IA')
-      }
+      const aiMessage = createMessage({
+        sender: 'ai',
+        text: normalizeAiText(response),
+        questions: response?.questions,
+        sources: response?.sources,
+      })
 
-      setConversations((prev) => ({
-        ...prev,
-        [categoryId]: [
-          ...(Array.isArray(prev[categoryId]) ? prev[categoryId] : []),
-          { id: nextMessageId(), sender: 'ai', text: aiText },
-        ],
-      }))
-      setAiError(false)
+      commitChats((previous) => previous.map((chat) => (
+        chat.id === chatAtSend.id
+          ? {
+              ...chat,
+              title: firstUserMessage && response?.title
+                ? String(response.title).trim().slice(0, 80)
+                : chat.title,
+              messages: [...chat.messages, aiMessage],
+              updatedAt: new Date().toISOString(),
+            }
+          : chat
+      )))
     } catch (error) {
-      console.error('Erro ao chamar IA do Professor:', error)
-      const rawMessage = String(error?.message || '').toLowerCase()
-      const isQuotaBlocked = error?.code === 'quota_blocked' || rawMessage.includes('limite do plano free')
-      const isOffline = isBrowserOffline()
+      const errorText = error?.code === 'quota_blocked'
+        ? error.message
+        : 'O serviço de IA está instável agora. Tente novamente em alguns segundos.'
+      const canRetry = error?.code !== 'quota_blocked'
 
-      setConversations((prev) => ({
-        ...prev,
-        [categoryId]: [
-          ...(Array.isArray(prev[categoryId]) ? prev[categoryId] : []),
-          {
-            id: nextMessageId(),
-            sender: 'ai',
-            text: isQuotaBlocked
-              ? 'Voce atingiu o limite diario de IA no plano atual. Tente novamente amanha ou faca upgrade do plano.'
-              : isOffline
-              ? 'Estou sem conexao no momento. Verifique sua internet e tente novamente.'
-              : 'O servico de IA esta indisponivel no momento. Ja tentei provedores alternativos. Tente novamente em alguns segundos.',
-          },
-        ],
-      }))
-
-      if (isOffline) {
-        window.alert('Conexao offline detectada. O Professor IA nao consegue responder sem internet.')
-      } else if (isQuotaBlocked) {
-        window.alert('Limite diario de IA atingido no plano atual.')
-      }
-      setAiError(true)
+      commitChats((previous) => previous.map((chat) => (
+        chat.id === chatAtSend.id
+          ? {
+              ...chat,
+              messages: [
+                ...chat.messages,
+                createMessage({
+                  sender: 'ai',
+                  status: 'error',
+                  action: canRetry ? 'retry' : undefined,
+                  text: errorText,
+                  retryText: canRetry ? cleanText : '',
+                  retryOf: canRetry ? retryOf || errorText : '',
+                }),
+              ],
+              updatedAt: new Date().toISOString(),
+            }
+          : chat
+      )))
     } finally {
       setIsTyping(false)
     }
-  }
+  }, [activeChat, activeChatId, addLimitMessage, chats, commitChats, inputText, isTyping])
 
   useEffect(() => {
     const handoff = queuedHandoff
-    if (!handoff || autoHandoffRef.current) return
-
-    autoHandoffRef.current = true
+    if (!handoff || handoffConsumedRef.current) return
+    handoffConsumedRef.current = true
     clearProfessorHandoff()
 
-    const category = CATEGORIES.find((item) => item.id === handoff.categoryId) || CATEGORIES[0]
-    setActiveCategory(category)
-    setInputText('')
-    void handleSendMessage(handoff.message, category)
-  }, [queuedHandoff])
+    const chat = createNewChat()
+    void sendToProfessor({ text: handoff.message, chatId: chat.id, chatOverride: chat })
+  }, [createNewChat, queuedHandoff, sendToProfessor])
 
-  const handleClearHistory = () => {
-    setAiError(false)
-    setConversations((prev) => ({
-      ...prev,
-      [activeCategory.id]: [{ id: nextMessageId(), sender: 'ai', text: activeCategory.welcomeMessage }],
-    }))
+  const handleInputChange = (event) => {
+    const next = event.target.value.slice(0, PROFESSOR_MAX_INPUT_CHARS)
+    setInputText(next)
   }
 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
-      handleSendMessage()
+      void sendToProfessor()
     }
   }
 
+  const handleCopy = async (message) => {
+    try {
+      await navigator.clipboard?.writeText(message.text)
+      setCopiedId(message.id)
+      window.setTimeout(() => setCopiedId((current) => current === message.id ? '' : current), 1600)
+    } catch {
+      setCopiedId('')
+    }
+  }
+
+  const handleSpeak = (message) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return
+    window.speechSynthesis.cancel()
+    if (speakingId === message.id) {
+      setSpeakingId('')
+      return
+    }
+
+    const utterance = new SpeechSynthesisUtterance(message.text)
+    utterance.lang = 'pt-BR'
+    utterance.rate = 1
+    utterance.onend = () => setSpeakingId('')
+    utterance.onerror = () => setSpeakingId('')
+    setSpeakingId(message.id)
+    window.speechSynthesis.speak(utterance)
+  }
+
+  const handleRetryFailure = (messageId) => {
+    const messageIndex = activeMessages.findIndex((message) => message.id === messageId)
+    if (messageIndex < 0) return
+    const failedMessage = activeMessages[messageIndex]
+    const previousUserIndex = activeMessages
+      .slice(0, messageIndex)
+      .map((message, index) => ({ message, index }))
+      .reverse()
+      .find((entry) => entry.message.sender === 'user')?.index
+    const previousUser = Number.isInteger(previousUserIndex) ? activeMessages[previousUserIndex] : null
+    const retryText = failedMessage.retryText || previousUser?.text || ''
+    if (!retryText) return
+    void sendToProfessor({
+      text: retryText,
+      chatId: activeChat.id,
+      historyMessagesOverride: activeMessages.slice(0, Number.isInteger(previousUserIndex) ? previousUserIndex : messageIndex),
+      regenerateMessageId: messageId,
+      retryOf: failedMessage.retryOf || failedMessage.text || '',
+    })
+  }
+
+  const handleMic = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      window.alert('Seu navegador ainda não suporta transcrição por voz nesta página.')
+      return
+    }
+
+    if (recognitionRef.current && isListening) {
+      recognitionRef.current.stop()
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'pt-BR'
+    recognition.interimResults = false
+    recognition.continuous = false
+    recognition.onstart = () => setIsListening(true)
+    recognition.onend = () => setIsListening(false)
+    recognition.onerror = () => setIsListening(false)
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((result) => result[0]?.transcript || '')
+        .join(' ')
+        .trim()
+
+      if (transcript) {
+        setInputText((current) => {
+          const glue = current.trim() ? ' ' : ''
+          return `${current}${glue}${transcript}`.slice(0, PROFESSOR_MAX_INPUT_CHARS)
+        })
+      }
+    }
+    recognitionRef.current = recognition
+    recognition.start()
+  }
+
+  const handleAnswer = (messageId, questionId, optionIndex) => {
+    setQuestionAnswers((previous) => {
+      const messageAnswers = previous[messageId] || {}
+      if (Number.isInteger(messageAnswers[questionId])) return previous
+
+      return {
+        ...previous,
+        [messageId]: {
+          ...messageAnswers,
+          [questionId]: optionIndex,
+        },
+      }
+    })
+  }
+
   return (
-    <div className="professor-sleek-view">
-      <div className="professor-container anim-fade-in">
-        <header className="professor-nav-header">
-          <div className="prof-pills-bar anim-slide-down">
-            <div className="prof-pills-scroll">
-              {CATEGORIES.map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  className={`prof-pill-btn ${activeCategory.id === cat.id ? 'active' : ''}`}
-                  onClick={() => setActiveCategory(cat)}
-                >
-                  {iconSvg(cat.icon)}
-                  <span>{cat.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </header>
+    <div className="prof-page">
+      <section className="prof-control-card" aria-label="Controles do chat do Professor IA">
+        <button
+          type="button"
+          className="prof-history-trigger"
+          onClick={() => setHistoryOpen(true)}
+          aria-haspopup="dialog"
+        >
+          {iconSvg('menu')}
+          Histórico
+        </button>
 
-        <div className="prof-chat-card anim-slide-up" style={{ animationDelay: '0.1s' }}>
-          <div className="prof-card-head">
-            <div className="prof-session-bar">
-              <div className="prof-session-icon" aria-hidden="true">
-                {iconSvg(activeCategory.icon)}
+        <div className="prof-current-title">
+          {editingChatId === activeChat.id && !historyOpen ? (
+            <input
+              ref={titleInputRef}
+              value={titleDraft}
+              onChange={(event) => setTitleDraft(event.target.value.slice(0, 80))}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  saveChatTitle(activeChat.id)
+                }
+                if (event.key === 'Escape') {
+                  cancelEditingChatTitle()
+                }
+              }}
+              aria-label="Nome do chat atual"
+            />
+          ) : (
+            <span>{activeChat.title || 'Novo chat'}</span>
+          )}
+        </div>
+
+        <div className="prof-control-actions">
+          <button
+            type="button"
+            className="prof-icon-btn"
+            onClick={() => {
+              if (editingChatId === activeChat.id && !historyOpen) {
+                saveChatTitle(activeChat.id)
+              } else {
+                startEditingChatTitle(activeChat)
+              }
+            }}
+            aria-label={editingChatId === activeChat.id && !historyOpen ? 'Salvar nome do chat atual' : 'Editar nome do chat atual'}
+            title={editingChatId === activeChat.id && !historyOpen ? 'Salvar nome' : 'Editar nome'}
+          >
+            {iconSvg(editingChatId === activeChat.id && !historyOpen ? 'check' : 'pencil')}
+          </button>
+          <button
+            type="button"
+            className="prof-icon-btn"
+            onClick={createNewChat}
+            aria-label="Criar novo chat"
+            title="Novo chat"
+          >
+            {iconSvg('plus')}
+          </button>
+        </div>
+      </section>
+
+      {historyOpen && (
+        <div className="prof-history-overlay" role="dialog" aria-modal="true" aria-label="Histórico de chats do Professor IA">
+          <button
+            type="button"
+            className="prof-history-backdrop"
+            aria-label="Fechar histórico"
+            onClick={() => setHistoryOpen(false)}
+          />
+          <section className="prof-history-modal">
+            <header className="prof-history-modal-head">
+              <div>
+                <span>Histórico</span>
+                <strong>Conversas do Professor</strong>
               </div>
-              <div className="prof-session-titles">
-                <span className="prof-session-active">
-                  Sessão ativa: <strong>{activeCategory.label}</strong>
-                </span>
-                <span className="prof-session-meta">
-                  IA Experimental
-                  {aiError && <span className="prof-ai-error-badge" title="Falha de conexão ou indisponibilidade temporária"> ! Indisponível</span>}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="prof-session-clear"
-                onClick={handleClearHistory}
-                title="Limpar conversa"
-                aria-label="Limpar conversa desta sessão"
-              >
-                {iconSvg('trash')}
+              <button type="button" className="prof-icon-btn" onClick={() => setHistoryOpen(false)} aria-label="Fechar histórico">
+                {iconSvg('close')}
               </button>
-            </div>
-            <div className="prof-card-rule" aria-hidden="true" />
-          </div>
+            </header>
 
-          <main className={`prof-chat-surface ${activeCategory.id === 'mapas' ? 'prof-chat-surface--map' : ''}`}>
-            <div
-              ref={messagesWallRef}
-              className="prof-messages-wall"
-              role="log"
-              aria-live="polite"
-              aria-relevant="additions"
-            >
-              {activeMessages.map((msg, index) => {
-                if (activeCategory.id === 'mapas' && msg.text === '[MAPA_GERADO]') return null
+            <button type="button" className="prof-new-chat" onClick={createNewChat}>
+              {iconSvg('plus')}
+              Novo chat
+            </button>
 
-                const isMindmapReply = activeCategory.id === 'mapas' && msg.sender === 'ai'
+            <div className="prof-chat-list">
+              {chats.map((chat) => {
+                const isTitleEditing = editingChatId === chat.id
 
                 return (
                   <div
-                    key={msg.id}
-                    className={`prof-msg-row ${msg.sender === 'user' ? 'user-row' : 'ai-row'} anim-pop-in`}
-                    style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
+                    key={chat.id}
+                    className={`prof-chat-list-item ${chat.id === activeChat.id ? 'active' : ''}`}
                   >
-                    <div className="prof-msg-bubble">
-                      {msg.sender === 'ai' && <div className="prof-side-avatar" aria-hidden="true">👨‍🏫</div>}
-                      {renderMessageBody(msg.text, isMindmapReply)}
+                    {isTitleEditing ? (
+                      <input
+                        ref={titleInputRef}
+                        className="prof-title-input"
+                        value={titleDraft}
+                        onChange={(event) => setTitleDraft(event.target.value.slice(0, 80))}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault()
+                            saveChatTitle(chat.id)
+                          }
+                          if (event.key === 'Escape') {
+                            cancelEditingChatTitle()
+                          }
+                        }}
+                        aria-label="Editar nome do chat"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="prof-chat-open"
+                        onClick={() => {
+                          setActiveChatId(chat.id)
+                          setHistoryOpen(false)
+                          cancelEditingChatTitle()
+                        }}
+                        aria-label={`Abrir ${chat.title}`}
+                      >
+                        <span>{chat.title || 'Novo chat'}</span>
+                        <small>{chat.messages.length} mensagens</small>
+                      </button>
+                    )}
+
+                    <div className="prof-chat-actions">
+                      <button
+                        type="button"
+                        className="prof-icon-btn"
+                        onClick={() => {
+                          if (isTitleEditing) {
+                            saveChatTitle(chat.id)
+                          } else {
+                            startEditingChatTitle(chat)
+                          }
+                        }}
+                        aria-label={isTitleEditing ? `Salvar ${chat.title}` : `Editar ${chat.title}`}
+                      >
+                        {iconSvg(isTitleEditing ? 'check' : 'pencil')}
+                      </button>
+                      <button
+                        type="button"
+                        className="prof-delete-chat"
+                        onClick={() => deleteChat(chat.id)}
+                        aria-label={`Excluir ${chat.title}`}
+                      >
+                        {iconSvg('trash')}
+                      </button>
                     </div>
                   </div>
                 )
               })}
+            </div>
+          </section>
+        </div>
+      )}
 
-              {isTyping && (
-                <div className="prof-msg-row ai-row anim-pop-in">
-                  <div className="prof-msg-bubble">
-                    <div className="prof-side-avatar" aria-hidden="true">👨‍🏫</div>
-                    <div className="prof-typing-wave">
-                      <span />
-                      <span />
-                      <span />
-                    </div>
+      <main className="prof-thread" ref={threadRef} aria-live="polite">
+          {activeMessages.length === 0 && (
+            <article className="prof-message is-ai is-welcome">
+              <div className="prof-message-card">
+                <div className="prof-message-kicker">Professor IA</div>
+                <ProfessorMarkdown
+                  text={`# Como posso te ajudar hoje?\n\nPeça uma explicação direta, um resumo organizado, um plano de estudo ou um treino com questões interativas.\n\nTambém posso pesquisar na web quando fizer sentido e estruturar a resposta com títulos, subtítulos e passos claros.`}
+                />
+              </div>
+            </article>
+          )}
+
+          {activeMessages.map((message) => {
+            const hasQuiz = message.questions?.length > 0
+            const displayText = hasQuiz
+              ? 'Preparei um quiz com 5 perguntas. Responda uma por vez no card interativo abaixo.'
+              : message.text
+
+            return (
+            <article
+              key={message.id}
+              className={`prof-message ${message.sender === 'user' ? 'is-user' : 'is-ai'} ${message.status ? `is-${message.status}` : ''}`}
+            >
+              <div className="prof-message-card">
+                <div className="prof-message-kicker">{message.sender === 'user' ? 'Você' : 'Professor IA'}</div>
+                {hasQuiz ? (
+                  <p className="prof-quiz-note">{displayText}</p>
+                ) : (
+                  <ProfessorMarkdown text={displayText} />
+                )}
+                {message.action === 'create_chat' && (
+                  <button type="button" className="prof-inline-create" onClick={createNewChat}>
+                    Crie outro
+                  </button>
+                )}
+                {message.sources?.length > 0 && (
+                  <div className="prof-sources">
+                    <span>Fontes consultadas</span>
+                    {message.sources.map((source, sourceIndex) => (
+                      source.url ? (
+                        <a key={`${source.url}-${sourceIndex}`} href={source.url} target="_blank" rel="noreferrer">
+                          {source.nome || source.url}
+                        </a>
+                      ) : (
+                        <small key={`${source.nome}-${sourceIndex}`}>{source.nome || source.trecho}</small>
+                      )
+                    ))}
                   </div>
+                )}
+                <QuestionSet
+                  messageId={message.id}
+                  questions={message.questions || []}
+                  answers={questionAnswers[message.id] || {}}
+                  onAnswer={handleAnswer}
+                />
+              </div>
+
+              {message.sender === 'ai' && (
+                <div className="prof-message-actions" aria-label="Ações da resposta">
+                  <button type="button" onClick={() => handleSpeak({ ...message, text: displayText })}>
+                    {iconSvg('volume')}
+                    {speakingId === message.id ? 'Parar' : 'Ler'}
+                  </button>
+                  {message.action === 'retry' && (
+                    <button type="button" onClick={() => handleRetryFailure(message.id)} disabled={isTyping}>
+                      {iconSvg('refresh')}
+                      Tentar de novo
+                    </button>
+                  )}
+                  <button type="button" onClick={() => handleCopy({ ...message, text: displayText })}>
+                    {iconSvg(copiedId === message.id ? 'check' : 'copy')}
+                    {copiedId === message.id ? 'Copiado' : 'Copiar'}
+                  </button>
                 </div>
               )}
-            </div>
+            </article>
+            )
+          })}
 
-            <div className="prof-actions-dock">
-              <div className="prof-card-rule prof-card-rule--subtle" aria-hidden="true" />
-              <div
-                className="prof-composer-unified"
-                role="group"
-                aria-label="Escrever e enviar mensagem"
-              >
-                <label className="prof-composer-input-area">
-                  <span className="sr-only">Mensagem para o professor</span>
-                  <textarea
-                    className="prof-composer-input"
-                    value={inputText}
-                    onChange={(event) => setInputText(event.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={`Escreva algo em '${activeCategory.label}'...`}
-                    rows={1}
-                    autoComplete="off"
-                  />
-                </label>
-                <button
-                  type="button"
-                  className={`prof-search-toggle ${isSearchEnabled ? 'active' : ''}`}
-                  onClick={() => setIsSearchEnabled(!isSearchEnabled)}
-                  title={isSearchEnabled ? 'Desativar pesquisa IA' : 'Ativar pesquisa IA (mais lento, porém mais preciso)'}
-                >
-                  {iconSvg('search')}
-                </button>
-                <button
-                  type="button"
-                  className="prof-send-command"
-                  onClick={handleSendMessage}
-                  disabled={!inputText.trim() || isTyping}
-                  aria-label="Enviar mensagem"
-                >
-                  {iconSvg('sendArrow')}
-                </button>
+          {isTyping && (
+            <article className="prof-message is-ai">
+              <div className="prof-message-card">
+                <div className="prof-message-kicker">Professor IA</div>
+                <div className="prof-typing">
+                  <span />
+                  <span />
+                  <span />
+                </div>
               </div>
-              <p className="prof-safety-note">As respostas da IA podem ser imprecisas.</p>
-            </div>
-          </main>
-        </div>
-      </div>
+            </article>
+          )}
+        </main>
+
+        <form
+          className="prof-composer-card"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void sendToProfessor()
+          }}
+        >
+          <button
+            type="button"
+            className={`prof-mic-btn ${isListening ? 'is-listening' : ''}`}
+            onClick={handleMic}
+            aria-label={isListening ? 'Parar transcrição' : 'Transcrever fala'}
+          >
+            {iconSvg('mic')}
+          </button>
+
+          <label className="prof-input-shell">
+            <span className="sr-only">Mensagem para o Professor IA</span>
+            <textarea
+              ref={textareaRef}
+              value={inputText}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Pergunte, peça um resumo ou solicite questões..."
+              rows={1}
+              maxLength={PROFESSOR_MAX_INPUT_CHARS}
+            />
+            <small>{charCount.toLocaleString('pt-BR')}/{PROFESSOR_MAX_INPUT_CHARS.toLocaleString('pt-BR')}</small>
+          </label>
+
+          <button
+            type="submit"
+            className="prof-send-btn"
+            disabled={!inputText.trim() || isTyping}
+            aria-label="Enviar mensagem"
+          >
+            {iconSvg('send')}
+          </button>
+        </form>
     </div>
   )
 }

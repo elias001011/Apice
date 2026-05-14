@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { ThemeToggleButton } from './ThemeToggleButton.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { useAppBusy } from './AppBusyContext.jsx'
@@ -17,6 +17,7 @@ import { QuotaLimitBanner } from './QuotaLimitBanner.jsx'
 
 export function AppShell() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const { busy } = useAppBusy()
   const { theme, accent } = useTheme()
@@ -63,6 +64,7 @@ export function AppShell() {
     theme,
     accent,
   })
+  const isProfessorRoute = location.pathname.startsWith('/professor')
 
   return (
     <UpgradeModalProvider>
@@ -188,7 +190,7 @@ export function AppShell() {
           <QuotaLimitBanner />
           <Outlet />
         </main>
-        <Footer />
+        {!isProfessorRoute && <Footer />}
         <ConquistaToast />
 
         {busy && (

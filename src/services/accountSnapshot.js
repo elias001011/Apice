@@ -10,12 +10,11 @@
  * DADOS NA NUVEM:
  * ✅ Conquistas, Perfil, Preferências IA, Histórico (índices completos SEM redação),
  *    Análise de desempenho, Localização do clima, Radar (temas + detalhes dos favoritos),
- *    Data da prova, Cota diária, Plano/billing, Avatar, Notificações
+ *    Data da prova, Cota diária, Plano/billing, Avatar, Notificações, Professor IA
  * ❌ Aparência (tema, accent, fonte), Redação completa, Detalhes do Radar não-favoritos
  */
 
 import {
-  clearAiResponsePreference,
   loadAiResponsePreference,
   normalizeAiResponsePreference,
   saveAiResponsePreference,
@@ -34,6 +33,13 @@ import {
   loadEssayHistoryCount,
 } from './essayInsights.js'
 import {
+  loadSimuladoHistory,
+  compactSimuladoHistoryEntry,
+  mergeSimuladoHistorySnapshots,
+  saveSimuladoHistorySnapshot,
+  loadSimuladoHistoryCount,
+} from './simuladoHistory.js'
+import {
   loadManualEnemDate,
   saveManualEnemDate,
 } from './enemCalendar.js'
@@ -42,7 +48,6 @@ import {
   getAiUsageDayKey,
   getFreePlanUsageSnapshot,
   setFreePlanUsageSnapshot,
-  resetFreePlanUsage,
   getCurrentPlanTier,
   setPlanTier,
 } from './freePlanUsage.js'
@@ -66,10 +71,8 @@ import {
   DEFAULT_NOTIFICATIONS,
   loadNotificationPreferences,
   saveNotificationPreferences,
-  resetNotificationPreferences,
 } from './notificationPreferences.js'
 import {
-  clearUserSummary,
   loadUserSummary,
   normalizeUserSummary,
   saveUserSummary,
@@ -84,6 +87,12 @@ import {
   saveWeatherLocation,
   normalizeWeatherLocation,
 } from './weatherPreferences.js'
+import {
+  loadProfessorChats,
+  saveProfessorChats,
+  compactProfessorChatsForCloud,
+  mergeProfessorChats,
+} from './professorChats.js'
 
 const LAYOUT_MODE_KEY = 'apice:layoutMode'
 const CONTAINER_SIZE_KEY = 'apice:containerSize'
@@ -91,34 +100,12 @@ const ANIMATIONS_ENABLED_KEY = 'apice:animationsEnabled'
 const CARD_HOVER_ENABLED_KEY = 'apice:cardHoverEffects'
 
 // Versão atual do schema do snapshot. Incrementar quando houver breaking changes.
-export const CURRENT_SCHEMA_VERSION = 18
+export const CURRENT_SCHEMA_VERSION = 20
 // Versões mínimas compatíveis (abaixo disso, os dados são considerados corrompidos/incompatíveis)
 export const MIN_COMPATIBLE_VERSION = 15
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
-}
-
-function readStoredValue(key, fallback) {
-  if (!canUseStorage()) return fallback
-  try {
-    const value = localStorage.getItem(key)
-    return value || fallback
-  } catch {
-    return fallback
-  }
-}
-
-function readStoredBoolean(key, fallback) {
-  if (!canUseStorage()) return fallback
-
-  try {
-    const raw = localStorage.getItem(key)
-    if (raw === null) return fallback
-    return raw === 'true'
-  } catch {
-    return fallback
-  }
 }
 
 function _normalizeBooleanPreference(value, fallback) {
@@ -130,16 +117,6 @@ function _normalizeBooleanPreference(value, fallback) {
     if (['false', '0', 'no', 'off'].includes(normalized)) return false
   }
   return fallback
-}
-
-function getSystemAnimationsEnabled() {
-  if (typeof window === 'undefined') return true
-  return !(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false)
-}
-
-function getIsMobileLayout() {
-  if (typeof window === 'undefined') return false
-  return window.matchMedia?.('(max-width: 767px)')?.matches ?? false
 }
 
 /**
@@ -288,6 +265,11 @@ export function buildAccountSnapshot(user) {
     .map((item) => compactCloudEssayHistoryEntryFull(item))
     .filter(Boolean)
 
+  const localSimuladoHistory = loadSimuladoHistory()
+  const cloudSimuladoHistory = localSimuladoHistory
+    .map((item) => compactSimuladoHistoryEntry(item))
+    .filter(Boolean)
+
   // Radar: lista de temas + detalhes apenas dos favoritos
   const localRadar = loadRadarSnapshot()
   const radarThemes = Array.isArray(localRadar?.temas) ? localRadar.temas : []
@@ -312,6 +294,8 @@ export function buildAccountSnapshot(user) {
     profile: readProfileSnapshot(user),
     historyCount: loadEssayHistoryCount(),
     history: cloudHistory,
+    simuladoHistoryCount: loadSimuladoHistoryCount(),
+    simuladoHistory: cloudSimuladoHistory,
     usage: getFreePlanUsageSnapshot(),
     billing: getBillingState(),
     planStatus: getCurrentBillingStatus(),
@@ -335,6 +319,7 @@ export function buildAccountSnapshot(user) {
       .filter(Boolean),
     summary: loadUserSummary(),
     aiResponsePreference: loadAiResponsePreference(),
+    professorChats: compactProfessorChatsForCloud(loadProfessorChats()),
     avatarSettings: loadAvatarSettings(),
     notifications: loadNotificationPreferences(),
     conquistas: loadConquistas(),
@@ -367,6 +352,9 @@ export function normalizeAccountSnapshot(rawSnapshot) {
   if (!rawSnapshot || typeof rawSnapshot !== 'object') return null
 
   const history = normalizeHistory(Array.isArray(rawSnapshot.history) ? rawSnapshot.history : [])
+  const simuladoHistory = Array.isArray(rawSnapshot.simuladoHistory)
+    ? rawSnapshot.simuladoHistory.map((item) => compactSimuladoHistoryEntry(item)).filter(Boolean)
+    : []
   const radarFavorites = normalizeRadarFavorites(
     Array.isArray(rawSnapshot.radarFavorites)
       ? rawSnapshot.radarFavorites
@@ -397,7 +385,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
   }
 
   const snapshot = {
-    version: Number(rawSnapshot.version ?? 17) || 17,
+    version: Number(rawSnapshot.version ?? CURRENT_SCHEMA_VERSION) || CURRENT_SCHEMA_VERSION,
     profile: readProfileSnapshot({
       user_metadata: rawSnapshot.profile || {},
       email: rawSnapshot.profile?.email || '',
@@ -406,6 +394,8 @@ export function normalizeAccountSnapshot(rawSnapshot) {
     preferences: null,
     history,
     historyCount: Number.isFinite(Number(rawSnapshot.historyCount)) ? Number(rawSnapshot.historyCount) : history.length,
+    simuladoHistory,
+    simuladoHistoryCount: Number.isFinite(Number(rawSnapshot.simuladoHistoryCount)) ? Number(rawSnapshot.simuladoHistoryCount) : simuladoHistory.length,
     usage: normalizeUsage(rawSnapshot.usage),
     ...(billing ? { billing } : {}),
     planStatus: String(rawSnapshot.planStatus ?? billing?.status ?? rawSnapshot.planTier ?? 'free').trim() || 'free',
@@ -419,6 +409,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
     radarSnapshot,
     radarFavorites,
     summary: rawSnapshot.summary ? normalizeUserSummary(rawSnapshot.summary) : null,
+    professorChats: Array.isArray(rawSnapshot.professorChats) ? rawSnapshot.professorChats : [],
     avatarSettings: normalizeAvatarSettings(rawSnapshot.avatarSettings || rawSnapshot.avatar || null),
     notifications: loadNotificationPreferencesFromObject(rawSnapshot.notifications),
     conquistas: normalizeConquistasSnapshot(rawSnapshot.conquistas || null),
@@ -466,6 +457,7 @@ export function applyAccountSnapshot(snapshot) {
       'apice:billing-state:v1', 'apice:plan:tier',
       'apice:free-plan-usage:v1',
       'apice:historico', 'apice:historico:total',
+      'apice:simulado:historico:v1', 'apice:simulado:historico:total:v1',
       'apice:user-summary',
       'apice:radar-favorites', 'apice:radar-state',
       'apice:enem-manual-date',
@@ -474,6 +466,7 @@ export function applyAccountSnapshot(snapshot) {
       'apice:notificacoes',
       'apice:conquistas',
       'apice:weather:location:v1',
+      'apice:professor-chats:v1',
     ]
     keysToRemove.forEach(key => {
       try { localStorage.removeItem(key) } catch {
@@ -491,6 +484,16 @@ export function applyAccountSnapshot(snapshot) {
     const incomingHistoryCount = Number.isFinite(Number(snapshot.historyCount)) ? Number(snapshot.historyCount) : 0
     const historyCount = Math.max(loadEssayHistoryCount(), mergedHistory.length, incomingHistoryCount)
     saveEssayHistorySnapshot(mergedHistory, historyCount)
+  }
+
+  // ── Histórico de simulados: merge por ID, sem duplicar ──
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'simuladoHistory')) {
+    const cloudSimuladoHistory = Array.isArray(snapshot.simuladoHistory) ? snapshot.simuladoHistory : []
+    const localSimuladoHistory = loadSimuladoHistory()
+    const mergedSimuladoHistory = mergeSimuladoHistorySnapshots(localSimuladoHistory, cloudSimuladoHistory)
+    const incomingSimuladoCount = Number.isFinite(Number(snapshot.simuladoHistoryCount)) ? Number(snapshot.simuladoHistoryCount) : 0
+    const simuladoHistoryCount = Math.max(loadSimuladoHistoryCount(), mergedSimuladoHistory.length, incomingSimuladoCount)
+    saveSimuladoHistorySnapshot(mergedSimuladoHistory, simuladoHistoryCount)
   }
 
   // ── Preferências de aparência: NUNCA restauradas da nuvem ──
@@ -614,6 +617,16 @@ export function applyAccountSnapshot(snapshot) {
     }
   }
 
+  // ── Professor IA: merge por chat, limite de 10 chats vindos da nuvem ──
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'professorChats')) {
+    const cloudProfessorChats = Array.isArray(snapshot.professorChats) ? snapshot.professorChats : []
+    const localProfessorChats = loadProfessorChats()
+    const mergedProfessorChats = mergeProfessorChats(localProfessorChats, cloudProfessorChats)
+    if (mergedProfessorChats.length > 0) {
+      saveProfessorChats(mergedProfessorChats)
+    }
+  }
+
   // ── Avatar settings ──
   if (Object.prototype.hasOwnProperty.call(snapshot, 'avatarSettings')) {
     const localAvatar = loadAvatarSettings()
@@ -647,12 +660,14 @@ export function applyAccountSnapshot(snapshot) {
   // ── Dispara eventos de atualização ──
   window.dispatchEvent(new CustomEvent('apice:theme-updated'))
   window.dispatchEvent(new CustomEvent('apice:historico-updated'))
+  window.dispatchEvent(new CustomEvent('apice:simulado-historico-updated'))
   window.dispatchEvent(new CustomEvent('apice:free-plan-usage-updated'))
   window.dispatchEvent(new CustomEvent('apice:radar-favorites-updated'))
   window.dispatchEvent(new CustomEvent('apice:radar-state-updated'))
   window.dispatchEvent(new CustomEvent('apice:user-summary-updated'))
   window.dispatchEvent(new CustomEvent('apice:notificacoes-updated'))
   window.dispatchEvent(new CustomEvent('apice:conquistas-updated'))
+  window.dispatchEvent(new CustomEvent('apice:professor-chats-updated'))
   window.dispatchEvent(new CustomEvent('apice:account-state-updated'))
   window.dispatchEvent(new CustomEvent('apice:weather-preferences-updated'))
 }

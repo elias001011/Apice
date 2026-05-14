@@ -20,10 +20,7 @@ import {
   pushStateToCloud,
   clearLocalCloudSync,
 } from '../services/cloudSync.js'
-import {
-  isWelcomePremiumActive,
-  maybeGrantWelcomePremiumForUser,
-} from '../services/billingState.js'
+
 import { refreshUserSummaryFromHistory } from '../services/userSummary.js'
 
 // Configure GoTrue instance
@@ -35,6 +32,27 @@ const authConfig = {
 }
 
 const auth = new GoTrue(authConfig)
+const CLOUD_PULL_SESSION_PREFIX = 'apice:cloud-session:has-pulled'
+const LAST_AUTH_ACCOUNT_KEY = 'apice:auth:last-account:v1'
+const ACCOUNT_LOCAL_STATE_KEYS = [
+  'apice:billing-state:v1',
+  'apice:plan:tier',
+  'apice:free-plan-usage:v1',
+  'apice:historico',
+  'apice:historico:total',
+  'apice:simulado:historico:v1',
+  'apice:simulado:historico:total:v1',
+  'apice:user-summary',
+  'apice:radar-favorites',
+  'apice:radar-state',
+  'apice:enem-manual-date',
+  'apice:ai-response-preference',
+  'apice:avatar-settings',
+  'apice:notificacoes',
+  'apice:conquistas',
+  'apice:weather:location:v1',
+  'apice:professor-chats:v1',
+]
 
 function pickSafeUserMetadata(metadata) {
   return {
@@ -78,6 +96,103 @@ function hasStoredIdentitySession(authClient) {
   }
 }
 
+function getAuthAccountKey(account) {
+  return String(account?.id || account?.sub || account?.email || '').trim().toLowerCase()
+}
+
+function getCloudPullSessionKey(account) {
+  const accountKey = getAuthAccountKey(account) || 'unknown'
+  return `${CLOUD_PULL_SESSION_PREFIX}:${accountKey}`
+}
+
+function clearCloudPullSessionFlags() {
+  if (typeof window === 'undefined' || !window.sessionStorage) return
+
+  try {
+    const keysToRemove = []
+    for (let i = 0; i < window.sessionStorage.length; i += 1) {
+      const key = window.sessionStorage.key(i)
+      if (key && (key === CLOUD_PULL_SESSION_PREFIX || key.startsWith(`${CLOUD_PULL_SESSION_PREFIX}:`))) {
+        keysToRemove.push(key)
+      }
+    }
+    keysToRemove.forEach((key) => window.sessionStorage.removeItem(key))
+  } catch (storageError) {
+    console.warn('[AuthProvider] Não foi possível limpar flags de cloud pull:', storageError?.message || storageError)
+  }
+}
+
+function markLastAuthAccount(account) {
+  if (typeof window === 'undefined' || !window.localStorage) return
+
+  const accountKey = getAuthAccountKey(account)
+  try {
+    if (accountKey) {
+      window.localStorage.setItem(LAST_AUTH_ACCOUNT_KEY, accountKey)
+    } else {
+      window.localStorage.removeItem(LAST_AUTH_ACCOUNT_KEY)
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function shouldResetLocalAccountStateFor(account) {
+  if (typeof window === 'undefined' || !window.localStorage) return false
+
+  const accountKey = getAuthAccountKey(account)
+  if (!accountKey) return false
+
+  try {
+    const previousAccountKey = window.localStorage.getItem(LAST_AUTH_ACCOUNT_KEY)
+    return Boolean(previousAccountKey && previousAccountKey !== accountKey)
+  } catch {
+    return false
+  }
+}
+
+function clearLocalAccountState() {
+  if (typeof window === 'undefined' || !window.localStorage) return
+
+  ACCOUNT_LOCAL_STATE_KEYS.forEach((key) => {
+    try {
+      window.localStorage.removeItem(key)
+    } catch {
+      // ignore
+    }
+  })
+
+  const updateEvents = [
+    'apice:billing-state-updated',
+    'apice:free-plan-usage-updated',
+    'apice:historico-updated',
+    'apice:simulado-historico-updated',
+    'apice:radar-favorites-updated',
+    'apice:radar-state-updated',
+    'apice:user-summary-updated',
+    'apice:notificacoes-updated',
+    'apice:conquistas-updated',
+    'apice:professor-chats-updated',
+    'apice:account-state-updated',
+    'apice:weather-preferences-updated',
+  ]
+
+  updateEvents.forEach((eventName) => {
+    try {
+      window.dispatchEvent(new CustomEvent(eventName))
+    } catch {
+      // ignore
+    }
+  })
+}
+
+function prepareExplicitLoginState(account) {
+  clearLocalAccountState()
+  clearCloudPullSessionFlags()
+  clearLocalCloudSync()
+  markLastAuthAccount(account)
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const currentUser = auth.currentUser()
@@ -111,8 +226,7 @@ export function AuthProvider({ children }) {
         return token || ''
       } catch (err) {
         console.warn('[AuthProvider] Falha ao obter JWT:', err.message)
-        // Fallback: return userId so authFetch can still send X-User-Id
-        return currentUser.id ? `__userid__${currentUser.id}` : ''
+        return ''
       }
     })
     return () => registerAuthTokenGetter(null)
@@ -184,8 +298,16 @@ export function AuthProvider({ children }) {
       return
     }
 
+    if (shouldResetLocalAccountStateFor(user)) {
+      console.log('[AuthProvider] Conta autenticada mudou. Limpando dados locais da conta anterior antes do cloud pull.')
+      clearLocalAccountState()
+      clearCloudPullSessionFlags()
+      clearLocalCloudSync()
+    }
+    markLastAuthAccount(user)
+
     // Verifica se já fizemos cloud pull nesta sessão (previne duplicação em reloads)
-    const cloudPullKey = 'apice:cloud-session:has-pulled'
+    const cloudPullKey = getCloudPullSessionKey(user)
     const hasPulled = typeof window !== 'undefined'
       && window.sessionStorage
       && window.sessionStorage.getItem(cloudPullKey) === '1'
@@ -202,9 +324,11 @@ export function AuthProvider({ children }) {
         // Puxa estado da nuvem e aplica no localStorage
         const pulled = await pullStateFromCloud()
 
-        if (!cancelled && pulled) {
+        if (!cancelled && pulled === true) {
           console.log('[AuthProvider] Estado restaurado da nuvem com sucesso')
-        } else if (!cancelled && !pulled) {
+        } else if (!cancelled && pulled === null) {
+          console.log('[AuthProvider] Conta ainda sem estado na nuvem. Um estado inicial será salvo automaticamente.')
+        } else if (!cancelled && pulled === false) {
           console.warn('[AuthProvider] Falha ao restaurar estado da nuvem. Dados locais preservados.')
         }
       } catch (err) {
@@ -214,7 +338,11 @@ export function AuthProvider({ children }) {
       } finally {
         // Marca que já fizemos pull nesta sessão (mesmo se falhou)
         if (typeof window !== 'undefined' && window.sessionStorage && !cancelled) {
-          try { window.sessionStorage.setItem(cloudPullKey, '1') } catch {}
+          try {
+            window.sessionStorage.setItem(cloudPullKey, '1')
+          } catch (storageError) {
+            console.warn('[AuthProvider] Não foi possível marcar o cloud pull:', storageError?.message || storageError)
+          }
         }
       }
     }
@@ -251,6 +379,7 @@ export function AuthProvider({ children }) {
 
     const events = [
       'apice:historico-updated',
+      'apice:simulado-historico-updated',
       'apice:free-plan-usage-updated',
       'apice:enem-date-updated',
       'apice:radar-favorites-updated',
@@ -261,6 +390,7 @@ export function AuthProvider({ children }) {
       'apice:avatar-settings-updated',
       'apice:notificacoes-updated',
       'apice:conquistas-updated',
+      'apice:professor-chats-updated',
     ]
 
     events.forEach(event => {
@@ -280,43 +410,9 @@ export function AuthProvider({ children }) {
     }
   }, [user, isGuest])
 
-  useEffect(() => {
-    if (!user || isGuest) return
-
-    let cancelled = false
-
-    const grantWelcomePremium = async () => {
-      try {
-        const result = maybeGrantWelcomePremiumForUser(user)
-        if (cancelled) return
-
-        if (result.applied || isWelcomePremiumActive()) {
-          window.dispatchEvent(new CustomEvent('apice:free-plan-usage-updated'))
-        }
-      } catch (error) {
-        console.error('[AuthProvider] Erro ao avaliar premium temporário:', error?.message || error)
-      }
-    }
-
-    void grantWelcomePremium()
-
-    return () => {
-      cancelled = true
-    }
-  }, [user, isGuest])
 
   const signup = async (email, password, data) => {
-    const response = await auth.signup(email, password, data)
-
-    if (response) {
-      try {
-        maybeGrantWelcomePremiumForUser(response)
-      } catch (error) {
-        console.warn('[AuthProvider] Não foi possível aplicar premium temporário no signup:', error?.message || error)
-      }
-    }
-
-    return response
+    return await auth.signup(email, password, data)
   }
 
   const confirmAccount = async (token) => {
@@ -339,6 +435,8 @@ export function AuthProvider({ children }) {
     const response = await auth.login(email, password, remember)
     clearVerificationPassword()
     clearGuestSession()
+    prepareExplicitLoginState(response)
+    syncLockRef.current = false
     setUser(response)
     armOnboardingAfterLogin()
     return response
@@ -348,6 +446,8 @@ export function AuthProvider({ children }) {
     const response = await auth.recover(token, true)
     clearVerificationPassword()
     clearGuestSession()
+    prepareExplicitLoginState(response)
+    syncLockRef.current = false
     setUser(response)
     armOnboardingAfterLogin()
     return response
@@ -377,10 +477,8 @@ export function AuthProvider({ children }) {
     if (typeof window !== 'undefined' && window.localStorage) {
       Object.keys(localStorage).forEach(key => localStorage.removeItem(key))
     }
-    // Limpa flag de cloud pull para permitir pull limpo no próximo login
-    if (typeof window !== 'undefined' && window.sessionStorage) {
-      try { window.sessionStorage.removeItem('apice:cloud-session:has-pulled') } catch {}
-    }
+    // Limpa flags de cloud pull para permitir pull limpo no próximo login
+    clearCloudPullSessionFlags()
     clearLocalCloudSync()
     syncLockRef.current = false
     setUser(null)

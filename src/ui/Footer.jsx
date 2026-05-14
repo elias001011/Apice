@@ -10,6 +10,7 @@ const INSTAGRAM_PEDRO = 'https://instagram.com/pedro.mkds'
 const PROJECT_GITHUB = 'https://github.com/elias001011/Apice'
 const FEEDBACK_EMAIL = 'elias.juriatti@outlook.com'
 const BUG_REPORT_EMAIL = 'elias.juriatti@outlook.com'
+const CONNECTA_URL = 'https://connectadigital.netlify.app/'
 
 function EmailIcon() {
   return (
@@ -172,6 +173,11 @@ export function Footer() {
       </div>
 
       <div className="footer-bottom">
+        <div className="footer-developed-logos">
+          <a href={CONNECTA_URL} target="_blank" rel="noreferrer" aria-label="Acessar Connecta Digital">
+            <img src="/developed_by_connecta.svg" alt="Desenvolvido por Connecta" className="logo-connecta" />
+          </a>
+        </div>
         <p>© {currentYear} Ápice. Todos os direitos reservados.</p>
       </div>
     </footer>
@@ -472,6 +478,32 @@ const footerCss = `
     text-align: center;
     position: relative;
     z-index: 1;
+  }
+
+  .footer-developed-logos {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1rem;
+  }
+
+  .footer-developed-logos a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .footer-developed-logos .logo-connecta {
+    display: block;
+    width: 240px;
+    max-width: 100%;
+    height: auto;
+    transition: width 0.3s ease;
+  }
+
+  @media (max-width: 768px) {
+    .footer-developed-logos .logo-connecta {
+      width: 180px;
+    }
   }
 
   .footer-bottom p {

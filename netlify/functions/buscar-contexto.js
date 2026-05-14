@@ -19,7 +19,7 @@ export default async function handler(req, context) {
   }
 
   // ── Authentication ──────────────────────────────────────────────────────
-  const auth = requireAuth(req, context, headers)
+  const auth = requireAuth(req, context, headers, { allowGuest: true })
   if (auth instanceof Response) return auth
 
   try {

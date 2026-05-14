@@ -254,14 +254,14 @@ const resultadoCss = `
   .action-row .btn-primary {
     flex: 1.5;
     height: 48px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    border: 1px solid rgba(var(--accent-rgb), 0.22);
-    box-shadow: 0 14px 30px rgba(var(--accent-rgb), 0.18), 0 0 0 1px rgba(var(--accent-rgb), 0.06);
+    background: var(--accent);
+    border: 1px solid transparent;
+    box-shadow: none;
     font-weight: 700;
   }
   .action-row .btn-primary:hover {
-    background: linear-gradient(135deg, var(--accent2), var(--accent));
-    box-shadow: 0 18px 36px rgba(var(--accent-rgb), 0.22), 0 0 0 1px rgba(var(--accent-rgb), 0.08);
+    background: var(--accent2);
+    box-shadow: none;
   }
   .action-row .btn-ghost { flex: 1; height: 48px; }
 `

@@ -9,11 +9,10 @@ import {
   hasUsedTrial,
   markPlanPaid,
   isTrialActive,
-  isWelcomePremiumActive,
+
   saveBillingState,
   subscribeBillingState,
   TRIAL_DAYS,
-  WELCOME_PREMIUM_DAYS,
 } from '../services/billingState.js'
 import {
   getFreePlanUsageRows,
@@ -79,7 +78,8 @@ export function PlanosPage() {
 
     const checkoutId = params.get('checkoutId') || billingState.checkoutId || ''
     const externalId = params.get('externalId') || billingState.externalId || ''
-    const verificationKey = `${billingAction}:${checkoutId || externalId}:${location.search}`
+    const subscriptionId = params.get('subscriptionId') || billingState.subscriptionId || ''
+    const verificationKey = `${billingAction}:${checkoutId || externalId || subscriptionId}:${location.search}`
     if (verificationKeyRef.current === verificationKey) return
     verificationKeyRef.current = verificationKey
 
@@ -118,7 +118,7 @@ export function PlanosPage() {
             planKey,
             checkoutId: data.checkout?.id || checkoutId,
             externalId: data.externalId || externalId,
-            subscriptionId: data.checkout?.id || '',
+            subscriptionId: data.subscriptionId || data.checkout?.subscriptionId || data.checkout?.subscription?.id || subscriptionId,
             paidAt: new Date().toISOString(),
           })
           setFlash({
@@ -151,16 +151,15 @@ export function PlanosPage() {
     return () => {
       cancelled = true
     }
-  }, [billingState.checkoutId, billingState.externalId, billingState.planKey, location.search, navigate])
+  }, [billingState.checkoutId, billingState.externalId, billingState.planKey, billingState.subscriptionId, location.search, navigate])
 
   const activePlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
   const trialAlreadyUsed = hasUsedTrial()
   const trialCurrentlyActive = isTrialActive()
-  const welcomePremiumActive = isWelcomePremiumActive(billingState)
-  const activeAccessLabel = welcomePremiumActive ? 'Premium temporário' : 'Teste grátis'
+
+  const activeAccessLabel = 'Teste grátis'
   const activeAccessLabelLower = activeAccessLabel.toLowerCase()
   const trialEnded = trialAlreadyUsed && !trialCurrentlyActive && billingState.status !== 'paid'
-  const statusLabel = getBillingStatusLabel(billingState.status)
   const quotaRow = quotaInfo || getQuotaInfo()
   const activeLimit = quotaRow.limit || getFreePlanUsageRows()[0]?.limit || 5
   const trialEndDate = billingState.trialEndsAt ? new Date(billingState.trialEndsAt) : null
@@ -171,18 +170,19 @@ export function PlanosPage() {
       year: 'numeric',
     })
     : ''
-  const statusDescription = trialEnded && trialEndLabel
-    ? `${billingState.trialKind === 'welcome' ? 'Premium temporário' : 'Teste grátis'} encerrado em ${trialEndLabel}`
-    : getBillingStatusDescription(billingState.status)
+  const statusLabel = isGuest ? 'Convidado' : getBillingStatusLabel(billingState.status)
+  const statusDescription = isGuest
+    ? `Modo convidado ativo. A IA aqui fica limitada a ${quotaRow.limit} solicitações por dia e os dados ficam só neste navegador até criar uma conta nova.`
+    : trialEnded && trialEndLabel
+      ? `${billingState.trialKind === 'welcome' ? 'Premium temporário' : 'Teste grátis'} encerrado em ${trialEndLabel}`
+      : getBillingStatusDescription(billingState.status)
 
   const currentStateText = (() => {
-    if (trialCurrentlyActive) {
-      if (welcomePremiumActive) {
-        return activePlan
-          ? `Premium temporário ativo no plano ${activePlan.label}.`
-          : `Premium temporário ativo por ${WELCOME_PREMIUM_DAYS} dias.`
-      }
+    if (isGuest) {
+      return `Modo convidado ativo. A IA fica limitada a ${quotaRow.limit} solicitações por dia neste navegador e os dados não sincronizam na nuvem até você criar uma conta nova.`
+    }
 
+    if (trialCurrentlyActive) {
       return activePlan
         ? `Teste grátis ativo no plano ${activePlan.label}.`
         : `Teste grátis ativo por ${TRIAL_DAYS} dias.`
@@ -211,7 +211,7 @@ export function PlanosPage() {
   })()
 
   const guestNotice = isGuest
-    ? 'Você está no modo convidado. Seus dados ficam só neste navegador até criar uma conta nova.'
+    ? `Você está no modo convidado. Seus dados ficam só neste navegador até criar uma conta nova, e a IA aqui fica limitada a ${quotaRow.limit} solicitações por dia.`
     : ''
 
   const handleCheckout = async (plan) => {
@@ -267,8 +267,37 @@ export function PlanosPage() {
         throw new Error(getAbacatePayErrorMessage(data, 'Não foi possível criar o checkout.'))
       }
 
+      if (data.activeTrial && data.trialState) {
+        const trialEndsAt = data.trialState.trialEndsAt || ''
+        saveBillingState({
+          status: 'trial',
+          planKey: data.trialState.planKey || plan.key,
+          trialKind: data.trialState.trialKind || 'standard',
+          trialStartedAt: data.trialState.trialStartedAt || new Date().toISOString(),
+          trialEndsAt,
+        })
+
+        const trialEndsDate = trialEndsAt ? new Date(trialEndsAt) : null
+        const trialEndsLabel = trialEndsDate && Number.isFinite(trialEndsDate.getTime())
+          ? trialEndsDate.toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+          })
+          : ''
+
+        setFlash({
+          tone: 'info',
+          text: trialEndsLabel
+            ? `Você já tem um período temporário ativo até ${trialEndsLabel}. Não abrimos outro checkout de teste.`
+            : 'Você já tem um período temporário ativo. Não abrimos outro checkout de teste.',
+        })
+        return
+      }
+
       const checkoutUrl = data.checkoutUrl || data.checkout?.url || data.url || ''
       const checkoutId = data.checkoutId || data.checkout?.id || data.id || ''
+      const subscriptionId = data.subscriptionId || data.checkout?.subscriptionId || data.checkout?.subscription?.id || ''
       if (!checkoutUrl) {
         throw new Error(getAbacatePayErrorMessage(data, 'A AbacatePay não retornou a URL de checkout.'))
       }
@@ -276,11 +305,19 @@ export function PlanosPage() {
       saveBillingState({
         checkoutId,
         externalId: data.externalId,
+        subscriptionId,
       })
+
+      let checkoutFlashText = `Checkout do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação do período de acesso.`
+      if (data.trialCouponUnavailable) {
+        checkoutFlashText = `Não conseguimos aplicar automaticamente o cupom FREE TEST na AbacatePay. Abrimos o checkout pago do plano ${plan.label}.`
+      } else if (data.trialAlreadyUsed) {
+        checkoutFlashText = `O teste grátis já foi usado nesta conta. Abrimos o checkout pago do plano ${plan.label}.`
+      }
 
       setFlash({
         tone: 'info',
-        text: `Checkout do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação do período de acesso.`,
+        text: checkoutFlashText,
       })
 
       await new Promise((resolve) => window.setTimeout(resolve, 120))
@@ -311,9 +348,7 @@ export function PlanosPage() {
 
     const cancelPrompt = billingState.status === 'paid'
       ? 'Tem certeza que deseja cancelar sua assinatura? Seu acesso ao plano pago continuará até o fim do período já pago. Após isso, sua conta voltará para o plano gratuito.'
-      : welcomePremiumActive
-        ? 'Tem certeza que deseja encerrar seu premium temporário? Sua conta voltará para o plano gratuito imediatamente.'
-        : 'Tem certeza que deseja encerrar seu teste grátis? Sua conta voltará para o plano gratuito imediatamente.'
+      : 'Tem certeza que deseja encerrar seu teste grátis? Sua conta voltará para o plano gratuito imediatamente.'
 
     if (!confirm(cancelPrompt)) {
       return
@@ -328,6 +363,10 @@ export function PlanosPage() {
         body: JSON.stringify({
           checkoutId: billingState.checkoutId || '',
           externalId: billingState.externalId || '',
+          subscriptionId: billingState.subscriptionId || '',
+          status: billingState.status || '',
+          trialKind: billingState.trialKind || '',
+          planKey: billingState.planKey || '',
         }),
       })
 
@@ -339,12 +378,19 @@ export function PlanosPage() {
 
       // Atualiza estado local
       if (data.userDowngraded) {
-        // Limpa billing state para free
-        localStorage.removeItem('apice:billing-state:v1')
-        localStorage.removeItem('apice:plan:tier')
-        window.dispatchEvent(new CustomEvent('apice:billing-state-updated'))
-        window.dispatchEvent(new CustomEvent('apice:account-state-updated'))
-        window.dispatchEvent(new CustomEvent('apice:free-plan-usage-updated'))
+        const cancelledAt = new Date().toISOString()
+        saveBillingState({
+          status: 'free',
+          planKey: '',
+          trialKind: billingState.trialKind || (billingState.trialStartedAt ? 'standard' : ''),
+          trialUsedAt: billingState.trialUsedAt || billingState.trialStartedAt || cancelledAt,
+          trialStartedAt: billingState.trialStartedAt || '',
+          trialEndsAt: billingState.trialEndsAt || '',
+          paidAt: '',
+          checkoutId: '',
+          externalId: '',
+          subscriptionId: '',
+        })
 
         setFlash({
           tone: data.requiresManualRefund ? 'warning' : 'success',
@@ -352,9 +398,7 @@ export function PlanosPage() {
             ? 'Assinatura cancelada. Como o pagamento já foi processado, solicite reembolso pelo email suporte@apice.com. Seu acesso continua até o fim do período.'
             : billingState.status === 'paid'
               ? 'Assinatura cancelada com sucesso. Sua conta voltará ao plano gratuito.'
-              : welcomePremiumActive
-                ? 'Premium temporário encerrado com sucesso. Sua conta voltou ao plano gratuito.'
-                : 'Teste grátis encerrado com sucesso. Sua conta voltou ao plano gratuito.',
+              : 'Teste grátis encerrado com sucesso. Sua conta voltou ao plano gratuito.',
         })
       } else {
         setFlash({
@@ -384,13 +428,13 @@ export function PlanosPage() {
     }
 
     if (trialCurrentlyActive && isCurrentPlan) {
-      return welcomePremiumActive ? 'Premium ativo' : 'Teste grátis ativo'
+      return 'Teste grátis ativo'
     }
 
     if (trialCurrentlyActive) {
       return isCurrentPlan
-        ? (welcomePremiumActive ? 'Premium ativo' : 'Teste grátis ativo')
-        : (welcomePremiumActive ? 'Aguardar fim do premium' : 'Aguardar fim do teste')
+        ? ('Teste grátis ativo')
+        : 'Aguardar fim do teste'
     }
 
     if (billingState.status === 'paid') {
@@ -459,6 +503,7 @@ export function PlanosPage() {
             A conta gratuita continua com 5 usos de IA por dia. Ao pagar, a cota sobe para 10 usos diários.
             Contas criadas nesta atualização recebem premium temporário por 30 dias.
             O teste grátis manual continua com 7 dias e só pode ser ativado uma vez por conta.
+            No checkout, o cupom <strong>FREE TEST</strong> é aplicado automaticamente quando a conta ainda pode usar o teste.
           </p>
 
           {isGuest && (
@@ -498,7 +543,7 @@ export function PlanosPage() {
               <div className="planos-status-label">Acesso temporário</div>
               <div className="planos-status-value">
                 {trialCurrentlyActive
-                  ? (welcomePremiumActive ? `Premium ${WELCOME_PREMIUM_DAYS} dias` : `Teste grátis ${TRIAL_DAYS} dias`)
+                  ? `Teste grátis ${TRIAL_DAYS} dias`
                   : trialAlreadyUsed
                     ? 'Já usado'
                     : 'Disponível'}
@@ -542,14 +587,12 @@ export function PlanosPage() {
                     <span className="management-value" data-status={billingState.status}>
                       {billingState.status === 'paid'
                         ? 'Pago'
-                        : welcomePremiumActive
-                          ? 'Premium temporário ativo'
-                          : 'Teste grátis ativo'}
+                        : 'Teste grátis ativo'}
                     </span>
                   </div>
                   {trialCurrentlyActive && trialEndLabel && (
                     <div className="management-row">
-                      <span className="management-key">{welcomePremiumActive ? 'Premium até:' : 'Teste até:'}</span>
+                      <span className="management-key">{'Teste até:'}</span>
                       <span className="management-value">{trialEndLabel}</span>
                     </div>
                   )}
@@ -557,6 +600,12 @@ export function PlanosPage() {
                     <div className="management-row">
                       <span className="management-key">Checkout ID:</span>
                       <span className="management-value mono">{billingState.checkoutId}</span>
+                    </div>
+                  )}
+                  {billingState.subscriptionId && (
+                    <div className="management-row">
+                      <span className="management-key">Assinatura ID:</span>
+                      <span className="management-value mono">{billingState.subscriptionId}</span>
                     </div>
                   )}
                 </div>
@@ -571,9 +620,7 @@ export function PlanosPage() {
                 <div className="management-hint">
                   {billingState.status === 'paid'
                     ? 'O cancelamento impede renovações futuras. Seu acesso continua ativo até o fim do período já pago.'
-                    : welcomePremiumActive
-                      ? `Este premium temporário dura ${WELCOME_PREMIUM_DAYS} dias. Encerrar agora volta a conta para gratuito imediatamente.`
-                      : `Este teste grátis dura ${TRIAL_DAYS} dias. Encerrar agora volta a conta para gratuito imediatamente.`}
+                    : `Este teste grátis dura ${TRIAL_DAYS} dias. Encerrar agora volta a conta para gratuito imediatamente.`}
                 </div>
               </div>
             </div>
@@ -597,7 +644,7 @@ export function PlanosPage() {
               <div className="planos-change-text">Usos de IA por dia. Cada ação nova continua contando como 1 uso.</div>
             </div>
             <div className="planos-change-card">
-              <div className="planos-change-number">{WELCOME_PREMIUM_DAYS} dias</div>
+              <div className="planos-change-number">{TRIAL_DAYS} dias</div>
               <div className="planos-change-text">Premium automático para contas criadas nesta atualização.</div>
             </div>
             <div className="planos-change-card">
@@ -647,7 +694,8 @@ export function PlanosPage() {
                   </div>
 
                   <div className="plan-card-note">
-                    {plan.billingLabel}. Depois do período temporário, o checkout usa o produto da AbacatePay já cadastrado.
+                    {plan.billingLabel}. O checkout v2 usa o produto recorrente da AbacatePay já cadastrado.
+                    Quando disponível, o teste grátis aplica o cupom <strong>FREE TEST</strong> automaticamente.
                   </div>
 
                   <div className="plan-card-list">
@@ -776,7 +824,7 @@ const planosCss = `
     overflow: hidden;
   }
 
-  html[data-fx="gradients"] .planos-hero {
+  html[data-fx="gradients"][data-card-gradients="on"] .planos-hero {
     background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.05), transparent 58%), var(--bg2);
   }
 
@@ -1076,7 +1124,7 @@ const planosCss = `
     padding: 1rem;
   }
 
-  html[data-fx="gradients"] .planos-change-card {
+  html[data-fx="gradients"][data-card-gradients="on"] .planos-change-card {
     background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.03), transparent 58%), var(--bg2);
   }
 
@@ -1119,7 +1167,7 @@ const planosCss = `
     border-color: var(--accent2);
   }
 
-  html[data-fx="gradients"] .pricing-card {
+  html[data-fx="gradients"][data-card-gradients="on"] .pricing-card {
     background: linear-gradient(160deg, rgba(var(--accent-rgb), 0.01), transparent 72%), var(--bg2);
   }
 
@@ -1217,14 +1265,13 @@ const planosCss = `
     font-size: 0.95rem;
     font-weight: 700;
     cursor: pointer;
-    box-shadow: 0 8px 22px rgba(var(--accent-rgb), 0.24);
-    transition: transform 0.18s ease, background 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: none;
+    transition: background 0.2s ease, opacity 0.2s ease;
   }
 
   .plan-cta-btn:hover:not(:disabled) {
     background: var(--accent2);
-    transform: translateY(-1px);
-    box-shadow: 0 10px 26px rgba(var(--accent-rgb), 0.32);
+    box-shadow: none;
   }
 
   .plan-cta-btn:disabled {
@@ -1277,7 +1324,7 @@ const planosCss = `
     padding: 1rem 1.1rem;
   }
 
-  html[data-fx="gradients"] .faq-item {
+  html[data-fx="gradients"][data-card-gradients="on"] .faq-item {
     background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.015), transparent 60%), var(--bg2);
   }
 

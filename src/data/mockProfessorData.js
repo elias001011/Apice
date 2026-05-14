@@ -14,18 +14,11 @@ export const CATEGORIES = [
     welcomeMessage: 'Precisa de um resumo sobre qual tema? Seja direto ou me conte o contexto do que está estudando.',
   },
   {
-    id: 'mapas',
-    label: 'Mapas Mentais',
-    icon: 'mindmap',
-    description: 'Estruturação de ideias para visualizar o assunto.',
-    welcomeMessage: 'Qual tema você quer transformar num mapa mental? Vou te dar a estrutura prontinha.',
-  },
-  {
     id: 'pratica',
     label: 'Prática de Questões',
     icon: 'target',
     description: 'Treine com questões inéditas no estilo do ENEM.',
-    welcomeMessage: 'Vamos praticar! Qual disciplina e assunto você quer focar agora?',
+    welcomeMessage: 'Vamos praticar! Me diga qual disciplina ou assunto você quer focar (ex: "Biologia", "Revolução Francesa", "Geometria") e eu monto um mini-teste com 5 questões no estilo ENEM.',
   },
 ]
 
@@ -40,10 +33,6 @@ export const MOCK_RESPONSES = {
     "Aqui está um resumo prático: \n\n1. O marco inicial ocorreu no século XIX.\n2. As principais causas foram econômicas e políticas.\n3. O desfecho alterou profundamente as relações sociais.",
     "Bora focar no que mais cai no ENEM:\n- Fatores demográficos;\n- Impactos ambientais;\n- Soluções aplicadas na época.",
     "Para não esquecer: Pense em 'Causa - Desenvolvimento - Consequência'. O essencial sobre esse tema é..."
-  ],
-  mapas: [
-    "Estrutura para o Mapa Mental:\n\n[Tema Central]\n├── [Ramo 1: Causas]\n│    ├── Fator A\n│    └── Fator B\n├── [Ramo 2: Consequências]\n│    └── Impacto Direto\n└── [Ramo 3: Exemplos Práticos]",
-    "Mapa Mental rápido:\n- Centro: O Conceito Geral\n- Direita: Aprofundamentos teóricos\n- Esquerda: Onde isso é aplicado na prática do Brasil atual",
   ],
   pratica: [
     "Aqui vai uma questão inédita (Nível: Médio):\n\nDurante o período X, as principais medidas tomadas foram...\nA) ...\nB) ...\nC) ...\nD) ...\nE) ...\n\nQual você acha que é a correta?",

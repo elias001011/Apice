@@ -12,7 +12,9 @@ export function OnboardingModal({ onComplete }) {
   useEffect(() => {
     if (!onboardingLoginPending) return undefined
 
-    setIsVisible(true)
+    const timerId = window.setTimeout(() => {
+      setIsVisible(true)
+    }, 0)
 
     try {
       clearOnboardingLoginPrompt()
@@ -20,7 +22,7 @@ export function OnboardingModal({ onComplete }) {
       // ignore
     }
 
-    return undefined
+    return () => window.clearTimeout(timerId)
   }, [onboardingLoginPending, clearOnboardingLoginPrompt])
 
   if (!isVisible) return null

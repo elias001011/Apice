@@ -12,6 +12,10 @@ const CATEGORIES = {
     label: 'Redações e Histórico',
     keys: ['apice:historico', 'apice:historico:total:v1'],
   },
+  SIMULADOS: {
+    label: 'Simulados e Histórico',
+    keys: ['apice:simulado:historico:v1', 'apice:simulado:historico:total:v1'],
+  },
   RADAR: {
     label: 'Radar e Temas Salvos',
     keys: ['apice:radar-favorites:v1', 'apice:radar-state:v2'],
@@ -52,6 +56,7 @@ function emitUpdateEvents() {
   const events = [
     'apice:theme-updated',
     'apice:historico-updated',
+    'apice:simulado-historico-updated',
     'apice:free-plan-usage-updated',
     'apice:radar-favorites-updated',
     'apice:radar-state-updated',
@@ -124,6 +129,9 @@ export function parseBackupFile(jsonString) {
         if (id === 'ESSAYS') {
           const history = JSON.parse(backup.data['apice:historico'] || '[]')
           detail = `${history.length} redações encontradas.`
+        } else if (id === 'SIMULADOS') {
+          const history = JSON.parse(backup.data['apice:simulado:historico:v1'] || '[]')
+          detail = `${history.length} simulados encontrados.`
         }
         
         availableCategories.push({

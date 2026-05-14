@@ -1,27 +1,159 @@
+import crypto from 'node:crypto'
 import process from 'node:process'
 
 /**
- * Webhook para eventos de pagamento do AbacatePay
+ * Webhook para eventos de pagamento da AbacatePay API v2.
  *
- * COMO FUNCIONA:
- * 1. AbacatePay envia POST para /.netlify/functions/payment-webhook quando há evento de pagamento
- * 2. Webhook verifica se é evento de sucesso (subscription.paid, billing.paid, subscription.created)
- * 3. Se for sucesso, atualiza o blob do usuário no Netlify Blobs com o status de billing
- * 4. NÃO atualiza mais user_metadata (isso causava JWT inchado e erros 500)
+ * Eventos principais v2:
+ * - checkout.completed
+ * - subscription.completed
+ * - subscription.trial_started
+ * - subscription.renewed
+ * - subscription.cancelled
  *
- * VARIÁVEIS DE AMBIENTE NECESSÁRIAS:
- * - ABACATE_PAY: Chave de API do AbacatePay
- *
- * EVENTOS SUPORTADOS:
- * - subscription.paid: Assinatura paga
- * - billing.paid: Pagamento confirmado
- * - subscription.created: Assinatura criada
+ * Variaveis opcionais:
+ * - ABACATE_WEBHOOK_SECRET ou ABACATEPAY_WEBHOOK_SECRET para validar a query webhookSecret
  */
 
 const BLOB_STORE_NAME = 'user-state'
+const ABACATEPAY_PUBLIC_KEY = 't9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9'
+
+const SUCCESS_EVENTS = new Set([
+  'checkout.completed',
+  'subscription.completed',
+  'subscription.renewed',
+  'subscription.paid',
+  'billing.paid',
+  'subscription.created',
+])
+
+const TRIAL_EVENTS = new Set([
+  'subscription.trial_started',
+])
+
+const CANCEL_EVENTS = new Set([
+  'subscription.cancelled',
+  'checkout.refunded',
+  'checkout.disputed',
+  'checkout.lost',
+])
 
 function safeText(value) {
   return String(value ?? '').trim()
+}
+
+function normalizeIsoDate(value) {
+  const text = safeText(value)
+  if (!text) return ''
+  const date = new Date(text)
+  if (!Number.isFinite(date.getTime())) return ''
+  return date.toISOString()
+}
+
+function getTrialDays(metadata) {
+  const days = Math.round(Number(metadata?.trialDays || metadata?.trial_days || 7))
+  return Number.isFinite(days) && days > 0 ? Math.min(days, 60) : 7
+}
+
+function parseExternalId(externalId) {
+  const parts = safeText(externalId).split(':')
+  if (parts.length >= 4 && parts[0] === 'apice') {
+    return {
+      userId: parts[1] || '',
+      planKey: parts[2] || '',
+      timestamp: parts[3] || '',
+    }
+  }
+  return { userId: '', planKey: '', timestamp: '' }
+}
+
+function parsePayload(rawBody) {
+  try {
+    return JSON.parse(rawBody || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function getWebhookSecret() {
+  return safeText(process.env.ABACATE_WEBHOOK_SECRET || process.env.ABACATEPAY_WEBHOOK_SECRET)
+}
+
+function verifyWebhookSignature(rawBody, signature) {
+  const cleanSignature = safeText(signature)
+  if (!cleanSignature) return false
+
+  try {
+    const expectedSignature = crypto
+      .createHmac('sha256', ABACATEPAY_PUBLIC_KEY)
+      .update(Buffer.from(rawBody, 'utf8'))
+      .digest('base64')
+
+    const expected = Buffer.from(expectedSignature)
+    const received = Buffer.from(cleanSignature)
+    return expected.length === received.length && crypto.timingSafeEqual(expected, received)
+  } catch (error) {
+    console.warn('[payment-webhook] Falha ao validar assinatura:', error.message)
+    return false
+  }
+}
+
+function pickMetadata(body) {
+  const data = body?.data || {}
+  const candidates = [
+    body?.metadata,
+    data?.metadata,
+    data?.checkout?.metadata,
+    data?.subscription?.metadata,
+    data?.payment?.metadata,
+    data?.billing?.metadata,
+    body?.checkout?.metadata,
+    body?.subscription?.metadata,
+  ]
+
+  return candidates.find((candidate) => candidate && typeof candidate === 'object') || {}
+}
+
+function pickPaymentObjects(body) {
+  const data = body?.data || {}
+  return {
+    data,
+    checkout: data?.checkout || body?.checkout || data?.billing || body?.billing || {},
+    subscription: data?.subscription || body?.subscription || {},
+    payment: data?.payment || body?.payment || {},
+  }
+}
+
+function pickExternalId(objects, metadata) {
+  return safeText(
+    metadata?.externalId
+    || objects.checkout?.externalId
+    || objects.payment?.externalId
+    || objects.subscription?.externalId
+    || objects.data?.externalId
+    || '',
+  )
+}
+
+function pickCheckoutId(objects) {
+  return safeText(
+    objects.checkout?.id
+    || objects.payment?.checkoutId
+    || objects.payment?.billingId
+    || objects.data?.checkoutId
+    || '',
+  )
+}
+
+function pickSubscriptionId(objects) {
+  return safeText(
+    objects.subscription?.id
+    || objects.checkout?.subscriptionId
+    || objects.checkout?.subscription_id
+    || objects.payment?.subscriptionId
+    || objects.data?.subscriptionId
+    || '',
+  )
 }
 
 async function getStore() {
@@ -33,11 +165,7 @@ async function getStore() {
   }
 }
 
-async function updateBillingInBlob(userId, planKey, billingUpdate) {
-  /**
-   * Atualiza o status de billing no blob do usuário
-   * Lê o blob atual → merge com billing update → salva
-   */
+async function updateBillingInBlob(userId, planKey, billingUpdate, eventId = '') {
   const store = await getStore()
   if (!store) {
     console.warn('[payment-webhook] Blob store não disponível. Billing não será atualizado na nuvem.')
@@ -47,20 +175,33 @@ async function updateBillingInBlob(userId, planKey, billingUpdate) {
   try {
     const blobKey = `user-state:${userId}`
     const existingData = await store.get(blobKey, { type: 'json' })
-
     const currentState = existingData && typeof existingData === 'object' ? existingData : {}
+    const billingStatus = safeText(billingUpdate.status) || 'paid'
+    const planStatus = billingStatus === 'free' ? 'free' : billingStatus
+    const previousEvents = Array.isArray(currentState.billing?.processedWebhookEventIds)
+      ? currentState.billing.processedWebhookEventIds.filter(Boolean)
+      : []
 
-    // Merge com atualização de billing
+    if (eventId && previousEvents.includes(eventId)) {
+      console.log('[payment-webhook] Evento duplicado ignorado:', eventId)
+      return true
+    }
+
+    const processedWebhookEventIds = eventId
+      ? [eventId, ...previousEvents].slice(0, 50)
+      : previousEvents
+
     const updatedState = {
       ...currentState,
       billing: {
         ...(currentState.billing || {}),
         ...billingUpdate,
+        processedWebhookEventIds,
         updatedAt: new Date().toISOString(),
       },
-      planStatus: 'paid',
-      planTier: 'paid',
-      planKey: planKey || currentState.planKey || 'monthly',
+      planStatus,
+      planTier: billingStatus === 'free' ? 'free' : 'paid',
+      planKey: billingStatus === 'free' ? '' : (planKey || currentState.planKey || 'monthly'),
       savedAt: new Date().toISOString(),
     }
 
@@ -68,7 +209,7 @@ async function updateBillingInBlob(userId, planKey, billingUpdate) {
       contentType: 'application/json',
     })
 
-    console.log(`[payment-webhook] Billing atualizado no blob para userId: ${userId}`)
+    console.log('[payment-webhook] Billing atualizado no blob.')
     return true
   } catch (error) {
     console.error('[payment-webhook] Erro ao atualizar blob:', error.message)
@@ -82,47 +223,141 @@ export async function handler(req) {
   }
 
   try {
-    const body = await req.json().catch(() => ({}))
-    const event = body?.event || ''
-    const metadata = body?.metadata || body?.data?.metadata || {}
-    const userId = safeText(metadata.userId)
-    const planKey = safeText(metadata.planKey) || 'monthly'
+    const rawBody = await req.text()
+    const body = parsePayload(rawBody)
+    const url = new URL(req.url)
+    const configuredSecret = getWebhookSecret()
+    const receivedSecret = safeText(url.searchParams.get('webhookSecret'))
+    const signature = safeText(req.headers.get('x-webhook-signature'))
 
-    console.log(`[payment-webhook] Evento recebido: ${event}`, { userId, planKey })
+    if (configuredSecret && receivedSecret !== configuredSecret) {
+      return new Response(JSON.stringify({ error: 'Webhook secret inválido' }), { status: 401 })
+    }
+
+    if (configuredSecret && !signature) {
+      return new Response(JSON.stringify({ error: 'Assinatura do webhook ausente' }), { status: 401 })
+    }
+
+    if (signature && !verifyWebhookSignature(rawBody, signature)) {
+      return new Response(JSON.stringify({ error: 'Assinatura do webhook inválida' }), { status: 401 })
+    }
+
+    const event = safeText(body?.event)
+    const eventId = safeText(body?.id)
+    const metadata = pickMetadata(body)
+    const objects = pickPaymentObjects(body)
+    const externalId = pickExternalId(objects, metadata)
+    const parsedExternalId = parseExternalId(externalId)
+    const userId = safeText(metadata.userId) || parsedExternalId.userId
+    const planKey = safeText(metadata.planKey) || parsedExternalId.planKey || 'monthly'
+    const checkoutId = pickCheckoutId(objects)
+    const subscriptionId = pickSubscriptionId(objects)
+
+    console.log(`[payment-webhook] Evento recebido: ${event}`, { planKey, hasUserId: Boolean(userId) })
 
     if (!userId) {
-      console.warn('[payment-webhook] userId não encontrado no metadata. Dados:', JSON.stringify(metadata))
+      console.warn('[payment-webhook] userId não encontrado no metadata/externalId.')
       return new Response(JSON.stringify({ success: true, message: 'Ignorado: userId não encontrado' }), { status: 200 })
     }
 
-    // Só processa eventos de pagamento confirmado
-    const isSuccessEvent = ['subscription.paid', 'billing.paid', 'subscription.created'].includes(event)
-    if (!isSuccessEvent) {
-      console.log(`[payment-webhook] Evento '${event}' ignorado (não é pagamento confirmado)`)
-      return new Response(JSON.stringify({ success: true, message: `Evento '${event}' ignorado` }), { status: 200 })
+    if (TRIAL_EVENTS.has(event)) {
+      const trialDays = getTrialDays(metadata)
+      const nowIso = new Date().toISOString()
+      const trialStartedAt = normalizeIsoDate(
+        metadata.trialStartedAt
+        || metadata.trial_started_at
+        || objects.subscription?.trialStartedAt
+        || objects.subscription?.trial_started_at
+        || objects.data?.trialStartedAt
+        || objects.data?.createdAt,
+      ) || nowIso
+      const trialEndsAt = normalizeIsoDate(
+        metadata.trialEndsAt
+        || metadata.trial_ends_at
+        || objects.subscription?.trialEndsAt
+        || objects.subscription?.trial_ends_at
+        || objects.data?.trialEndsAt,
+      ) || new Date(new Date(trialStartedAt).getTime() + (trialDays * 24 * 60 * 60 * 1000)).toISOString()
+
+      const billingUpdate = {
+        status: 'trial',
+        planKey,
+        trialKind: 'standard',
+        trialUsedAt: trialStartedAt,
+        trialStartedAt,
+        trialEndsAt,
+        gateway: 'abacatepay-v2',
+        subscriptionActive: true,
+        checkoutId,
+        externalId,
+        subscriptionId,
+        lastWebhookEvent: event,
+      }
+
+      const blobUpdated = await updateBillingInBlob(userId, planKey, billingUpdate, eventId)
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Trial da assinatura registrado',
+        blobUpdated,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
-    // Atualiza billing no Netlify Blobs (NÃO atualiza user_metadata)
-    const billingUpdate = {
-      status: 'paid',
-      planKey,
-      paidAt: new Date().toISOString(),
-      subscriptionActive: true,
+    if (SUCCESS_EVENTS.has(event)) {
+      const billingUpdate = {
+        status: 'paid',
+        planKey,
+        gateway: 'abacatepay-v2',
+        paidAt: new Date().toISOString(),
+        subscriptionActive: true,
+        checkoutId,
+        externalId,
+        subscriptionId,
+        lastWebhookEvent: event,
+      }
+
+      const blobUpdated = await updateBillingInBlob(userId, planKey, billingUpdate, eventId)
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Usuário atualizado para PRO',
+        blobUpdated,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
-    const blobUpdated = await updateBillingInBlob(userId, planKey, billingUpdate)
+    if (CANCEL_EVENTS.has(event)) {
+      const billingUpdate = {
+        status: 'free',
+        planKey: '',
+        gateway: 'abacatepay-v2',
+        subscriptionActive: false,
+        checkoutId,
+        externalId,
+        subscriptionId,
+        cancelledAt: new Date().toISOString(),
+        lastWebhookEvent: event,
+      }
 
-    console.log(`[payment-webhook] Usuário ${userId} marcado como PRO. Blob atualizado: ${blobUpdated}`)
+      const blobUpdated = await updateBillingInBlob(userId, planKey, billingUpdate, eventId)
 
-    return new Response(JSON.stringify({
-      success: true,
-      message: `Usuário ${userId} atualizado para PRO`,
-      blobUpdated,
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Usuário atualizado para FREE',
+        blobUpdated,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
 
+    console.log(`[payment-webhook] Evento '${event}' ignorado`)
+    return new Response(JSON.stringify({ success: true, message: `Evento '${event}' ignorado` }), { status: 200 })
   } catch (error) {
     console.error('[payment-webhook] Erro ao processar webhook:', error)
     return new Response(JSON.stringify({ error: 'Erro interno do servidor' }), { status: 500 })

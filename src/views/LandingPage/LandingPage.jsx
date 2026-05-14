@@ -18,6 +18,7 @@ const RADAR_TEMAS = [
 ];
 
 const DISCOUNTS = { monthly: 0, semiannual: 25, annual: 40 };
+const CONNECTA_URL = 'https://connectadigital.netlify.app/';
 
 /* Hook: animação ao entrar na viewport */
 function useInView(threshold = 0.15) {
@@ -101,7 +102,6 @@ const LandingPage = () => {
   const [r7, v7] = useInView(0.1);
   const [r8, v8] = useInView(0.1);
   const [r9, v9] = useInView(0.1);
-  const [r10, v10] = useInView(0.1);
 
   return (
     <div className={`lp-container${darkMode ? ' lp-dark' : ' lp-light'}`}>
@@ -368,7 +368,14 @@ const LandingPage = () => {
           <div className="lp-footer-col"><h4>Empresa</h4><a href="/sobre">Sobre</a><a href="#">Blog</a></div>
           <div className="lp-footer-col"><h4>Legal</h4><a href="#">Privacidade</a><a href="#">Termos</a></div>
         </div>
-        <div className="lp-footer-bottom"><p>&copy; {new Date().getFullYear()} Ápice. Todos os direitos reservados.</p></div>
+        <div className="lp-footer-bottom">
+          <div className="lp-developed-logos">
+            <a href={CONNECTA_URL} target="_blank" rel="noreferrer" aria-label="Acessar Connecta Digital">
+              <img src="/developed_by_connecta.svg" alt="Desenvolvido por Connecta" className="lp-logo-connecta" />
+            </a>
+          </div>
+          <p>&copy; {new Date().getFullYear()} Ápice. Todos os direitos reservados.</p>
+        </div>
       </footer>
     </div>
   );
