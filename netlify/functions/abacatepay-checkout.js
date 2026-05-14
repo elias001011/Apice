@@ -252,7 +252,7 @@ async function createCustomerId(customerInput) {
   }
 }
 
-function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, timestamp, couponCode, customerId, mode = 'subscription' }) {
+function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, timestamp, customerId, mode = 'subscription' }) {
   const isSubscription = mode === 'subscription'
   const payload = {
     items: [
@@ -279,7 +279,6 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
       checkoutMode: mode,
       planKey: plan.key,
       planLabel: plan.label,
-      couponUsed: Boolean(couponCode),
       userId,
       createdAt: timestamp,
     },
@@ -289,11 +288,6 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
     payload.customerId = customerId
   }
 
-  if (couponCode) {
-    payload.coupons = [couponCode]
-    console.log('[abacatepay] Cupom aplicado:', couponCode)
-  }
-
   console.log('[abacatepay] Payload v2 COMPLETO:', JSON.stringify({
     items: payload.items,
     methods: payload.methods,
@@ -301,7 +295,6 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
     completionUrl: payload.completionUrl,
     externalId: payload.externalId,
     customerId: payload.customerId || '(sem customer)',
-    coupons: payload.coupons || [],
     planKey: payload.metadata.planKey,
     mode,
     productId: plan.productId,
@@ -382,7 +375,6 @@ async function createCheckout(req, authUser, headers) {
   }
 
   const planKey = safeText(body?.planKey)
-  const couponCode = safeText(body?.couponCode)
   const plan = getPricingPlanByKey(planKey)
 
   if (!plan || !plan.productId) {
@@ -428,7 +420,6 @@ async function createCheckout(req, authUser, headers) {
         completionUrl,
         userId,
         timestamp,
-        couponCode,
         customerId,
         mode,
       }),
@@ -491,7 +482,6 @@ async function createCheckout(req, authUser, headers) {
       productId: plan.productId,
       totalPrice: plan.totalPrice,
       billingLabel: plan.billingLabel,
-      couponApplied: Boolean(couponCode),
       checkout,
     }), {
       status: 200,

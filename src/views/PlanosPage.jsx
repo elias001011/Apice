@@ -152,14 +152,7 @@ export function PlanosPage() {
   const activePlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
   const quotaRow = quotaInfo || getQuotaInfo()
   const activeLimit = quotaRow.limit || getFreePlanUsageRows()[0]?.limit || 5
-  const trialEndDate = billingState.trialEndsAt ? new Date(billingState.trialEndsAt) : null
-  const trialEndLabel = trialEndDate && Number.isFinite(trialEndDate.getTime())
-    ? trialEndDate.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    })
-    : ''
+
   const statusLabel = isGuest ? 'Convidado' : getBillingStatusLabel(billingState.status)
   const statusDescription = isGuest
     ? `Modo convidado ativo. A IA aqui fica limitada a ${quotaRow.limit} solicitações por dia e os dados ficam só neste navegador até criar uma conta nova.`
@@ -183,8 +176,6 @@ export function PlanosPage() {
     ? `Você está no modo convidado. Seus dados ficam só neste navegador até criar uma conta nova, e a IA aqui fica limitada a ${quotaRow.limit} solicitações por dia.`
     : ''
 
-  const [couponCode, setCouponCode] = useState('')
-
   const handleCheckout = async (plan) => {
     if (!user) {
       navigate('/login')
@@ -204,7 +195,6 @@ export function PlanosPage() {
         method: 'POST',
         body: JSON.stringify({
           planKey: plan.key,
-          couponCode: couponCode.trim(),
           // userId is derived from JWT on the backend
           userEmail: user.email || '',
           customerName: user?.user_metadata?.full_name || '',
@@ -589,28 +579,6 @@ export function PlanosPage() {
                 Todos os planos liberam o mesmo acesso premium. A diferença está apenas no período de cobrança e no desconto oferecido nos planos mais longos.
               </p>
             </div>
-          </div>
-
-          <div className="planos-coupon-container" style={{ maxWidth: '400px', margin: '0 auto 2rem auto', display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
-            <label htmlFor="couponInput" style={{ fontSize: '0.85rem', color: 'var(--text2)', fontWeight: '600', marginLeft: '4px' }}>Possui um cupom de desconto?</label>
-            <input
-              id="couponInput"
-              type="text"
-              value={couponCode}
-              onChange={(e) => setCouponCode(e.target.value)}
-              placeholder="Digite seu cupom (ex: FREE TEST)"
-              style={{
-                padding: '12px 16px',
-                borderRadius: '12px',
-                border: '1px solid var(--border)',
-                background: 'var(--bg2)',
-                color: 'var(--text)',
-                fontFamily: 'inherit',
-                fontSize: '1rem',
-                outline: 'none',
-                transition: 'border-color 0.2s',
-              }}
-            />
           </div>
 
           <div className="planos-pricing-grid">
