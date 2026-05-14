@@ -252,7 +252,7 @@ async function createCustomerId(customerInput) {
   }
 }
 
-function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, timestamp, isTrial, customerId, mode = 'subscription' }) {
+function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, timestamp, couponCode, customerId, mode = 'subscription' }) {
   const isSubscription = mode === 'subscription'
   const payload = {
     items: [
@@ -279,8 +279,7 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
       checkoutMode: mode,
       planKey: plan.key,
       planLabel: plan.label,
-      trialDays: plan.trialDays,
-      isTrial: Boolean(isTrial),
+      couponUsed: Boolean(couponCode),
       userId,
       createdAt: timestamp,
     },
@@ -290,10 +289,9 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
     payload.customerId = customerId
   }
 
-  if (isTrial) {
-    // AbacatePay v2 espera array de strings com o código do cupom
-    payload.coupons = [TRIAL_COUPON_CODE]
-    console.log('[abacatepay] Cupom de trial aplicado:', TRIAL_COUPON_CODE)
+  if (couponCode) {
+    payload.coupons = [couponCode]
+    console.log('[abacatepay] Cupom aplicado:', couponCode)
   }
 
   console.log('[abacatepay] Payload v2 COMPLETO:', JSON.stringify({
@@ -307,7 +305,6 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
     planKey: payload.metadata.planKey,
     mode,
     productId: plan.productId,
-    isTrial: Boolean(payload.metadata.isTrial),
   }))
 
   return payload
@@ -385,9 +382,7 @@ async function createCheckout(req, authUser, headers) {
   }
 
   const planKey = safeText(body?.planKey)
-  const requestedTrial = Boolean(body?.isTrial)
-  let shouldApplyTrial = requestedTrial
-  let trialAlreadyUsedInCloud = false
+  const couponCode = safeText(body?.couponCode)
   const plan = getPricingPlanByKey(planKey)
 
   if (!plan || !plan.productId) {
@@ -400,26 +395,6 @@ async function createCheckout(req, authUser, headers) {
   const customerName = safeText(authUser?.fullName || body?.customerName || body?.fullName)
   const customerCellphone = safeText(body?.customerCellphone ?? body?.phone ?? body?.cellphone)
   const customerTaxId = safeText(body?.customerTaxId ?? body?.taxId ?? body?.cpf ?? body?.cnpj)
-
-  if (requestedTrial) {
-    const cloudStatus = await getUserTrialStatusFromCloud(userId)
-    if (cloudStatus.activeTrial) {
-      console.warn('[abacatepay] Checkout ignorado: usuário já tem trial ativo na nuvem.')
-      return new Response(JSON.stringify({
-        success: true,
-        activeTrial: true,
-        message: 'Você já tem um período temporário ativo nesta conta.',
-        planKey: cloudStatus.trialState?.planKey || plan.key,
-        trialState: cloudStatus.trialState,
-      }), { status: 200, headers })
-    }
-
-    if (cloudStatus.hasUsedTrial) {
-      console.warn('[abacatepay] Trial já usado. Checkout seguirá como pago.')
-      trialAlreadyUsedInCloud = true
-      shouldApplyTrial = false
-    }
-  }
 
   const origin = getRequestOrigin(req)
   const timestamp = new Date().toISOString()
@@ -444,7 +419,7 @@ async function createCheckout(req, authUser, headers) {
       customerTaxId,
     })
 
-    const createPaymentCheckout = ({ path, mode, isTrial }) => abacateFetch(path, {
+    const createPaymentCheckout = ({ path, mode }) => abacateFetch(path, {
       method: 'POST',
       body: buildCheckoutPayload({
         plan,
@@ -453,51 +428,20 @@ async function createCheckout(req, authUser, headers) {
         completionUrl,
         userId,
         timestamp,
-        isTrial,
+        couponCode,
         customerId,
         mode,
       }),
     })
 
-    const createWithCouponFallback = async ({ path, mode, applyTrial }) => {
-      try {
-        return {
-          result: await createPaymentCheckout({ path, mode, isTrial: applyTrial }),
-          trialApplied: applyTrial,
-          trialCouponUnavailable: false,
-        }
-      } catch (error) {
-        if (!applyTrial) {
-          throw error
-        }
-
-        console.warn('[abacatepay] Falha ao criar checkout com cupom de trial. Tentando novamente sem cupom:', error.message)
-
-        try {
-          return {
-            result: await createPaymentCheckout({ path, mode, isTrial: false }),
-            trialApplied: false,
-            trialCouponUnavailable: true,
-          }
-        } catch (retryError) {
-          const retryMessage = retryError.message || 'Falha ao criar checkout sem cupom'
-          const originalMessage = error.message || 'desconhecido'
-          retryError.message = `${retryMessage} (também falhou após remover o cupom ${TRIAL_COUPON_CODE}; erro original: ${originalMessage})`
-          retryError.details = retryError.details || error.details
-          throw retryError
-        }
-      }
-    }
-
     let checkoutMode = 'subscription'
     let subscriptionFallback = false
-    let creation = null
+    let result = null
 
     try {
-      creation = await createWithCouponFallback({
+      result = await createPaymentCheckout({
         path: ABACATE_SUBSCRIPTION_CREATE_PATH,
         mode: 'subscription',
-        applyTrial: shouldApplyTrial,
       })
     } catch (subscriptionError) {
       if (!shouldTryOneTimeCheckoutFallback(subscriptionError)) {
@@ -512,10 +456,9 @@ async function createCheckout(req, authUser, headers) {
       checkoutMode = 'checkout'
       subscriptionFallback = true
       try {
-        creation = await createWithCouponFallback({
+        result = await createPaymentCheckout({
           path: ABACATE_CHECKOUT_CREATE_PATH,
           mode: 'checkout',
-          applyTrial: shouldApplyTrial,
         })
       } catch (fallbackError) {
         console.error('[abacatepay] Fallback também falhou:', fallbackError.message)
@@ -525,9 +468,6 @@ async function createCheckout(req, authUser, headers) {
         throw subscriptionError
       }
     }
-
-    const { result, trialApplied, trialCouponUnavailable } = creation
-    shouldApplyTrial = trialApplied
 
     const checkout = result?.data || {}
     const checkoutUrl = getCheckoutUrl(checkout)
@@ -551,11 +491,7 @@ async function createCheckout(req, authUser, headers) {
       productId: plan.productId,
       totalPrice: plan.totalPrice,
       billingLabel: plan.billingLabel,
-      trialDays: plan.trialDays,
-      isTrial: shouldApplyTrial,
-      requestedTrial,
-      trialAlreadyUsed: trialAlreadyUsedInCloud,
-      trialCouponUnavailable,
+      couponApplied: Boolean(couponCode),
       checkout,
     }), {
       status: 200,

@@ -214,6 +214,8 @@ export function PlanosPage() {
     ? `Você está no modo convidado. Seus dados ficam só neste navegador até criar uma conta nova, e a IA aqui fica limitada a ${quotaRow.limit} solicitações por dia.`
     : ''
 
+  const [couponCode, setCouponCode] = useState('')
+
   const handleCheckout = async (plan) => {
     if (!user) {
       navigate('/login')
@@ -229,30 +231,29 @@ export function PlanosPage() {
     setFlash(null)
 
     try {
-      const trialAvailable = billingState.status === 'free' && !trialAlreadyUsed
-      const trialActive = trialCurrentlyActive
+      const trialActive = isTrialActive()
 
       if (trialActive) {
         const activeTrialPlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
+        const trialEndDate = billingState.trialEndsAt ? new Date(billingState.trialEndsAt) : null
+        const trialEndLabel = trialEndDate && Number.isFinite(trialEndDate.getTime())
+          ? trialEndDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+          : ''
+          
         setFlash({
           tone: 'warning',
           text: activeTrialPlan && activeTrialPlan.key !== plan.key
-            ? `Você já está no ${activeAccessLabelLower} do plano ${activeTrialPlan.label}. Troque de plano só depois do fim do período ativo${trialEndLabel ? `, em ${trialEndLabel}` : ''}.`
-            : `Seu ${activeAccessLabelLower} do plano ${plan.label} já está ativo${trialEndLabel ? ` até ${trialEndLabel}` : ''}.`,
+            ? `Você já tem um plano temporário ativo (${activeTrialPlan.label}). Troque de plano só depois do fim do período ativo${trialEndLabel ? `, em ${trialEndLabel}` : ''}.`
+            : `Seu plano temporário ${plan.label} já está ativo${trialEndLabel ? ` até ${trialEndLabel}` : ''}.`,
         })
         return
       }
-
-      // Apenas o plano mensal oferece os 7 dias de teste grátis, como solicitado
-      const trialRequested = trialAvailable && plan.key === 'monthly'
-
-      console.log('[planos] trialAvailable:', trialAvailable, '| trialAlreadyUsed:', trialAlreadyUsed, '| billingState.status:', billingState.status, '| isTrial:', trialRequested)
 
       const response = await authFetch('/.netlify/functions/abacatepay-checkout', {
         method: 'POST',
         body: JSON.stringify({
           planKey: plan.key,
-          isTrial: trialRequested,
+          couponCode: couponCode.trim(),
           // userId is derived from JWT on the backend
           userEmail: user.email || '',
           customerName: user?.user_metadata?.full_name || '',
@@ -650,12 +651,12 @@ export function PlanosPage() {
               <div className="planos-change-text">Usos de IA por dia. Cada ação nova continua contando como 1 uso.</div>
             </div>
             <div className="planos-change-card">
-              <div className="planos-change-number">{TRIAL_DAYS} dias</div>
-              <div className="planos-change-text">Premium automático para contas criadas nesta atualização.</div>
+              <div className="planos-change-number">Sem limites</div>
+              <div className="planos-change-text">Acesso total a todas as funcionalidades do app sem bloqueios.</div>
             </div>
             <div className="planos-change-card">
-              <div className="planos-change-number">{TRIAL_DAYS} dias</div>
-              <div className="planos-change-text">Teste grátis manual continua disponível na primeira ativação.</div>
+              <div className="planos-change-number">Suporte VIP</div>
+              <div className="planos-change-text">Atendimento prioritário e acesso a novas ferramentas antes de todos.</div>
             </div>
             <div className="planos-change-card">
               <div className="planos-change-number">1 uso</div>
@@ -673,11 +674,31 @@ export function PlanosPage() {
             <div>
               <div className="section-label">Escolha o período</div>
               <p className="planos-section-copy">
-                Todos os períodos liberam o mesmo uso: 10 solicitações de IA por dia após o período temporário.
-                Contas novas recebem 30 dias de premium temporário e o teste grátis manual continua com 7 dias.
-                A diferença está só no período de cobrança e no valor total.
+                Todos os planos liberam o mesmo acesso premium. A diferença está apenas no período de cobrança e no desconto oferecido nos planos mais longos.
               </p>
             </div>
+          </div>
+
+          <div className="planos-coupon-container" style={{ maxWidth: '400px', margin: '0 auto 2rem auto', display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
+            <label htmlFor="couponInput" style={{ fontSize: '0.85rem', color: 'var(--text2)', fontWeight: '600', marginLeft: '4px' }}>Possui um cupom de desconto?</label>
+            <input
+              id="couponInput"
+              type="text"
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value)}
+              placeholder="Digite seu cupom (ex: FREE TEST)"
+              style={{
+                padding: '12px 16px',
+                borderRadius: '12px',
+                border: '1px solid var(--border)',
+                background: 'var(--bg2)',
+                color: 'var(--text)',
+                fontFamily: 'inherit',
+                fontSize: '1rem',
+                outline: 'none',
+                transition: 'border-color 0.2s',
+              }}
+            />
           </div>
 
           <div className="planos-pricing-grid">
@@ -700,8 +721,7 @@ export function PlanosPage() {
                   </div>
 
                   <div className="plan-card-note">
-                    {plan.billingLabel}. O checkout v2 usa o produto recorrente da AbacatePay já cadastrado.
-                    Quando disponível, o teste grátis aplica o cupom <strong>FREE TEST</strong> automaticamente.
+                    {plan.billingLabel}. Cobrança recorrente pela AbacatePay.
                   </div>
 
                   <div className="plan-card-list">
@@ -709,25 +729,25 @@ export function PlanosPage() {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      <span>10 usos de IA por dia após o período temporário</span>
+                      <span>10 usos de IA por dia</span>
                     </div>
                     <div className="plan-card-item">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      <span>Contas novas ganham 30 dias de premium temporário</span>
+                      <span>Acesso a todas as ferramentas</span>
                     </div>
                     <div className="plan-card-item">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      <span>Teste grátis manual continua com 7 dias na primeira ativação</span>
+                      <span>Sincronização em nuvem ativa</span>
                     </div>
                     <div className="plan-card-item">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      <span>Mesmas ferramentas do app, com mais folga de uso</span>
+                      <span>Suporte prioritário e atualizações</span>
                     </div>
                   </div>
 

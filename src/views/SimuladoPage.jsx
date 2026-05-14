@@ -636,7 +636,6 @@ export function SimuladoPage() {
                     className={`question-map-dot ${active ? 'active' : ''} ${answered ? 'answered' : ''} ${review ? 'review' : ''}`}
                     onClick={() => {
                       setCurrentQ(index)
-                      setShowFeedback(false)
                     }}
                     aria-label={`Ir para questão ${index + 1}`}
                   >
