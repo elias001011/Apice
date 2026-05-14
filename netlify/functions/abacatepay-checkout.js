@@ -258,6 +258,14 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
     items: [
       {
         id: plan.productId,
+        productId: plan.productId,
+        quantity: 1,
+      },
+    ],
+    products: [
+      {
+        id: plan.productId,
+        productId: plan.productId,
         quantity: 1,
       },
     ],
