@@ -212,7 +212,7 @@ export const PRICING_PLANS = [
   {
     key: 'monthly_one_time',
     label: 'Mensal avulso',
-    productId: 'acesso_mensal',
+    productId: 'prod_pJ0DLHYr5Run1sRWFnq4wWx4',
     checkoutMode: 'payment',
     paymentFrequency: 'ONE_TIME',
     paymentMethods: ['PIX', 'CARD'],

@@ -58,7 +58,7 @@ function buildExternalId({ userId, planKey, timestamp }) {
   const safeUserId = safeText(userId).replace(/[^a-zA-Z0-9_-]/g, '')
   const safePlanKey = safeText(planKey).replace(/[^a-zA-Z0-9_-]/g, '')
   const safeTimestamp = safeText(timestamp).replace(/[^0-9]/g, '')
-  return ['apice', safePlanKey || 'plan', safeTimestamp || Date.now(), safeUserId || 'account'].join('_')
+  return ['apice', safeUserId || 'account', safePlanKey || 'plan', safeTimestamp || Date.now()].join(':')
 }
 
 function parseExternalId(externalId) {
