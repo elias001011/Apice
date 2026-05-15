@@ -185,6 +185,8 @@ export function PlanosPage() {
     billingState.billingMode === 'one_time'
     || isOneTimePlan(activePlan)
   )
+  const welcomeOfferPlan = getPricingPlanByKey('welcome_one_time')
+  const welcomeOfferLocked = hasUsedOneTimePlan(welcomeOfferPlan, billingState)
   const paidCancellationScheduled = billingState.status === 'paid' && Boolean(billingState.cancelAtPeriodEnd)
   const accessEndLabel = formatBillingDate(billingState.accessEndsAt)
 
@@ -529,6 +531,16 @@ export function PlanosPage() {
           {guestNotice && (
             <div className="planos-flash info">
               {guestNotice}
+            </div>
+          )}
+
+          {!welcomeOfferLocked && billingState.status === 'free' && (
+            <div className="planos-highlight-banner">
+              <div className="planos-highlight-badge">Oferta de boas-vindas</div>
+              <div className="planos-highlight-title">1 mês de acesso por R$ 1,10</div>
+              <div className="planos-highlight-copy">
+                Uma compra por conta, com PIX ou cartão. Depois da confirmação, a oferta some para este usuário.
+              </div>
             </div>
           )}
 
@@ -942,6 +954,58 @@ const planosCss = `
   .planos-guest-btn:hover {
     background: var(--accent2);
     transform: translateY(-1px);
+  }
+
+  .planos-highlight-banner {
+    position: relative;
+    display: grid;
+    gap: 0.45rem;
+    padding: 1rem 1.1rem;
+    margin-top: 1rem;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 195, 0, 0.22);
+    background:
+      linear-gradient(135deg, rgba(255, 195, 0, 0.18), rgba(255, 255, 255, 0.92)),
+      radial-gradient(circle at top right, rgba(255, 144, 0, 0.16), transparent 46%);
+    box-shadow: 0 18px 50px rgba(255, 157, 0, 0.14);
+    overflow: hidden;
+  }
+
+  .planos-highlight-banner::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.35) 50%, transparent 100%);
+    opacity: 0.35;
+  }
+
+  .planos-highlight-badge {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    padding: 0.32rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.88);
+    color: #fff7d8;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .planos-highlight-title {
+    font-size: clamp(1.08rem, 2vw, 1.45rem);
+    font-weight: 900;
+    color: #1d1600;
+    letter-spacing: -0.02em;
+  }
+
+  .planos-highlight-copy {
+    color: rgba(29, 22, 0, 0.82);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    max-width: 72ch;
   }
 
   .planos-status-strip {
