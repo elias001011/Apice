@@ -208,6 +208,8 @@ function hasBillingFields(rawSnapshot) {
     'checkoutId',
     'externalId',
     'subscriptionId',
+    'billingMode',
+    'accessEndsAt',
   ].some((key) => Object.prototype.hasOwnProperty.call(rawSnapshot, key))
 }
 
@@ -231,6 +233,8 @@ function normalizeBillingSnapshot(rawSnapshot) {
         checkoutId: rawSnapshot.checkoutId ?? '',
         externalId: rawSnapshot.externalId ?? '',
         subscriptionId: rawSnapshot.subscriptionId ?? '',
+        billingMode: rawSnapshot.billingMode ?? rawSnapshot.checkoutMode ?? '',
+        accessEndsAt: rawSnapshot.accessEndsAt ?? rawSnapshot.currentPeriodEnd ?? '',
         updatedAt: rawSnapshot.billing?.updatedAt ?? rawSnapshot.updatedAt ?? new Date().toISOString(),
       }
 

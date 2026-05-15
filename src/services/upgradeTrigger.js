@@ -5,6 +5,7 @@
  * - 3 gatilhos de upgrade: cota bloqueada, convite suave, feature premium
  * - Cota gratuita: 5 usos/dia | Cota paga: 20 usos/dia
  * - Planos: Mensal (R$19,90), Semestral (R$89,40), Anual (R$142,80)
+ * - Pagamento unico: acesso_mensal libera 1 mes sem recorrencia
  * 
  * PRODUCT IDs (AbacatePay API v2):
  * - Cada produto deve existir no dashboard AbacatePay com mesmo ID
@@ -173,7 +174,7 @@ export const PAID_PLAN_BENEFITS = [
   { icon: '💳', label: 'Checkout pago pela AbacatePay API v2' },
   { icon: '🧠', label: 'As mesmas ferramentas do app com mais folga' },
   { icon: '☁️', label: 'Histórico e preferências sincronizados por conta' },
-  { icon: '📅', label: 'Cobrança mensal, semestral ou anual' },
+  { icon: '📅', label: 'Cobrança mensal, semestral, anual ou acesso avulso' },
   { icon: '🛟', label: 'Suporte mais próximo para assinatura' },
 ]
 
@@ -197,7 +198,7 @@ export const PAID_PLAN_FEATURES = [
   { label: 'Cobrança recorrente pela AbacatePay API v2', included: true },
   { label: 'Mesmas funções do app com mais folga', included: true },
   { label: 'Histórico, aparência e preferências por conta', included: true },
-  { label: 'Cobrança recorrente conforme o período escolhido', included: true },
+  { label: 'Cobrança recorrente ou pagamento único mensal', included: true },
   { label: 'Cancelamento e retomada pela conta', included: true },
 ]
 
@@ -208,6 +209,21 @@ export const PREMIUM_PLAN_FEATURES = PAID_PLAN_FEATURES
 // totalPrice é o valor total cobrado no período
 // pricePerMonth é apenas informativo (totalPrice / meses no período)
 export const PRICING_PLANS = [
+  {
+    key: 'monthly_one_time',
+    label: 'Mensal avulso',
+    productId: 'acesso_mensal',
+    checkoutMode: 'payment',
+    paymentFrequency: 'ONE_TIME',
+    paymentMethods: ['PIX', 'CARD'],
+    accessMonths: 1,
+    totalPrice: 19.90,
+    pricePerMonth: 19.90,
+    billingLabel: 'Pagamento único de 1 mês',
+    billingPeriodLabel: 'por 1 mês',
+    discount: 'PIX ou cartão',
+    recommended: false,
+  },
   {
     key: 'monthly',
     label: 'Mensal',
@@ -247,7 +263,7 @@ export const PRICING_PLANS = [
 ]
 
 export function getPricingPlanByKey(planKey) {
-  return PRICING_PLANS.find((plan) => plan.key === planKey) || PRICING_PLANS[0]
+  return PRICING_PLANS.find((plan) => plan.key === planKey) || PRICING_PLANS.find((plan) => plan.key === 'monthly') || PRICING_PLANS[0]
 }
 
 export function getPricingPlanByProductId(productId) {

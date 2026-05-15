@@ -43,6 +43,7 @@ const TRIAL_KIND_ALIASES = {
 
 const PLAN_PERIOD_MONTHS = {
   monthly: 1,
+  monthly_one_time: 1,
   semiannual: 6,
   annual: 12,
 }
@@ -66,8 +67,19 @@ function normalizeStatus(value) {
 
 function normalizePlanKey(value) {
   const normalized = normalizeText(value).toLowerCase()
-  if (['monthly', 'semiannual', 'annual'].includes(normalized)) {
+  if (['monthly', 'monthly_one_time', 'semiannual', 'annual'].includes(normalized)) {
     return normalized
+  }
+  return ''
+}
+
+function normalizeBillingMode(value) {
+  const normalized = normalizeText(value).toLowerCase().replace(/[\s-]+/g, '_')
+  if (['one_time', 'payment', 'checkout', 'single', 'single_payment'].includes(normalized)) {
+    return 'one_time'
+  }
+  if (['subscription', 'recurring', 'recorrente'].includes(normalized)) {
+    return 'subscription'
   }
   return ''
 }
@@ -111,6 +123,7 @@ function buildDefaultState() {
     checkoutId: '',
     externalId: '',
     subscriptionId: '',
+    billingMode: '',
     subscriptionActive: false,
     cancelAtPeriodEnd: false,
     cancellationRequestedAt: '',
@@ -148,6 +161,7 @@ function normalizeState(rawState) {
     checkoutId: normalizeText(rawState.checkoutId ?? rawState.checkout_id),
     externalId: normalizeText(rawState.externalId ?? rawState.external_id),
     subscriptionId: normalizeText(rawState.subscriptionId ?? rawState.subscription_id),
+    billingMode: normalizeBillingMode(rawState.billingMode ?? rawState.checkoutMode ?? rawState.paymentMode),
     subscriptionActive: normalizeBoolean(rawState.subscriptionActive ?? rawState.subscription_active),
     cancelAtPeriodEnd: normalizeBoolean(rawState.cancelAtPeriodEnd ?? rawState.cancel_at_period_end),
     cancellationRequestedAt: normalizeIsoDate(rawState.cancellationRequestedAt ?? rawState.cancelRequestedAt),
@@ -183,12 +197,13 @@ function normalizeState(rawState) {
     normalized.trialKind = 'standard'
   }
 
-  if (normalized.status === 'paid' && normalized.cancelAtPeriodEnd && normalized.accessEndsAt) {
+  if (normalized.status === 'paid' && normalized.accessEndsAt && (normalized.cancelAtPeriodEnd || normalized.billingMode === 'one_time')) {
     const accessEndsAtDate = new Date(normalized.accessEndsAt)
     if (Number.isFinite(accessEndsAtDate.getTime()) && accessEndsAtDate.getTime() <= Date.now()) {
       normalized.status = 'free'
       normalized.planKey = ''
       normalized.subscriptionActive = false
+      normalized.billingMode = ''
     }
   }
 
@@ -325,6 +340,7 @@ export function setBillingStatus(status, {
   checkoutId = '',
   externalId = '',
   subscriptionId = '',
+  billingMode = '',
   trialStartedAt = '',
   trialEndsAt = '',
   paidAt = '',
@@ -348,6 +364,7 @@ export function setBillingStatus(status, {
     checkoutId: normalizeText(checkoutId) || current.checkoutId,
     externalId: normalizeText(externalId) || current.externalId,
     subscriptionId: normalizeText(subscriptionId) || current.subscriptionId,
+    billingMode: normalizeBillingMode(billingMode) || current.billingMode,
     trialStartedAt: normalizeIsoDate(trialStartedAt) || current.trialStartedAt,
     trialEndsAt: normalizeIsoDate(trialEndsAt) || current.trialEndsAt,
     paidAt: normalizeIsoDate(paidAt) || current.paidAt,
@@ -364,6 +381,7 @@ export function setBillingStatus(status, {
     next.checkoutId = normalizeText(checkoutId) || ''
     next.externalId = normalizeText(externalId) || ''
     next.subscriptionId = normalizeText(subscriptionId) || ''
+    next.billingMode = ''
     next.paidAt = ''
     next.subscriptionActive = false
     next.cancelAtPeriodEnd = false
@@ -371,10 +389,12 @@ export function setBillingStatus(status, {
   }
 
   if (normalizedStatus === 'paid') {
+    const resolvedBillingMode = normalizeBillingMode(billingMode) || next.billingMode || 'subscription'
     next.paidAt = normalizeIsoDate(paidAt) || nowIso()
     next.trialEndsAt = next.trialEndsAt || ''
     next.trialStartedAt = next.trialStartedAt || ''
-    next.subscriptionActive = typeof subscriptionActive === 'undefined' ? true : normalizeBoolean(subscriptionActive)
+    next.billingMode = resolvedBillingMode
+    next.subscriptionActive = typeof subscriptionActive === 'undefined' ? resolvedBillingMode !== 'one_time' : normalizeBoolean(subscriptionActive)
     next.cancelAtPeriodEnd = typeof cancelAtPeriodEnd === 'undefined' ? false : normalizeBoolean(cancelAtPeriodEnd)
     next.accessEndsAt = normalizeIsoDate(accessEndsAt) || next.accessEndsAt || ''
   }
@@ -436,22 +456,36 @@ export function startTrial({ planKey = '', checkoutId = '', externalId = '' } = 
  * Marca o plano como pago (após confirmação do pagamento)
  * Mantém as datas de trial para histórico, mas limpa status de trial
  */
-export function markPlanPaid({ planKey = '', checkoutId = '', externalId = '', subscriptionId = '', paidAt = nowIso() } = {}) {
+export function markPlanPaid({
+  planKey = '',
+  checkoutId = '',
+  externalId = '',
+  subscriptionId = '',
+  paidAt = nowIso(),
+  billingMode = 'subscription',
+  accessEndsAt = '',
+} = {}) {
   const current = getBillingState()
+  const resolvedPlanKey = planKey || current.planKey
+  const resolvedBillingMode = normalizeBillingMode(billingMode) || 'subscription'
+  const resolvedPaidAt = normalizeIsoDate(paidAt) || nowIso()
+  const resolvedAccessEndsAt = normalizeIsoDate(accessEndsAt)
+    || (resolvedBillingMode === 'one_time' ? getPlanAccessEndsAt({ planKey: resolvedPlanKey, paidAt: resolvedPaidAt }) : '')
 
   return setBillingStatus('paid', {
-    planKey: planKey || current.planKey,
+    planKey: resolvedPlanKey,
     checkoutId: checkoutId || current.checkoutId,
     externalId: externalId || current.externalId,
     subscriptionId: subscriptionId || current.subscriptionId,
     trialStartedAt: current.trialStartedAt,
     trialEndsAt: current.trialEndsAt,
-    paidAt,
-    subscriptionActive: true,
+    paidAt: resolvedPaidAt,
+    billingMode: resolvedBillingMode,
+    subscriptionActive: resolvedBillingMode !== 'one_time',
     cancelAtPeriodEnd: false,
     cancellationRequestedAt: '',
     cancelledAt: '',
-    accessEndsAt: '',
+    accessEndsAt: resolvedAccessEndsAt,
     remoteStatus: '',
   })
 }

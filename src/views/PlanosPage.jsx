@@ -50,6 +50,14 @@ function formatBillingDate(value) {
   })
 }
 
+function isOneTimePlan(plan) {
+  return plan?.checkoutMode === 'payment' || plan?.paymentFrequency === 'ONE_TIME'
+}
+
+function getPlanBillingMode(plan) {
+  return isOneTimePlan(plan) ? 'one_time' : 'subscription'
+}
+
 export function PlanosPage() {
   const { user, isGuest } = useAuth()
   const navigate = useNavigate()
@@ -123,16 +131,20 @@ export function PlanosPage() {
 
         if (data.paid) {
           const planKey = data.planKey || params.get('plan') || billingState.planKey || 'monthly'
+          const paidPlan = getPricingPlanByKey(planKey)
+          const billingMode = data.billingMode || (data.checkoutMode === 'checkout' ? 'one_time' : getPlanBillingMode(paidPlan))
           markPlanPaid({
             planKey,
             checkoutId: data.checkout?.id || checkoutId,
             externalId: data.externalId || externalId,
-            subscriptionId: data.subscriptionId || data.checkout?.subscriptionId || data.checkout?.subscription?.id || subscriptionId,
+            subscriptionId: billingMode === 'one_time' ? '' : data.subscriptionId || data.checkout?.subscriptionId || data.checkout?.subscription?.id || subscriptionId,
             paidAt: new Date().toISOString(),
+            billingMode,
+            accessEndsAt: data.accessEndsAt || '',
           })
           setFlash({
             tone: 'success',
-            text: `Pagamento confirmado. O plano ${getPricingPlanByKey(planKey).label.toLowerCase()} está ativo agora.`,
+            text: `Pagamento confirmado. O plano ${paidPlan.label.toLowerCase()} está ativo agora.`,
           })
         } else {
           setFlash({
@@ -163,6 +175,10 @@ export function PlanosPage() {
   }, [billingState.checkoutId, billingState.externalId, billingState.planKey, billingState.subscriptionId, location.search, navigate])
 
   const activePlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
+  const activeBillingOneTime = billingState.status === 'paid' && (
+    billingState.billingMode === 'one_time'
+    || isOneTimePlan(activePlan)
+  )
   const paidCancellationScheduled = billingState.status === 'paid' && Boolean(billingState.cancelAtPeriodEnd)
   const accessEndLabel = formatBillingDate(billingState.accessEndsAt)
 
@@ -172,6 +188,8 @@ export function PlanosPage() {
   const statusLabel = isGuest ? 'Convidado' : getBillingStatusLabel(billingState.status)
   const statusDescription = isGuest
     ? `Modo convidado ativo. A IA aqui fica limitada a ${quotaRow.limit} solicitações por dia e os dados ficam só neste navegador até criar uma conta nova.`
+    : activeBillingOneTime && accessEndLabel
+      ? `Pagamento único confirmado. Benefícios ativos até ${accessEndLabel}.`
     : paidCancellationScheduled && accessEndLabel
       ? `Renovação cancelada. Benefícios ativos até ${accessEndLabel}.`
       : getBillingStatusDescription(billingState.status)
@@ -182,6 +200,12 @@ export function PlanosPage() {
     }
 
     if (billingState.status === 'paid') {
+      if (activeBillingOneTime) {
+        return accessEndLabel
+          ? `Acesso avulso ${activePlan?.label || 'pago'} ativo até ${accessEndLabel}.`
+          : `Acesso avulso ${activePlan?.label || 'pago'} ativo por 1 mês.`
+      }
+
       if (paidCancellationScheduled) {
         return accessEndLabel
           ? `Renovação cancelada. O plano ${activePlan?.label || 'pago'} continua ativo até ${accessEndLabel}.`
@@ -234,7 +258,8 @@ export function PlanosPage() {
 
       const checkoutUrl = data.checkoutUrl || data.checkout?.url || data.url || ''
       const checkoutId = data.checkoutId || data.checkout?.id || data.id || ''
-      const subscriptionId = data.subscriptionId || data.checkout?.subscriptionId || data.checkout?.subscription?.id || ''
+      const billingMode = data.billingMode || (data.checkoutMode === 'checkout' ? 'one_time' : getPlanBillingMode(plan))
+      const subscriptionId = billingMode === 'one_time' ? '' : data.subscriptionId || data.checkout?.subscriptionId || data.checkout?.subscription?.id || ''
       if (!checkoutUrl) {
         throw new Error(getAbacatePayErrorMessage(data, 'A AbacatePay não retornou a URL de checkout.'))
       }
@@ -243,17 +268,26 @@ export function PlanosPage() {
         checkoutId,
         externalId: data.externalId,
         subscriptionId,
+        billingMode,
       })
 
       const isDevCheckout = Boolean(data.devMode || data.checkout?.devMode || data.product?.devMode)
-      let checkoutFlashText = `Checkout pago do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação da assinatura.`
+      let checkoutFlashText = billingMode === 'one_time'
+        ? `Checkout de pagamento único do plano ${plan.label} aberto com PIX e cartão. A AbacatePay continua cuidando da confirmação do pagamento.`
+        : `Checkout pago do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação da assinatura.`
       if (isDevCheckout) {
-        checkoutFlashText = `Checkout de teste do plano ${plan.label} aberto. Na AbacatePay, use 4242 4242 4242 4242, validade futura e CVV 123 para aprovar; outros cartões podem gerar erro 400 no card.`
+        checkoutFlashText = billingMode === 'one_time'
+          ? `Checkout de teste do plano ${plan.label} aberto com PIX e cartão. Se usar cartão, use 4242 4242 4242 4242, validade futura e CVV 123 para simular aprovação.`
+          : `Checkout de teste do plano ${plan.label} aberto. Na AbacatePay, use 4242 4242 4242 4242, validade futura e CVV 123 para aprovar; outros cartões podem gerar erro 400 no card.`
       }
       if (data.couponsEnabled) {
-        checkoutFlashText = `Checkout pago do plano ${plan.label} aberto. O campo de cupom fica disponível na AbacatePay para cupons autorizados.`
+        checkoutFlashText = billingMode === 'one_time'
+          ? `Checkout de pagamento único do plano ${plan.label} aberto com PIX/cartão. O campo de cupom fica disponível na AbacatePay para cupons autorizados.`
+          : `Checkout pago do plano ${plan.label} aberto. O campo de cupom fica disponível na AbacatePay para cupons autorizados.`
         if (isDevCheckout) {
-          checkoutFlashText = `Checkout de teste do plano ${plan.label} aberto com cupom habilitado. Use o cartão 4242 4242 4242 4242, validade futura e CVV 123 para simular aprovação.`
+          checkoutFlashText = billingMode === 'one_time'
+            ? `Checkout de teste do plano ${plan.label} aberto com PIX/cartão e cupom habilitado. Se usar cartão, use 4242 4242 4242 4242, validade futura e CVV 123.`
+            : `Checkout de teste do plano ${plan.label} aberto com cupom habilitado. Use o cartão 4242 4242 4242 4242, validade futura e CVV 123 para simular aprovação.`
         }
       }
       if (data.productValidationWarning && !isDevCheckout) {
@@ -379,14 +413,17 @@ export function PlanosPage() {
     const isCurrentPlan = billingState.planKey === plan.key
 
     if (billingState.status === 'paid' && isCurrentPlan) {
+      if (isOneTimePlan(plan)) {
+        return 'Acesso ativo'
+      }
       return paidCancellationScheduled ? 'Ativo até o fim do período' : 'Plano ativo'
     }
 
     if (billingState.status === 'paid') {
-      return 'Trocar de plano'
+      return isOneTimePlan(plan) ? 'Comprar acesso' : 'Trocar de plano'
     }
 
-    return 'Assinar agora'
+    return isOneTimePlan(plan) ? 'Comprar acesso' : 'Assinar agora'
   }
 
   const getPlanHint = (plan) => {
@@ -395,6 +432,12 @@ export function PlanosPage() {
     }
 
     if (billingState.status === 'paid' && billingState.planKey === plan.key) {
+      if (isOneTimePlan(plan)) {
+        return accessEndLabel
+          ? `Seu acesso avulso fica ativo até ${accessEndLabel}.`
+          : 'Seu acesso avulso de 1 mês já está ativo.'
+      }
+
       if (paidCancellationScheduled) {
         return accessEndLabel
           ? `Renovação cancelada. Benefícios ativos até ${accessEndLabel}.`
@@ -405,10 +448,14 @@ export function PlanosPage() {
     }
 
     if (billingState.status === 'paid') {
-      return 'A troca abre um novo checkout pago na AbacatePay.'
+      return isOneTimePlan(plan)
+        ? 'Abre um checkout de pagamento único com PIX ou cartão.'
+        : 'A troca abre um novo checkout pago na AbacatePay.'
     }
 
-    return 'O checkout é pago. Cupons autorizados podem ser inseridos na própria AbacatePay.'
+    return isOneTimePlan(plan)
+      ? 'Pagamento único de 1 mês. PIX, cartão e cupons autorizados ficam na AbacatePay.'
+      : 'O checkout é pago. Cupons autorizados podem ser inseridos na própria AbacatePay.'
   }
 
   return (
@@ -427,7 +474,7 @@ export function PlanosPage() {
           <h1 className="planos-title">Mais folga para a IA com assinatura paga</h1>
           <p className="planos-subtitle">
             A conta gratuita continua com {AI_DAILY_LIMIT} usos de IA por dia. Ao pagar, a cota sobe para {PAID_AI_DAILY_LIMIT} usos diários.
-            O checkout usa a AbacatePay API v2 para cobrança recorrente. Se houver cupom autorizado,
+            O checkout usa a AbacatePay API v2 para assinatura ou pagamento único com PIX/cartão. Se houver cupom autorizado,
             ele é informado diretamente na gateway, sem período gratuito automático no app.
           </p>
 
@@ -468,7 +515,9 @@ export function PlanosPage() {
               <div className="planos-status-label">Cobrança</div>
               <div className="planos-status-value">
                 {billingState.status === 'paid'
-                  ? paidCancellationScheduled
+                  ? activeBillingOneTime
+                    ? 'Acesso avulso'
+                    : paidCancellationScheduled
                     ? 'Renovação cancelada'
                     : 'Recorrente ativa'
                   : 'Sem assinatura'}
@@ -500,7 +549,7 @@ export function PlanosPage() {
                     <circle cx="12" cy="12" r="3" />
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                   </svg>
-                  Gerenciar assinatura
+                  {activeBillingOneTime ? 'Gerenciar acesso' : 'Gerenciar assinatura'}
                 </div>
                 <div className="management-details">
                   <div className="management-row">
@@ -511,11 +560,13 @@ export function PlanosPage() {
                     <span className="management-key">Status:</span>
                     <span className="management-value" data-status={billingState.status}>
                       {billingState.status === 'paid'
-                        ? paidCancellationScheduled ? 'Pago até o fim do período' : 'Pago'
+                        ? activeBillingOneTime
+                          ? 'Pago avulso'
+                          : paidCancellationScheduled ? 'Pago até o fim do período' : 'Pago'
                         : 'Gratuito'}
                     </span>
                   </div>
-                  {paidCancellationScheduled && accessEndLabel && (
+                  {(paidCancellationScheduled || activeBillingOneTime) && accessEndLabel && (
                     <div className="management-row">
                       <span className="management-key">Benefícios até:</span>
                       <span className="management-value">{accessEndLabel}</span>
@@ -527,25 +578,29 @@ export function PlanosPage() {
                       <span className="management-value mono">{billingState.checkoutId}</span>
                     </div>
                   )}
-                  {billingState.subscriptionId && (
+                  {!activeBillingOneTime && billingState.subscriptionId && (
                     <div className="management-row">
                       <span className="management-key">Assinatura ID:</span>
                       <span className="management-value mono">{billingState.subscriptionId}</span>
                     </div>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="btn-cancel"
-                  onClick={handleCancelSubscription}
-                  disabled={busyPlanKey === 'cancel' || paidCancellationScheduled}
-                >
-                  {busyPlanKey === 'cancel' ? 'Cancelando...' : paidCancellationScheduled ? 'Renovação cancelada' : 'Cancelar assinatura'}
-                </button>
+                {!activeBillingOneTime && (
+                  <button
+                    type="button"
+                    className="btn-cancel"
+                    onClick={handleCancelSubscription}
+                    disabled={busyPlanKey === 'cancel' || paidCancellationScheduled}
+                  >
+                    {busyPlanKey === 'cancel' ? 'Cancelando...' : paidCancellationScheduled ? 'Renovação cancelada' : 'Cancelar assinatura'}
+                  </button>
+                )}
                 <div className="management-hint">
-                  {paidCancellationScheduled
-                    ? 'A cobrança recorrente já foi cancelada. Os benefícios continuam até o fim do período pago.'
-                    : 'O cancelamento impede renovações futuras. Seu acesso continua ativo até o fim do período já pago.'}
+                  {activeBillingOneTime
+                    ? 'Este acesso veio de pagamento único. Não há renovação automática para cancelar.'
+                    : paidCancellationScheduled
+                      ? 'A cobrança recorrente já foi cancelada. Os benefícios continuam até o fim do período pago.'
+                      : 'O cancelamento impede renovações futuras. Seu acesso continua ativo até o fim do período já pago.'}
                 </div>
               </div>
             </div>
@@ -592,7 +647,7 @@ export function PlanosPage() {
             <div>
               <div className="section-label">Escolha o período</div>
               <p className="planos-section-copy">
-                Todos os planos liberam o mesmo acesso premium. A diferença está apenas no período de cobrança e no desconto oferecido nos planos mais longos.
+                Todos os planos liberam o mesmo acesso premium. A diferença está no período de cobrança, nos descontos dos planos longos e na opção avulsa de 1 mês.
               </p>
             </div>
           </div>
@@ -600,24 +655,28 @@ export function PlanosPage() {
           <div className="planos-pricing-grid">
             {PRICING_PLANS.map((plan) => {
               const isCurrentPlan = billingState.planKey === plan.key && billingState.status !== 'free'
+              const planIsOneTime = isOneTimePlan(plan)
               const buttonLabel = getPlanActionLabel(plan)
               const buttonHint = getPlanHint(plan)
 
               return (
                 <article key={plan.key} className={`pricing-card${plan.recommended ? ' recommended' : ''}${isCurrentPlan ? ' active' : ''}`}>
                   {plan.recommended && <div className="pricing-badge">Mais vantajoso</div>}
+                  {planIsOneTime && <div className="pricing-badge secondary">PIX + cartão</div>}
 
                   <div className="plan-tier">{plan.label}</div>
                   <div className="plan-price">
                     <span className="plan-price-value">{plan.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                    <span className="plan-price-period">/{plan.billingPeriodLabel}</span>
+                    <span className="plan-price-period">{planIsOneTime ? plan.billingPeriodLabel : `/${plan.billingPeriodLabel}`}</span>
                   </div>
                   <div className="plan-price-note">
-                    {plan.pricePerMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} por mês em média
+                    {planIsOneTime
+                      ? 'Sem renovação automática'
+                      : `${plan.pricePerMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} por mês em média`}
                   </div>
 
                   <div className="plan-card-note">
-                    {plan.billingLabel}. Cobrança recorrente pela AbacatePay.
+                    {plan.billingLabel}. {planIsOneTime ? 'PIX ou cartão pela AbacatePay.' : 'Cobrança recorrente pela AbacatePay.'}
                   </div>
 
                   <div className="plan-card-list">
@@ -643,7 +702,7 @@ export function PlanosPage() {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      <span>Suporte prioritário e atualizações</span>
+                      <span>{planIsOneTime ? 'PIX, cartão e cupom na gateway' : 'Suporte prioritário e atualizações'}</span>
                     </div>
                   </div>
 
@@ -696,7 +755,7 @@ export function PlanosPage() {
             <div className="faq-item">
               <div className="faq-q">Tem período gratuito automático?</div>
               <div className="faq-a">
-                Não. O fluxo atual é pago via AbacatePay API v2. Cupons de desconto autorizados podem ser inseridos no checkout da própria gateway.
+                Não. O fluxo atual é pago via AbacatePay API v2. Cupons de desconto autorizados podem ser inseridos no checkout da própria gateway, inclusive no pagamento único.
               </div>
             </div>
             <div className="faq-item">
@@ -707,9 +766,9 @@ export function PlanosPage() {
               </div>
             </div>
             <div className="faq-item">
-              <div className="faq-q">O que muda entre os períodos mensal, semestral e anual?</div>
+              <div className="faq-q">O que muda entre os períodos e o pagamento único?</div>
               <div className="faq-a">
-                Muda apenas a forma de cobrança e o valor total. A cota diária continua em {PAID_AI_DAILY_LIMIT} usos de IA por dia no plano pago.
+                Muda apenas a forma de cobrança e o valor total. O pagamento único libera 1 mês sem renovação automática; a cota diária continua em {PAID_AI_DAILY_LIMIT} usos de IA por dia no plano pago.
               </div>
             </div>
           </div>
@@ -1063,7 +1122,7 @@ const planosCss = `
 
   .planos-pricing-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 1rem;
   }
 
@@ -1102,6 +1161,12 @@ const planosCss = `
     letter-spacing: 0.06em;
     padding: 0.35rem 0.7rem;
     border-radius: 999px;
+  }
+
+  .pricing-badge.secondary {
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border);
   }
 
   .plan-tier {
@@ -1295,6 +1360,12 @@ const planosCss = `
   html.layout-compact .planos-status-chip,
   html.layout-compact .faq-item {
     padding: 0.9rem 1rem;
+  }
+
+  @media (max-width: 1120px) {
+    .planos-pricing-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   @media (max-width: 980px) {
