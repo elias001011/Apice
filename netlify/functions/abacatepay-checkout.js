@@ -249,8 +249,13 @@ async function validateCheckoutProduct(plan) {
   }
 
   const status = safeText(product.status).toUpperCase()
+  const cycle = normalizeCycle(product.cycle)
   if (status && status !== 'ACTIVE') {
     throw new Error(`Produto AbacatePay ${plan.productId} está com status ${status}. Ative o produto antes de vender este plano.`)
+  }
+
+  if (cycle) {
+    throw new Error(`Produto AbacatePay ${plan.productId} está com cycle ${cycle}, mas o pagamento único precisa usar um produto avulso sem cycle.`)
   }
 
   return {
@@ -450,10 +455,6 @@ function buildCheckoutPayload({
       couponsEnabled: allowedCoupons.length > 0,
       couponsSource,
     },
-  }
-
-  if (!isSubscription) {
-    payload.frequency = safeText(plan.paymentFrequency).toUpperCase() || 'ONE_TIME'
   }
 
   if (customerId) {
