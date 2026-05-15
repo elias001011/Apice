@@ -224,6 +224,7 @@ export const PRICING_PLANS = [
     discount: 'Oferta de boas-vindas',
     recommended: false,
     purchaseLimit: 1,
+    allowCoupons: false,
   },
   {
     key: 'monthly_one_time',

@@ -476,7 +476,9 @@ export function PlanosPage() {
     }
 
     return isOneTimePlan(plan)
-      ? 'Pagamento único de 1 mês. PIX, cartão e cupons autorizados ficam na AbacatePay.'
+      ? (plan.allowCoupons === false
+        ? 'Pagamento único de 1 mês. PIX e cartão ficam na AbacatePay.'
+        : 'Pagamento único de 1 mês. PIX, cartão e cupons autorizados ficam na AbacatePay.')
       : 'O checkout é pago. Cupons autorizados podem ser inseridos na própria AbacatePay.'
   }
 
@@ -726,7 +728,9 @@ export function PlanosPage() {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      <span>{planIsOneTime ? 'PIX, cartão e cupom na gateway' : 'Suporte prioritário e atualizações'}</span>
+                      <span>{planIsOneTime
+                        ? (plan.allowCoupons === false ? 'PIX e cartão na gateway' : 'PIX, cartão e cupom na gateway')
+                        : 'Suporte prioritário e atualizações'}</span>
                     </div>
                   </div>
 

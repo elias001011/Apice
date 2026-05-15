@@ -190,6 +190,14 @@ async function resolveCheckoutCoupons() {
   }
 }
 
+async function resolvePlanCoupons(plan) {
+  if (plan?.allowCoupons === false) {
+    return { coupons: [], source: 'disabled-for-plan' }
+  }
+
+  return resolveCheckoutCoupons()
+}
+
 async function getProductSnapshot(productId) {
   if (!shouldValidateProducts()) return null
 
@@ -552,7 +560,7 @@ async function createCheckout(req, authUser, headers) {
       customerId: customerId || '(checkout vai coletar dados)',
     }))
 
-    const { coupons: allowedCoupons, source: couponsSource } = await resolveCheckoutCoupons()
+    const { coupons: allowedCoupons, source: couponsSource } = await resolvePlanCoupons(plan)
 
     const createPath = oneTimeCheckout ? ABACATE_CHECKOUT_CREATE_PATH : ABACATE_SUBSCRIPTION_CREATE_PATH
     const result = await abacateFetch(createPath, {
