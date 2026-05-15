@@ -247,6 +247,16 @@ export function PlanosPage() {
       return
     }
 
+    if (billingState.status === 'paid') {
+      setFlash({
+        tone: 'warning',
+        text: activeBillingOneTime
+          ? 'Você já tem um acesso pago ativo. Aguarde o fim do período para comprar outro plano.'
+          : 'Você já tem uma cobrança recorrente ativa. Cancele a renovação ou aguarde o fim do período para trocar de plano.',
+      })
+      return
+    }
+
     setBusyPlanKey(plan.key)
     setFlash(null)
 
@@ -438,7 +448,7 @@ export function PlanosPage() {
     }
 
     if (billingState.status === 'paid') {
-      return isOneTimePlan(plan) ? 'Comprar acesso' : 'Trocar de plano'
+      return 'Aguardando término'
     }
 
     return isOneTimePlan(plan) ? 'Comprar acesso' : 'Assinar agora'
@@ -458,11 +468,11 @@ export function PlanosPage() {
 
       if (paidCancellationScheduled) {
         return accessEndLabel
-          ? `Renovação cancelada. Benefícios ativos até ${accessEndLabel}.`
-          : 'Renovação cancelada. Benefícios ativos até o fim do período pago.'
+          ? `Cobrança cancelada. Benefícios ativos até ${accessEndLabel}.`
+          : 'Cobrança cancelada. Benefícios ativos até o fim do período pago.'
       }
 
-      return 'Sua assinatura já está ativa neste plano.'
+      return 'Sua assinatura já está ativa neste plano. Para parar a renovação, use o botão de cancelamento abaixo.'
     }
 
     if (hasUsedOneTimePlan(plan, billingState)) {
@@ -470,9 +480,9 @@ export function PlanosPage() {
     }
 
     if (billingState.status === 'paid') {
-      return isOneTimePlan(plan)
-        ? 'Abre um checkout de pagamento único com PIX ou cartão.'
-        : 'A troca abre um novo checkout pago na AbacatePay.'
+      return activeBillingOneTime
+        ? 'Você já tem um acesso pago ativo. Aguarde o fim do período para contratar outro plano.'
+        : 'Você já tem uma cobrança recorrente ativa. Cancele a renovação ou aguarde o fim do período para trocar.'
     }
 
     return isOneTimePlan(plan)
@@ -616,7 +626,11 @@ export function PlanosPage() {
                     onClick={handleCancelSubscription}
                     disabled={busyPlanKey === 'cancel' || paidCancellationScheduled}
                   >
-                    {busyPlanKey === 'cancel' ? 'Cancelando...' : paidCancellationScheduled ? 'Renovação cancelada' : 'Cancelar assinatura'}
+                    {busyPlanKey === 'cancel'
+                      ? 'Cancelando...'
+                      : paidCancellationScheduled
+                        ? 'Cobrança recorrente cancelada'
+                        : 'Cancelar cobrança recorrente'}
                   </button>
                 )}
                 <div className="management-hint">
@@ -624,7 +638,7 @@ export function PlanosPage() {
                     ? 'Este acesso veio de pagamento único. Não há renovação automática para cancelar.'
                     : paidCancellationScheduled
                       ? 'A cobrança recorrente já foi cancelada. Os benefícios continuam até o fim do período pago.'
-                      : 'O cancelamento impede renovações futuras. Seu acesso continua ativo até o fim do período já pago.'}
+                      : 'O cancelamento impede novas cobranças. Seu acesso continua ativo até o fim do período já pago.'}
                 </div>
               </div>
             </div>
@@ -684,6 +698,7 @@ export function PlanosPage() {
                 && !(billingState.status === 'paid' && billingState.planKey === plan.key)
               const buttonLabel = getPlanActionLabel(plan)
               const buttonHint = getPlanHint(plan)
+              const planIsPaidActive = billingState.status === 'paid'
 
               return (
                 <article key={plan.key} className={`pricing-card${plan.recommended ? ' recommended' : ''}${isCurrentPlan ? ' active' : ''}${planIsLocked ? ' locked' : ''}`}>
@@ -742,7 +757,7 @@ export function PlanosPage() {
                       disabled={
                         !isGuest && (
                           busyPlanKey === plan.key
-                          || (billingState.status === 'paid' && billingState.planKey === plan.key)
+                          || planIsPaidActive
                           || planIsLocked
                         )
                       }

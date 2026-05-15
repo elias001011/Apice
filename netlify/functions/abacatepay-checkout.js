@@ -1,5 +1,6 @@
 import process from 'node:process'
 import { PRICING_PLANS, getPricingPlanByKey } from '../../src/services/upgradeTrigger.js'
+import { normalizeBillingState } from '../../src/services/billingState.js'
 import { requireAuth } from './utils/auth.js'
 import { buildCheckoutCorsHeaders } from './utils/cors.js'
 
@@ -141,6 +142,52 @@ function getPlanAccessEndsAt(plan, paidAt = new Date().toISOString()) {
   const endDate = new Date(startDate.getTime())
   endDate.setMonth(endDate.getMonth() + months)
   return endDate.toISOString()
+}
+
+async function getStore() {
+  try {
+    const { getStore: getStoreFn } = await import('@netlify/blobs')
+    return getStoreFn({ name: 'user-state', consistency: 'strong' })
+  } catch {
+    return null
+  }
+}
+
+function getCurrentBillingState(state) {
+  return normalizeBillingState(state || {})
+}
+
+async function getStoredBillingState(userId) {
+  const store = await getStore()
+  if (!store || !userId) return null
+
+  try {
+    const raw = await store.get(`user-state:${userId}`, { type: 'json' })
+    if (!raw || typeof raw !== 'object') return null
+    return getCurrentBillingState(raw.billing || raw)
+  } catch (error) {
+    console.warn('[abacatepay] Falha ao ler billing atual da nuvem:', error.message)
+    return null
+  }
+}
+
+function hasActivePaidBilling(billing) {
+  if (!billing || typeof billing !== 'object') return false
+  return String(billing.status ?? '').toLowerCase() === 'paid'
+}
+
+function getBillingBlockMessage(billing) {
+  const plan = getPricingPlanByKey(billing?.planKey || '')
+  const label = plan?.label || billing?.planKey || 'plano ativo'
+  if (billing?.billingMode === 'one_time') {
+    return `Você já tem o acesso ${label} ativo. Aguarde o fim do período para comprar outro plano.`
+  }
+
+  if (billing?.cancelAtPeriodEnd) {
+    return `Você já tem a cobrança recorrente do plano ${label} ativa. Aguarde o fim do período ou cancele a renovação antes de trocar.`
+  }
+
+  return `Você já tem o plano ${label} ativo. Cancele a cobrança atual ou aguarde o fim do período antes de comprar outro plano.`
 }
 
 function isCouponRedeemable(coupon) {
@@ -520,6 +567,20 @@ async function createCheckout(req, authUser, headers) {
   const customerName = safeText(authUser?.fullName || body?.customerName || body?.fullName)
   const customerCellphone = safeText(body?.customerCellphone ?? body?.phone ?? body?.cellphone)
   const customerTaxId = safeText(body?.customerTaxId ?? body?.taxId ?? body?.cpf ?? body?.cnpj)
+
+  const currentBilling = getCurrentBillingState(await getStoredBillingState(userId))
+  if (hasActivePaidBilling(currentBilling)) {
+    const message = getBillingBlockMessage(currentBilling)
+    return new Response(JSON.stringify({
+      error: message,
+      details: {
+        billingStatus: currentBilling.status,
+        planKey: currentBilling.planKey,
+        billingMode: currentBilling.billingMode,
+        accessEndsAt: currentBilling.accessEndsAt,
+      },
+    }), { status: 409, headers })
+  }
 
   const origin = getRequestOrigin(req)
   const timestamp = new Date().toISOString()
