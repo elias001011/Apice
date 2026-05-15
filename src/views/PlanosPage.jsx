@@ -58,6 +58,12 @@ function getPlanBillingMode(plan) {
   return isOneTimePlan(plan) ? 'one_time' : 'subscription'
 }
 
+function hasUsedOneTimePlan(plan, billingState) {
+  if (!plan || plan.purchaseLimit !== 1) return false
+  return Array.isArray(billingState?.oneTimePlanKeys)
+    && billingState.oneTimePlanKeys.includes(plan.key)
+}
+
 export function PlanosPage() {
   const { user, isGuest } = useAuth()
   const navigate = useNavigate()
@@ -230,6 +236,14 @@ export function PlanosPage() {
 
     if (isGuest) {
       navigate('/cadastro', { state: { from: '/planos' } })
+      return
+    }
+
+    if (hasUsedOneTimePlan(plan, billingState)) {
+      setFlash({
+        tone: 'warning',
+        text: 'Essa oferta de boas-vindas já foi usada nesta conta e não pode ser comprada novamente.',
+      })
       return
     }
 
@@ -419,6 +433,10 @@ export function PlanosPage() {
       return paidCancellationScheduled ? 'Ativo até o fim do período' : 'Plano ativo'
     }
 
+    if (hasUsedOneTimePlan(plan, billingState)) {
+      return 'Oferta já usada'
+    }
+
     if (billingState.status === 'paid') {
       return isOneTimePlan(plan) ? 'Comprar acesso' : 'Trocar de plano'
     }
@@ -445,6 +463,10 @@ export function PlanosPage() {
       }
 
       return 'Sua assinatura já está ativa neste plano.'
+    }
+
+    if (hasUsedOneTimePlan(plan, billingState)) {
+      return 'Essa oferta de boas-vindas é limitada a uma compra por conta.'
     }
 
     if (billingState.status === 'paid') {
@@ -647,7 +669,7 @@ export function PlanosPage() {
             <div>
               <div className="section-label">Escolha o período</div>
               <p className="planos-section-copy">
-                Todos os planos liberam o mesmo acesso premium. A diferença está no período de cobrança, nos descontos dos planos longos e na opção avulsa de 1 mês.
+                Todos os planos liberam o mesmo acesso premium. A diferença está no período de cobrança, nos descontos dos planos longos e na oferta de boas-vindas de R$ 0,10, que pode ser comprada só uma vez.
               </p>
             </div>
           </div>
@@ -656,13 +678,15 @@ export function PlanosPage() {
             {PRICING_PLANS.map((plan) => {
               const isCurrentPlan = billingState.planKey === plan.key && billingState.status !== 'free'
               const planIsOneTime = isOneTimePlan(plan)
+              const planIsLocked = hasUsedOneTimePlan(plan, billingState)
+                && !(billingState.status === 'paid' && billingState.planKey === plan.key)
               const buttonLabel = getPlanActionLabel(plan)
               const buttonHint = getPlanHint(plan)
 
               return (
-                <article key={plan.key} className={`pricing-card${plan.recommended ? ' recommended' : ''}${isCurrentPlan ? ' active' : ''}`}>
+                <article key={plan.key} className={`pricing-card${plan.recommended ? ' recommended' : ''}${isCurrentPlan ? ' active' : ''}${planIsLocked ? ' locked' : ''}`}>
                   {plan.recommended && <div className="pricing-badge">Mais vantajoso</div>}
-                  {planIsOneTime && <div className="pricing-badge secondary">PIX + cartão</div>}
+                  {planIsOneTime && <div className="pricing-badge secondary">{plan.purchaseLimit === 1 ? '1 compra por conta' : 'PIX + cartão'}</div>}
 
                   <div className="plan-tier">{plan.label}</div>
                   <div className="plan-price">
@@ -715,6 +739,7 @@ export function PlanosPage() {
                         !isGuest && (
                           busyPlanKey === plan.key
                           || (billingState.status === 'paid' && billingState.planKey === plan.key)
+                          || planIsLocked
                         )
                       }
                     >

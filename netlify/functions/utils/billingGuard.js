@@ -36,9 +36,12 @@ export function sanitizeState(incomingState, existingState, user) {
         // Inicializa o usuário sem acesso temporário automático.
         // O upgrade atual é pago via gateway da AbacatePay.
         incomingState.billing = {
-            status: 'free',
-            planKey: '',
-            updatedAt: new Date().toISOString(),
+          status: 'free',
+          planKey: '',
+          oneTimePlanKeys: Array.isArray(incomingState?.billing?.oneTimePlanKeys)
+            ? incomingState.billing.oneTimePlanKeys
+            : [],
+          updatedAt: new Date().toISOString(),
         };
         incomingState.planStatus = 'free';
         incomingState.planTier = 'free';

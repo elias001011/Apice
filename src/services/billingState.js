@@ -44,6 +44,7 @@ const TRIAL_KIND_ALIASES = {
 const PLAN_PERIOD_MONTHS = {
   monthly: 1,
   monthly_one_time: 1,
+  welcome_one_time: 1,
   semiannual: 6,
   annual: 12,
 }
@@ -67,10 +68,17 @@ function normalizeStatus(value) {
 
 function normalizePlanKey(value) {
   const normalized = normalizeText(value).toLowerCase()
-  if (['monthly', 'monthly_one_time', 'semiannual', 'annual'].includes(normalized)) {
+  if (['monthly', 'monthly_one_time', 'welcome_one_time', 'semiannual', 'annual'].includes(normalized)) {
     return normalized
   }
   return ''
+}
+
+function normalizeStringArray(value) {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => normalizeText(item))
+    .filter(Boolean)
 }
 
 function normalizeBillingMode(value) {
@@ -124,6 +132,7 @@ function buildDefaultState() {
     externalId: '',
     subscriptionId: '',
     billingMode: '',
+    oneTimePlanKeys: [],
     subscriptionActive: false,
     cancelAtPeriodEnd: false,
     cancellationRequestedAt: '',
@@ -162,6 +171,7 @@ function normalizeState(rawState) {
     externalId: normalizeText(rawState.externalId ?? rawState.external_id),
     subscriptionId: normalizeText(rawState.subscriptionId ?? rawState.subscription_id),
     billingMode: normalizeBillingMode(rawState.billingMode ?? rawState.checkoutMode ?? rawState.paymentMode),
+    oneTimePlanKeys: normalizeStringArray(rawState.oneTimePlanKeys ?? rawState.one_time_plan_keys ?? rawState.purchasedOneTimePlanKeys),
     subscriptionActive: normalizeBoolean(rawState.subscriptionActive ?? rawState.subscription_active),
     cancelAtPeriodEnd: normalizeBoolean(rawState.cancelAtPeriodEnd ?? rawState.cancel_at_period_end),
     cancellationRequestedAt: normalizeIsoDate(rawState.cancellationRequestedAt ?? rawState.cancelRequestedAt),
@@ -341,6 +351,7 @@ export function setBillingStatus(status, {
   externalId = '',
   subscriptionId = '',
   billingMode = '',
+  oneTimePlanKeys = [],
   trialStartedAt = '',
   trialEndsAt = '',
   paidAt = '',
@@ -365,6 +376,9 @@ export function setBillingStatus(status, {
     externalId: normalizeText(externalId) || current.externalId,
     subscriptionId: normalizeText(subscriptionId) || current.subscriptionId,
     billingMode: normalizeBillingMode(billingMode) || current.billingMode,
+    oneTimePlanKeys: normalizeStringArray(oneTimePlanKeys).length > 0
+      ? Array.from(new Set([...current.oneTimePlanKeys, ...normalizeStringArray(oneTimePlanKeys)]))
+      : current.oneTimePlanKeys,
     trialStartedAt: normalizeIsoDate(trialStartedAt) || current.trialStartedAt,
     trialEndsAt: normalizeIsoDate(trialEndsAt) || current.trialEndsAt,
     paidAt: normalizeIsoDate(paidAt) || current.paidAt,
@@ -382,6 +396,7 @@ export function setBillingStatus(status, {
     next.externalId = normalizeText(externalId) || ''
     next.subscriptionId = normalizeText(subscriptionId) || ''
     next.billingMode = ''
+    next.oneTimePlanKeys = current.oneTimePlanKeys
     next.paidAt = ''
     next.subscriptionActive = false
     next.cancelAtPeriodEnd = false
@@ -397,6 +412,9 @@ export function setBillingStatus(status, {
     next.subscriptionActive = typeof subscriptionActive === 'undefined' ? resolvedBillingMode !== 'one_time' : normalizeBoolean(subscriptionActive)
     next.cancelAtPeriodEnd = typeof cancelAtPeriodEnd === 'undefined' ? false : normalizeBoolean(cancelAtPeriodEnd)
     next.accessEndsAt = normalizeIsoDate(accessEndsAt) || next.accessEndsAt || ''
+    if (resolvedBillingMode === 'one_time' && next.planKey) {
+      next.oneTimePlanKeys = Array.from(new Set([...current.oneTimePlanKeys, next.planKey]))
+    }
   }
 
   if (normalizedStatus === 'trial') {
@@ -471,6 +489,9 @@ export function markPlanPaid({
   const resolvedPaidAt = normalizeIsoDate(paidAt) || nowIso()
   const resolvedAccessEndsAt = normalizeIsoDate(accessEndsAt)
     || (resolvedBillingMode === 'one_time' ? getPlanAccessEndsAt({ planKey: resolvedPlanKey, paidAt: resolvedPaidAt }) : '')
+  const resolvedOneTimePlanKeys = resolvedBillingMode === 'one_time' && resolvedPlanKey
+    ? Array.from(new Set([...current.oneTimePlanKeys, resolvedPlanKey]))
+    : current.oneTimePlanKeys
 
   return setBillingStatus('paid', {
     planKey: resolvedPlanKey,
@@ -481,6 +502,7 @@ export function markPlanPaid({
     trialEndsAt: current.trialEndsAt,
     paidAt: resolvedPaidAt,
     billingMode: resolvedBillingMode,
+    oneTimePlanKeys: resolvedOneTimePlanKeys,
     subscriptionActive: resolvedBillingMode !== 'one_time',
     cancelAtPeriodEnd: false,
     cancellationRequestedAt: '',

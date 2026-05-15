@@ -210,6 +210,22 @@ export const PREMIUM_PLAN_FEATURES = PAID_PLAN_FEATURES
 // pricePerMonth é apenas informativo (totalPrice / meses no período)
 export const PRICING_PLANS = [
   {
+    key: 'welcome_one_time',
+    label: 'Acesso por um mês de boas-vindas',
+    productId: 'prod_B46Gf1mJggJHwAaCraMR2gJF',
+    checkoutMode: 'payment',
+    paymentFrequency: 'ONE_TIME',
+    paymentMethods: ['PIX', 'CARD'],
+    accessMonths: 1,
+    totalPrice: 0.10,
+    pricePerMonth: 0.10,
+    billingLabel: 'Acesso por um mês de boas-vindas',
+    billingPeriodLabel: 'por 1 mês',
+    discount: 'Oferta de boas-vindas',
+    recommended: false,
+    purchaseLimit: 1,
+  },
+  {
     key: 'monthly_one_time',
     label: 'Mensal avulso',
     productId: 'prod_pJ0DLHYr5Run1sRWFnq4wWx4',
