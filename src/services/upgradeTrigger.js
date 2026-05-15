@@ -244,7 +244,7 @@ export const PRICING_PLANS = [
   {
     key: 'monthly',
     label: 'Mensal',
-    productId: 'prod_EAERmxx0z1YL4jNzweGbrYHU',
+    productId: 'prod_NkmfS5y5xD0Ah4ZhzUDc1BY4',
     abacateCycle: 'MONTHLY',
     totalPrice: 19.90,
     pricePerMonth: 19.90,
