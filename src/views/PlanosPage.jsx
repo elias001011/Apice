@@ -669,7 +669,7 @@ export function PlanosPage() {
             <div>
               <div className="section-label">Escolha o período</div>
               <p className="planos-section-copy">
-                Todos os planos liberam o mesmo acesso premium. A diferença está no período de cobrança, nos descontos dos planos longos e na oferta de boas-vindas de R$ 0,10, que pode ser comprada só uma vez.
+                Todos os planos liberam o mesmo acesso premium. A diferença está no período de cobrança, nos descontos dos planos longos e na oferta de boas-vindas de R$ 1,00, que pode ser comprada só uma vez.
               </p>
             </div>
           </div>
