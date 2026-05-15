@@ -5,6 +5,62 @@ function safeText(value) {
     return String(value ?? '').trim();
 }
 
+function safeDateMs(value) {
+    const text = safeText(value);
+    if (!text) return 0;
+    const time = Date.parse(text);
+    return Number.isFinite(time) ? time : 0;
+}
+
+function normalizeBillingRecord(record) {
+    return {
+        ...(record && typeof record === 'object' ? record : {}),
+        status: safeText(record?.status || record?.planStatus || '').toLowerCase() || 'free',
+        planKey: safeText(record?.planKey || ''),
+        billingMode: safeText(record?.billingMode || record?.checkoutMode || record?.paymentMode || ''),
+        oneTimePlanKeys: Array.isArray(record?.oneTimePlanKeys)
+            ? record.oneTimePlanKeys.map((item) => safeText(item)).filter(Boolean)
+            : [],
+        updatedAt: safeText(record?.updatedAt || record?.savedAt || record?.modifiedAt || ''),
+    };
+}
+
+function mergeBillingRecords(existingBilling, incomingBilling) {
+    const existing = normalizeBillingRecord(existingBilling)
+    const incoming = normalizeBillingRecord(incomingBilling)
+    const existingMs = safeDateMs(existing.updatedAt)
+    const incomingMs = safeDateMs(incoming.updatedAt)
+
+    if (!existingBilling || typeof existingBilling !== 'object') {
+        return incoming
+    }
+
+    if (incoming.status === 'paid' && existing.status !== 'paid') {
+        return {
+            ...existing,
+            ...incoming,
+            oneTimePlanKeys: Array.from(new Set([...(existing.oneTimePlanKeys || []), ...(incoming.oneTimePlanKeys || [])])),
+            updatedAt: incoming.updatedAt || new Date().toISOString(),
+        }
+    }
+
+    if (incomingMs > existingMs) {
+        return {
+            ...existing,
+            ...incoming,
+            oneTimePlanKeys: Array.from(new Set([...(existing.oneTimePlanKeys || []), ...(incoming.oneTimePlanKeys || [])])),
+            updatedAt: incoming.updatedAt || new Date().toISOString(),
+        }
+    }
+
+    return {
+        ...incoming,
+        ...existing,
+        oneTimePlanKeys: Array.from(new Set([...(existing.oneTimePlanKeys || []), ...(incoming.oneTimePlanKeys || [])])),
+        updatedAt: existing.updatedAt || incoming.updatedAt || new Date().toISOString(),
+    }
+}
+
 /**
  * Filtra e protege o plano e a cota do usuário no backend.
  * Garante que o frontend não possa escalar privilégios ou forjar status Pago/Premium.
@@ -49,11 +105,13 @@ export function sanitizeState(incomingState, existingState, user) {
         return incomingState;
     }
 
-    // 2. Se JÁ EXISTE estado de billing na nuvem: o Backend VENCE SEMPRE
-    // Frontend não pode forjar 'paid' ou datas longas de trial.
-    incomingState.billing = existingState.billing;
-    incomingState.planStatus = existingState.planStatus || existingState.billing?.status || 'free';
-    incomingState.planTier = existingState.planTier || (incomingState.planStatus === 'free' ? 'free' : 'paid');
+    // 2. Se já existe billing na nuvem, mesclamos por recência.
+    // O backend continua sendo a autoridade, mas uma confirmação de pagamento
+    // mais nova pode substituir um snapshot antigo/free.
+    const mergedBilling = mergeBillingRecords(existingState.billing, incomingState.billing)
+    incomingState.billing = mergedBilling;
+    incomingState.planStatus = mergedBilling.status || existingState.planStatus || 'free';
+    incomingState.planTier = String(incomingState.planStatus).toLowerCase() === 'free' ? 'free' : 'paid';
     
     // 3. Proteger cota diária (usage)
     if (existingState.usage && incomingState.usage) {
