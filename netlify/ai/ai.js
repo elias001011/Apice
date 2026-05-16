@@ -1198,6 +1198,11 @@ function resolveProviderModel(providerKey, modelVariant = 'primary', overrideMod
   return providerModels.primary || providerModels.secondary || ''
 }
 
+function isGroqGptOssReasoningModel(model = '') {
+  const normalizedModel = String(model ?? '').trim().toLowerCase()
+  return normalizedModel === 'openai/gpt-oss-20b' || normalizedModel === 'openai/gpt-oss-120b'
+}
+
 function parseStructuredCompletion(content, fallbackShape = {}) {
   const parsed = safeJsonParse(content)
   if (parsed && isPlainObject(parsed)) {
@@ -1804,19 +1809,26 @@ async function runGroqText({
   }
 
   const normalizedVariant = String(modelVariant ?? '').trim().toLowerCase()
+  const resolvedModel = resolveProviderModel('groq', modelVariant, modelOverride)
   const isTertiaryModel = normalizedVariant === 'tertiary'
+  const supportsReasoningParams = isGroqGptOssReasoningModel(resolvedModel)
   const resolvedTemperature = typeof temperature === 'number' ? temperature : (isTertiaryModel ? 0.1 : 0.2)
   const resolvedTopP = typeof topP === 'number' ? topP : (isTertiaryModel ? 1 : null)
-  const resolvedReasoningEffort = String(reasoningEffort ?? '').trim() || (isTertiaryModel ? 'medium' : '')
+  const requestedReasoningEffort = String(reasoningEffort ?? '').trim()
+  const resolvedReasoningEffort = supportsReasoningParams
+    ? (requestedReasoningEffort || (isTertiaryModel ? 'medium' : ''))
+    : ''
   const resolvedMaxCompletionTokens = Number.isFinite(maxCompletionTokens)
     ? maxCompletionTokens
     : (isTertiaryModel ? 8192 : null)
-  const resolvedIncludeReasoning = typeof includeReasoning === 'boolean'
-    ? includeReasoning
-    : (isTertiaryModel ? false : null)
+  const resolvedIncludeReasoning = supportsReasoningParams
+    ? (typeof includeReasoning === 'boolean'
+        ? includeReasoning
+        : (isTertiaryModel ? false : null))
+    : null
 
   const payload = {
-    model: resolveProviderModel('groq', modelVariant, modelOverride),
+    model: resolvedModel,
     messages: buildOpenAICompatibleMessages(systemPrompt, userMessages),
     temperature: resolvedTemperature,
     response_format: { type: 'json_object' },
