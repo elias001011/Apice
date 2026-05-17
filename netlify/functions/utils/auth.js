@@ -1,18 +1,14 @@
 /**
  * Safe JWT authentication utility for Netlify Functions V2.
  *
- * CAUTION: Previous attempts to use `context.clientContext` caused 502 errors.
- * This module extracts the JWT from the `Authorization` header directly and
- * decodes it without requiring Netlify Identity to be wired into the function
- * context. It does NOT crash if the token is missing — it returns a clean 401.
+ * Primary path: Netlify Identity must provide `context.clientContext.user`, which
+ * means the platform has validated the JWT cryptographically before this code
+ * trusts user identity.
  *
- * The JWT is validated structurally (Base64 decode + JSON parse) but NOT
- * cryptographically (no signature verification). This is acceptable because:
- * - Netlify Identity issues the tokens and the functions run on the same origin.
- * - The primary goal is to prevent unauthenticated access, not to act as a
- *   general-purpose OAuth resource server.
- * - Full signature verification would require importing the JWKS endpoint and
- *   a crypto library, which adds fragility to the cold-start path.
+ * Local development fallback: when running under Netlify Dev, this module can
+ * decode the JWT payload structurally so local testing does not crash. That
+ * fallback is intentionally blocked outside local development because decoding
+ * a JWT is not the same thing as verifying its signature.
  */
 
 /**
@@ -37,6 +33,8 @@ function base64UrlDecode(str) {
 /**
  * Parse a JWT token into its payload without verifying the signature.
  * Returns null if the token is malformed.
+ *
+ * IMPORTANT: this helper is only acceptable for local development fallback.
  */
 function decodeJwtPayload(token) {
   if (!token || typeof token !== 'string') return null
@@ -77,16 +75,18 @@ function extractBearerToken(req) {
  * Returns true if the token has an `exp` claim in the past.
  */
 function isTokenExpired(payload) {
-  if (!payload?.exp) return false // No expiry = not expired (permissive)
+  if (!payload?.exp) return true
   return Date.now() >= payload.exp * 1000
 }
 
-function isProductionEnvironment() {
-  return String(process?.env?.NODE_ENV ?? '').toLowerCase() === 'production'
+function isLocalJwtFallbackAllowed() {
+  const env = process?.env || {}
+  return String(env.NETLIFY_DEV ?? '').toLowerCase() === 'true'
+    || String(env.APICE_ALLOW_UNVERIFIED_JWT ?? '').toLowerCase() === 'true'
 }
 
 /**
- * Authenticate a request by extracting and decoding the JWT.
+ * Authenticate a request by extracting and validating the JWT.
  *
  * Returns { user, token } on success, or null if unauthenticated.
  * NEVER throws — callers get null and can decide to return 401.
@@ -99,26 +99,31 @@ export function authenticateRequest(req, context = {}) {
       return null
     }
 
-    // Camada 1: Criptografia OOTB via Netlify clientContext (Produção)
-    // Se context.clientContext.user existe, o Netlify Identity já validou criptograficamente o JWT
+    // Camada 1: criptografia via Netlify Identity clientContext.
+    // Se context.clientContext.user existe, o Netlify já validou o JWT.
     let userContext = context?.clientContext?.user
-    
-    // Fallback: tentar decodificar de context?.clientContext?.custom?.netlify
+
+    // Fallback de contexto Netlify codificado, quando disponível.
     if (!userContext && context?.clientContext?.custom?.netlify) {
-        try {
-            const decoded = JSON.parse(Buffer.from(context.clientContext.custom.netlify, 'base64').toString('utf-8'))
-            if (decoded?.user) {
-                userContext = decoded.user
-            }
-        } catch(e) {
-            console.warn('[auth] Erro ao decodificar custom.netlify fallback', e.message)
+      try {
+        const decoded = JSON.parse(Buffer.from(context.clientContext.custom.netlify, 'base64').toString('utf-8'))
+        if (decoded?.user) {
+          userContext = decoded.user
         }
+      } catch (error) {
+        console.warn('[auth] Erro ao decodificar custom.netlify fallback', error.message)
+      }
     }
 
     if (userContext) {
       const userId = String(userContext.sub ?? userContext.id ?? '').trim()
-      console.log('[auth] Auth via Netlify Identity (Seguro).')
-      
+      if (!userId) {
+        console.warn('[auth] Contexto Netlify sem user id.')
+        return null
+      }
+
+      console.log('[auth] Auth via Netlify Identity.')
+
       return {
         user: {
           id: userId,
@@ -139,15 +144,15 @@ export function authenticateRequest(req, context = {}) {
       }
     }
 
-    // Camada 2: Fallback estrutural apenas em desenvolvimento local.
-    // Em produção, exigimos o `user` do clientContext do Netlify.
-    if (isProductionEnvironment()) {
-      console.warn('[auth] Contexto de usuário ausente em produção. JWT não validado pelo clientContext.')
+    // Local-only fallback. Fora do Netlify Dev, decodificar sem verificar
+    // assinatura é rejeitado por padrão.
+    if (!isLocalJwtFallbackAllowed()) {
+      console.warn('[auth] Contexto Netlify ausente. JWT sem verificação criptográfica rejeitado.')
       return null
     }
 
-    console.warn('[auth] Contexto criptográfico Netlify ausente. Fazendo fallback para validação estrutural do JWT.')
-    
+    console.warn('[auth] Fallback local: validando JWT apenas estruturalmente.')
+
     const payload = decodeJwtPayload(token)
     if (!payload) {
       console.error('[auth] Token JWT malformado ou inválido.')
@@ -155,8 +160,8 @@ export function authenticateRequest(req, context = {}) {
     }
 
     if (isTokenExpired(payload)) {
-      const expiredAt = new Date(payload.exp * 1000).toISOString()
-      console.error(`[auth] Token JWT expirado em ${expiredAt}. sub: ${payload.sub || '(sem sub)'}`)
+      const expiredAt = payload.exp ? new Date(payload.exp * 1000).toISOString() : 'sem exp'
+      console.error(`[auth] Token JWT expirado ou sem exp (${expiredAt}). sub: ${payload.sub || '(sem sub)'}`)
       return null
     }
 
@@ -166,7 +171,7 @@ export function authenticateRequest(req, context = {}) {
       return null
     }
 
-    console.log('[auth] Auth estrutural OK.')
+    console.log('[auth] Auth estrutural local OK.')
 
     return {
       user: {
@@ -223,14 +228,8 @@ function extractUserIdFromHeader(req) {
  * Require authentication — convenience wrapper.
  * Returns the auth context or a 401 Response.
  *
- * Primary auth: Bearer JWT (extracts userId, email, fullName from token payload)
+ * Primary auth: Bearer JWT validated by Netlify clientContext.
  * Guest access: only `guest` is accepted, and only when allowGuest=true.
- *
- * Usage:
- *   const auth = requireAuth(req, headers)
- *   if (auth instanceof Response) return auth  // 401
- *   // auth.user.id is the authenticated user
- *   // auth.user.email and auth.user.fullName are available from JWT
  */
 export function requireAuth(req, context = {}, corsHeaders = {}, options = {}) {
   const allowGuest = Boolean(options?.allowGuest)
@@ -245,7 +244,6 @@ export function requireAuth(req, context = {}, corsHeaders = {}, options = {}) {
     }
   }
 
-  // Primary: try Bearer JWT (secure — extracts email/fullName from token)
   const auth = authenticateRequest(req, context)
   if (auth) return auth
 
