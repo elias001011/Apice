@@ -334,4 +334,4 @@ A branch `dev` pode ficar à frente da `main` com alterações de IA, billing, a
 
 ## Licença
 
-Projeto pessoal/open source. Defina uma licença formal antes de uso público amplo.
+Este projeto faz parte de uma iniciativa da Connecta. Defina uma licença formal antes de uso público amplo.
