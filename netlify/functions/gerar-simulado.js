@@ -6,6 +6,7 @@ import {
   checkGuestQuotaAllowance,
   recordGuestQuotaSuccess,
 } from './utils/guestQuota.js'
+import { enforceRateLimit } from './utils/rateLimit.js'
 import {
   INPUT_LIMITS,
   validateStringLength,
@@ -28,6 +29,13 @@ export default async function handler(req, context) {
   // ── Authentication ──────────────────────────────────────────────────────
   const auth = requireAuth(req, context, headers, { allowGuest: true })
   if (auth instanceof Response) return auth
+
+  const rateLimited = await enforceRateLimit(req, auth, headers, {
+    namespace: 'ai:exam',
+    limit: auth.user?.guest ? 4 : 15,
+    windowSeconds: 600,
+  })
+  if (rateLimited) return rateLimited
 
   try {
     const body = await req.json().catch(() => ({}))
