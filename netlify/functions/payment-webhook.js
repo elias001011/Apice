@@ -20,9 +20,6 @@ const SUCCESS_EVENTS = new Set([
   'checkout.completed',
   'subscription.completed',
   'subscription.renewed',
-  'subscription.paid',
-  'billing.paid',
-  'subscription.created',
 ])
 
 const TRIAL_EVENTS = new Set([
@@ -253,7 +250,6 @@ export async function handler(req) {
 
   try {
     const rawBody = await req.text()
-    const body = parsePayload(rawBody)
     const url = new URL(req.url)
     const configuredSecret = getWebhookSecret()
     const receivedSecret = safeText(url.searchParams.get('webhookSecret'))
@@ -267,6 +263,7 @@ export async function handler(req) {
       return new Response(JSON.stringify({ error: 'Webhook secret inválido' }), { status: 401 })
     }
 
+    const body = parsePayload(rawBody)
     const event = safeText(body?.event)
     const eventId = safeText(body?.id)
     const metadata = pickMetadata(body)
