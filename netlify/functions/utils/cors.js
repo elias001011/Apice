@@ -52,9 +52,9 @@ export function buildCorsHeaders(req) {
   if (requestOrigin && allowedOrigins.has(requestOrigin.replace(/\/$/, ''))) {
     origin = requestOrigin
   } else {
-    // In production, use the known site URL. In dev, allow all.
+    // Fall back to the primary production domain — never expose '*' in production.
     const siteUrl = String(process.env.SITE_URL ?? '').trim()
-    origin = siteUrl || '*'
+    origin = siteUrl || 'https://estudeapice.online'
   }
 
   return {

@@ -89,7 +89,6 @@ export default async function handler(req, context) {
       return new Response(JSON.stringify({
         error: 'Falha ao buscar clima',
         owmStatus: weatherRes.status,
-        detail: errBody.message || '',
       }), { status: weatherRes.status, headers })
     }
 

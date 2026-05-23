@@ -116,7 +116,10 @@ function getWebhookSecret() {
 }
 
 function getWebhookSignatureKey() {
-  return ''
+  return safeText(
+    process.env.ABACATEPAY_WEBHOOK_KEY
+    || process.env.ABACATEPAY_SIGNATURE_KEY,
+  )
 }
 
 function verifyWebhookSignature(rawBody, signature, signatureKey) {
