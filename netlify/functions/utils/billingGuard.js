@@ -5,13 +5,6 @@ function safeText(value) {
     return String(value ?? '').trim();
 }
 
-function safeDateMs(value) {
-    const text = safeText(value);
-    if (!text) return 0;
-    const time = Date.parse(text);
-    return Number.isFinite(time) ? time : 0;
-}
-
 function normalizeBillingRecord(record) {
     return {
         ...(record && typeof record === 'object' ? record : {}),
@@ -25,39 +18,29 @@ function normalizeBillingRecord(record) {
     };
 }
 
+function mergeOneTimePlanKeys(existingBilling, incomingBilling) {
+    return Array.from(new Set([
+        ...(Array.isArray(existingBilling?.oneTimePlanKeys) ? existingBilling.oneTimePlanKeys.map((item) => safeText(item)).filter(Boolean) : []),
+        ...(Array.isArray(incomingBilling?.oneTimePlanKeys) ? incomingBilling.oneTimePlanKeys.map((item) => safeText(item)).filter(Boolean) : []),
+    ]));
+}
+
 function mergeBillingRecords(existingBilling, incomingBilling) {
     const existing = normalizeBillingRecord(existingBilling)
-    const incoming = normalizeBillingRecord(incomingBilling)
-    const existingMs = safeDateMs(existing.updatedAt)
-    const incomingMs = safeDateMs(incoming.updatedAt)
 
     if (!existingBilling || typeof existingBilling !== 'object') {
-        return incoming
-    }
-
-    if (incoming.status === 'paid' && existing.status !== 'paid') {
-        return {
-            ...existing,
-            ...incoming,
-            oneTimePlanKeys: Array.from(new Set([...(existing.oneTimePlanKeys || []), ...(incoming.oneTimePlanKeys || [])])),
-            updatedAt: incoming.updatedAt || new Date().toISOString(),
-        }
-    }
-
-    if (incomingMs > existingMs) {
-        return {
-            ...existing,
-            ...incoming,
-            oneTimePlanKeys: Array.from(new Set([...(existing.oneTimePlanKeys || []), ...(incoming.oneTimePlanKeys || [])])),
-            updatedAt: incoming.updatedAt || new Date().toISOString(),
-        }
+        return normalizeBillingRecord({
+            status: 'free',
+            planKey: '',
+            oneTimePlanKeys: mergeOneTimePlanKeys(null, incomingBilling),
+            updatedAt: new Date().toISOString(),
+        })
     }
 
     return {
-        ...incoming,
         ...existing,
-        oneTimePlanKeys: Array.from(new Set([...(existing.oneTimePlanKeys || []), ...(incoming.oneTimePlanKeys || [])])),
-        updatedAt: existing.updatedAt || incoming.updatedAt || new Date().toISOString(),
+        oneTimePlanKeys: mergeOneTimePlanKeys(existingBilling, incomingBilling),
+        updatedAt: existing.updatedAt || new Date().toISOString(),
     }
 }
 
@@ -105,9 +88,8 @@ export function sanitizeState(incomingState, existingState, user) {
         return incomingState;
     }
 
-    // 2. Se já existe billing na nuvem, mesclamos por recência.
-    // O backend continua sendo a autoridade, mas uma confirmação de pagamento
-    // mais nova pode substituir um snapshot antigo/free.
+    // 2. Se já existe billing na nuvem, ele continua sendo a autoridade.
+    // Snapshot do frontend não pode elevar/corrigir status pago ou IDs do gateway.
     const mergedBilling = mergeBillingRecords(existingState.billing, incomingState.billing)
     incomingState.billing = mergedBilling;
     incomingState.planStatus = mergedBilling.status || existingState.planStatus || 'free';

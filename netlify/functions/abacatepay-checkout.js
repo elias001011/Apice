@@ -171,6 +171,39 @@ async function getStoredBillingState(userId) {
   }
 }
 
+async function updateVerifiedBillingInBlob(userId, planKey, billingUpdate = {}) {
+  const store = await getStore()
+  if (!store || !userId) return false
+
+  try {
+    const blobKey = `user-state:${userId}`
+    const existingData = await store.get(blobKey, { type: 'json' })
+    const currentState = existingData && typeof existingData === 'object' ? existingData : {}
+    const normalizedBilling = normalizeBillingState({
+      ...(currentState.billing && typeof currentState.billing === 'object' ? currentState.billing : {}),
+      ...billingUpdate,
+      updatedAt: new Date().toISOString(),
+    })
+
+    await store.set(blobKey, JSON.stringify({
+      ...currentState,
+      accountOwnerId: userId,
+      billing: normalizedBilling,
+      planStatus: normalizedBilling.status,
+      planTier: normalizedBilling.status === 'free' ? 'free' : 'paid',
+      planKey: normalizedBilling.status === 'free' ? '' : (planKey || normalizedBilling.planKey || currentState.planKey || 'monthly'),
+      savedAt: new Date().toISOString(),
+    }), {
+      contentType: 'application/json',
+    })
+
+    return true
+  } catch (error) {
+    console.error('[abacatepay] Falha ao gravar billing verificado:', error.message)
+    return false
+  }
+}
+
 function hasActivePaidBilling(billing) {
   if (!billing || typeof billing !== 'object') return false
   return String(billing.status ?? '').toLowerCase() === 'paid'
@@ -330,18 +363,77 @@ function getCheckoutUrl(checkout) {
 }
 
 function getCheckoutStatus(checkout) {
-  return String(checkout?.status ?? '').toUpperCase()
+  return String(
+    checkout?.status
+    ?? checkout?.checkout?.status
+    ?? checkout?.data?.status
+    ?? '',
+  ).toUpperCase()
 }
 
 function isDevModeCheckout(checkout, product = null) {
   return Boolean(checkout?.devMode || checkout?.checkout?.devMode || checkout?.data?.devMode || product?.devMode)
 }
 
+function getCheckoutExternalId(checkout, fallbackExternalId = '') {
+  return safeText(
+    checkout?.externalId
+    || checkout?.checkout?.externalId
+    || checkout?.data?.externalId
+    || fallbackExternalId
+    || '',
+  )
+}
+
+function getCheckoutMetadata(checkout) {
+  const candidates = [
+    checkout?.metadata,
+    checkout?.checkout?.metadata,
+    checkout?.data?.metadata,
+    checkout?.subscription?.metadata,
+    checkout?.data?.subscription?.metadata,
+  ]
+
+  return candidates.find((candidate) => candidate && typeof candidate === 'object') || {}
+}
+
+function getCheckoutOwnerId(checkout, fallbackExternalId = '') {
+  const metadata = getCheckoutMetadata(checkout)
+  const externalId = getCheckoutExternalId(checkout, fallbackExternalId)
+  return safeText(metadata.userId || parseExternalId(externalId).userId)
+}
+
+function checkoutBelongsToUser(checkout, authUser, fallbackExternalId = '') {
+  const ownerId = getCheckoutOwnerId(checkout, fallbackExternalId)
+  const authUserId = safeText(authUser?.id)
+  return Boolean(ownerId && authUserId && ownerId === authUserId)
+}
+
+function getCheckoutId(checkout) {
+  return safeText(
+    checkout?.id
+    || checkout?.checkout?.id
+    || checkout?.data?.id
+    || '',
+  )
+}
+
+function getPublicCheckoutSnapshot(checkout, fallbackExternalId = '') {
+  return {
+    id: getCheckoutId(checkout),
+    status: getCheckoutStatus(checkout),
+    externalId: getCheckoutExternalId(checkout, fallbackExternalId),
+    subscriptionId: getSubscriptionId(checkout),
+    devMode: isDevModeCheckout(checkout),
+  }
+}
+
 function getCheckoutPlanKey(checkout, fallbackExternalId = '') {
-  const metadataPlan = safeText(checkout?.metadata?.planKey || checkout?.metadata?.plan || '')
+  const metadata = getCheckoutMetadata(checkout)
+  const metadataPlan = safeText(metadata.planKey || metadata.plan || '')
   if (metadataPlan) return metadataPlan
 
-  return parseExternalId(checkout?.externalId || fallbackExternalId).planKey
+  return parseExternalId(getCheckoutExternalId(checkout, fallbackExternalId)).planKey
 }
 
 function getSubscriptionId(checkout) {
@@ -379,6 +471,42 @@ function formatAbacateError(payload) {
   return ''
 }
 
+function getSafePath(path) {
+  try {
+    return new URL(`${ABACATE_API_BASE}${path}`).pathname
+  } catch {
+    return String(path || '').split('?')[0] || '(unknown)'
+  }
+}
+
+function summarizeAbacateBody(body) {
+  if (!body || typeof body !== 'object') return { hasBody: false }
+
+  return {
+    hasBody: true,
+    fields: Object.keys(body).sort(),
+    itemCount: Array.isArray(body.items) ? body.items.length : 0,
+    methods: Array.isArray(body.methods) ? body.methods : [],
+    hasEmail: Boolean(safeText(body.email || body.data?.email)),
+    hasName: Boolean(safeText(body.name || body.data?.name)),
+    hasCellphone: Boolean(safeText(body.cellphone || body.data?.cellphone)),
+    hasTaxId: Boolean(safeText(body.taxId || body.data?.taxId)),
+    hasCustomerId: Boolean(safeText(body.customerId)),
+    couponsCount: Array.isArray(body.coupons) ? body.coupons.length : 0,
+    metadata: body.metadata && typeof body.metadata === 'object'
+      ? {
+          app: safeText(body.metadata.app),
+          gateway: safeText(body.metadata.gateway),
+          checkoutMode: safeText(body.metadata.checkoutMode),
+          billingMode: safeText(body.metadata.billingMode),
+          planKey: safeText(body.metadata.planKey),
+          couponsEnabled: Boolean(body.metadata.couponsEnabled),
+          couponsSource: safeText(body.metadata.couponsSource),
+        }
+      : undefined,
+  }
+}
+
 async function abacateFetch(path, { method = 'GET', body } = {}) {
   const apiKey = getApiKey()
   if (!apiKey) {
@@ -386,7 +514,7 @@ async function abacateFetch(path, { method = 'GET', body } = {}) {
   }
 
   const fullUrl = `${ABACATE_API_BASE}${path}`
-  console.log(`[abacatepay] ${method} ${fullUrl}`, body ? JSON.stringify(body).slice(0, 800) : '(sem body)')
+  console.log(`[abacatepay] ${method} ${getSafePath(path)}`, summarizeAbacateBody(body))
 
   const response = await fetch(fullUrl, {
     method,
@@ -403,11 +531,10 @@ async function abacateFetch(path, { method = 'GET', body } = {}) {
     : await response.text().catch(() => '')
 
   if (!response.ok) {
-    console.error(`[abacatepay] HTTP ${response.status} em ${path}. Resposta completa:`, JSON.stringify(payload).slice(0, 1500))
+    console.error(`[abacatepay] HTTP ${response.status} em ${getSafePath(path)}:`, formatAbacateError(payload) || '(sem mensagem segura)')
     const message = formatAbacateError(payload) || 'Falha na integração com a AbacatePay.'
     const error = new Error(message)
     error.status = response.status
-    error.details = payload
     throw error
   }
 
@@ -520,13 +647,13 @@ function buildCheckoutPayload({
     payload.coupons = allowedCoupons
   }
 
-  console.log('[abacatepay] Payload v2 COMPLETO:', JSON.stringify({
+  console.log('[abacatepay] Payload v2:', JSON.stringify({
     items: payload.items,
     methods: payload.methods,
-    returnUrl: payload.returnUrl,
-    completionUrl: payload.completionUrl,
-    externalId: payload.externalId,
-    customerId: payload.customerId || '(sem customer)',
+    hasReturnUrl: Boolean(payload.returnUrl),
+    hasCompletionUrl: Boolean(payload.completionUrl),
+    hasExternalId: Boolean(payload.externalId),
+    hasCustomerId: Boolean(payload.customerId),
     couponsCount: allowedCoupons.length,
     couponsSource,
     planKey: payload.metadata.planKey,
@@ -618,7 +745,7 @@ async function createCheckout(req, authUser, headers) {
       cycle: safeText(product?.cycle) || '(sem PRODUCT:READ)',
       expectedCycle: normalizeCycle(plan.abacateCycle),
       devMode: Boolean(product?.devMode),
-      customerId: customerId || '(checkout vai coletar dados)',
+      hasCustomerId: Boolean(customerId),
     }))
 
     const { coupons: allowedCoupons, source: couponsSource } = await resolvePlanCoupons(plan)
@@ -644,9 +771,11 @@ async function createCheckout(req, authUser, headers) {
     const checkoutUrl = getCheckoutUrl(checkout)
 
     if (!checkoutUrl) {
-      console.error('[abacatepay] Checkout v2 criado sem URL:', JSON.stringify(checkout))
+      console.error('[abacatepay] Checkout v2 criado sem URL:', JSON.stringify(getPublicCheckoutSnapshot(checkout, externalId)))
       return new Response(JSON.stringify({ error: 'A AbacatePay não retornou a URL de checkout.' }), { status: 502, headers })
     }
+
+    const publicCheckout = getPublicCheckoutSnapshot(checkout, externalId)
 
     return new Response(JSON.stringify({
       success: true,
@@ -654,11 +783,10 @@ async function createCheckout(req, authUser, headers) {
       checkoutMode,
       billingMode,
       subscriptionFallback: false,
-      checkoutId: checkout.id || checkout.checkout?.id || '',
+      checkoutId: publicCheckout.id,
       subscriptionId: oneTimeCheckout ? '' : getSubscriptionId(checkout),
       checkoutUrl,
       externalId,
-      customerId,
       devMode: isDevModeCheckout(checkout, product),
       couponsEnabled: allowedCoupons.length > 0,
       couponsSource,
@@ -680,13 +808,13 @@ async function createCheckout(req, authUser, headers) {
           : 'Checkout de assinatura criado. O cycle fica no produto da AbacatePay e não é enviado no payload do checkout.',
       totalPrice: plan.totalPrice,
       billingLabel: plan.billingLabel,
-      checkout,
+      checkout: publicCheckout,
     }), {
       status: 200,
       headers,
     })
   } catch (error) {
-    console.error('[abacatepay] Erro ao criar checkout v2:', error.message, '| Status:', error.status, '| Details:', JSON.stringify(error.details || {}).slice(0, 1000))
+    console.error('[abacatepay] Erro ao criar checkout v2:', error.message, '| Status:', error.status || '(sem status)')
     throw error
   }
 }
@@ -711,7 +839,7 @@ async function findCheckout(path, { checkoutId, externalId }) {
   return checkouts[0] || null
 }
 
-async function verifyCheckout(req, headers) {
+async function verifyCheckout(req, authUser, headers) {
   const url = new URL(req.url)
   const checkoutId = safeText(url.searchParams.get('checkoutId'))
   const externalId = safeText(url.searchParams.get('externalId'))
@@ -738,22 +866,47 @@ async function verifyCheckout(req, headers) {
     return new Response(JSON.stringify({ error: 'Checkout não encontrado' }), { status: 404, headers })
   }
 
-  const resolvedExternalId = safeText(checkout.externalId || externalId)
+  const resolvedExternalId = getCheckoutExternalId(checkout, externalId)
+  if (!checkoutBelongsToUser(checkout, authUser, resolvedExternalId)) {
+    console.warn('[abacatepay] Consulta de checkout bloqueada por ownership inválido.')
+    return new Response(JSON.stringify({ error: 'Checkout não encontrado para esta conta.' }), { status: 404, headers })
+  }
+
   const planKey = getCheckoutPlanKey(checkout, resolvedExternalId)
   const plan = getPricingPlanByKey(planKey)
   const billingMode = checkoutMode === 'checkout' || isOneTimePlan(plan) ? 'one_time' : 'subscription'
+  const publicCheckout = getPublicCheckoutSnapshot(checkout, resolvedExternalId)
+  const paid = PAID_STATUSES.has(getCheckoutStatus(checkout))
+  const accessEndsAt = billingMode === 'one_time' ? getPlanAccessEndsAt(plan) : ''
+
+  if (paid) {
+    await updateVerifiedBillingInBlob(authUser.id, planKey, {
+      status: 'paid',
+      planKey,
+      billingMode,
+      gateway: 'abacatepay-v2',
+      paidAt: new Date().toISOString(),
+      subscriptionActive: billingMode !== 'one_time',
+      cancelAtPeriodEnd: false,
+      checkoutId: publicCheckout.id,
+      externalId: resolvedExternalId,
+      subscriptionId: billingMode === 'one_time' ? '' : publicCheckout.subscriptionId,
+      ...(accessEndsAt ? { accessEndsAt } : {}),
+      remoteStatus: publicCheckout.status,
+    })
+  }
 
   return new Response(JSON.stringify({
     success: true,
     gateway: 'abacatepay-v2',
     checkoutMode,
     billingMode,
-    checkout,
-    paid: PAID_STATUSES.has(getCheckoutStatus(checkout)),
+    checkout: publicCheckout,
+    paid,
     planKey,
     externalId: resolvedExternalId,
     subscriptionId: billingMode === 'one_time' ? '' : getSubscriptionId(checkout),
-    accessEndsAt: billingMode === 'one_time' ? getPlanAccessEndsAt(plan) : '',
+    accessEndsAt,
   }), {
     status: 200,
     headers,
@@ -768,28 +921,29 @@ export default async function handler(req, context) {
   }
 
   if (req.method === 'POST') {
-    const auth = requireAuth(req, context, headers)
+    const auth = await requireAuth(req, context, headers)
     if (auth instanceof Response) return auth
 
     try {
       return await createCheckout(req, auth.user, headers)
     } catch (error) {
-      console.error('[abacatepay-checkout] create error:', error)
+      console.error('[abacatepay-checkout] create error:', error?.message || error, '| Status:', error?.status || '(sem status)')
       return new Response(JSON.stringify({
         error: error?.message || 'Falha ao criar checkout',
-        details: error?.details || null,
       }), { status: error?.status || 502, headers })
     }
   }
 
   if (req.method === 'GET') {
+    const auth = await requireAuth(req, context, headers)
+    if (auth instanceof Response) return auth
+
     try {
-      return await verifyCheckout(req, headers)
+      return await verifyCheckout(req, auth.user, headers)
     } catch (error) {
-      console.error('[abacatepay-checkout] verify error:', error)
+      console.error('[abacatepay-checkout] verify error:', error?.message || error, '| Status:', error?.status || '(sem status)')
       return new Response(JSON.stringify({
         error: error?.message || 'Falha ao verificar checkout',
-        details: error?.details || null,
       }), { status: error?.status || 502, headers })
     }
   }

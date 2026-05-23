@@ -1,9 +1,9 @@
 /**
  * Safe JWT authentication utility for Netlify Functions V2.
  *
- * Primary path: Netlify Identity must provide `context.clientContext.user`, which
- * means the platform has validated the JWT cryptographically before this code
- * trusts user identity.
+ * Primary paths:
+ * - Netlify Identity `clientContext.user`, when the runtime provides it.
+ * - Netlify Identity `/user` API, which verifies the Bearer JWT server-side.
  *
  * Local development fallback: when running under Netlify Dev, this module can
  * decode the JWT payload structurally so local testing does not crash. That
@@ -85,13 +85,81 @@ function isLocalJwtFallbackAllowed() {
     || String(env.APICE_ALLOW_UNVERIFIED_JWT ?? '').toLowerCase() === 'true'
 }
 
+function getIdentityUserUrl(req) {
+  try {
+    return new URL('/.netlify/identity/user', req.url).toString()
+  } catch {
+    const env = process?.env || {}
+    const origin = String(env.SITE_URL || env.URL || '').trim().replace(/\/$/, '')
+    return origin ? `${origin}/.netlify/identity/user` : ''
+  }
+}
+
+async function fetchIdentityUser(req, token) {
+  const identityUserUrl = getIdentityUserUrl(req)
+  if (!identityUserUrl) return null
+
+  try {
+    const response = await fetch(identityUserUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      console.warn(`[auth] Netlify Identity /user rejeitou JWT. HTTP ${response.status}.`)
+      return null
+    }
+
+    const user = await response.json().catch(() => null)
+    return user && typeof user === 'object' ? user : null
+  } catch (error) {
+    console.warn('[auth] Falha ao validar JWT na Netlify Identity:', error?.message || error)
+    return null
+  }
+}
+
+function buildAuthResult(userContext, token, source) {
+  const userId = String(userContext?.sub ?? userContext?.id ?? '').trim()
+  if (!userId) {
+    console.warn(`[auth] ${source} sem user id.`)
+    return null
+  }
+
+  console.log(`[auth] Auth via ${source}.`)
+
+  return {
+    user: {
+      id: userId,
+      email: String(userContext.email ?? '').trim(),
+      fullName: String(
+        userContext.user_metadata?.full_name
+        ?? userContext.user_metadata?.name
+        ?? userContext.name
+        ?? '',
+      ).trim(),
+      roles: Array.isArray(userContext.app_metadata?.roles)
+        ? userContext.app_metadata.roles
+        : Array.isArray(userContext.roles)
+          ? userContext.roles
+          : [],
+      metadata: userContext.user_metadata || userContext.userMetadata || {},
+      appMetadata: userContext.app_metadata || userContext.appMetadata || {},
+    },
+    token,
+    payload: userContext,
+  }
+}
+
 /**
  * Authenticate a request by extracting and validating the JWT.
  *
  * Returns { user, token } on success, or null if unauthenticated.
  * NEVER throws — callers get null and can decide to return 401.
  */
-export function authenticateRequest(req, context = {}) {
+export async function authenticateRequest(req, context = {}) {
   try {
     const token = extractBearerToken(req)
     if (!token) {
@@ -116,32 +184,12 @@ export function authenticateRequest(req, context = {}) {
     }
 
     if (userContext) {
-      const userId = String(userContext.sub ?? userContext.id ?? '').trim()
-      if (!userId) {
-        console.warn('[auth] Contexto Netlify sem user id.')
-        return null
-      }
+      return buildAuthResult(userContext, token, 'Netlify clientContext')
+    }
 
-      console.log('[auth] Auth via Netlify Identity.')
-
-      return {
-        user: {
-          id: userId,
-          email: String(userContext.email ?? '').trim(),
-          fullName: String(
-            userContext.user_metadata?.full_name
-            ?? userContext.user_metadata?.name
-            ?? '',
-          ).trim(),
-          roles: Array.isArray(userContext.app_metadata?.roles)
-            ? userContext.app_metadata.roles
-            : [],
-          metadata: userContext.user_metadata || {},
-          appMetadata: userContext.app_metadata || {},
-        },
-        token,
-        payload: userContext,
-      }
+    const identityUser = await fetchIdentityUser(req, token)
+    if (identityUser) {
+      return buildAuthResult(identityUser, token, 'Netlify Identity API')
     }
 
     // Local-only fallback. Fora do Netlify Dev, decodificar sem verificar
@@ -231,7 +279,7 @@ function extractUserIdFromHeader(req) {
  * Primary auth: Bearer JWT validated by Netlify clientContext.
  * Guest access: only `guest` is accepted, and only when allowGuest=true.
  */
-export function requireAuth(req, context = {}, corsHeaders = {}, options = {}) {
+export async function requireAuth(req, context = {}, corsHeaders = {}, options = {}) {
   const allowGuest = Boolean(options?.allowGuest)
   const userId = extractUserIdFromHeader(req)
 
@@ -244,7 +292,7 @@ export function requireAuth(req, context = {}, corsHeaders = {}, options = {}) {
     }
   }
 
-  const auth = authenticateRequest(req, context)
+  const auth = await authenticateRequest(req, context)
   if (auth) return auth
 
   if (userId) {

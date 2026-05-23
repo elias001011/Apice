@@ -31,11 +31,6 @@ function getAbacatePayErrorMessage(data, fallback) {
     return details.trim()
   }
 
-  if (details && typeof details === 'object') {
-    const nestedMessage = String(details.message ?? details.error ?? details.details ?? '').trim()
-    if (nestedMessage) return nestedMessage
-  }
-
   return fallback
 }
 
@@ -109,6 +104,14 @@ export function PlanosPage() {
     let cancelled = false
 
     const verify = async () => {
+      if (isGuest || !user) {
+        setFlash({
+          tone: 'warning',
+          text: 'Faça login nesta conta para verificar o status do checkout.',
+        })
+        return
+      }
+
       if (!checkoutId && !externalId) {
         setFlash({
           tone: 'warning',
@@ -126,7 +129,7 @@ export function PlanosPage() {
           url.searchParams.set('externalId', externalId)
         }
 
-        const response = await fetch(url)
+        const response = await authFetch(url)
         const data = await response.json().catch(() => ({}))
 
         if (!response.ok) {
@@ -178,7 +181,7 @@ export function PlanosPage() {
     return () => {
       cancelled = true
     }
-  }, [billingState.checkoutId, billingState.externalId, billingState.planKey, billingState.subscriptionId, location.search, navigate])
+  }, [billingState.checkoutId, billingState.externalId, billingState.planKey, billingState.subscriptionId, isGuest, location.search, navigate, user])
 
   const activePlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
   const activeBillingOneTime = billingState.status === 'paid' && (
@@ -278,7 +281,7 @@ export function PlanosPage() {
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        console.error('[planos] Checkout falhou. Status:', response.status, '| Resposta completa:', JSON.stringify(data))
+        console.error('[planos] Checkout falhou. Status:', response.status, '| Erro:', getAbacatePayErrorMessage(data, 'sem mensagem'))
         throw new Error(getAbacatePayErrorMessage(data, 'Não foi possível criar o checkout.'))
       }
 
@@ -387,7 +390,7 @@ export function PlanosPage() {
         throw new Error(data?.error || 'Não foi possível cancelar a assinatura.')
       }
 
-      const shouldUpdateLocally = Boolean(data.userUpdated || data.cancelAtPeriodEnd || data.localOnly || data.cancelled || data.success)
+      const shouldUpdateLocally = Boolean(data.userUpdated || data.cancelAtPeriodEnd || data.localOnly || data.cancelled)
       if (shouldUpdateLocally) {
         const cancelledAt = new Date().toISOString()
         const nextAccessEndsAt = data.accessEndsAt || billingState.accessEndsAt || ''

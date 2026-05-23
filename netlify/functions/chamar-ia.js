@@ -115,7 +115,7 @@ export default async function handler(req, context) {
   }
 
   // ── Authentication ──────────────────────────────────────────────────────
-  const auth = requireAuth(req, context, headers, { allowGuest: true })
+  const auth = await requireAuth(req, context, headers, { allowGuest: true })
   if (auth instanceof Response) {
     console.warn('[chamar-ia] Requisição não autenticada (401). Verifique se o usuário está logado e o JWT está válido.')
     return auth
