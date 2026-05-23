@@ -45,6 +45,10 @@ function canGuestAccessUrl(url) {
   return GUEST_ALLOWED_PATHS.has(resolveRequestPath(url))
 }
 
+function formatUrlForLog(url) {
+  return resolveRequestPath(url) || '(unknown)'
+}
+
 /**
  * Register a function that returns the current auth token.
  * Returns the current JWT string.
@@ -117,7 +121,7 @@ export async function authFetch(url, options = {}) {
   } else if (jwt) {
     headers['Authorization'] = `Bearer ${jwt}`
   } else {
-    console.warn(`[authFetch] Nenhum JWT disponível para ${url}`)
+    console.warn(`[authFetch] Nenhum JWT disponível para ${formatUrlForLog(url)}`)
   }
 
   const response = await fetch(url, {
@@ -128,12 +132,12 @@ export async function authFetch(url, options = {}) {
   // Log auth/server errors for debugging
   if (response.status === 401) {
     console.error(
-      `[authFetch] 401 em ${url}. ` +
+      `[authFetch] 401 em ${formatUrlForLog(url)}. ` +
       `Auth: ${jwt ? 'JWT' : '(nenhum)'}. ` +
       `Storage: ${Boolean(typeof window !== 'undefined' && localStorage?.getItem('gotrue.user'))}`
     )
   } else if (response.status === 500 || response.status === 502) {
-    console.warn(`[authFetch] ${response.status} em ${url}. Server error.`)
+    console.warn(`[authFetch] ${response.status} em ${formatUrlForLog(url)}. Server error.`)
   }
 
   return response
