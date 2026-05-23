@@ -74,7 +74,7 @@ export default async function handler(req, context) {
   } catch (error) {
     console.error('[carregar-estado] Erro:', error.message)
     return new Response(
-      JSON.stringify({ error: 'Falha ao carregar estado', detail: error.message }),
+      JSON.stringify({ error: 'Falha ao carregar estado' }),
       { status: 500, headers }
     )
   }

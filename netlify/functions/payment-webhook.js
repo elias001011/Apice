@@ -1,4 +1,3 @@
-import crypto from 'node:crypto'
 import process from 'node:process'
 
 /**
@@ -11,10 +10,8 @@ import process from 'node:process'
  * - subscription.renewed
  * - subscription.cancelled
  *
- * Variaveis opcionais:
- * - ABACATE_WEBHOOK_SECRET ou ABACATEPAY_WEBHOOK_SECRET para validar a query webhookSecret
- * - ABACATEPAY_WEBHOOK_KEY ou ABACATEPAY_SIGNATURE_KEY
- *   para validar a assinatura HMAC enviada pela AbacatePay
+ * Autenticação do webhook:
+ * - WEBHOOK_SECRET valida a query webhookSecret da URL cadastrada na AbacatePay.
  */
 
 const BLOB_STORE_NAME = 'user-state'
@@ -112,34 +109,7 @@ function parsePayload(rawBody) {
 }
 
 function getWebhookSecret() {
-  return safeText(process.env.ABACATE_WEBHOOK_SECRET || process.env.ABACATEPAY_WEBHOOK_SECRET)
-}
-
-function getWebhookSignatureKey() {
-  return safeText(
-    process.env.ABACATEPAY_WEBHOOK_KEY
-    || process.env.ABACATEPAY_SIGNATURE_KEY,
-  )
-}
-
-function verifyWebhookSignature(rawBody, signature, signatureKey) {
-  const cleanSignature = safeText(signature)
-  const cleanSignatureKey = safeText(signatureKey)
-  if (!cleanSignature || !cleanSignatureKey) return false
-
-  try {
-    const expectedSignature = crypto
-      .createHmac('sha256', cleanSignatureKey)
-      .update(Buffer.from(rawBody, 'utf8'))
-      .digest('base64')
-
-    const expected = Buffer.from(expectedSignature)
-    const received = Buffer.from(cleanSignature)
-    return expected.length === received.length && crypto.timingSafeEqual(expected, received)
-  } catch {
-    console.warn('[payment-webhook] Falha ao validar assinatura do webhook.')
-    return false
-  }
+  return safeText(process.env.WEBHOOK_SECRET)
 }
 
 function pickMetadata(body) {
@@ -286,27 +256,15 @@ export async function handler(req) {
     const body = parsePayload(rawBody)
     const url = new URL(req.url)
     const configuredSecret = getWebhookSecret()
-    const signatureKey = getWebhookSignatureKey()
     const receivedSecret = safeText(url.searchParams.get('webhookSecret'))
-    const signature = safeText(req.headers.get('x-webhook-signature'))
 
-    if (signature) {
-      if (!signatureKey) {
-        console.error('[payment-webhook] Assinatura recebida, mas chave HMAC não configurada.')
-        return new Response(JSON.stringify({ error: 'Webhook signature key não configurada' }), { status: 500 })
-      }
+    if (!configuredSecret) {
+      console.error('[payment-webhook] WEBHOOK_SECRET não configurada.')
+      return new Response(JSON.stringify({ error: 'Webhook secret não configurado' }), { status: 500 })
+    }
 
-      if (!verifyWebhookSignature(rawBody, signature, signatureKey)) {
-        return new Response(JSON.stringify({ error: 'Assinatura do webhook inválida' }), { status: 401 })
-      }
-    } else {
-      if (!configuredSecret) {
-        return new Response(JSON.stringify({ error: 'Assinatura do webhook ausente' }), { status: 401 })
-      }
-
-      if (receivedSecret !== configuredSecret) {
-        return new Response(JSON.stringify({ error: 'Webhook secret inválido' }), { status: 401 })
-      }
+    if (receivedSecret !== configuredSecret) {
+      return new Response(JSON.stringify({ error: 'Webhook secret inválido' }), { status: 401 })
     }
 
     const event = safeText(body?.event)

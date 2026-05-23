@@ -16,8 +16,14 @@ const DEV_ORIGINS = [
   'http://127.0.0.1:8888',
 ]
 
+const OFFICIAL_ORIGINS = [
+  'https://estudeapice.online',
+  'https://apice-ai.netlify.app',
+  'https://dev--apice-ai.netlify.app',
+]
+
 function getAllowedOrigins() {
-  const origins = new Set(DEV_ORIGINS)
+  const origins = new Set([...DEV_ORIGINS, ...OFFICIAL_ORIGINS])
 
   // Netlify sets SITE_URL and URL automatically in production
   const siteUrl = String(process.env.SITE_URL ?? '').trim()
@@ -46,9 +52,9 @@ export function buildCorsHeaders(req) {
   if (requestOrigin && allowedOrigins.has(requestOrigin.replace(/\/$/, ''))) {
     origin = requestOrigin
   } else {
-    // In production, use the known site URL. In dev, allow all.
+    // Fall back to the primary production domain — never expose '*' in production.
     const siteUrl = String(process.env.SITE_URL ?? '').trim()
-    origin = siteUrl || '*'
+    origin = siteUrl || 'https://estudeapice.online'
   }
 
   return {

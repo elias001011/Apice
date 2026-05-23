@@ -10,326 +10,193 @@
 
 O projeto usa React/Vite no frontend e Netlify Functions no backend. As chamadas de IA, autenticação, pagamentos e sincronização de dados passam por funções serverless para proteger chaves, controlar acesso e centralizar regras de negócio.
 
-> Projeto desenvolvido por **Elias Nunes**.
-
 ---
 
-## Visão geral
+## 1. Arquitetura e Fluxo Geral do Sistema
 
-O Ápice foi criado para ajudar estudantes a treinar para o ENEM com uma experiência mais personalizada que um app estático. A aplicação combina:
-
-- correção de redações com IA;
-- geração dinâmica de temas;
-- Professor IA para dúvidas e exercícios;
-- simulados e histórico de desempenho;
-- radar de temas;
-- conquistas, preferências e progresso;
-- login, modo convidado e sincronização em nuvem.
-
----
-
-## Funcionalidades
-
-### Redação
-
-- Correção de redações no estilo ENEM.
-- Tema, material de apoio e modo de correção rígido.
-- Heurísticas de segurança e qualidade antes/depois da IA.
-- Histórico local e sincronização para usuários logados.
-- Análise de desempenho baseada em redações anteriores.
-
-### Professor IA
-
-- Chat educacional voltado ao ENEM.
-- Respostas em português do Brasil.
-- Suporte a ferramentas internas:
-  - pesquisa web quando a resposta depende de atualidades;
-  - geração de quizzes interativos;
-  - organização da resposta em JSON para a interface.
-- Histórico de conversa e geração automática de título.
-
-### Simulados
-
-- Geração de questões por área/disciplina.
-- Limite de segurança para quantidade de questões geradas por IA.
-- Histórico de simulados e métricas de desempenho.
-
-### Radar de temas
-
-- Sugestões de temas atuais.
-- Detalhamento de temas para estudo.
-- Materiais com cards, fontes e resumo.
-
-### Conta e sincronização
-
-- Login com Netlify Identity/GoTrue.
-- Modo convidado com cota limitada.
-- Sincronização em nuvem via Netlify Blobs.
-- Estado de conta separado do JWT para evitar tokens inflados.
-- Backup/exportação de dados do usuário.
-
-### Planos e billing
-
-- Estrutura de planos/free usage.
-- Integração com AbacatePay em Functions dedicadas.
-- Webhook de pagamento server-side.
-- Backend como autoridade para estado de billing.
-
----
-
-## Stack
-
-- **Frontend:** React 19, Vite 8, React Router.
-- **Autenticação:** Netlify Identity / GoTrue.
-- **Backend:** Netlify Functions.
-- **Persistência serverless:** Netlify Blobs.
-- **IA:** Groq, Gemini, OpenRouter, xAI/Grok e Hugging Face via camada de fallback.
-- **Exportação/artefatos:** `jspdf`, `html-to-image`.
-- **Canvas/whiteboard:** `tldraw`.
-
----
-
-## Arquitetura
+A arquitetura do Ápice é estruturada em três camadas principais:
 
 ```txt
-React/Vite frontend
-  ↓
-authFetch()
-  ↓
-Authorization: Bearer <JWT>
-  ↓
-Netlify Functions
-  ↓
-utils/auth.js + validate.js + rateLimit.js
-  ↓
-netlify/ai/ai.js
-  ↓
-Providers externos de IA
+┌─────────────────────────────────┐
+│     React 19 / Vite Client      │
+└────────────────┬────────────────┘
+                 │
+                 │ authFetch() [JWT Header]
+                 ▼
+┌─────────────────────────────────┐
+│        Netlify Functions        │ (utils/auth.js, validate.js, rateLimit.js)
+└────────────────┬────────────────┘
+                 │
+                 ├───────────────────────────────┐
+                 ▼                               ▼
+┌─────────────────────────────────┐     ┌─────────────────────────────────┐
+│        netlify/ai/ai.js         │     │         Netlify Blobs           │
+└────────────────┬────────────────┘     └─────────────────────────────────┘
+                 │ (Fallback Engine)             (Estado e Billing do Usuário)
+                 ▼
+ ┌───────────────┼───────────────┐
+ ▼               ▼               ▼
+Groq          Gemini        OpenRouter / xAI / HF
 ```
 
-A regra geral é: o frontend não carrega chaves de IA e não decide sozinho a lógica crítica. Ele envia dados para Functions, e as Functions validam autenticação, entrada, cota e segurança antes de chamar os providers.
+1. **Frontend (React 19 & Vite 8)**: Gerencia a interface do usuário, mantém o estado de estudo local do estudante (usando LocalStorage temporário), e interage com o backend através da função utilitária `authFetch()`, que anexa automaticamente o token JWT do Netlify Identity nas requisições.
+2. **Backend (Netlify Functions - Serverless)**: Centraliza as regras de negócio, valida os dados de entrada, executa autenticação estrita, aplica políticas de rate limit e gerencia a conexão com serviços de terceiros (Provedores de IA e gateway de pagamento AbacatePay).
+3. **Persistência (Netlify Blobs)**: Banco de dados chave-valor serverless de alta consistência usado para persistir o estado do usuário, histórico de uso do modo convidado e controle de rate limiting em tempo de execução.
 
 ---
 
-## Principais diretórios
+## 2. Funcionamento Interno da Camada de IA
+
+O orquestrador central de IA está localizado no arquivo `netlify/ai/ai.js`. Ele expõe APIs simplificadas para as funções serverless e executa diversas etapas complexas por trás de cada requisição.
+
+### A. Mecanismo de Fallback e Ordem de Provedores
+La camada de IA suporta 5 provedores externos: **Groq**, **Gemini**, **OpenRouter**, **xAI (Grok)** e **Hugging Face**.
+* **Seleção Dinâmica**: O sistema lê as variáveis de ambiente `AI_<PROVIDER>_ENABLED` e `AI_<PROVIDER>_ORDER` para construir dinamicamente a cadeia de fallback.
+* **Execução**: Se o provedor primário falhar (por limite de cota, erro de rede ou timeout), a engine intercepta o erro, registra a falha no console e tenta automaticamente o próximo provedor disponível na fila de prioridades, garantindo alta disponibilidade ao usuário final.
+
+### B. Ferramentas Integradas (Function Calling)
+O chat do **Professor IA** utiliza a função `runGroqProfessorWithTools` para habilitar chamadas de ferramentas diretamente na inteligência artificial:
+1. **Definição de Ferramentas**: São expostas ferramentas como `search_web` (pesquisa factual de atualidades) e `generate_quiz` (geração de quizzes interativos).
+2. **Ciclo de Execução**:
+   * O modelo recebe a pergunta do usuário e decide se precisa chamar alguma ferramenta.
+   * Se sim, a função serverless intercepta a requisição, executa a busca contextual (usando a API Google Custom Search integrada em `searchContext`) e devolve os dados estruturados de volta ao modelo.
+   * O modelo gera a resposta final baseada no contexto injetado pelas ferramentas.
+
+### C. Higienização de Respostas e Parsing JSON
+Os prompts instruem os modelos de linguagem a retornar exclusivamente objetos JSON válidos para que a interface possa renderizar de forma rica (separando texto, explicações e metadados).
+* **Sanitização**: Como os modelos frequentemente envolvem o JSON em blocos de código Markdown (\`\`\`json ... \`\`\`), a camada de IA do backend limpa esses caracteres antes de tentar efetuar o `JSON.parse`.
+* **Fallback de Validação**: Se o retorno ainda for inválido, o sistema aciona expressões regulares e limpadores de strings para recuperar o JSON quebrado.
+
+### D. Validação de Entrada (Inputs)
+Para evitar abusos de consumo de tokens (Prompt Injection de tamanho massivo ou estouro de memória), todas as rotas passam pelo utilitário `netlify/functions/utils/validate.js`, que rejeita a requisição antes de enviá-la para a IA se os limites abaixo forem excedidos:
+* **Mensagem do Usuário**: Máximo de 15.000 caracteres.
+* **Histórico de Conversas**: Limite no número de mensagens anteriores enviadas no contexto.
+* **Texto de Redação**: Máximo de 8.000 caracteres.
+
+---
+
+## 3. Processo de Pagamento e Assinaturas (AbacatePay)
+
+O fluxo de monetização e controle de planos premium é integrado com a API da **AbacatePay** e mantido nas funções serverless sob forte controle de estado.
 
 ```txt
-src/
-  auth/                 Provider de autenticação, sessão convidada e contexto
-  services/             Camada de dados e integração com Functions
-  views/                Telas principais do app
-  styles/               CSS global e telas específicas
-
-netlify/functions/
-  utils/                Auth, CORS, validação, rate limit, billing guard
-  professor-ia.js       Chat educacional com IA
-  corrigir-redacao.js   Correção de redação
-  gerar-tema.js         Tema dinâmico
-  buscar-contexto.js    Busca contextual/factual
-  gerar-radar*.js       Radar de temas
-  gerar-simulado.js     Geração de simulado
-  resumir-usuario.js    Resumo de desempenho
-  carregar-estado.js    Pull do estado em nuvem
-  salvar-estado.js      Push do estado em nuvem
-  abacatepay-*.js       Checkout/billing
-  payment-webhook.js    Webhook de pagamentos
-
-netlify/ai/
-  ai.js                 Orquestrador central de IA e fallback de providers
+[Client]                      [Netlify Functions]                     [AbacatePay]
+   │                                   │                                    │
+   │ POST /abacatepay-checkout         │                                    │
+   ├──────────────────────────────────>│                                    │
+   │                                   │ 1. Valida plano local              │
+   │                                   │ 2. Cria Customer ID                │
+   │                                   │ 3. Valida Produto Remoto           │
+   │                                   │ 4. Cria checkout                   │
+   │                                   ├───────────────────────────────────>│
+   │                                   │                                    │
+   │ <─────────────────────────────────┼────────────────────────────────────┤
+   │    Retorna URL do Checkout        │                                    │
+   │                                   │                                    │
+   │ (Cliente efetua o pagamento)      │                                    │
+   │                                   │                                    │
+   │ Webhook POST                      │                                    │
+   │ ──────────────────────────────────┼───────────────────────────────────>│
+   │                                   │                                    │
+   │                                   │ 1. Valida WEBHOOK_SECRET           │
+   │                                   │ 2. Decodifica externalId           │
+   │                                   │ 3. Grava "paid" no Netlify Blobs   │
+   │                                   │<───────────────────────────────────┤
 ```
+
+### A. Fluxo de Criação do Checkout (`abacatepay-checkout.js`)
+1. **Validação de Plano**: O backend verifica se o `planKey` enviado existe na tabela estática `PRICING_PLANS`.
+2. **Criação do Cliente**: O sistema consulta as informações cadastrais e gera um `customerId` único na AbacatePay para rastreabilidade de faturas.
+3. **Validação de Produto**: Para evitar descompassos entre o código e o painel da AbacatePay:
+   * **Assinaturas**: Valida se o produto está ativo e se o ciclo cadastrado corresponde ao esperado pelo plano (`MONTHLY`, `SEMIANNUALLY` ou `ANNUALLY`).
+   * **Pagamentos Únicos**: Garante que o produto não possua ciclo de recorrência associado.
+4. **Construção do Payload**: O checkout é criado com metadados cruciais criptografados/codificados no `externalId` (formato: `apice_<planKey>_<timestamp>_<userId>`).
+
+### B. Processamento do Webhook de Pagamento (`payment-webhook.js`)
+* **Autenticação**: O webhook é protegido por um segredo exclusivo. A função rejeita qualquer payload em que o parâmetro `webhookSecret` não coincida com a variável de ambiente `WEBHOOK_SECRET` do Netlify.
+* **Processamento do Evento**: Ao receber uma notificação de status `bill.paid` ou `subscription.active`, a função decodifica o `externalId` para obter o `userId` correspondente.
+* **Atualização do Blob**: A função serverless atualiza o Netlify Blobs com o novo estado de billing verificado (`status: 'paid'`), tornando o backend a única autoridade confiável de acesso.
 
 ---
 
-## IA no backend
+## 4. Estrutura de Armazenamento e Estado da Conta
 
-O arquivo `netlify/ai/ai.js` é o centro da camada de IA.
+O Ápice adota uma arquitetura híbrida de autenticação e persistência para garantir alta performance e conformidade de segurança.
 
-Ele concentra:
+### A. Separação de Identidade e Estado
+* **Netlify Identity (JWT)**: Usado apenas para atestar a identidade criptográfica do usuário. O JWT expõe dados básicos (`sub`, `email`). Não armazenamos o progresso do aluno ou o estado de pagamento no `user_metadata` do JWT para evitar tokens excessivamente grandes e lentidão no tráfego de requisições.
+* **Netlify Blobs**: Armazena o estado real. Toda mutação de dados é feita gravando no Netlify Blobs do projeto sob a chave `user-state:${userId}`.
 
-- ordem dos providers por variável de ambiente;
-- modelos default por provider;
-- fallback quando um provider falha;
-- prompts de correção, professor, tema, radar, simulado e resumo;
-- normalização de JSON retornado por modelos diferentes;
-- ferramentas do Professor IA, como pesquisa web e quiz interativo.
+### B. Schema do Estado do Usuário no Blob
+O arquivo JSON armazenado possui a seguinte estrutura técnica:
 
-Providers suportados:
-
-```txt
-Groq
-Gemini
-OpenRouter
-xAI/Grok
-Hugging Face
+```json
+{
+  "accountOwnerId": "uuid-do-usuario-no-identity",
+  "savedAt": "2026-05-23T17:00:00.000Z",
+  "planTier": "free" | "paid",
+  "planStatus": "free" | "paid",
+  "planKey": "monthly" | "yearly" | "semiannual" | "",
+  "billing": {
+    "status": "free" | "paid",
+    "planKey": "monthly" | "yearly",
+    "billingMode": "subscription" | "one_time",
+    "gateway": "abacatepay-v2",
+    "paidAt": "2026-05-23T17:00:00.000Z",
+    "subscriptionActive": true,
+    "cancelAtPeriodEnd": false,
+    "checkoutId": "ap-checkout-id",
+    "subscriptionId": "ap-subscription-id",
+    "accessEndsAt": "2027-05-23T17:00:00.000Z",
+    "remoteStatus": "ACTIVE",
+    "updatedAt": "2026-05-23T17:00:00.000Z"
+  },
+  "history": {
+    "redacoes": [],
+    "simulados": [],
+    "conquistas": []
+  }
+}
 ```
 
-Variáveis de controle comuns:
-
-```env
-AI_GROQ_ENABLED=true
-AI_GROQ_ORDER=10
-AI_GEMINI_ENABLED=true
-AI_GEMINI_ORDER=20
-AI_OPENROUTER_ENABLED=true
-AI_OPENROUTER_ORDER=30
-AI_GROK_ENABLED=true
-AI_GROK_ORDER=40
-AI_HUGGINGFACE_ENABLED=true
-AI_HUGGINGFACE_ORDER=50
-```
+### C. Sincronização Segura
+* **carregar-estado.js**: Obtém o JSON acima do Blob com consistência forte e o retorna ao frontend.
+* **salvar-estado.js**: Mescla o histórico de estudos do frontend com o estado da nuvem. **Regra de Segurança**: Esta rota bloqueia qualquer tentativa de mutação manual do bloco `"billing"`, `"planTier"`, ou `"planStatus"` enviada pelo cliente. O estado financeiro é alterado apenas por rotas internas verificadas e pelos webhooks oficiais assinados da AbacatePay.
 
 ---
 
-## Autenticação e JWT
+## 5. Variáveis de Ambiente Oficiais (Netlify)
 
-Ápice usa Netlify Identity/GoTrue. O frontend obtém o token com `currentUser.jwt()` e envia nas Functions:
+O backend do projeto depende das seguintes variáveis de ambiente cadastradas no painel da Netlify:
 
-```http
-Authorization: Bearer <JWT>
-```
-
-O backend usa `requireAuth()` em `netlify/functions/utils/auth.js` para autenticar as rotas.
-
-Pontos importantes:
-
-- o método principal é o `context.clientContext.user` da Netlify;
-- fallback que apenas decodifica JWT sem verificar assinatura é permitido somente em ambiente local controlado;
-- `X-User-Id` não é aceito como autenticação de usuário real;
-- o modo convidado é aceito apenas em rotas explicitamente liberadas com `allowGuest: true`.
-
----
-
-## Segurança
-
-### Proteções atuais
-
-- Chaves de IA e pagamento ficam no servidor, via variáveis de ambiente.
-- Rotas críticas exigem JWT ou modo convidado explicitamente liberado.
-- Inputs têm limite de tamanho para reduzir custo abusivo e payload gigante.
-- CORS reflete somente origens conhecidas em produção.
-- Rate limit por usuário/convidado/IP em Functions de IA.
-- Modo convidado tem cota diária própria.
-- `chamar-ia` aceita apenas providers/model variants em allowlist e ignora `modelOverride` vindo do cliente.
-- Dados de billing passam por sanitização server-side.
-- Estado da conta fica em Netlify Blobs, não em `user_metadata`, evitando JWT inflado.
-
-### Rate limits aplicados
-
-Limites atuais por janela de 10 minutos:
-
-```txt
-Professor IA:        guest 6 / usuário 40
-Correção redação:    guest 4 / usuário 12
-Tema dinâmico:       guest 4 / usuário 15
-Busca contexto:      guest 4 / usuário 30
-Radar:               guest 4 / usuário 15
-Radar detalhe:       guest 4 / usuário 20
-Resumo usuário:      guest 4 / usuário 20
-Simulado IA:         guest 4 / usuário 15
-Chamada direta IA:   guest 3 / usuário 10
-```
-
-### Limitações conhecidas
-
-- A validação criptográfica completa do JWT via JWKS ainda pode ser implementada futuramente.
-- CSP/headers de segurança ainda devem ser ajustados com cuidado para não quebrar Netlify Identity, PWA ou `tldraw`.
-- O modo convidado é propositalmente simples e deve ser tratado como recurso de demonstração, não como autenticação forte.
+| Nome da Variável | Função |
+| :--- | :--- |
+| **`ABACATE_PAY`** | Chave API da AbacatePay (Usada como fallback secundário) |
+| **`ABACATE_V2`** | Chave API Principal da AbacatePay (V2) |
+| **`CLIMA`** | Chave de API do OpenWeatherMap para o widget meteorológico |
+| **`GEMINI`** | Chave de API do Google Gemini |
+| **`GROK`** | Chave de API do xAI Grok |
+| **`GROQ`** | Chave de API do Groq Cloud |
+| **`HF`** | Chave de API da Hugging Face |
+| **`OR`** | Chave de API do OpenRouter |
+| **`WEBHOOK_SECRET`** | Token secreto para autenticação das requisições do webhook da AbacatePay |
+| **`NETLIFY_AUTH_TOKEN`** | Token de acesso para deploys automáticos e CLI |
 
 ---
 
-## Variáveis de ambiente
-
-Configure no Netlify e, para desenvolvimento local, no `.env`:
-
-```env
-# Netlify Identity
-VITE_NETLIFY_IDENTITY_URL=/.netlify/identity
-
-# IA
-GROQ_API_KEY=sua_chave_groq
-GEMINI_API_KEY=sua_chave_gemini
-OR_API_KEY=sua_chave_openrouter
-XAI_API_KEY=sua_chave_xai
-HF_API_KEY=sua_chave_huggingface
-
-# Controle opcional de providers
-AI_GROQ_ENABLED=true
-AI_GEMINI_ENABLED=true
-AI_OPENROUTER_ENABLED=true
-AI_GROK_ENABLED=true
-AI_HUGGINGFACE_ENABLED=true
-
-# Billing / pagamentos
-ABACATEPAY_API_KEY=sua_chave_abacatepay
-ABACATEPAY_WEBHOOK_SECRET=seu_secret_webhook
-ABACATEPAY_WEBHOOK_KEY=sua_chave_de_assinatura_webhook
-```
-
-> Não coloque chaves reais em arquivos versionados. Use `.env` local e variáveis do Netlify em produção.
-
----
-
-## Rodando localmente
+## 6. Desenvolvimento Local
 
 ### Pré-requisitos
+* Node.js 22+.
+* Netlify CLI instalado globalmente: `npm install -g netlify-cli`.
 
-- Node.js 22+ recomendado.
-- npm.
-- Netlify CLI.
-
-```bash
-npm install -g netlify-cli
-```
-
-### Instalação
-
-```bash
-git clone https://github.com/elias001011/Apice.git
-cd Apice
-npm install
-```
-
-### Desenvolvimento
-
-```bash
-netlify dev
-```
-
-O app normalmente roda em:
-
-```txt
-http://localhost:8888
-```
-
-### Build
-
-```bash
-npm run build
-```
-
----
-
-## Branches
-
-- `main`: versão estável/produção.
-- `dev`: branch ativa de desenvolvimento.
-
-A branch `dev` pode ficar à frente da `main` com alterações de IA, billing, auth, sincronização e segurança. Antes de mergear para produção, revise deploy, logs de Functions e fluxo de login.
-
----
-
-## Checklist antes de produção
-
-- Testar login/logout e troca de conta.
-- Testar modo convidado e bloqueio de cota.
-- Testar Professor IA, correção, tema, radar e simulado.
-- Conferir se Functions recebem `context.clientContext.user` corretamente.
-- Conferir webhooks de pagamento em ambiente seguro.
-- Revisar CSP/headers antes de endurecer no `netlify.toml`.
-- Verificar consumo/cotas dos providers de IA.
-
----
-
-## Licença
-
-Este projeto faz parte de uma iniciativa da Connecta. Defina uma licença formal antes de uso público amplo.
+### Inicialização
+1. Instale as dependências:
+   ```bash
+   npm install
+   ```
+2. Inicialize o servidor local integrado do Netlify Dev:
+   ```bash
+   netlify dev
+   ```
+3. O frontend estará disponível em `http://localhost:8888` com proxy automático para as funções serverless em `/.netlify/functions/`.
