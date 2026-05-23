@@ -112,14 +112,11 @@ function parsePayload(rawBody) {
 }
 
 function getWebhookSecret() {
-  return safeText(process.env.ABACATE_WEBHOOK_SECRET || process.env.ABACATEPAY_WEBHOOK_SECRET)
+  return safeText(process.env.WEBHOOK_SECRET)
 }
 
 function getWebhookSignatureKey() {
-  return safeText(
-    process.env.ABACATEPAY_WEBHOOK_KEY
-    || process.env.ABACATEPAY_SIGNATURE_KEY,
-  )
+  return ''
 }
 
 function verifyWebhookSignature(rawBody, signature, signatureKey) {

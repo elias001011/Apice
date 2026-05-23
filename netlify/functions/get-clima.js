@@ -147,7 +147,7 @@ export default async function handler(req, context) {
     return new Response(JSON.stringify(result), { status: 200, headers })
   } catch (error) {
     console.error('[get-clima] Erro:', error.message)
-    return new Response(JSON.stringify({ error: 'Erro interno', detail: error.message }), { status: 500, headers })
+    return new Response(JSON.stringify({ error: 'Erro interno' }), { status: 500, headers })
   }
 }
 

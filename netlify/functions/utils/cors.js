@@ -16,8 +16,14 @@ const DEV_ORIGINS = [
   'http://127.0.0.1:8888',
 ]
 
+const OFFICIAL_ORIGINS = [
+  'https://estudeapice.online',
+  'https://apice-ai.netlify.app',
+  'https://dev--apice-ai.netlify.app',
+]
+
 function getAllowedOrigins() {
-  const origins = new Set(DEV_ORIGINS)
+  const origins = new Set([...DEV_ORIGINS, ...OFFICIAL_ORIGINS])
 
   // Netlify sets SITE_URL and URL automatically in production
   const siteUrl = String(process.env.SITE_URL ?? '').trim()

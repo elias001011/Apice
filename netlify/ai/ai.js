@@ -1506,7 +1506,7 @@ async function runGroqProfessorWithTools({
   modelVariant = 'secondary',
   modelOverride = '',
 }) {
-  const apiKey = process.env.GROQ_API_KEY || process.env.GROQ
+  const apiKey = process.env.GROQ
   if (!apiKey || apiKey === 'undefined') {
     throw new Error('GROQ key missing')
   }
@@ -1644,7 +1644,7 @@ async function runGroqProfessorWithTools({
 }
 
 async function runGroqSearch({ query }) {
-  const apiKey = process.env.GROQ_API_KEY || process.env.GROQ
+  const apiKey = process.env.GROQ
   if (!apiKey || apiKey === 'undefined') {
     throw new Error('GROQ key missing')
   }
@@ -1708,7 +1708,7 @@ async function runGroqSearch({ query }) {
 }
 
 async function runGeminiSearch({ query }) {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GEMINI
+  const apiKey = process.env.GEMINI
   if (!apiKey || apiKey === 'undefined') {
     throw new Error('Gemini key missing')
   }
@@ -1744,7 +1744,7 @@ async function runGeminiSearch({ query }) {
 }
 
 async function runOpenRouterSearch({ query }) {
-  const apiKey = process.env.OR_API_KEY || process.env.OR
+  const apiKey = process.env.OR
   if (!apiKey || apiKey === 'undefined') {
     throw new Error('OpenRouter key missing')
   }
@@ -1803,7 +1803,7 @@ async function runGroqText({
   includeReasoning = null,
   stream = false,
 }) {
-  const apiKey = process.env.GROQ_API_KEY || process.env.GROQ
+  const apiKey = process.env.GROQ
   if (!apiKey || apiKey === 'undefined') {
     throw new Error('GROQ key missing')
   }
@@ -1879,7 +1879,7 @@ async function runGeminiText({
   thinkingLevel = '',
   thinkingBudget = null,
 }) {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GEMINI
+  const apiKey = process.env.GEMINI
   if (!apiKey || apiKey === 'undefined') {
     throw new Error('Gemini key missing')
   }
@@ -1927,7 +1927,7 @@ async function runGeminiText({
 }
 
 async function runOpenRouterText({ systemPrompt, userMessages, modelVariant = 'primary', modelOverride = '' }) {
-  const apiKey = process.env.OR_API_KEY || process.env.OR
+  const apiKey = process.env.OR
   if (!apiKey || apiKey === 'undefined') {
     throw new Error('OpenRouter key missing')
   }
@@ -1960,7 +1960,7 @@ async function runOpenRouterText({ systemPrompt, userMessages, modelVariant = 'p
 }
 
 async function runGrokText({ systemPrompt, userMessages, modelVariant = 'primary', modelOverride = '' }) {
-  const apiKey = process.env.XAI_API_KEY || process.env.XAI
+  const apiKey = process.env.GROK
   if (!apiKey || apiKey === 'undefined') {
     throw new Error('xAI key missing')
   }
@@ -1990,7 +1990,7 @@ async function runGrokText({ systemPrompt, userMessages, modelVariant = 'primary
 }
 
 async function runHuggingFaceText({ systemPrompt, userMessages, modelVariant = 'primary', modelOverride = '' }) {
-  const apiKey = process.env.HF_API_KEY || process.env.HF
+  const apiKey = process.env.HF
   if (!apiKey || apiKey === 'undefined') {
     throw new Error('Hugging Face key missing')
   }
