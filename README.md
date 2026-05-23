@@ -110,11 +110,11 @@ O fluxo de monetização e controle de planos premium é integrado com a API da 
 3. **Validação de Produto**: Para evitar descompassos entre o código e o painel da AbacatePay:
    * **Assinaturas**: Valida se o produto está ativo e se o ciclo cadastrado corresponde ao esperado pelo plano (`MONTHLY`, `SEMIANNUALLY` ou `ANNUALLY`).
    * **Pagamentos Únicos**: Garante que o produto não possua ciclo de recorrência associado.
-4. **Construção do Payload**: O checkout é criado com metadados cruciais criptografados/codificados no `externalId` (formato: `apice_<planKey>_<timestamp>_<userId>`).
+4. **Construção do Payload**: O checkout é criado com metadados cruciais criptografados/codificados no `externalId` (formato atual: `apice:<userId>:<planKey>:<timestamp>`; o parser ainda aceita o formato legado com underscores para compatibilidade).
 
 ### B. Processamento do Webhook de Pagamento (`payment-webhook.js`)
-* **Autenticação**: O webhook é protegido por um segredo exclusivo. A função rejeita qualquer payload em que o parâmetro `webhookSecret` não coincida com a variável de ambiente `WEBHOOK_SECRET` do Netlify.
-* **Processamento do Evento**: Ao receber uma notificação de status `bill.paid` ou `subscription.active`, a função decodifica o `externalId` para obter o `userId` correspondente.
+* **Autenticação**: O webhook é protegido por um segredo exclusivo. A função rejeita qualquer payload em que o parâmetro `webhookSecret` não coincida com `WEBHOOK_SECRET` do Netlify.
+* **Processamento do Evento**: Ao receber `checkout.completed`, `subscription.completed` ou `subscription.renewed`, a função decodifica o `externalId` para obter o `userId` correspondente.
 * **Atualização do Blob**: A função serverless atualiza o Netlify Blobs com o novo estado de billing verificado (`status: 'paid'`), tornando o backend a única autoridade confiável de acesso.
 
 ---
@@ -136,10 +136,10 @@ O arquivo JSON armazenado possui a seguinte estrutura técnica:
   "savedAt": "2026-05-23T17:00:00.000Z",
   "planTier": "free" | "paid",
   "planStatus": "free" | "paid",
-  "planKey": "monthly" | "yearly" | "semiannual" | "",
+  "planKey": "monthly" | "annual" | "semiannual" | "monthly_one_time" | "welcome_one_time" | "",
   "billing": {
     "status": "free" | "paid",
-    "planKey": "monthly" | "yearly",
+    "planKey": "monthly" | "annual" | "semiannual" | "monthly_one_time" | "welcome_one_time",
     "billingMode": "subscription" | "one_time",
     "gateway": "abacatepay-v2",
     "paidAt": "2026-05-23T17:00:00.000Z",
@@ -182,6 +182,8 @@ O backend do projeto depende das seguintes variáveis de ambiente cadastradas no
 | **`WEBHOOK_SECRET`** | Token secreto para autenticação das requisições do webhook da AbacatePay |
 | **`NETLIFY_AUTH_TOKEN`** | Token de acesso para deploys automáticos e CLI |
 
+Se você quiser validar produtos e cupons com mais rigor no checkout, também existem variáveis opcionais como `ABACATE_VALIDATE_PRODUCTS`, `ABACATE_AUTO_LIST_COUPONS` e `ABACATE_CHECKOUT_COUPONS` / `ABACATE_ALLOWED_COUPONS`.
+
 ---
 
 ## 6. Desenvolvimento Local
@@ -200,3 +202,6 @@ O backend do projeto depende das seguintes variáveis de ambiente cadastradas no
    netlify dev
    ```
 3. O frontend estará disponível em `http://localhost:8888` com proxy automático para as funções serverless em `/.netlify/functions/`.
+
+### Teste do pagamento sem cobrança real
+O fluxo da AbacatePay tem Dev mode próprio, então dá para simular checkout, pagamento e webhook sem usar cartão real. Para isso, use uma chave de Dev mode no painel da AbacatePay, cadastre o webhook em modo de testes e valide o retorno em `/planos`. A ativação premium acontece por dois caminhos: o retorno do checkout confere o status e o webhook grava o estado pago no Blob, então o acesso permanece ativo mesmo se a pessoa fechar a aba antes do retorno.
