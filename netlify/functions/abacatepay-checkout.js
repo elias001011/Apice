@@ -34,6 +34,28 @@ const ABACATE_PRODUCT_GET_PATH = '/v2/products/get'
 
 const PAID_STATUSES = new Set(['PAID', 'ACTIVE', 'COMPLETED'])
 const SUBSCRIPTION_PRODUCT_CYCLES = new Set(['WEEKLY', 'MONTHLY', 'SEMIANNUALLY', 'ANNUALLY', 'YEARLY'])
+const CHECKOUT_DEBUG_LOGS =
+  String(process.env.NETLIFY_DEV ?? '').toLowerCase() === 'true'
+  || String(process.env.NODE_ENV ?? '').toLowerCase() === 'development'
+
+function logCheckoutDebug(...args) {
+  if (CHECKOUT_DEBUG_LOGS) {
+    console.log(...args)
+  }
+}
+
+function isAbacateExternalError(error) {
+  return Boolean(error?.isAbacateError)
+}
+
+function getCheckoutErrorMessage(error, fallback) {
+  if (isAbacateExternalError(error)) {
+    return fallback
+  }
+
+  const message = safeText(error?.message)
+  return message || fallback
+}
 
 function getApiKey() {
   const key = String(process.env.ABACATE_V2 ?? process.env.ABACATE_PAY ?? '').trim()
@@ -514,7 +536,7 @@ async function abacateFetch(path, { method = 'GET', body } = {}) {
   }
 
   const fullUrl = `${ABACATE_API_BASE}${path}`
-  console.log(`[abacatepay] ${method} ${getSafePath(path)}`, summarizeAbacateBody(body))
+  logCheckoutDebug(`[abacatepay] ${method} ${getSafePath(path)}`, summarizeAbacateBody(body))
 
   const response = await fetch(fullUrl, {
     method,
@@ -535,6 +557,7 @@ async function abacateFetch(path, { method = 'GET', body } = {}) {
     const message = formatAbacateError(payload) || 'Falha na integração com a AbacatePay.'
     const error = new Error(message)
     error.status = response.status
+    error.isAbacateError = true
     throw error
   }
 
@@ -647,7 +670,7 @@ function buildCheckoutPayload({
     payload.coupons = allowedCoupons
   }
 
-  console.log('[abacatepay] Payload v2:', JSON.stringify({
+  logCheckoutDebug('[abacatepay] Payload v2:', JSON.stringify({
     items: payload.items,
     methods: payload.methods,
     hasReturnUrl: Boolean(payload.returnUrl),
@@ -670,7 +693,7 @@ async function createCheckout(req, authUser, headers) {
   let body = {}
   try {
     body = await req.json()
-    console.log('[abacatepay] Body recebido (resumido):', JSON.stringify({
+    logCheckoutDebug('[abacatepay] Body recebido (resumido):', JSON.stringify({
       planKey: body?.planKey || '',
       hasCustomerName: Boolean(safeText(body?.customerName || body?.fullName)),
       hasCustomerCellphone: Boolean(safeText(body?.customerCellphone || body?.phone || body?.cellphone)),
@@ -738,7 +761,7 @@ async function createCheckout(req, authUser, headers) {
     const { product, validationWarning } = oneTimeCheckout
       ? await validateCheckoutProduct(plan)
       : await validateSubscriptionProduct(plan)
-    console.log(`[abacatepay] Produto validado para ${oneTimeCheckout ? 'pagamento unico' : 'assinatura'}:`, JSON.stringify({
+    logCheckoutDebug(`[abacatepay] Produto validado para ${oneTimeCheckout ? 'pagamento unico' : 'assinatura'}:`, JSON.stringify({
       planKey: plan.key,
       productId: plan.productId,
       status: safeText(product?.status) || '(sem PRODUCT:READ)',
@@ -929,8 +952,8 @@ export default async function handler(req, context) {
     } catch (error) {
       console.error('[abacatepay-checkout] create error:', error?.message || error, '| Status:', error?.status || '(sem status)')
       return new Response(JSON.stringify({
-        error: error?.message || 'Falha ao criar checkout',
-      }), { status: error?.status || 502, headers })
+        error: getCheckoutErrorMessage(error, 'Falha ao criar checkout'),
+      }), { status: error?.isAbacateError ? 502 : error?.status || 502, headers })
     }
   }
 
@@ -943,8 +966,8 @@ export default async function handler(req, context) {
     } catch (error) {
       console.error('[abacatepay-checkout] verify error:', error?.message || error, '| Status:', error?.status || '(sem status)')
       return new Response(JSON.stringify({
-        error: error?.message || 'Falha ao verificar checkout',
-      }), { status: error?.status || 502, headers })
+        error: getCheckoutErrorMessage(error, 'Falha ao verificar checkout'),
+      }), { status: error?.isAbacateError ? 502 : error?.status || 502, headers })
     }
   }
 

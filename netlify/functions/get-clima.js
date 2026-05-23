@@ -88,7 +88,6 @@ export default async function handler(req, context) {
       console.error('[get-clima] One Call erro:', weatherRes.status, errBody)
       return new Response(JSON.stringify({
         error: 'Falha ao buscar clima',
-        owmStatus: weatherRes.status,
       }), { status: weatherRes.status, headers })
     }
 
