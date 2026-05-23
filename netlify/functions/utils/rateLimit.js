@@ -26,6 +26,12 @@ function hashText(text) {
   return hash.toString(36)
 }
 
+function isLocalDevelopment() {
+  const env = globalThis?.process?.env || {}
+  return String(env.NETLIFY_DEV ?? '').toLowerCase() === 'true'
+    || String(env.NODE_ENV ?? '').toLowerCase() === 'development'
+}
+
 function getHeaderValue(req, headerName) {
   if (typeof req?.headers?.get === 'function') {
     return safeText(req.headers.get(headerName))
@@ -144,12 +150,12 @@ export async function checkRateLimit(req, auth, {
       actor,
     }
   } catch (error) {
-    // Fail-open: se o Blob Store falhar, não derruba o app inteiro.
+    const allowDegraded = isLocalDevelopment()
     console.warn('[rateLimit] Rate limit indisponível:', error?.message || error)
     return {
-      allowed: true,
+      allowed: allowDegraded,
       limit: safeLimit,
-      remaining: safeLimit,
+      remaining: allowDegraded ? safeLimit : 0,
       retryAfter,
       actor,
       degraded: true,

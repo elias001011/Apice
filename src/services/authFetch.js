@@ -131,11 +131,7 @@ export async function authFetch(url, options = {}) {
 
   // Log auth/server errors for debugging
   if (response.status === 401) {
-    console.error(
-      `[authFetch] 401 em ${formatUrlForLog(url)}. ` +
-      `Auth: ${jwt ? 'JWT' : '(nenhum)'}. ` +
-      `Storage: ${Boolean(typeof window !== 'undefined' && localStorage?.getItem('gotrue.user'))}`
-    )
+    console.error(`[authFetch] 401 em ${formatUrlForLog(url)}.`)
   } else if (response.status === 500 || response.status === 502) {
     console.warn(`[authFetch] ${response.status} em ${formatUrlForLog(url)}. Server error.`)
   }

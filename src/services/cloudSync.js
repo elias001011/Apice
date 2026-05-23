@@ -180,7 +180,6 @@ export async function pushStateToCloud(user) {
       console.error(
         `[cloudSync] Falha ao salvar estado: HTTP ${res.status} — ${errorDetail}. ` +
         `Usuário logado: ${Boolean(user)}. ` +
-        `UserId: ${user?.id || '(sem id)'}. ` +
         `Snapshot version: ${snapshot?.version || '(sem versão)'}`
       )
       return false

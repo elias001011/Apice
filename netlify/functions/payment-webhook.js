@@ -13,10 +13,11 @@ import process from 'node:process'
  *
  * Variaveis opcionais:
  * - ABACATE_WEBHOOK_SECRET ou ABACATEPAY_WEBHOOK_SECRET para validar a query webhookSecret
+ * - ABACATEPAY_WEBHOOK_KEY ou ABACATEPAY_SIGNATURE_KEY
+ *   para validar a assinatura HMAC enviada pela AbacatePay
  */
 
 const BLOB_STORE_NAME = 'user-state'
-const ABACATEPAY_PUBLIC_KEY = 't9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9'
 
 const SUCCESS_EVENTS = new Set([
   'checkout.completed',
@@ -114,21 +115,29 @@ function getWebhookSecret() {
   return safeText(process.env.ABACATE_WEBHOOK_SECRET || process.env.ABACATEPAY_WEBHOOK_SECRET)
 }
 
-function verifyWebhookSignature(rawBody, signature) {
+function getWebhookSignatureKey() {
+  return safeText(
+    process.env.ABACATEPAY_WEBHOOK_KEY
+    || process.env.ABACATEPAY_SIGNATURE_KEY,
+  )
+}
+
+function verifyWebhookSignature(rawBody, signature, signatureKey) {
   const cleanSignature = safeText(signature)
-  if (!cleanSignature) return false
+  const cleanSignatureKey = safeText(signatureKey)
+  if (!cleanSignature || !cleanSignatureKey) return false
 
   try {
     const expectedSignature = crypto
-      .createHmac('sha256', ABACATEPAY_PUBLIC_KEY)
+      .createHmac('sha256', cleanSignatureKey)
       .update(Buffer.from(rawBody, 'utf8'))
       .digest('base64')
 
     const expected = Buffer.from(expectedSignature)
     const received = Buffer.from(cleanSignature)
     return expected.length === received.length && crypto.timingSafeEqual(expected, received)
-  } catch (error) {
-    console.warn('[payment-webhook] Falha ao validar assinatura:', error.message)
+  } catch {
+    console.warn('[payment-webhook] Falha ao validar assinatura do webhook.')
     return false
   }
 }
@@ -232,7 +241,7 @@ async function updateBillingInBlob(userId, planKey, billingUpdate, eventId = '')
       : []
 
     if (eventId && previousEvents.includes(eventId)) {
-      console.log('[payment-webhook] Evento duplicado ignorado:', eventId)
+      console.log('[payment-webhook] Evento duplicado ignorado.')
       return true
     }
 
@@ -277,19 +286,27 @@ export async function handler(req) {
     const body = parsePayload(rawBody)
     const url = new URL(req.url)
     const configuredSecret = getWebhookSecret()
+    const signatureKey = getWebhookSignatureKey()
     const receivedSecret = safeText(url.searchParams.get('webhookSecret'))
     const signature = safeText(req.headers.get('x-webhook-signature'))
 
-    if (configuredSecret && receivedSecret !== configuredSecret) {
-      return new Response(JSON.stringify({ error: 'Webhook secret inválido' }), { status: 401 })
-    }
+    if (signature) {
+      if (!signatureKey) {
+        console.error('[payment-webhook] Assinatura recebida, mas chave HMAC não configurada.')
+        return new Response(JSON.stringify({ error: 'Webhook signature key não configurada' }), { status: 500 })
+      }
 
-    if (configuredSecret && !signature) {
-      return new Response(JSON.stringify({ error: 'Assinatura do webhook ausente' }), { status: 401 })
-    }
+      if (!verifyWebhookSignature(rawBody, signature, signatureKey)) {
+        return new Response(JSON.stringify({ error: 'Assinatura do webhook inválida' }), { status: 401 })
+      }
+    } else {
+      if (!configuredSecret) {
+        return new Response(JSON.stringify({ error: 'Assinatura do webhook ausente' }), { status: 401 })
+      }
 
-    if (signature && !verifyWebhookSignature(rawBody, signature)) {
-      return new Response(JSON.stringify({ error: 'Assinatura do webhook inválida' }), { status: 401 })
+      if (receivedSecret !== configuredSecret) {
+        return new Response(JSON.stringify({ error: 'Webhook secret inválido' }), { status: 401 })
+      }
     }
 
     const event = safeText(body?.event)
@@ -305,7 +322,12 @@ export async function handler(req) {
     const checkoutMode = safeText(metadata.checkoutMode || objects.checkout?.frequency)
     const billingMode = normalizeBillingMode(metadata.billingMode || checkoutMode || (subscriptionId ? 'subscription' : '')) || 'subscription'
 
-    console.log(`[payment-webhook] Evento recebido: ${event}`, { planKey, hasUserId: Boolean(userId) })
+    console.log('[payment-webhook] Evento recebido.', {
+      event,
+      hasUserId: Boolean(userId),
+      hasCheckoutId: Boolean(checkoutId),
+      hasSubscriptionId: Boolean(subscriptionId),
+    })
 
     if (!userId) {
       console.warn('[payment-webhook] userId não encontrado no metadata/externalId.')
@@ -433,10 +455,10 @@ export async function handler(req) {
       })
     }
 
-    console.log(`[payment-webhook] Evento '${event}' ignorado`)
+    console.log('[payment-webhook] Evento ignorado.', { event })
     return new Response(JSON.stringify({ success: true, message: `Evento '${event}' ignorado` }), { status: 200 })
   } catch (error) {
-    console.error('[payment-webhook] Erro ao processar webhook:', error)
+    console.error('[payment-webhook] Erro ao processar webhook:', error?.message || error)
     return new Response(JSON.stringify({ error: 'Erro interno do servidor' }), { status: 500 })
   }
 }

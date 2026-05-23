@@ -75,14 +75,13 @@ export default async function handler(req, context) {
         ok: true,
         savedAt: new Date().toISOString(),
         sizeBytes,
-        state: secureState,
       }),
       { status: 200, headers }
     )
   } catch (error) {
     console.error('[salvar-estado] Erro:', error.message)
     return new Response(
-      JSON.stringify({ error: 'Falha ao salvar estado', detail: error.message }),
+      JSON.stringify({ error: 'Falha ao salvar estado' }),
       { status: 500, headers }
     )
   }

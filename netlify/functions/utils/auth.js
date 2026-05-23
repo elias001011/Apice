@@ -82,7 +82,6 @@ function isTokenExpired(payload) {
 function isLocalJwtFallbackAllowed() {
   const env = process?.env || {}
   return String(env.NETLIFY_DEV ?? '').toLowerCase() === 'true'
-    || String(env.APICE_ALLOW_UNVERIFIED_JWT ?? '').toLowerCase() === 'true'
 }
 
 function getIdentityUserUrl(req) {
@@ -115,8 +114,8 @@ async function fetchIdentityUser(req, token) {
 
     const user = await response.json().catch(() => null)
     return user && typeof user === 'object' ? user : null
-  } catch (error) {
-    console.warn('[auth] Falha ao validar JWT na Netlify Identity:', error?.message || error)
+  } catch {
+    console.warn('[auth] Falha ao validar JWT na Netlify Identity.')
     return null
   }
 }
@@ -127,8 +126,6 @@ function buildAuthResult(userContext, token, source) {
     console.warn(`[auth] ${source} sem user id.`)
     return null
   }
-
-  console.log(`[auth] Auth via ${source}.`)
 
   return {
     user: {
@@ -178,8 +175,8 @@ export async function authenticateRequest(req, context = {}) {
         if (decoded?.user) {
           userContext = decoded.user
         }
-      } catch (error) {
-        console.warn('[auth] Erro ao decodificar custom.netlify fallback', error.message)
+      } catch {
+        console.warn('[auth] Erro ao decodificar custom.netlify fallback.')
       }
     }
 
@@ -208,8 +205,7 @@ export async function authenticateRequest(req, context = {}) {
     }
 
     if (isTokenExpired(payload)) {
-      const expiredAt = payload.exp ? new Date(payload.exp * 1000).toISOString() : 'sem exp'
-      console.error(`[auth] Token JWT expirado ou sem exp (${expiredAt}). sub: ${payload.sub || '(sem sub)'}`)
+      console.error('[auth] Token JWT expirado ou sem exp.')
       return null
     }
 
@@ -218,8 +214,6 @@ export async function authenticateRequest(req, context = {}) {
       console.error('[auth] Token JWT sem userId (sub/id).')
       return null
     }
-
-    console.log('[auth] Auth estrutural local OK.')
 
     return {
       user: {
@@ -240,7 +234,7 @@ export async function authenticateRequest(req, context = {}) {
       payload,
     }
   } catch (error) {
-    console.error('[auth] Erro inesperado ao autenticar:', error.message, error.stack?.split('\n').slice(0, 3).join(' | '))
+    console.error('[auth] Erro inesperado ao autenticar:', error.message)
     return null
   }
 }

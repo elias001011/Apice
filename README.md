@@ -262,9 +262,7 @@ AI_HUGGINGFACE_ENABLED=true
 # Billing / pagamentos
 ABACATEPAY_API_KEY=sua_chave_abacatepay
 ABACATEPAY_WEBHOOK_SECRET=seu_secret_webhook
-
-# Local dev apenas, se necessário
-APICE_ALLOW_UNVERIFIED_JWT=false
+ABACATEPAY_WEBHOOK_KEY=sua_chave_de_assinatura_webhook
 ```
 
 > Não coloque chaves reais em arquivos versionados. Use `.env` local e variáveis do Netlify em produção.

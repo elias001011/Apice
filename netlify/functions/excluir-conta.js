@@ -30,8 +30,8 @@ function decodeBase64Json(rawValue) {
     if (parsed && typeof parsed === 'object') {
       return parsed
     }
-  } catch (error) {
-    console.error('[excluir-conta] falha ao decodificar clientContext:', error)
+  } catch {
+    console.warn('[excluir-conta] Falha ao decodificar clientContext.')
   }
 
   return null
@@ -116,33 +116,24 @@ async function deleteBlob(userId) {
   }
 }
 
-async function deleteIdentityUser(identity, userIds) {
-  let lastStatus = 500
-  let lastDetails = ''
-
-  for (const userID of userIds) {
-    if (!userID) continue
-
-    const response = await fetch(`${String(identity.url).replace(/\/$/, '')}/admin/users/${encodeURIComponent(userID)}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${identity.token}`,
-      },
-    })
-
-    if (response.ok) {
-      return { ok: true, userID }
-    }
-
-    lastStatus = response.status
-    lastDetails = await response.text().catch(() => '')
-
-    if (response.status === 401 || response.status === 403) {
-      break
-    }
+async function deleteIdentityUser(identity, userID) {
+  if (!userID) {
+    return { ok: false, status: 401 }
   }
 
-  return { ok: false, status: lastStatus, details: lastDetails }
+  const response = await fetch(`${String(identity.url).replace(/\/$/, '')}/admin/users/${encodeURIComponent(userID)}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${identity.token}`,
+    },
+  })
+
+  if (response.ok) {
+    return { ok: true }
+  }
+
+  await response.text().catch(() => '')
+  return { ok: false, status: response.status }
 }
 
 export default async function handler(req, context = {}) {
@@ -158,34 +149,31 @@ export default async function handler(req, context = {}) {
 
   // ── Primary auth: JWT from Authorization header ─────────────────────
   const jwtAuth = await authenticateRequest(req, context)
+  if (!jwtAuth?.user?.id) {
+    return errorResponse('Usuário não autenticado.', 401, headers)
+  }
 
-  // ── Fallback: Netlify clientContext (legacy path) ───────────────────
+  // ── Netlify clientContext: apenas para token admin do Identity ───────
   const clientContext = decodeNetlifyClientContext(context)
   const identity = clientContext?.identity
   const user = clientContext?.user
+  const authenticatedUserId = jwtAuth.user.id
+  const contextUserId = getUserId(user)
 
-  // Build user IDs from both sources
-  const userIDs = [...new Set([
-    jwtAuth?.user?.id || '',
-    getUserId(user),
-    String(user?.id ?? '').trim(),
-    String(user?.sub ?? '').trim(),
-  ])].filter(Boolean)
+  if (contextUserId && contextUserId !== authenticatedUserId) {
+    return errorResponse('Contexto de autenticação inconsistente.', 401, headers)
+  }
 
-  if (!identity?.url || !identity?.token || userIDs.length === 0) {
-    return errorResponse('Usuário não autenticado.', 401, headers)
+  if (!identity?.url || !identity?.token) {
+    return errorResponse('Serviço de identidade indisponível.', 502, headers)
   }
 
   try {
     // 1. CRÍTICO: Deleta blob ANTES de deletar a conta no Identity
-    for (const userID of userIDs) {
-      if (userID) {
-        await deleteBlob(userID)
-      }
-    }
+    await deleteBlob(authenticatedUserId)
 
     // 2. Deleta conta no Netlify Identity
-    const result = await deleteIdentityUser(identity, userIDs)
+    const result = await deleteIdentityUser(identity, authenticatedUserId)
 
     if (!result.ok) {
       return errorResponse('Falha ao excluir a conta.', result.status, headers)
@@ -193,7 +181,7 @@ export default async function handler(req, context = {}) {
 
     return new Response(JSON.stringify({ ok: true }), { status: 200, headers })
   } catch (error) {
-    console.error('[excluir-conta] erro:', error)
+    console.error('[excluir-conta] erro:', error?.message || error)
     return errorResponse('Falha ao excluir a conta.', 502, headers)
   }
 }
