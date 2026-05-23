@@ -22,6 +22,19 @@ const PLAN_PERIOD_MONTHS = {
   annual: 12,
 }
 
+function isAbacateExternalError(error) {
+  return Boolean(error?.isAbacateError)
+}
+
+function getCancelErrorMessage(error, fallback) {
+  if (isAbacateExternalError(error)) {
+    return fallback
+  }
+
+  const message = safeText(error?.message)
+  return message || fallback
+}
+
 function getApiKey() {
   const key = String(process.env.ABACATE_V2 ?? process.env.ABACATE_PAY ?? '').trim()
   if (!key) {
@@ -109,6 +122,7 @@ async function abacateFetch(path, { method = 'GET', body } = {}) {
   if (!response.ok) {
     const error = new Error(formatAbacateError(payload) || 'Falha ao comunicar com a AbacatePay.')
     error.status = response.status
+    error.isAbacateError = true
     throw error
   }
 
@@ -542,9 +556,9 @@ async function handleCancel(req, authUser, headers) {
   } catch (error) {
     console.error('[cancel-subscription] Erro:', error?.message || error, '| Status:', error?.status || '(sem status)')
     return new Response(JSON.stringify({
-      error: error?.message || 'Falha ao cancelar assinatura',
+      error: getCancelErrorMessage(error, 'Falha ao cancelar assinatura'),
     }), {
-      status: error?.status || 500,
+      status: error?.isAbacateError ? 502 : error?.status || 500,
       headers,
     })
   }
