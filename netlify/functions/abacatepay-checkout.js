@@ -921,7 +921,7 @@ export default async function handler(req, context) {
   }
 
   if (req.method === 'POST') {
-    const auth = requireAuth(req, context, headers)
+    const auth = await requireAuth(req, context, headers)
     if (auth instanceof Response) return auth
 
     try {
@@ -935,7 +935,7 @@ export default async function handler(req, context) {
   }
 
   if (req.method === 'GET') {
-    const auth = requireAuth(req, context, headers)
+    const auth = await requireAuth(req, context, headers)
     if (auth instanceof Response) return auth
 
     try {

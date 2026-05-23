@@ -25,7 +25,7 @@ export default async function handler(req, context) {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers })
   }
 
-  const auth = requireAuth(req, context, headers, { allowGuest: true })
+  const auth = await requireAuth(req, context, headers, { allowGuest: true })
   if (auth instanceof Response) return auth
 
   const rateLimited = await enforceRateLimit(req, auth, headers, {

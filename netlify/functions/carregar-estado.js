@@ -31,7 +31,7 @@ export default async function handler(req, context) {
   }
 
   // ── Authentication ──────────────────────────────────────────────────────
-  const auth = requireAuth(req, context, headers)
+  const auth = await requireAuth(req, context, headers)
   if (auth instanceof Response) return auth
 
   try {

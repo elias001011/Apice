@@ -27,7 +27,7 @@ export default async function handler(req, context) {
   }
 
   // ── Authentication ──────────────────────────────────────────────────────
-  const auth = requireAuth(req, context, headers, { allowGuest: true })
+  const auth = await requireAuth(req, context, headers, { allowGuest: true })
   if (auth instanceof Response) return auth
 
   const rateLimited = await enforceRateLimit(req, auth, headers, {

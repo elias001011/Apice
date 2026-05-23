@@ -54,7 +54,7 @@ export default async function handler(req, context) {
   }
 
   // ── Weather + Air Quality endpoint (com auth) ───────────────────
-  const auth = requireAuth(req, context, headers)
+  const auth = await requireAuth(req, context, headers)
   if (auth instanceof Response) {
     console.warn('[get-clima] Não autenticado')
     return auth

@@ -561,7 +561,7 @@ export default async function handler(req, context) {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers })
   }
 
-  const auth = requireAuth(req, context, headers)
+  const auth = await requireAuth(req, context, headers)
   if (auth instanceof Response) return auth
 
   return await handleCancel(req, auth.user, headers)
