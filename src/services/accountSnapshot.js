@@ -78,6 +78,11 @@ import {
   saveUserSummary,
 } from './userSummary.js'
 import {
+  loadPerformanceAiAnalysisSettings,
+  normalizePerformanceAiAnalysisSettings,
+  savePerformanceAiAnalysisSettings,
+} from './performanceAnalysisSettings.js'
+import {
   loadConquistas,
   normalizeConquistasSnapshot,
   setConquistasSnapshot,
@@ -93,19 +98,44 @@ import {
   compactProfessorChatsForCloud,
   mergeProfessorChats,
 } from './professorChats.js'
-
-const LAYOUT_MODE_KEY = 'apice:layoutMode'
-const CONTAINER_SIZE_KEY = 'apice:containerSize'
-const ANIMATIONS_ENABLED_KEY = 'apice:animationsEnabled'
-const CARD_HOVER_ENABLED_KEY = 'apice:cardHoverEffects'
+import {
+  loadProfessorActivity,
+  normalizeProfessorActivity,
+  saveProfessorActivity,
+} from './professorActivity.js'
 
 // Versão atual do schema do snapshot. Incrementar quando houver breaking changes.
-export const CURRENT_SCHEMA_VERSION = 20
+export const CURRENT_SCHEMA_VERSION = 22
 // Versões mínimas compatíveis (abaixo disso, os dados são considerados corrompidos/incompatíveis)
 export const MIN_COMPATIBLE_VERSION = 15
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+}
+
+function pickLatestIso(a, b) {
+  const aDate = new Date(a)
+  const bDate = new Date(b)
+  const aTime = Number.isFinite(aDate.getTime()) ? aDate.getTime() : 0
+  const bTime = Number.isFinite(bDate.getTime()) ? bDate.getTime() : 0
+  return aTime >= bTime ? String(a ?? '').trim() : String(b ?? '').trim()
+}
+
+function mergeProfessorActivitySnapshots(localActivity, cloudActivity) {
+  const local = normalizeProfessorActivity(localActivity)
+  const cloud = normalizeProfessorActivity(cloudActivity)
+
+  return normalizeProfessorActivity({
+    totalInteractions: Math.max(local.totalInteractions, cloud.totalInteractions),
+    totalQuizzesCreated: Math.max(local.totalQuizzesCreated, cloud.totalQuizzesCreated),
+    totalQuizzesCompleted: Math.max(local.totalQuizzesCompleted, cloud.totalQuizzesCompleted),
+    totalQuizQuestions: Math.max(local.totalQuizQuestions, cloud.totalQuizQuestions),
+    totalQuizCorrect: Math.max(local.totalQuizCorrect, cloud.totalQuizCorrect),
+    perfectQuizzes: Math.max(local.perfectQuizzes, cloud.perfectQuizzes),
+    lastUsedAt: pickLatestIso(local.lastUsedAt, cloud.lastUsedAt),
+    lastQuizAt: pickLatestIso(local.lastQuizAt, cloud.lastQuizAt),
+    updatedAt: pickLatestIso(local.updatedAt, cloud.updatedAt),
+  })
 }
 
 function _normalizeBooleanPreference(value, fallback) {
@@ -178,6 +208,9 @@ function hasBillingFields(rawSnapshot) {
     'checkoutId',
     'externalId',
     'subscriptionId',
+    'billingMode',
+    'oneTimePlanKeys',
+    'accessEndsAt',
   ].some((key) => Object.prototype.hasOwnProperty.call(rawSnapshot, key))
 }
 
@@ -201,6 +234,9 @@ function normalizeBillingSnapshot(rawSnapshot) {
         checkoutId: rawSnapshot.checkoutId ?? '',
         externalId: rawSnapshot.externalId ?? '',
         subscriptionId: rawSnapshot.subscriptionId ?? '',
+        billingMode: rawSnapshot.billingMode ?? rawSnapshot.checkoutMode ?? '',
+        oneTimePlanKeys: rawSnapshot.oneTimePlanKeys ?? rawSnapshot.purchasedOneTimePlanKeys ?? [],
+        accessEndsAt: rawSnapshot.accessEndsAt ?? rawSnapshot.currentPeriodEnd ?? '',
         updatedAt: rawSnapshot.billing?.updatedAt ?? rawSnapshot.updatedAt ?? new Date().toISOString(),
       }
 
@@ -291,6 +327,7 @@ export function buildAccountSnapshot(user) {
 
   return {
     version: CURRENT_SCHEMA_VERSION,
+    accountOwnerId: String(user?.id || user?.sub || '').trim(),
     profile: readProfileSnapshot(user),
     historyCount: loadEssayHistoryCount(),
     history: cloudHistory,
@@ -319,7 +356,9 @@ export function buildAccountSnapshot(user) {
       .filter(Boolean),
     summary: loadUserSummary(),
     aiResponsePreference: loadAiResponsePreference(),
+    performanceAiAnalysis: loadPerformanceAiAnalysisSettings(),
     professorChats: compactProfessorChatsForCloud(loadProfessorChats()),
+    professorActivity: loadProfessorActivity(),
     avatarSettings: loadAvatarSettings(),
     notifications: loadNotificationPreferences(),
     conquistas: loadConquistas(),
@@ -363,6 +402,9 @@ export function normalizeAccountSnapshot(rawSnapshot) {
       : [],
   )
   const hasAiResponsePreference = Object.prototype.hasOwnProperty.call(rawSnapshot, 'aiResponsePreference')
+  const hasPerformanceAiAnalysis = Object.prototype.hasOwnProperty.call(rawSnapshot, 'performanceAiAnalysis')
+    || Object.prototype.hasOwnProperty.call(rawSnapshot, 'performanceAnalysisSettings')
+  const hasProfessorActivity = Object.prototype.hasOwnProperty.call(rawSnapshot, 'professorActivity')
   const billing = normalizeBillingSnapshot(rawSnapshot)
 
   // Normaliza radar snapshot da nuvem
@@ -386,6 +428,7 @@ export function normalizeAccountSnapshot(rawSnapshot) {
 
   const snapshot = {
     version: Number(rawSnapshot.version ?? CURRENT_SCHEMA_VERSION) || CURRENT_SCHEMA_VERSION,
+    accountOwnerId: String(rawSnapshot.accountOwnerId ?? rawSnapshot.ownerId ?? '').trim(),
     profile: readProfileSnapshot({
       user_metadata: rawSnapshot.profile || {},
       email: rawSnapshot.profile?.email || '',
@@ -418,6 +461,14 @@ export function normalizeAccountSnapshot(rawSnapshot) {
 
   if (hasAiResponsePreference) {
     snapshot.aiResponsePreference = normalizeAiResponsePreference(rawSnapshot.aiResponsePreference)
+  }
+
+  if (hasPerformanceAiAnalysis) {
+    snapshot.performanceAiAnalysis = normalizePerformanceAiAnalysisSettings(rawSnapshot.performanceAiAnalysis || rawSnapshot.performanceAnalysisSettings || null)
+  }
+
+  if (hasProfessorActivity) {
+    snapshot.professorActivity = normalizeProfessorActivity(rawSnapshot.professorActivity || null)
   }
 
   return snapshot
@@ -456,17 +507,20 @@ export function applyAccountSnapshot(snapshot) {
     const keysToRemove = [
       'apice:billing-state:v1', 'apice:plan:tier',
       'apice:free-plan-usage:v1',
-      'apice:historico', 'apice:historico:total',
-      'apice:simulado:historico:v1', 'apice:simulado:historico:total:v1',
-      'apice:user-summary',
-      'apice:radar-favorites', 'apice:radar-state',
-      'apice:enem-manual-date',
-      'apice:ai-response-preference',
-      'apice:avatar-settings',
-      'apice:notificacoes',
-      'apice:conquistas',
+      'apice:historico', 'apice:historico:total', 'apice:historico:total:v1',
+      'apice:simulado:historico:v1', 'apice:simulado:historico:total:v1', 'apice:simulado_progresso:v2',
+      'apice:user-summary', 'apice:user-summary:v1',
+      'apice:radar-favorites', 'apice:radar-favorites:v1',
+      'apice:radar-state', 'apice:radar-state:v1', 'apice:radar-state:v2',
+      'apice:enem-manual-date', 'apice:enem-date',
+      'apice:ai-response-preference', 'apice:ai-response-preference:v1',
+      'apice:performance-ai-analysis:v1',
+      'apice:avatar-settings', 'apice:avatar-settings:v1',
+      'apice:notificacoes', 'apice:notificacoes:v1',
+      'apice:conquistas', 'apice:conquistas:v1',
       'apice:weather:location:v1',
-      'apice:professor-chats:v1',
+      'apice:corretor:draft:v3',
+      'apice:professor-chats:v1', 'apice:professor:conversations', 'apice:professor:handoff:v1', 'apice:professor-activity:v1',
     ]
     keysToRemove.forEach(key => {
       try { localStorage.removeItem(key) } catch {
@@ -600,7 +654,12 @@ export function applyAccountSnapshot(snapshot) {
   // ── Summary: nuvem restaura apenas se local estiver vazio ──
   if (Object.prototype.hasOwnProperty.call(snapshot, 'summary')) {
     const localSummary = loadUserSummary()
-    const localHasData = localSummary && (localSummary.mediaGeral > 0 || (localSummary.notasPorCompetencia && Object.keys(localSummary.notasPorCompetencia).length > 0))
+    const localHasData = localSummary && (
+      Boolean(localSummary.resumo)
+      || (Array.isArray(localSummary.forcas) && localSummary.forcas.length > 0)
+      || (Array.isArray(localSummary.errosRecorrentes) && localSummary.errosRecorrentes.length > 0)
+      || Boolean(localSummary.foco)
+    )
 
     if (snapshot.summary && !localHasData) {
       saveUserSummary(snapshot.summary)
@@ -617,6 +676,11 @@ export function applyAccountSnapshot(snapshot) {
     }
   }
 
+  // ── Configuração de análise de desempenho por IA ──
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'performanceAiAnalysis')) {
+    savePerformanceAiAnalysisSettings(snapshot.performanceAiAnalysis)
+  }
+
   // ── Professor IA: merge por chat, limite de 10 chats vindos da nuvem ──
   if (Object.prototype.hasOwnProperty.call(snapshot, 'professorChats')) {
     const cloudProfessorChats = Array.isArray(snapshot.professorChats) ? snapshot.professorChats : []
@@ -625,6 +689,11 @@ export function applyAccountSnapshot(snapshot) {
     if (mergedProfessorChats.length > 0) {
       saveProfessorChats(mergedProfessorChats)
     }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'professorActivity')) {
+    const mergedProfessorActivity = mergeProfessorActivitySnapshots(loadProfessorActivity(), snapshot.professorActivity)
+    saveProfessorActivity(mergedProfessorActivity)
   }
 
   // ── Avatar settings ──
@@ -668,6 +737,8 @@ export function applyAccountSnapshot(snapshot) {
   window.dispatchEvent(new CustomEvent('apice:notificacoes-updated'))
   window.dispatchEvent(new CustomEvent('apice:conquistas-updated'))
   window.dispatchEvent(new CustomEvent('apice:professor-chats-updated'))
+  window.dispatchEvent(new CustomEvent('apice:professor-activity-updated'))
+  window.dispatchEvent(new CustomEvent('apice:performance-ai-analysis-updated'))
   window.dispatchEvent(new CustomEvent('apice:account-state-updated'))
   window.dispatchEvent(new CustomEvent('apice:weather-preferences-updated'))
 }

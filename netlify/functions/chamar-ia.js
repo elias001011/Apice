@@ -6,12 +6,16 @@ import {
   checkGuestQuotaAllowance,
   recordGuestQuotaSuccess,
 } from './utils/guestQuota.js'
+import { enforceRateLimit } from './utils/rateLimit.js'
 import {
   INPUT_LIMITS,
   validateStringLength,
   validateArrayLength,
   validationErrorResponse,
 } from './utils/validate.js'
+
+const ALLOWED_PROVIDERS = new Set(['groq', 'gemini', 'openrouter', 'grok', 'huggingface'])
+const ALLOWED_MODEL_VARIANTS = new Set(['primary', 'secondary', 'tertiary'])
 
 function isMeaninglessResponseText(value) {
   const normalized = String(value ?? '').trim().toLowerCase()
@@ -117,21 +121,39 @@ export default async function handler(req, context) {
     return auth
   }
 
+  const rateLimited = await enforceRateLimit(req, auth, headers, {
+    namespace: 'ai:direct',
+    limit: auth.user?.guest ? 3 : 10,
+    windowSeconds: 600,
+  })
+  if (rateLimited) return rateLimited
+
   console.log('[chamar-ia] Auth OK.')
 
   try {
     const body = await req.json().catch(() => ({}))
-    const provider = String(body?.provider ?? '').trim()
-    const modelVariant = String(body?.modelVariant ?? 'primary').trim() || 'primary'
-    const modelOverride = String(body?.modelOverride ?? '').trim()
+    const provider = String(body?.provider ?? '').trim().toLowerCase()
+    const modelVariant = String(body?.modelVariant ?? 'primary').trim().toLowerCase() || 'primary'
+    const requestedModelOverride = String(body?.modelOverride ?? '').trim()
     const systemPrompt = String(body?.systemPrompt ?? '').trim()
     const userMessages = Array.isArray(body?.userMessages) ? body.userMessages : []
     const responsePreference = body?.responsePreference ?? null
 
     console.log(`[chamar-ia] Provider: ${provider}, modelVariant: ${modelVariant}, systemPrompt length: ${systemPrompt.length}, userMessages: ${userMessages.length}`)
 
-    if (!provider) {
-      return new Response(JSON.stringify({ error: 'provider é obrigatório' }), { status: 400, headers })
+    if (!provider || !ALLOWED_PROVIDERS.has(provider)) {
+      return new Response(JSON.stringify({ error: 'provider inválido' }), { status: 400, headers })
+    }
+
+    if (!ALLOWED_MODEL_VARIANTS.has(modelVariant)) {
+      return new Response(JSON.stringify({ error: 'modelVariant inválido' }), { status: 400, headers })
+    }
+
+    // Não aceita modelo arbitrário vindo do cliente em produção.
+    // Isso evita que uma chamada direta force modelos caros ou não testados.
+    const modelOverride = ''
+    if (requestedModelOverride) {
+      console.warn('[chamar-ia] modelOverride ignorado por segurança.')
     }
 
     if (!systemPrompt) {

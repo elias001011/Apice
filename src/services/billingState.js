@@ -1,24 +1,14 @@
 /**
- * Gerenciamento do estado de billing (pagamento/teste grátis)
+ * Gerenciamento do estado de billing (pagamento e estados legados)
  * 
  * COMO FUNCIONA:
  * - Estado salvo no localStorage na chave 'apice:billing-state:v1'
- * - 3 status possíveis: 'free' (gratuito), 'trial' (teste grátis), 'paid' (pago)
- * - Teste grátis: 7 dias únicos por conta (não pode repetir)
- * - Quando trial expira, status volta automaticamente pra 'free'
- * 
- * FLUXO DO TESTE GRÁTIS:
- * 1. Usuário nunca usou trial → canStartTrial() = true
- * 2. Clica "Começar teste grátis" → handleCheckout(plan, isTrial=true)
- * 3. Backend aplica cupom 100% e retorna URL do AbacatePay
- * 4. Frontend salva billingState e redireciona pro checkout
- * 5. Usuário completa checkout (valor R$ 0,00) no AbacatePay
- * 6. Ao retornar, frontend verifica e chama startTrial()
- * 7. status='trial', trialEndsAt = agora + 7 dias
- * 8. Quando trialEndsAt passar → status volta pra 'free'
+ * - 3 status possíveis: 'free' (gratuito), 'trial' (legado), 'paid' (pago)
+ * - O fluxo atual de planos é pago via AbacatePay API v2.
+ * - Estados trial continuam normalizados apenas para compatibilidade com contas antigas.
  * 
  * FLUXO DE PAGAMENTO:
- * 1. Usuário clica "Assinar agora" → handleCheckout(plan, isTrial=false)
+ * 1. Usuário clica "Assinar agora" → handleCheckout(plan)
  * 2. Backend cria checkout sem cupom (valor normal)
  * 3. Usuário paga no AbacatePay
  * 4. Ao retornar, frontend verifica e chama markPlanPaid()
@@ -31,7 +21,7 @@ const BILLING_STATE_UPDATED_EVENT = 'apice:billing-state-updated'
 const ACCOUNT_STATE_UPDATED_EVENT = 'apice:account-state-updated'
 const USAGE_UPDATED_EVENT = 'apice:free-plan-usage-updated'
 
-/** Duração do teste grátis em dias */
+/** Duração de estados trial legados em dias */
 export const TRIAL_DAYS = 7
 
 const VALID_STATUSES = new Set(['free', 'trial', 'paid'])
@@ -46,6 +36,17 @@ const TRIAL_KIND_ALIASES = {
   standard: 'standard',
   trial: 'standard',
   default: 'standard',
+  welcome: 'welcome',
+  gifted: 'welcome',
+  gift: 'welcome',
+}
+
+const PLAN_PERIOD_MONTHS = {
+  monthly: 1,
+  monthly_one_time: 1,
+  welcome_one_time: 1,
+  semiannual: 6,
+  annual: 12,
 }
 
 function canUseStorage() {
@@ -67,8 +68,26 @@ function normalizeStatus(value) {
 
 function normalizePlanKey(value) {
   const normalized = normalizeText(value).toLowerCase()
-  if (['monthly', 'semiannual', 'annual'].includes(normalized)) {
+  if (['monthly', 'monthly_one_time', 'welcome_one_time', 'semiannual', 'annual'].includes(normalized)) {
     return normalized
+  }
+  return ''
+}
+
+function normalizeStringArray(value) {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => normalizeText(item))
+    .filter(Boolean)
+}
+
+function normalizeBillingMode(value) {
+  const normalized = normalizeText(value).toLowerCase().replace(/[\s-]+/g, '_')
+  if (['one_time', 'payment', 'checkout', 'single', 'single_payment'].includes(normalized)) {
+    return 'one_time'
+  }
+  if (['subscription', 'recurring', 'recorrente'].includes(normalized)) {
+    return 'subscription'
   }
   return ''
 }
@@ -81,6 +100,17 @@ function normalizeIsoDate(value) {
   if (!Number.isFinite(date.getTime())) return ''
 
   return date.toISOString()
+}
+
+function normalizeBoolean(value) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true
+    if (['false', '0', 'no', 'off'].includes(normalized)) return false
+  }
+  return false
 }
 
 function normalizeTrialKind(value) {
@@ -101,6 +131,14 @@ function buildDefaultState() {
     checkoutId: '',
     externalId: '',
     subscriptionId: '',
+    billingMode: '',
+    oneTimePlanKeys: [],
+    subscriptionActive: false,
+    cancelAtPeriodEnd: false,
+    cancellationRequestedAt: '',
+    cancelledAt: '',
+    accessEndsAt: '',
+    remoteStatus: '',
     updatedAt: iso,
   }
 }
@@ -132,6 +170,14 @@ function normalizeState(rawState) {
     checkoutId: normalizeText(rawState.checkoutId ?? rawState.checkout_id),
     externalId: normalizeText(rawState.externalId ?? rawState.external_id),
     subscriptionId: normalizeText(rawState.subscriptionId ?? rawState.subscription_id),
+    billingMode: normalizeBillingMode(rawState.billingMode ?? rawState.checkoutMode ?? rawState.paymentMode),
+    oneTimePlanKeys: normalizeStringArray(rawState.oneTimePlanKeys ?? rawState.one_time_plan_keys ?? rawState.purchasedOneTimePlanKeys),
+    subscriptionActive: normalizeBoolean(rawState.subscriptionActive ?? rawState.subscription_active),
+    cancelAtPeriodEnd: normalizeBoolean(rawState.cancelAtPeriodEnd ?? rawState.cancel_at_period_end),
+    cancellationRequestedAt: normalizeIsoDate(rawState.cancellationRequestedAt ?? rawState.cancelRequestedAt),
+    cancelledAt: normalizeIsoDate(rawState.cancelledAt ?? rawState.subscriptionCancelledAt),
+    accessEndsAt: normalizeIsoDate(rawState.accessEndsAt ?? rawState.currentPeriodEnd ?? rawState.periodEndsAt),
+    remoteStatus: normalizeText(rawState.remoteStatus ?? rawState.billingStatus),
     updatedAt: normalizeIsoDate(rawState.updatedAt ?? rawState.savedAt ?? rawState.modifiedAt) || base.updatedAt,
   }
 
@@ -159,6 +205,16 @@ function normalizeState(rawState) {
 
   if (normalized.status === 'free' && !normalized.trialKind && normalized.trialStartedAt) {
     normalized.trialKind = 'standard'
+  }
+
+  if (normalized.status === 'paid' && normalized.accessEndsAt && (normalized.cancelAtPeriodEnd || normalized.billingMode === 'one_time')) {
+    const accessEndsAtDate = new Date(normalized.accessEndsAt)
+    if (Number.isFinite(accessEndsAtDate.getTime()) && accessEndsAtDate.getTime() <= Date.now()) {
+      normalized.status = 'free'
+      normalized.planKey = ''
+      normalized.subscriptionActive = false
+      normalized.billingMode = ''
+    }
   }
 
   if (!VALID_STATUSES.has(normalized.status)) {
@@ -246,18 +302,18 @@ function isTrialActiveState(state) {
 
 
 
-/** Retorna true se a conta já usou o teste grátis (independente de status atual) */
+/** Compatibilidade: retorna true se há registro legado de trial. */
 export function hasUsedTrial() {
   const state = getBillingState()
   return Boolean(state.trialUsedAt || state.trialStartedAt || state.trialEndsAt)
 }
 
-/** Retorna true se o teste grátis está ativo agora (status=trial E não expirou) */
+/** Compatibilidade: retorna true se um trial legado está ativo agora. */
 export function isTrialActive() {
   return isTrialActiveState(getBillingState())
 }
 
-/** Retorna true se a conta pode iniciar um novo teste grátis (nunca usou E status=free) */
+/** Compatibilidade: usado apenas por fluxos legados. */
 export function canStartTrial() {
   const state = getBillingState()
   return state.status === 'free' && !hasUsedTrial()
@@ -265,6 +321,16 @@ export function canStartTrial() {
 
 export function getTrialEndsAt() {
   return getBillingState().trialEndsAt || ''
+}
+
+export function getPlanAccessEndsAt({ planKey = '', paidAt = '' } = {}) {
+  const safePlanKey = normalizePlanKey(planKey) || 'monthly'
+  const months = PLAN_PERIOD_MONTHS[safePlanKey] || 1
+  const startDate = new Date(normalizeIsoDate(paidAt) || nowIso())
+  if (!Number.isFinite(startDate.getTime())) return ''
+  const endDate = new Date(startDate.getTime())
+  endDate.setMonth(endDate.getMonth() + months)
+  return endDate.toISOString()
 }
 
 export function saveBillingState(partialState = {}) {
@@ -279,7 +345,24 @@ export function saveBillingState(partialState = {}) {
   return next
 }
 
-export function setBillingStatus(status, { planKey = '', checkoutId = '', externalId = '', subscriptionId = '', trialStartedAt = '', trialEndsAt = '', paidAt = '', trialKind = '' } = {}) {
+export function setBillingStatus(status, {
+  planKey = '',
+  checkoutId = '',
+  externalId = '',
+  subscriptionId = '',
+  billingMode = '',
+  oneTimePlanKeys = [],
+  trialStartedAt = '',
+  trialEndsAt = '',
+  paidAt = '',
+  trialKind = '',
+  subscriptionActive,
+  cancelAtPeriodEnd,
+  cancellationRequestedAt = '',
+  cancelledAt = '',
+  accessEndsAt = '',
+  remoteStatus = '',
+} = {}) {
   const normalizedStatus = normalizeStatus(status)
   const current = getBillingState()
   const normalizedTrialKind = normalizeTrialKind(trialKind) || normalizeTrialKind(current.trialKind) || 'standard'
@@ -292,9 +375,19 @@ export function setBillingStatus(status, { planKey = '', checkoutId = '', extern
     checkoutId: normalizeText(checkoutId) || current.checkoutId,
     externalId: normalizeText(externalId) || current.externalId,
     subscriptionId: normalizeText(subscriptionId) || current.subscriptionId,
+    billingMode: normalizeBillingMode(billingMode) || current.billingMode,
+    oneTimePlanKeys: normalizeStringArray(oneTimePlanKeys).length > 0
+      ? Array.from(new Set([...current.oneTimePlanKeys, ...normalizeStringArray(oneTimePlanKeys)]))
+      : current.oneTimePlanKeys,
     trialStartedAt: normalizeIsoDate(trialStartedAt) || current.trialStartedAt,
     trialEndsAt: normalizeIsoDate(trialEndsAt) || current.trialEndsAt,
     paidAt: normalizeIsoDate(paidAt) || current.paidAt,
+    subscriptionActive: typeof subscriptionActive === 'undefined' ? current.subscriptionActive : normalizeBoolean(subscriptionActive),
+    cancelAtPeriodEnd: typeof cancelAtPeriodEnd === 'undefined' ? current.cancelAtPeriodEnd : normalizeBoolean(cancelAtPeriodEnd),
+    cancellationRequestedAt: normalizeIsoDate(cancellationRequestedAt) || current.cancellationRequestedAt,
+    cancelledAt: normalizeIsoDate(cancelledAt) || current.cancelledAt,
+    accessEndsAt: normalizeIsoDate(accessEndsAt) || current.accessEndsAt,
+    remoteStatus: normalizeText(remoteStatus) || current.remoteStatus,
     updatedAt: nowIso(),
   }
 
@@ -302,13 +395,26 @@ export function setBillingStatus(status, { planKey = '', checkoutId = '', extern
     next.checkoutId = normalizeText(checkoutId) || ''
     next.externalId = normalizeText(externalId) || ''
     next.subscriptionId = normalizeText(subscriptionId) || ''
+    next.billingMode = ''
+    next.oneTimePlanKeys = current.oneTimePlanKeys
     next.paidAt = ''
+    next.subscriptionActive = false
+    next.cancelAtPeriodEnd = false
+    next.accessEndsAt = ''
   }
 
   if (normalizedStatus === 'paid') {
+    const resolvedBillingMode = normalizeBillingMode(billingMode) || next.billingMode || 'subscription'
     next.paidAt = normalizeIsoDate(paidAt) || nowIso()
     next.trialEndsAt = next.trialEndsAt || ''
     next.trialStartedAt = next.trialStartedAt || ''
+    next.billingMode = resolvedBillingMode
+    next.subscriptionActive = typeof subscriptionActive === 'undefined' ? resolvedBillingMode !== 'one_time' : normalizeBoolean(subscriptionActive)
+    next.cancelAtPeriodEnd = typeof cancelAtPeriodEnd === 'undefined' ? false : normalizeBoolean(cancelAtPeriodEnd)
+    next.accessEndsAt = normalizeIsoDate(accessEndsAt) || next.accessEndsAt || ''
+    if (resolvedBillingMode === 'one_time' && next.planKey) {
+      next.oneTimePlanKeys = Array.from(new Set([...current.oneTimePlanKeys, next.planKey]))
+    }
   }
 
   if (normalizedStatus === 'trial') {
@@ -327,9 +433,7 @@ export function setBillingStatus(status, { planKey = '', checkoutId = '', extern
 }
 
 /**
- * Inicia o teste grátis de 7 dias
- * Só funciona se a conta nunca usou trial e estiver no status 'free'
- * Se já tiver trial ativo, apenas mantém o existente
+ * Compatibilidade: inicia estado trial legado.
  */
 export function startTrial({ planKey = '', checkoutId = '', externalId = '' } = {}) {
   const current = getBillingState()
@@ -370,17 +474,41 @@ export function startTrial({ planKey = '', checkoutId = '', externalId = '' } = 
  * Marca o plano como pago (após confirmação do pagamento)
  * Mantém as datas de trial para histórico, mas limpa status de trial
  */
-export function markPlanPaid({ planKey = '', checkoutId = '', externalId = '', subscriptionId = '', paidAt = nowIso() } = {}) {
+export function markPlanPaid({
+  planKey = '',
+  checkoutId = '',
+  externalId = '',
+  subscriptionId = '',
+  paidAt = nowIso(),
+  billingMode = 'subscription',
+  accessEndsAt = '',
+} = {}) {
   const current = getBillingState()
+  const resolvedPlanKey = planKey || current.planKey
+  const resolvedBillingMode = normalizeBillingMode(billingMode) || 'subscription'
+  const resolvedPaidAt = normalizeIsoDate(paidAt) || nowIso()
+  const resolvedAccessEndsAt = normalizeIsoDate(accessEndsAt)
+    || (resolvedBillingMode === 'one_time' ? getPlanAccessEndsAt({ planKey: resolvedPlanKey, paidAt: resolvedPaidAt }) : '')
+  const resolvedOneTimePlanKeys = resolvedBillingMode === 'one_time' && resolvedPlanKey
+    ? Array.from(new Set([...current.oneTimePlanKeys, resolvedPlanKey]))
+    : current.oneTimePlanKeys
 
   return setBillingStatus('paid', {
-    planKey: planKey || current.planKey,
+    planKey: resolvedPlanKey,
     checkoutId: checkoutId || current.checkoutId,
     externalId: externalId || current.externalId,
     subscriptionId: subscriptionId || current.subscriptionId,
     trialStartedAt: current.trialStartedAt,
     trialEndsAt: current.trialEndsAt,
-    paidAt,
+    paidAt: resolvedPaidAt,
+    billingMode: resolvedBillingMode,
+    oneTimePlanKeys: resolvedOneTimePlanKeys,
+    subscriptionActive: resolvedBillingMode !== 'one_time',
+    cancelAtPeriodEnd: false,
+    cancellationRequestedAt: '',
+    cancelledAt: '',
+    accessEndsAt: resolvedAccessEndsAt,
+    remoteStatus: '',
   })
 }
 
@@ -408,7 +536,7 @@ export function emitBillingStateUpdated() {
 export function getBillingStatusLabel(status = getCurrentBillingStatus()) {
   switch (normalizeStatus(status)) {
     case 'trial':
-      return 'Teste grátis'
+      return 'Temporário'
     case 'paid':
       return 'Plano pago'
     default:
@@ -420,12 +548,12 @@ export function getBillingStatusDescription(status = getCurrentBillingStatus()) 
   const state = getBillingState()
   switch (normalizeStatus(status)) {
     case 'trial':
-      return `Teste grátis de ${TRIAL_DAYS} dias`
+      return `Acesso temporário legado de ${TRIAL_DAYS} dias`
     case 'paid':
-      return 'Plano pago ativo'
+      return state.cancelAtPeriodEnd ? 'Plano pago ativo até o fim do período' : 'Plano pago ativo'
     default:
       if (state.trialEndsAt) {
-        return 'Teste grátis expirado'
+        return 'Acesso temporário expirado'
       }
       return 'Conta gratuita'
   }

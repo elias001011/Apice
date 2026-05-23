@@ -110,11 +110,19 @@ const QUESTOES_SEMENTE = [
   },
 ]
 
+function canUseIndexedDB() {
+  return typeof indexedDB !== 'undefined'
+}
+
 /**
  * Abre ou cria o banco IndexedDB
  * @returns {Promise<IDBDatabase>}
  */
 function openDB() {
+  if (!canUseIndexedDB()) {
+    return Promise.reject(new Error('IndexedDB indisponível neste ambiente.'))
+  }
+
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
 
@@ -245,6 +253,7 @@ export async function contarQuestoes({ area, disciplina } = {}) {
  */
 export async function popularBancoQuestoes(questoes) {
   if (!Array.isArray(questoes) || questoes.length === 0) return
+  if (!canUseIndexedDB()) return
 
   const promises = questoes.map(q => salvarQuestao({
     ...q,
@@ -254,7 +263,7 @@ export async function popularBancoQuestoes(questoes) {
   }))
 
   await Promise.all(promises)
-  console.log(`[questoesLocalDB] ${questoes.length} questões sincronizadas`)
+  console.log(`[questoesLocalDB] cache local atualizado com ${questoes.length} questão(ões) da API`)
 }
 
 /**

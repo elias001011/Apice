@@ -1510,7 +1510,13 @@ html[data-fx="none"] :is(
   .planos-hero,
   .pricing-card,
   .planos-change-card,
-  .faq-item
+  .faq-item,
+  .simulado-hero,
+  .simulado-summary-card,
+  .loading-box,
+  .simulado-exam-rail,
+  .question-card,
+  .result-card
 ) {
   background: var(--bg2) !important;
   background-image: none !important;
@@ -1553,7 +1559,13 @@ html[data-fx="gradients"][data-card-gradients="off"] :is(
   .planos-hero,
   .pricing-card,
   .planos-change-card,
-  .faq-item
+  .faq-item,
+  .simulado-hero,
+  .simulado-summary-card,
+  .loading-box,
+  .simulado-exam-rail,
+  .question-card,
+  .result-card
 ) {
   background: var(--bg2) !important;
   background-image: none !important;
@@ -1682,7 +1694,13 @@ html[data-fx="gradients"][data-card-gradients="on"] :is(
   .planos-hero,
   .pricing-card,
   .planos-change-card,
-  .faq-item
+  .faq-item,
+  .simulado-hero,
+  .simulado-summary-card,
+  .loading-box,
+  .simulado-exam-rail,
+  .question-card,
+  .result-card
 ) {
   background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.018), transparent 72%), var(--bg2) !important;
   border-color: rgba(var(--accent-rgb), 0.08) !important;
@@ -1745,7 +1763,13 @@ html[data-fx="blur"] :is(
   .planos-hero,
   .pricing-card,
   .planos-change-card,
-  .faq-item
+  .faq-item,
+  .simulado-hero,
+  .simulado-summary-card,
+  .loading-box,
+  .simulado-exam-rail,
+  .question-card,
+  .result-card
 ) {
   background: var(--floating-surface) !important;
   border-color: var(--floating-border) !important;

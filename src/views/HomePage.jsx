@@ -11,6 +11,10 @@ import {
   loadUserSummary,
   subscribeUserSummary,
 } from '../services/userSummary.js'
+import {
+  isPerformanceAiAnalysisEnabled,
+  subscribePerformanceAiAnalysisSettings,
+} from '../services/performanceAnalysisSettings.js'
 import { getEnemYearLabel } from '../services/examYear.js'
 import {
   getEnemCalendarState,
@@ -63,6 +67,7 @@ export function HomePage() {
   const { canInstall: pwaCanInstall, isInstalled: pwaInstalled, installPwa } = usePwaInstall()
   const [insights, setInsights] = useState(() => buildEssayInsights(loadEssayHistory()))
   const [userSummary, setUserSummary] = useState(() => loadUserSummary())
+  const [performanceAiEnabled, setPerformanceAiEnabled] = useState(() => isPerformanceAiAnalysisEnabled())
   const [radarSnapshot, setRadarSnapshot] = useState(() => loadRadarSnapshot())
   const [greeting, setGreeting] = useState(() => getGreetingLabel())
   const [pwaHint, setPwaHint] = useState('')
@@ -163,13 +168,16 @@ export function HomePage() {
     const refresh = () => setInsights(buildEssayInsights(loadEssayHistory()))
     const refreshSummary = () => setUserSummary(loadUserSummary())
     const refreshRadar = () => setRadarSnapshot(loadRadarSnapshot())
+    const refreshPerformanceAi = () => setPerformanceAiEnabled(isPerformanceAiAnalysisEnabled())
     refresh()
     refreshSummary()
     refreshRadar()
+    refreshPerformanceAi()
 
     const unlistenHistory = subscribeEssayHistory(refresh)
     const unlistenSummary = subscribeUserSummary(refreshSummary)
     const unlistenRadar = subscribeRadarSnapshot(refreshRadar)
+    const unlistenPerformanceAi = subscribePerformanceAiAnalysisSettings(refreshPerformanceAi)
     const unlistenWeatherLocation = subscribeWeatherLocation(setWeatherLocation)
     const unlistenWeatherCardEnabled = subscribeWeatherCardEnabled(setWeatherCardEnabled)
 
@@ -178,6 +186,7 @@ export function HomePage() {
       unlistenHistory()
       unlistenSummary()
       unlistenRadar()
+      unlistenPerformanceAi()
       unlistenWeatherLocation()
       unlistenWeatherCardEnabled()
     }
@@ -389,6 +398,36 @@ export function HomePage() {
     </section>
   ) : null
 
+  const visibleUserSummary = performanceAiEnabled ? userSummary : null
+  const performanceCard = visibleUserSummary ? (
+    <div className="card performance-card anim anim-d4 home-performance-card">
+      <div className="card-title">Análise de Desempenho</div>
+      <div className="performance-summary">{visibleUserSummary.resumo || 'Resumo ainda não disponível.'}</div>
+      <div className="performance-grid">
+        {Array.isArray(visibleUserSummary.forcas) && visibleUserSummary.forcas.length > 0 && (
+          <div className="performance-block performance-block--positive">
+            <div className="performance-label">Pontos fortes</div>
+            <div className="performance-chips">
+              {visibleUserSummary.forcas.slice(0, 3).map((item) => (
+                <span key={item} className="performance-chip">{item}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        {Array.isArray(visibleUserSummary.errosRecorrentes) && visibleUserSummary.errosRecorrentes.length > 0 && (
+          <div className="performance-block performance-block--negative">
+            <div className="performance-label">Erros recorrentes</div>
+            <div className="performance-chips">
+              {visibleUserSummary.errosRecorrentes.slice(0, 3).map((item) => (
+                <span key={item} className="performance-chip muted">{item}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  ) : null
+
   const enemCard = (
     <section
       className="enem-card anim anim-d5 home-enem-card"
@@ -572,6 +611,8 @@ export function HomePage() {
 
           {weatherCard}
 
+          {performanceCard}
+
           {enemCard}
 
         </div>
@@ -689,35 +730,6 @@ export function HomePage() {
                 </svg>
               </div>
             </form>
-
-            {userSummary && (
-              <div className="card performance-card anim anim-d4 home-performance-card">
-                <div className="card-title">Análise de Desempenho</div>
-                <div className="performance-summary">{userSummary.resumo || 'Resumo ainda não disponível.'}</div>
-                <div className="performance-grid">
-                  {Array.isArray(userSummary.forcas) && userSummary.forcas.length > 0 && (
-                    <div className="performance-block performance-block--positive">
-                      <div className="performance-label">Pontos fortes</div>
-                      <div className="performance-chips">
-                        {userSummary.forcas.slice(0, 3).map((item) => (
-                          <span key={item} className="performance-chip">{item}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {Array.isArray(userSummary.errosRecorrentes) && userSummary.errosRecorrentes.length > 0 && (
-                    <div className="performance-block performance-block--negative">
-                      <div className="performance-label">Erros recorrentes</div>
-                      <div className="performance-chips">
-                        {userSummary.errosRecorrentes.slice(0, 3).map((item) => (
-                          <span key={item} className="performance-chip muted">{item}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
             <div className="pv-feature pv-feature--quote anim anim-d4">
               <div className="pv-feature-content">

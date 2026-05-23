@@ -9,6 +9,11 @@ import {
   subscribeAiResponsePreference,
 } from '../services/aiResponsePreferences.js'
 import {
+  isPerformanceAiAnalysisEnabled,
+  setPerformanceAiAnalysisEnabled,
+  subscribePerformanceAiAnalysisSettings,
+} from '../services/performanceAnalysisSettings.js'
+import {
   AVATAR_ACCENT_OPTIONS,
   DEFAULT_AVATAR_SETTINGS,
   loadAvatarSettings,
@@ -24,11 +29,7 @@ import {
   getFreePlanUsageRows,
   subscribeFreePlanUsage,
 } from '../services/freePlanUsage.js'
-import {
-  getBillingStatusLabel,
-  TRIAL_DAYS,
-
-} from '../services/billingState.js'
+import { getBillingStatusLabel } from '../services/billingState.js'
 import { usePwaInstall } from '../pwa/usePwaInstall.js'
 import { useTheme } from '../theme/ThemeProvider.jsx'
 import { ConfirmDialog } from '../ui/ConfirmDialog.jsx'
@@ -459,6 +460,44 @@ const perfilCss = `
     margin-bottom: 1rem;
   }
 
+  .ai-analysis-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--bg3);
+    margin-bottom: 1rem;
+  }
+
+  .ai-analysis-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .ai-analysis-title {
+    color: var(--text);
+    font-size: 0.86rem;
+    font-weight: 700;
+  }
+
+  .ai-analysis-note {
+    color: var(--text3);
+    font-size: 0.74rem;
+    line-height: 1.45;
+  }
+
+  .ai-analysis-status {
+    color: var(--accent);
+    font-size: 0.74rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+
   .ai-pref-row { 
     display: flex; 
     align-items: center; 
@@ -819,6 +858,8 @@ export function PerfilPage() {
   const [aiPreference, setAiPreference] = useState(() => loadAiResponsePreferenceText())
   const [aiPreferenceSaving, setAiPreferenceSaving] = useState(false)
   const [aiPreferenceMsg, setAiPreferenceMsg] = useState('')
+  const [performanceAiEnabled, setPerformanceAiEnabledState] = useState(() => isPerformanceAiAnalysisEnabled())
+  const [performanceAiMsg, setPerformanceAiMsg] = useState('')
   const [avatarSettings, setAvatarSettingsState] = useState(() => loadAvatarSettings())
   const [avatarDraft, setAvatarDraft] = useState(() => loadAvatarSettings())
   const [avatarSaving, setAvatarSaving] = useState(false)
@@ -880,27 +921,29 @@ export function PerfilPage() {
 
 
   const quotaHelpMessage = [
-    'Cada vez que o app precisa gerar um resultado novo com IA, 1 uso é consumido.',
+    'Sua cota é consumida quando o app precisa criar uma resposta nova para você.',
     '',
     isGuest
-      ? `Modo convidado: ${quotaRow.limit} solicitações por dia, com cota separada neste navegador e validação no servidor para reduzir abuso.`
+      ? `Modo convidado: ${quotaRow.limit} solicitações por dia, salvas apenas neste navegador e validadas no servidor para reduzir abuso.`
       : 'Conta gratuita: 5 usos por dia.',
-    `Conta paga, teste grátis ativo ou premium temporário: ${PAID_AI_DAILY_LIMIT} usos por dia.`,
+    `Conta paga: ${PAID_AI_DAILY_LIMIT} usos por dia.`,
     '',
-    'Cada um destes pontos conta como 1 uso quando você:',
+    'Conta como 1 uso quando você:',
     '- gera um tema dinâmico',
     '- corrige uma redação',
-    '- faz uma chamada direta de IA',
+    '- conversa com o Professor IA',
+    '- monta um simulado novo',
     '- procura novos temas no Radar 1000',
     '- abre "Ver detalhes" em um tema que ainda não está salvo na sua conta',
-    '- deixa o app atualizar o resumo automático do seu desempenho',
+    '- ativa a análise de desempenho por IA e ela gera um insight novo no dia',
     '',
-    'Não conta quando o conteúdo já existe salvo localmente ou na sua conta e o app só reapresenta esse dado.',
-    'A contagem zera automaticamente na virada do dia no seu navegador.',
+    'Não conta abrir telas, ajustar aparência, reler histórico, análise local de desempenho ou ver de novo um resultado que já está salvo.',
+    'A análise de desempenho por IA fica desligada por padrão. Quando ligada, ela usa no máximo 1 cota por dia e considera redações, simulados e Professor IA.',
+    'A API do ENEM e o banco local ajudam a reduzir chamadas internas de IA nos simulados, mas o pedido ainda entra como uma solicitação do app.',
+    'A contagem zera automaticamente na virada do dia.',
     '',
-    `O teste grátis dura ${TRIAL_DAYS} dias e só pode ser usado uma vez por conta.`,
-    `Use o teste grátis de 7 dias para acessar todos os recursos premium.`,
-    'Se você mudar de conta, o cache daquela conta muda junto. Se o detalhe do radar ou outro resultado não estiver salvo nessa conta, o app precisa gerar de novo e isso volta a consumir cota.',
+    'O fluxo de assinatura atual é pago pela AbacatePay. Cupons autorizados são informados no checkout da gateway.',
+    'Se você mudar de conta, o cache muda junto. Se um detalhe do Radar ou outro resultado não existir naquela conta, o app precisa gerar de novo e isso pode consumir cota.',
   ].join('\n')
 
   const handleInstallPwa = async () => {
@@ -1043,6 +1086,9 @@ export function PerfilPage() {
     const refreshAiPreference = () => setAiPreference(loadAiResponsePreferenceText())
     refreshAiPreference()
     const unlistenAiPreference = subscribeAiResponsePreference(refreshAiPreference)
+    const refreshPerformanceAi = () => setPerformanceAiEnabledState(isPerformanceAiAnalysisEnabled())
+    refreshPerformanceAi()
+    const unlistenPerformanceAi = subscribePerformanceAiAnalysisSettings(refreshPerformanceAi)
     const refreshAvatar = () => {
       const stored = loadAvatarSettings()
       setAvatarSettingsState(stored)
@@ -1061,6 +1107,7 @@ export function PerfilPage() {
       unlistenUsage()
       unlistenInsights()
       unlistenAiPreference()
+      unlistenPerformanceAi()
       unlistenAvatar()
       unlistenWeatherCardEnabled()
       unlistenWeatherLocation()
@@ -1092,6 +1139,14 @@ export function PerfilPage() {
     } finally {
       setAiPreferenceSaving(false)
     }
+  }
+
+  const handlePerformanceAiToggle = () => {
+    const saved = setPerformanceAiAnalysisEnabled(!performanceAiEnabled)
+    setPerformanceAiEnabledState(saved.enabled)
+    setPerformanceAiMsg(saved.enabled
+      ? 'Análises por IA ativadas. Elas podem consumir 1 cota por dia.'
+      : 'Análises por IA desligadas. A home usa apenas análise local sem cota.')
   }
 
   const handleAvatarSave = async (event) => {
@@ -1287,9 +1342,9 @@ export function PerfilPage() {
         <div className="meu-plano-left">
           <div className="meu-plano-label">Plano Atual</div>
           <div className="meu-plano-tier">
-            {isGuest ? 'Modo convidado' : billingStatus === 'free' ? 'Gratuito' : billingStatus === 'trial' ? 'Teste grátis' : 'Pago'}
+            {isGuest ? 'Modo convidado' : billingStatus === 'free' ? 'Gratuito' : billingStatus === 'trial' ? 'Temporário' : 'Pago'}
             <span className={`meu-plano-tier-badge ${isGuest || billingStatus === 'free' ? '' : 'pro'}`}>
-              {isGuest ? 'Convidado' : billingStatus === 'free' ? 'Free' : billingStatus === 'trial' ? 'Trial' : 'Pago'}
+              {isGuest ? 'Convidado' : billingStatus === 'free' ? 'Free' : billingStatus === 'trial' ? 'Temp' : 'Pago'}
             </span>
           </div>
           {(billingStatus === 'free' || isGuest) && (
@@ -1666,6 +1721,25 @@ export function PerfilPage() {
               Ajuste de tom e clareza. Pedidos para mudar nota ou burlar critérios são ignorados.
             </div>
 
+            <div className="ai-analysis-toggle">
+              <div className="ai-analysis-copy">
+                <div className="ai-analysis-title">Análises de desempenho por IA</div>
+                <div className="ai-analysis-note">
+                  Quando ligado, usa até 1 cota por dia para gerar insights com redações, simulados e Professor IA.
+                </div>
+              </div>
+              <button
+                type="button"
+                className={`toggle ${performanceAiEnabled ? 'on' : ''}`}
+                onClick={handlePerformanceAiToggle}
+                aria-pressed={performanceAiEnabled}
+                aria-label={performanceAiEnabled ? 'Desativar análises por IA' : 'Ativar análises por IA'}
+              >
+                <span className="toggle-knob" />
+              </button>
+            </div>
+            {performanceAiMsg && <div className="ai-analysis-status">{performanceAiMsg}</div>}
+
             <div className="ai-pref-row" style={{ marginTop: '1rem' }}>
               <div className="ai-pref-count" aria-live="polite">
                 {aiPreferenceCount}/{AI_RESPONSE_PREFERENCE_MAX_LENGTH}
@@ -1738,7 +1812,7 @@ export function PerfilPage() {
           <div className="card anim anim-d4 backup-card" style={{ marginBottom: '1.25rem' }}>
             <div className="card-title" style={{ marginBottom: '0.5rem' }}>Proteja seus dados</div>
             <div className="avatar-card-text">
-              Como salvamos apenas o essencial na nuvem, use o backup para transferir seu histórico completo (redações e radar) entre dispositivos.
+              Como salvamos apenas o essencial na nuvem, use o backup para transferir histórico, simulados, Professor, conquistas e preferências entre dispositivos.
             </div>
             
             <input 

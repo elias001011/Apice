@@ -2,6 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { chamarProfessorIA } from '../services/aiService.js'
 import { clearProfessorHandoff, loadProfessorHandoff, normalizeProfessorHandoff } from '../services/professorHandoff.js'
+import { checkConquistasProfessor } from '../services/conquistas.js'
+import {
+  recordProfessorInteraction,
+  recordProfessorQuizCompletion,
+} from '../services/professorActivity.js'
+import { refreshUserSummaryFromHistory } from '../services/userSummary.js'
 import {
   PROFESSOR_MAX_CHAT_CHARS,
   PROFESSOR_MAX_INPUT_CHARS,
@@ -171,29 +177,42 @@ function iconSvg(kind) {
   }
 }
 
-function QuestionSet({ messageId, questions = [], answers, onAnswer }) {
+function QuestionSet({ messageId, questions = [], answers, onAnswer, onComplete }) {
   const [currentIndex, setCurrentIndex] = useState(0)
-
-  if (!questions.length) return null
+  const completionReportedRef = useRef(false)
 
   const totalQuestions = questions.length
   const answeredCount = questions.filter((question) => Number.isInteger(answers?.[question.id])).length
   const score = questions.reduce((total, question) => {
     return total + (answers?.[question.id] === question.correta ? 1 : 0)
   }, 0)
-  const finished = answeredCount === totalQuestions
+  const finished = totalQuestions > 0 && answeredCount === totalQuestions
   const currentQuestion = questions[Math.min(currentIndex, totalQuestions - 1)]
   const selected = currentQuestion ? answers?.[currentQuestion.id] : undefined
   const hasAnswer = Number.isInteger(selected)
   const isResultSlide = currentIndex >= totalQuestions
-  const progressValue = isResultSlide
-    ? 100
-    : Math.round(((currentIndex + (hasAnswer ? 1 : 0)) / totalQuestions) * 100)
+  const progressValue = totalQuestions <= 0
+    ? 0
+    : isResultSlide
+      ? 100
+      : Math.round(((currentIndex + (hasAnswer ? 1 : 0)) / totalQuestions) * 100)
 
   const chooseAnswer = (questionId, optionIndex) => {
     if (Number.isInteger(answers?.[questionId])) return
     onAnswer(messageId, questionId, optionIndex)
   }
+
+  useEffect(() => {
+    if (!finished || completionReportedRef.current) return
+    completionReportedRef.current = true
+    onComplete?.({
+      messageId,
+      total: totalQuestions,
+      correct: score,
+    })
+  }, [finished, messageId, onComplete, score, totalQuestions])
+
+  if (!totalQuestions) return null
 
   return (
     <section className="prof-quiz-card" aria-label="Quiz interativo">
@@ -311,6 +330,7 @@ export function ProfessorPage() {
   const titleInputRef = useRef(null)
   const recognitionRef = useRef(null)
   const handoffConsumedRef = useRef(false)
+  const completedQuizIdsRef = useRef(new Set())
 
   const activeChat = chats.find((chat) => chat.id === activeChatId) || chats[0] || createProfessorChat()
   const activeMessages = Array.isArray(activeChat.messages) ? activeChat.messages : []
@@ -500,6 +520,13 @@ export function ProfessorPage() {
         questions: response?.questions,
         sources: response?.sources,
       })
+      const quizCreated = Array.isArray(aiMessage.questions) && aiMessage.questions.length > 0
+      const activity = recordProfessorInteraction({ quizCreated })
+      checkConquistasProfessor({
+        totalInteractions: activity.totalInteractions,
+        totalQuizzesCompleted: activity.totalQuizzesCompleted,
+      })
+      void refreshUserSummaryFromHistory()
 
       commitChats((previous) => previous.map((chat) => (
         chat.id === chatAtSend.id
@@ -663,6 +690,21 @@ export function ProfessorPage() {
       }
     })
   }
+
+  const handleQuizComplete = useCallback(({ messageId, total, correct }) => {
+    const safeMessageId = String(messageId ?? '').trim()
+    if (!safeMessageId || completedQuizIdsRef.current.has(safeMessageId)) return
+
+    completedQuizIdsRef.current.add(safeMessageId)
+    const activity = recordProfessorQuizCompletion({ total, correct })
+    checkConquistasProfessor({
+      totalInteractions: activity.totalInteractions,
+      totalQuizzesCompleted: activity.totalQuizzesCompleted,
+      lastQuizTotal: total,
+      lastQuizCorrect: correct,
+    })
+    void refreshUserSummaryFromHistory()
+  }, [])
 
   return (
     <div className="prof-page">
@@ -879,6 +921,7 @@ export function ProfessorPage() {
                   questions={message.questions || []}
                   answers={questionAnswers[message.id] || {}}
                   onAnswer={handleAnswer}
+                  onComplete={handleQuizComplete}
                 />
               </div>
 

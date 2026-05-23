@@ -1,7 +1,7 @@
 /**
  * Serviço de simulados integrado com o banco local e a API oficial enem.dev.
- * Prioriza o banco local de questões reais, depois a API oficial
- * e usa IA só como fallback para completar o que faltar.
+ * Prioriza a API oficial, usa IA só como fallback limitado
+ * e completa o restante com o banco local quando necessário.
  */
 
 import { authFetch } from './authFetch.js'
@@ -46,42 +46,29 @@ export async function gerarSimulado({
   let questoesApi = []
   let resultadoIA = { questoes: [] }
 
-  // Tenta primeiro o banco local de questões reais.
+  // Tenta primeiro a API oficial. Ela é a fonte preferida para maximizar
+  // questões reais do ENEM antes de qualquer fallback.
   if (fonte !== 'ia') {
     try {
-      questoesLocais = await buscarQuestoesEmFonte({
-        fetcher: buscarQuestoesAleatorias,
-        area,
-        disciplinas: disciplinasSelecionadas,
-        quantidade,
-        origem: 'banco local',
-      })
-
-      const quantidadeRestante = Math.max(quantidade - questoesLocais.length, 0)
-
-      if (quantidadeRestante > 0) {
-        questoesApi = await buscarQuestoesEmFonte({
+      questoesApi = await buscarQuestoesEmFonte({
         fetcher: fetchFromEnemApi,
         area,
         disciplinas: disciplinasSelecionadas,
-        quantidade: quantidadeRestante,
+        quantidade,
         origem: 'API oficial',
       })
-      }
 
-      // Salva no banco local para uso futuro
-      if (questoesApi.length > 0) {
-        await popularBancoQuestoes(questoesApi)
-      }
-      
-      console.log(`[simuladoService] Banco local: ${questoesLocais.length} | API oficial: ${questoesApi.length}`)
+      console.log(`[simuladoService] API oficial usada: ${questoesApi.length}/${quantidade}`)
     } catch (error) {
-      console.warn('[simuladoService] Falha ao buscar questões reais:', error.message)
+      console.warn('[simuladoService] Falha ao buscar questões na API oficial:', error.message)
     }
   }
 
-  // Se precisa de mais questões, gera com IA.
-  const quantidadeFaltante = quantidade - questoesLocais.length - questoesApi.length
+  // Se precisa de mais questões, gera com IA até o limite configurado.
+  const quantidadeFaltante = quantidade - questoesApi.length
+  if (questoesApi.length >= quantidade) {
+    console.log('[simuladoService] API oficial preencheu o simulado; fallbacks não serão usados.')
+  }
   
   if ((fonte === 'ia' || fonte === 'mista') && quantidadeFaltante > 0) {
     try {
@@ -110,12 +97,43 @@ export async function gerarSimulado({
 
   const questoesIA = Array.isArray(resultadoIA.questoes) ? resultadoIA.questoes : []
 
+  const quantidadeFaltanteAposIA = quantidade - questoesApi.length - questoesIA.length
+  if (fonte !== 'ia' && quantidadeFaltanteAposIA > 0) {
+    try {
+      questoesLocais = await buscarQuestoesEmFonte({
+        fetcher: buscarQuestoesAleatorias,
+        area,
+        disciplinas: disciplinasSelecionadas,
+        quantidade: quantidadeFaltanteAposIA,
+        origem: 'banco local',
+      })
+      if (questoesLocais.length > 0) {
+        alertas.push(`Completamos ${questoesLocais.length} questão(ões) com o banco local para reduzir o uso da IA.`)
+      }
+      console.log(`[simuladoService] Banco local: ${questoesLocais.length}`)
+    } catch (error) {
+      console.warn('[simuladoService] Falha ao buscar questões locais:', error.message)
+    }
+  }
+
+  // Salva questões oficiais no banco local para próximos simulados/offline,
+  // depois das consultas locais para evitar duplicar o mesmo lote no resultado.
+  if (questoesApi.length > 0) {
+    await popularBancoQuestoes(questoesApi)
+  }
+
   // Combina e embaralha questões
-  const todasQuestoes = dedupeQuestoes([
-    ...questoesLocais,
+  const todasQuestoesBrutas = dedupeQuestoes([
     ...questoesApi,
     ...questoesIA,
+    ...questoesLocais,
   ])
+  const todasQuestoes = todasQuestoesBrutas.filter(isQuestaoRenderizavel)
+  const descartadas = todasQuestoesBrutas.length - todasQuestoes.length
+
+  if (descartadas > 0) {
+    console.warn(`[simuladoService] ${descartadas} questão(ões) descartada(s) por falta de alternativas renderizáveis.`)
+  }
   
   if (todasQuestoes.length === 0) {
     throw new Error('Não foi possível gerar questões. Verifique sua conexão e tente novamente.')
@@ -142,6 +160,7 @@ export async function gerarSimulado({
     quantidadeMaximaIA: MAX_SIMULADO_AI_QUESTIONS,
     estatisticas: {
       bancoLocal: questoesLocais.length,
+      api: questoesApi.length,
       reais: questoesLocais.length + questoesApi.length,
       ia: questoesIA.length,
     },
@@ -221,6 +240,29 @@ function dedupeQuestoes(questoes = []) {
   return out
 }
 
+function alternativaTemConteudo(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return Boolean(
+      String(value.text ?? value.label ?? value.content ?? '').trim()
+      || String(value.image ?? value.imageUrl ?? value.file ?? value.url ?? '').trim(),
+    )
+  }
+
+  return Boolean(String(value ?? '').trim())
+}
+
+function isQuestaoRenderizavel(questao) {
+  if (!questao || typeof questao !== 'object') return false
+  const alternativas = questao.alternativas
+  if (!alternativas || typeof alternativas !== 'object' || Array.isArray(alternativas)) return false
+
+  const correta = String(questao.correta ?? '').trim().toUpperCase()
+  return Boolean(String(questao.enunciado ?? '').trim())
+    && Boolean(correta)
+    && Object.keys(alternativas).length >= 2
+    && alternativaTemConteudo(alternativas[correta])
+}
+
 async function buscarQuestoesEmFonte({ fetcher, area, disciplinas, quantidade, origem }) {
   if (quantidade <= 0) return []
 
@@ -247,14 +289,22 @@ async function buscarQuestoesEmFonte({ fetcher, area, disciplinas, quantidade, o
   }
 
   if (isOfficialApiFetcher) {
-    const resultados = []
     const disciplinasIdioma = disciplinaLista.filter(isLanguageDiscipline)
+    const onlyLanguageDisciplines = disciplinasIdioma.length > 0 && disciplinasIdioma.length === disciplinaLista.length
+
+    if (!onlyLanguageDisciplines) {
+      const resultado = await buscar('', quantidade)
+      return dedupeQuestoes(resultado).slice(0, quantidade)
+    }
+
+    const resultados = []
+    const quotaIdioma = Math.max(1, Math.ceil(quantidade / disciplinasIdioma.length))
 
     for (const disciplina of disciplinasIdioma) {
       const restantes = Math.max(quantidade - dedupeQuestoes(resultados).length, 0)
       if (restantes <= 0) break
 
-      const quota = Math.max(1, Math.min(quantidadePorDisciplina, restantes))
+      const quota = Math.max(1, Math.min(quotaIdioma, restantes))
       const batch = await buscar(disciplina, quota)
       resultados.push(...batch)
     }

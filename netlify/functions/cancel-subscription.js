@@ -1,4 +1,5 @@
 import process from 'node:process'
+import { getPricingPlanByKey } from '../../src/services/upgradeTrigger.js'
 import { requireAuth } from './utils/auth.js'
 import { buildCheckoutCorsHeaders } from './utils/cors.js'
 
@@ -15,6 +16,11 @@ const ABACATE_SUBSCRIPTION_CANCEL_PATH = '/v2/subscriptions/cancel'
 const BLOB_STORE_NAME = 'user-state'
 const ACTIVE_STATUSES = new Set(['PAID', 'ACTIVE'])
 const INACTIVE_STATUSES = new Set(['CANCELLED', 'REFUNDED', 'EXPIRED'])
+const PLAN_PERIOD_MONTHS = {
+  monthly: 1,
+  semiannual: 6,
+  annual: 12,
+}
 
 function getApiKey() {
   const key = String(process.env.ABACATE_V2 ?? process.env.ABACATE_PAY ?? '').trim()
@@ -26,6 +32,27 @@ function getApiKey() {
 
 function safeText(value) {
   return String(value ?? '').trim()
+}
+
+function normalizeIsoDate(value) {
+  const text = safeText(value)
+  if (!text) return ''
+  const date = new Date(text)
+  if (!Number.isFinite(date.getTime())) return ''
+  return date.toISOString()
+}
+
+function addMonthsIso(value, months) {
+  const start = new Date(normalizeIsoDate(value) || new Date().toISOString())
+  if (!Number.isFinite(start.getTime())) return ''
+  const end = new Date(start.getTime())
+  end.setMonth(end.getMonth() + months)
+  return end.toISOString()
+}
+
+function getPlanPeriodMonths(planKey) {
+  const resolvedPlan = getPricingPlanByKey(planKey)
+  return PLAN_PERIOD_MONTHS[resolvedPlan?.key] || 1
 }
 
 function formatAbacateError(payload) {
@@ -83,6 +110,28 @@ function extractSubscriptionId(record) {
     || record?.data?.subscription?.id
     || '',
   )
+}
+
+function extractAccessEndsAt(...records) {
+  for (const record of records) {
+    const value = safeText(
+      record?.accessEndsAt
+      || record?.currentPeriodEnd
+      || record?.current_period_end
+      || record?.periodEndsAt
+      || record?.period_ends_at
+      || record?.nextBillingAt
+      || record?.next_billing_at
+      || record?.billingCycleEndsAt
+      || record?.subscription?.currentPeriodEnd
+      || record?.subscription?.current_period_end
+      || record?.data?.currentPeriodEnd
+      || '',
+    )
+    const iso = normalizeIsoDate(value)
+    if (iso) return iso
+  }
+  return ''
 }
 
 async function findSubscriptionCheckout({ checkoutId, externalId }) {
@@ -168,13 +217,14 @@ async function cancelAbacateSubscription({ subscriptionId, checkoutId, externalI
     billingStatus: status || 'CANCELLED',
     billingId: safeText(data?.id || resolved.checkout?.id),
     subscriptionId: resolved.subscriptionId,
+    accessEndsAt: extractAccessEndsAt(data, resolved.checkout),
   }
 }
 
-async function downgradeUserToFreeInBlob(userId, extraBilling = {}) {
+async function updateCancelledBillingInBlob(userId, extraBilling = {}, { keepPaidUntilPeriodEnd = false } = {}) {
   const store = await getStore()
   if (!store) {
-    console.warn('[cancel-subscription] Blob store não disponível. Downgrade cloud desabilitado.')
+    console.warn('[cancel-subscription] Blob store não disponível. Atualização cloud desabilitada.')
     return false
   }
 
@@ -182,33 +232,84 @@ async function downgradeUserToFreeInBlob(userId, extraBilling = {}) {
     const blobKey = `user-state:${userId}`
     const existingData = await store.get(blobKey, { type: 'json' })
     const currentState = existingData && typeof existingData === 'object' ? existingData : {}
+    const currentBilling = currentState.billing && typeof currentState.billing === 'object'
+      ? currentState.billing
+      : {}
+    const nowIso = new Date().toISOString()
+
+    if (keepPaidUntilPeriodEnd) {
+      const planKey = safeText(extraBilling.planKey || currentBilling.planKey || currentState.planKey || 'monthly')
+      const paidAt = normalizeIsoDate(currentBilling.paidAt || extraBilling.paidAt) || nowIso
+      const accessEndsAt = normalizeIsoDate(extraBilling.accessEndsAt)
+        || extractAccessEndsAt(extraBilling, currentBilling)
+        || addMonthsIso(paidAt, getPlanPeriodMonths(planKey))
+
+      const updatedState = {
+        ...currentState,
+        accountOwnerId: userId,
+        billing: {
+          ...currentBilling,
+          ...extraBilling,
+          status: 'paid',
+          planKey,
+          paidAt,
+          subscriptionActive: false,
+          cancelAtPeriodEnd: true,
+          cancellationRequestedAt: nowIso,
+          cancelledAt: nowIso,
+          accessEndsAt,
+          updatedAt: nowIso,
+        },
+        planStatus: 'paid',
+        planTier: 'paid',
+        planKey,
+        savedAt: nowIso,
+      }
+
+      await store.set(blobKey, JSON.stringify(updatedState), {
+        contentType: 'application/json',
+      })
+
+      console.log('[cancel-subscription] Assinatura marcada como cancelada no fim do período no blob.')
+      return true
+    }
+
+    const trialUsedAt = currentBilling.trialUsedAt
+      || currentBilling.trialStartedAt
+      || extraBilling.trialUsedAt
+      || extraBilling.trialStartedAt
+      || extraBilling.trialEndedAt
+      || ''
 
     const updatedState = {
       ...currentState,
+      accountOwnerId: userId,
       billing: {
-        ...(currentState.billing || {}),
+        ...currentBilling,
         ...extraBilling,
         status: 'free',
         planKey: '',
+        paidAt: '',
+        checkoutId: '',
+        externalId: '',
+        subscriptionId: '',
         subscriptionActive: false,
-        trialUsedAt: currentState.billing?.trialUsedAt
-          || currentState.billing?.trialStartedAt
-          || extraBilling.trialEndedAt
-          || new Date().toISOString(),
-        cancelledAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        cancelAtPeriodEnd: false,
+        ...(trialUsedAt ? { trialUsedAt } : {}),
+        cancelledAt: nowIso,
+        updatedAt: nowIso,
       },
       planStatus: 'free',
       planTier: 'free',
       planKey: '',
-      savedAt: new Date().toISOString(),
+      savedAt: nowIso,
     }
 
     await store.set(blobKey, JSON.stringify(updatedState), {
       contentType: 'application/json',
     })
 
-    console.log('[cancel-subscription] Usuário downgraded para FREE no blob.')
+    console.log('[cancel-subscription] Usuário atualizado para FREE no blob.')
     return true
   } catch (error) {
     console.error('[cancel-subscription] Erro ao downgradar usuário no blob:', error.message)
@@ -229,38 +330,49 @@ async function handleCancel(req, authUser, headers) {
   const subscriptionId = safeText(body?.subscriptionId)
   const localBillingStatus = safeText(body?.status || body?.billingStatus).toLowerCase()
   const localTrialKind = safeText(body?.trialKind)
+  const planKey = safeText(body?.planKey)
+  const paidAt = safeText(body?.paidAt)
+  const keepPaidUntilPeriodEnd = localBillingStatus === 'paid'
 
   if (!checkoutId && !externalId && !subscriptionId) {
-    if (localBillingStatus === 'paid') {
-      return new Response(JSON.stringify({
-        error: 'Não encontramos um ID remoto da assinatura para cancelar na AbacatePay. Aguarde a confirmação do checkout ou fale com o suporte.',
-      }), { status: 400, headers })
-    }
-
-    const trialEndedAt = new Date().toISOString()
+    const nowIso = new Date().toISOString()
+    const accessEndsAt = keepPaidUntilPeriodEnd
+      ? addMonthsIso(paidAt || nowIso, getPlanPeriodMonths(planKey))
+      : ''
     const localOnlyBilling = {
       checkoutId: '',
       externalId: '',
       subscriptionId: '',
       remoteStatus: 'LOCAL_ONLY',
-      trialEndedAt,
+      planKey,
+      paidAt,
+      ...(accessEndsAt ? { accessEndsAt } : {}),
+    }
+    if (localBillingStatus !== 'paid') {
+      localOnlyBilling.trialEndedAt = nowIso
     }
     if (localTrialKind) {
       localOnlyBilling.trialKind = localTrialKind
     }
 
-    const userDowngraded = await downgradeUserToFreeInBlob(userId, localOnlyBilling)
+    const userUpdated = await updateCancelledBillingInBlob(userId, localOnlyBilling, { keepPaidUntilPeriodEnd })
 
     return new Response(JSON.stringify({
       success: true,
       cancelled: false,
       localOnly: true,
-      message: 'Período temporário encerrado nesta conta.',
+      requiresManualCancellation: localBillingStatus === 'paid',
+      message: localBillingStatus === 'paid'
+        ? 'Acesso premium local encerrado nesta conta. Nenhuma assinatura remota foi localizada para cancelar na AbacatePay.'
+        : 'Período temporário encerrado nesta conta.',
       billingStatus: 'LOCAL_ONLY',
       billingId: '',
       subscriptionId: '',
-      userDowngraded,
-      cloudSyncEnabled: userDowngraded,
+      cancelAtPeriodEnd: keepPaidUntilPeriodEnd,
+      accessEndsAt,
+      userDowngraded: !keepPaidUntilPeriodEnd && userUpdated,
+      userUpdated,
+      cloudSyncEnabled: userUpdated,
     }), {
       status: 200,
       headers,
@@ -269,12 +381,21 @@ async function handleCancel(req, authUser, headers) {
 
   try {
     const abacateResult = await cancelAbacateSubscription({ subscriptionId, checkoutId, externalId })
-    const userDowngraded = await downgradeUserToFreeInBlob(userId, {
+    const accessEndsAt = keepPaidUntilPeriodEnd
+      ? (
+        normalizeIsoDate(abacateResult.accessEndsAt)
+        || addMonthsIso(paidAt || new Date().toISOString(), getPlanPeriodMonths(planKey))
+      )
+      : ''
+    const userUpdated = await updateCancelledBillingInBlob(userId, {
       checkoutId,
       externalId,
       subscriptionId: abacateResult.subscriptionId || subscriptionId,
       remoteStatus: abacateResult.billingStatus,
-    })
+      planKey,
+      paidAt,
+      ...(accessEndsAt ? { accessEndsAt } : {}),
+    }, { keepPaidUntilPeriodEnd })
 
     return new Response(JSON.stringify({
       success: true,
@@ -283,8 +404,11 @@ async function handleCancel(req, authUser, headers) {
       billingStatus: abacateResult.billingStatus,
       billingId: abacateResult.billingId,
       subscriptionId: abacateResult.subscriptionId || subscriptionId,
-      userDowngraded,
-      cloudSyncEnabled: userDowngraded,
+      cancelAtPeriodEnd: keepPaidUntilPeriodEnd,
+      accessEndsAt,
+      userDowngraded: !keepPaidUntilPeriodEnd && userUpdated,
+      userUpdated,
+      cloudSyncEnabled: userUpdated,
     }), {
       status: 200,
       headers,

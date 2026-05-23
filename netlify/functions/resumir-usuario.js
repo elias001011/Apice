@@ -6,6 +6,7 @@ import {
   checkGuestQuotaAllowance,
   recordGuestQuotaSuccess,
 } from './utils/guestQuota.js'
+import { enforceRateLimit } from './utils/rateLimit.js'
 import {
   INPUT_LIMITS,
   validateStringLength,
@@ -28,14 +29,22 @@ export default async function handler(req, context) {
   const auth = requireAuth(req, context, headers, { allowGuest: true })
   if (auth instanceof Response) return auth
 
+  const rateLimited = await enforceRateLimit(req, auth, headers, {
+    namespace: 'ai:user-summary',
+    limit: auth.user?.guest ? 4 : 20,
+    windowSeconds: 600,
+  })
+  if (rateLimited) return rateLimited
+
   try {
     const body = await req.json().catch(() => ({}))
     const historyIndex = Array.isArray(body?.historyIndex) ? body.historyIndex : []
     const historyCount = Number.isFinite(Number(body?.historyCount)) ? Number(body.historyCount) : historyIndex.length
+    const performanceIndex = body?.performanceIndex && typeof body.performanceIndex === 'object' ? body.performanceIndex : null
     const responsePreference = body?.responsePreference ?? null
 
-    if (historyIndex.length === 0) {
-      return new Response(JSON.stringify({ error: 'historyIndex é obrigatório' }), { status: 400, headers })
+    if (!performanceIndex && historyIndex.length === 0) {
+      return new Response(JSON.stringify({ error: 'performanceIndex ou historyIndex é obrigatório' }), { status: 400, headers })
     }
 
     // ── Input Validation ────────────────────────────────────────────────
@@ -46,6 +55,9 @@ export default async function handler(req, context) {
 
     const serializedHistory = JSON.stringify(historyIndex)
     checks.push(validateStringLength('historyIndex (total)', serializedHistory, INPUT_LIMITS.historyTotal))
+    if (performanceIndex) {
+      checks.push(validateStringLength('performanceIndex (total)', JSON.stringify(performanceIndex), INPUT_LIMITS.historyTotal))
+    }
 
     for (const check of checks) {
       if (!check.valid) return validationErrorResponse(check.error, headers)
@@ -65,6 +77,7 @@ export default async function handler(req, context) {
     const result = await generateUserSummary({
       historyIndex,
       historyCount,
+      performanceIndex,
       responsePreference,
     })
 

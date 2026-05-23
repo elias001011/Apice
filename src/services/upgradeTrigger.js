@@ -3,9 +3,9 @@
  * 
  * COMO FUNCIONA:
  * - 3 gatilhos de upgrade: cota bloqueada, convite suave, feature premium
- * - Cota gratuita: 5 usos/dia | Cota paga: 10 usos/dia
- * - Teste grátis: 7 dias únicos na primeira ativação
+ * - Cota gratuita: 5 usos/dia | Cota paga: 20 usos/dia
  * - Planos: Mensal (R$19,90), Semestral (R$89,40), Anual (R$142,80)
+ * - Pagamento unico: acesso_mensal libera 1 mes sem recorrencia
  * 
  * PRODUCT IDs (AbacatePay API v2):
  * - Cada produto deve existir no dashboard AbacatePay com mesmo ID
@@ -56,7 +56,7 @@ function getQuotaBlockedCopy() {
     return {
       icon: '🚀',
       title: 'Sua cota gratuita acabou',
-      subtitle: `Você usou os ${AI_DAILY_LIMIT} usos gratuitos de IA de hoje. No plano pago, a cota sobe para ${PAID_AI_DAILY_LIMIT} usos por dia, com teste grátis de 7 dias na primeira ativação.`,
+      subtitle: `Você usou os ${AI_DAILY_LIMIT} usos gratuitos de IA de hoje. No plano pago, a cota sobe para ${PAID_AI_DAILY_LIMIT} usos por dia.`,
     }
   }
 
@@ -151,7 +151,7 @@ export function getUpgradeModalContent(reason, featureLabel = '') {
       return {
         icon: '⭐',
         title: 'Você está evoluindo rápido',
-        subtitle: `O plano pago sobe sua cota para ${PAID_AI_DAILY_LIMIT} usos de IA por dia e ainda começa com 7 dias de teste grátis na primeira ativação.`,
+        subtitle: `O plano pago sobe sua cota para ${PAID_AI_DAILY_LIMIT} usos de IA por dia.`,
       }
     case UPGRADE_REASONS.PREMIUM_FEATURE:
       return {
@@ -163,18 +163,18 @@ export function getUpgradeModalContent(reason, featureLabel = '') {
       return {
         icon: '✨',
         title: 'Conheça os planos do Ápice',
-        subtitle: `A conta gratuita oferece ${AI_DAILY_LIMIT} usos de IA por dia. No plano pago, a cota sobe para ${PAID_AI_DAILY_LIMIT} e você ainda ganha 7 dias de teste grátis na primeira ativação.`,
+        subtitle: `A conta gratuita oferece ${AI_DAILY_LIMIT} usos de IA por dia. No plano pago, a cota sobe para ${PAID_AI_DAILY_LIMIT}.`,
       }
   }
 }
 
 // ── Benefícios do plano pago ─────────────────────────────────────────────────
 export const PAID_PLAN_BENEFITS = [
-  { icon: '🔟', label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia` },
-  { icon: '🎁', label: '7 dias de teste grátis na primeira ativação' },
+  { icon: '⚡', label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia` },
+  { icon: '💳', label: 'Checkout pago pela AbacatePay API v2' },
   { icon: '🧠', label: 'As mesmas ferramentas do app com mais folga' },
   { icon: '☁️', label: 'Histórico e preferências sincronizados por conta' },
-  { icon: '📅', label: 'Cobrança mensal, semestral ou anual' },
+  { icon: '📅', label: 'Cobrança mensal, semestral, anual ou acesso avulso' },
   { icon: '🛟', label: 'Suporte mais próximo para assinatura' },
 ]
 
@@ -185,20 +185,20 @@ export const FREE_PLAN_FEATURES = [
   { label: `${AI_DAILY_LIMIT} solicitações de IA por dia`, included: true },
   { label: 'Corretor com critérios INEP', included: true },
   { label: 'Radar 1000 com busca limitada e detalhes salvos', included: true },
-  { label: 'Resumo automático de desempenho', included: true },
+  { label: 'Análise local de desempenho', included: true },
   { label: 'Histórico de redações', included: true },
   { label: 'Personalização de aparência', included: true },
   { label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia`, included: false },
-  { label: 'Teste grátis de 7 dias', included: false },
+  { label: 'Checkout pago com cupons autorizados na gateway', included: false },
 ]
 
 // ── Features do plano pago (para comparação) ─────────────────────────────────
 export const PAID_PLAN_FEATURES = [
   { label: `${PAID_AI_DAILY_LIMIT} solicitações de IA por dia`, included: true },
-  { label: 'Teste grátis de 7 dias na primeira ativação', included: true },
+  { label: 'Cobrança recorrente pela AbacatePay API v2', included: true },
   { label: 'Mesmas funções do app com mais folga', included: true },
   { label: 'Histórico, aparência e preferências por conta', included: true },
-  { label: 'Cobrança recorrente conforme o período escolhido', included: true },
+  { label: 'Cobrança recorrente ou pagamento único mensal', included: true },
   { label: 'Cancelamento e retomada pela conta', included: true },
 ]
 
@@ -210,45 +210,77 @@ export const PREMIUM_PLAN_FEATURES = PAID_PLAN_FEATURES
 // pricePerMonth é apenas informativo (totalPrice / meses no período)
 export const PRICING_PLANS = [
   {
-    key: 'monthly',
-    label: 'Mensal',
-    productId: 'prod_wHATFUYZASYUJfSYytySyLrn',
+    key: 'welcome_one_time',
+    label: 'Acesso por um mês de boas-vindas',
+    productId: 'prod_6JhkhERfgGhggdZAcsd6xkSX',
+    checkoutMode: 'payment',
+    paymentFrequency: 'ONE_TIME',
+    paymentMethods: ['PIX', 'CARD'],
+    accessMonths: 1,
+    totalPrice: 1.10,
+    pricePerMonth: 1.10,
+    billingLabel: 'Acesso por um mês de boas-vindas',
+    billingPeriodLabel: 'por 1 mês',
+    discount: 'Oferta de boas-vindas',
+    recommended: false,
+    purchaseLimit: 1,
+    allowCoupons: false,
+  },
+  {
+    key: 'monthly_one_time',
+    label: 'Mensal avulso',
+    productId: 'prod_pJ0DLHYr5Run1sRWFnq4wWx4',
+    checkoutMode: 'payment',
+    paymentFrequency: 'ONE_TIME',
+    paymentMethods: ['PIX', 'CARD'],
+    accessMonths: 1,
     totalPrice: 19.90,
     pricePerMonth: 19.90,
-    billingLabel: 'Cobrança mensal depois do teste grátis',
+    billingLabel: 'Pagamento único de 1 mês',
+    billingPeriodLabel: 'por 1 mês',
+    discount: 'PIX ou cartão',
+    recommended: false,
+  },
+  {
+    key: 'monthly',
+    label: 'Mensal',
+    productId: 'prod_NkmfS5y5xD0Ah4ZhzUDc1BY4',
+    abacateCycle: 'MONTHLY',
+    totalPrice: 19.90,
+    pricePerMonth: 19.90,
+    billingLabel: 'Cobrança mensal recorrente',
     billingPeriodLabel: 'a cada mês',
     discount: null,
-    trialDays: 7,
     recommended: false,
   },
   {
     key: 'semiannual',
     label: 'Semestral',
     productId: 'prod_NhxEgLzexPQh5PqXdjeXRkZx',
+    abacateCycle: 'SEMIANNUALLY',
     totalPrice: 89.40,
     pricePerMonth: 14.90,
-    billingLabel: 'Cobrança semestral depois do teste grátis',
+    billingLabel: 'Cobrança semestral recorrente',
     billingPeriodLabel: 'a cada 6 meses',
     discount: 'Economia no semestre',
-    trialDays: 7,
     recommended: false,
   },
   {
     key: 'annual',
     label: 'Anual',
-    productId: 'prod_PRxWqM0BCQtrL4JxARqSHYFM',
+    productId: 'prod_EjA1dwgzNKNMj0fyGmtuStWE',
+    abacateCycle: 'ANNUALLY',
     totalPrice: 142.80,
     pricePerMonth: 11.90,
-    billingLabel: 'Cobrança anual depois do teste grátis',
+    billingLabel: 'Cobrança anual recorrente',
     billingPeriodLabel: 'a cada 12 meses',
     discount: 'Melhor custo-benefício',
-    trialDays: 7,
     recommended: true,
   },
 ]
 
 export function getPricingPlanByKey(planKey) {
-  return PRICING_PLANS.find((plan) => plan.key === planKey) || PRICING_PLANS[0]
+  return PRICING_PLANS.find((plan) => plan.key === planKey) || PRICING_PLANS.find((plan) => plan.key === 'monthly') || PRICING_PLANS[0]
 }
 
 export function getPricingPlanByProductId(productId) {

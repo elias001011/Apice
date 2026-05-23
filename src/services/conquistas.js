@@ -12,10 +12,10 @@ export const TODAS_CONQUISTAS = [
     secret: false,
   },
   {
-    id: 'curioso',
-    icon: '🔍',
-    title: 'Curioso',
-    desc: 'Use o Radar 1000 pela primeira vez',
+    id: 'constante',
+    icon: '📌',
+    title: 'Constante',
+    desc: 'Crie 5 redações',
     secret: false,
   },
   {
@@ -26,10 +26,24 @@ export const TODAS_CONQUISTAS = [
     secret: false,
   },
   {
-    id: 'explorador',
-    icon: '🧭',
-    title: 'Explorador',
-    desc: 'Consulte 10 temas diferentes no Radar',
+    id: 'lapidador',
+    icon: '💎',
+    title: 'Lapidador',
+    desc: 'Crie 25 redações',
+    secret: false,
+  },
+  {
+    id: 'centuriao',
+    icon: '🏆',
+    title: 'Centurião',
+    desc: 'Crie 100 redações',
+    secret: false,
+  },
+  {
+    id: 'alto-nivel',
+    icon: '📈',
+    title: 'Alto nível',
+    desc: 'Tire 800 ou mais em uma redação',
     secret: false,
   },
   {
@@ -40,10 +54,94 @@ export const TODAS_CONQUISTAS = [
     secret: false,
   },
   {
-    id: 'centuriao',
-    icon: '🏆',
-    title: 'Centurião',
-    desc: 'Crie 100 redações',
+    id: 'curioso',
+    icon: '🔍',
+    title: 'Curioso',
+    desc: 'Use o Radar 1000 pela primeira vez',
+    secret: false,
+  },
+  {
+    id: 'observador',
+    icon: '🧠',
+    title: 'Observador',
+    desc: 'Consulte 3 temas no Radar 1000',
+    secret: false,
+  },
+  {
+    id: 'explorador',
+    icon: '🧭',
+    title: 'Explorador',
+    desc: 'Consulte 10 temas diferentes no Radar',
+    secret: false,
+  },
+  {
+    id: 'estrategista',
+    icon: '♟️',
+    title: 'Estrategista',
+    desc: 'Consulte 25 temas no Radar 1000',
+    secret: false,
+  },
+  {
+    id: 'treineiro',
+    icon: '📋',
+    title: 'Treineiro',
+    desc: 'Conclua seu primeiro simulado',
+    secret: false,
+  },
+  {
+    id: 'rotina-de-prova',
+    icon: '⏱️',
+    title: 'Rotina de prova',
+    desc: 'Conclua 5 simulados',
+    secret: false,
+  },
+  {
+    id: 'prova-real',
+    icon: '🏛️',
+    title: 'Prova real',
+    desc: 'Conclua um simulado com 45 questões ou mais',
+    secret: false,
+  },
+  {
+    id: 'base-solida',
+    icon: '📊',
+    title: 'Base sólida',
+    desc: 'Acerte 70% ou mais em um simulado',
+    secret: false,
+  },
+  {
+    id: 'fonte-oficial',
+    icon: '📚',
+    title: 'Fonte oficial',
+    desc: 'Conclua um simulado preenchido pela API ENEM',
+    secret: false,
+  },
+  {
+    id: 'primeira-aula',
+    icon: '🎓',
+    title: 'Primeira aula',
+    desc: 'Converse com o Professor IA pela primeira vez',
+    secret: false,
+  },
+  {
+    id: 'caderno-aberto',
+    icon: '📖',
+    title: 'Caderno aberto',
+    desc: 'Converse 10 vezes com o Professor IA',
+    secret: false,
+  },
+  {
+    id: 'quiz-inicial',
+    icon: '✅',
+    title: 'Quiz inicial',
+    desc: 'Complete seu primeiro quiz do Professor',
+    secret: false,
+  },
+  {
+    id: 'banca-de-questoes',
+    icon: '🧩',
+    title: 'Banca de questões',
+    desc: 'Complete 5 quizzes do Professor',
     secret: false,
   },
   // Secretas
@@ -66,6 +164,34 @@ export const TODAS_CONQUISTAS = [
     icon: '⚡',
     title: 'Relâmpago',
     desc: 'Complete 3 redações no mesmo dia',
+    secret: true,
+  },
+  {
+    id: 'secreto-4',
+    icon: '💫',
+    title: 'Quase perfeito',
+    desc: 'Tire 980 ou mais em uma redação',
+    secret: true,
+  },
+  {
+    id: 'secreto-5',
+    icon: '🔥',
+    title: 'Ritmo intenso',
+    desc: 'Complete 5 redações no mesmo dia',
+    secret: true,
+  },
+  {
+    id: 'secreto-6',
+    icon: '💯',
+    title: 'Gabarito fechado',
+    desc: 'Acerte 100% em um simulado com pelo menos 10 questões',
+    secret: true,
+  },
+  {
+    id: 'secreto-7',
+    icon: '🌟',
+    title: 'Quiz perfeito',
+    desc: 'Acerte 100% em um quiz do Professor',
     secret: true,
   },
 ]
@@ -180,9 +306,13 @@ export function subscribeConquistaDesbloqueada(handler) {
  */
 export function checkConquistasRedacao({ totalEssays = 1, nota = 0 } = {}) {
   if (totalEssays >= 1) desbloquearConquista('viajante')
+  if (totalEssays >= 5) desbloquearConquista('constante')
   if (totalEssays >= 10) desbloquearConquista('dedicado')
+  if (totalEssays >= 25) desbloquearConquista('lapidador')
   if (totalEssays >= 100) desbloquearConquista('centuriao')
+  if (nota >= 800) desbloquearConquista('alto-nivel')
   if (nota >= 900) desbloquearConquista('perfeccionista')
+  if (nota >= 980) desbloquearConquista('secreto-4')
   if (nota >= 1000) desbloquearConquista('secreto-1')
 
   // Noturno: redação após meia-noite
@@ -202,6 +332,7 @@ function checkRelampago() {
     const count = raw.day === today ? (Number(raw.count) || 0) + 1 : 1
     localStorage.setItem(key, JSON.stringify({ day: today, count }))
     if (count >= 3) desbloquearConquista('secreto-3')
+    if (count >= 5) desbloquearConquista('secreto-5')
   } catch {
     // ignore
   }
@@ -212,5 +343,49 @@ function checkRelampago() {
  */
 export function checkConquistasRadar({ totalSearches = 0 } = {}) {
   if (totalSearches >= 1) desbloquearConquista('curioso')
+  if (totalSearches >= 3) desbloquearConquista('observador')
   if (totalSearches >= 10) desbloquearConquista('explorador')
+  if (totalSearches >= 25) desbloquearConquista('estrategista')
+}
+
+export function checkConquistasSimulado({
+  totalSimulados = 0,
+  totalQuestoes = 0,
+  acertos = 0,
+  percentual = 0,
+  estatisticas = {},
+} = {}) {
+  const safeTotalSimulados = Number(totalSimulados) || 0
+  const safeTotalQuestoes = Number(totalQuestoes) || 0
+  const safeAcertos = Number(acertos) || 0
+  const safePercentual = Number(percentual) || (safeTotalQuestoes > 0 ? (safeAcertos / safeTotalQuestoes) * 100 : 0)
+  const apiCount = Number(estatisticas?.api) || 0
+  const iaCount = Number(estatisticas?.ia) || 0
+  const bancoLocalCount = Number(estatisticas?.bancoLocal) || 0
+
+  if (safeTotalSimulados >= 1) desbloquearConquista('treineiro')
+  if (safeTotalSimulados >= 5) desbloquearConquista('rotina-de-prova')
+  if (safeTotalQuestoes >= 45) desbloquearConquista('prova-real')
+  if (safePercentual >= 70) desbloquearConquista('base-solida')
+  if (safeTotalQuestoes >= 10 && apiCount >= safeTotalQuestoes && iaCount === 0 && bancoLocalCount === 0) {
+    desbloquearConquista('fonte-oficial')
+  }
+  if (safeTotalQuestoes >= 10 && safeAcertos >= safeTotalQuestoes) {
+    desbloquearConquista('secreto-6')
+  }
+}
+
+export function checkConquistasProfessor({
+  totalInteractions = 0,
+  totalQuizzesCompleted = 0,
+  lastQuizTotal = 0,
+  lastQuizCorrect = 0,
+} = {}) {
+  if (Number(totalInteractions) >= 1) desbloquearConquista('primeira-aula')
+  if (Number(totalInteractions) >= 10) desbloquearConquista('caderno-aberto')
+  if (Number(totalQuizzesCompleted) >= 1) desbloquearConquista('quiz-inicial')
+  if (Number(totalQuizzesCompleted) >= 5) desbloquearConquista('banca-de-questoes')
+  if (Number(lastQuizTotal) > 0 && Number(lastQuizCorrect) >= Number(lastQuizTotal)) {
+    desbloquearConquista('secreto-7')
+  }
 }

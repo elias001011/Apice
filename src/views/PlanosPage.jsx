@@ -6,15 +6,13 @@ import {
   getBillingState,
   getBillingStatusDescription,
   getBillingStatusLabel,
-  hasUsedTrial,
   markPlanPaid,
-  isTrialActive,
-
   saveBillingState,
   subscribeBillingState,
-  TRIAL_DAYS,
 } from '../services/billingState.js'
 import {
+  AI_DAILY_LIMIT,
+  PAID_AI_DAILY_LIMIT,
   getFreePlanUsageRows,
   subscribeFreePlanUsage,
 } from '../services/freePlanUsage.js'
@@ -39,6 +37,31 @@ function getAbacatePayErrorMessage(data, fallback) {
   }
 
   return fallback
+}
+
+function formatBillingDate(value) {
+  const date = value ? new Date(value) : null
+  if (!date || !Number.isFinite(date.getTime())) return ''
+
+  return date.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+function isOneTimePlan(plan) {
+  return plan?.checkoutMode === 'payment' || plan?.paymentFrequency === 'ONE_TIME'
+}
+
+function getPlanBillingMode(plan) {
+  return isOneTimePlan(plan) ? 'one_time' : 'subscription'
+}
+
+function hasUsedOneTimePlan(plan, billingState) {
+  if (!plan || plan.purchaseLimit !== 1) return false
+  return Array.isArray(billingState?.oneTimePlanKeys)
+    && billingState.oneTimePlanKeys.includes(plan.key)
 }
 
 export function PlanosPage() {
@@ -114,21 +137,25 @@ export function PlanosPage() {
 
         if (data.paid) {
           const planKey = data.planKey || params.get('plan') || billingState.planKey || 'monthly'
+          const paidPlan = getPricingPlanByKey(planKey)
+          const billingMode = data.billingMode || (data.checkoutMode === 'checkout' ? 'one_time' : getPlanBillingMode(paidPlan))
           markPlanPaid({
             planKey,
             checkoutId: data.checkout?.id || checkoutId,
             externalId: data.externalId || externalId,
-            subscriptionId: data.subscriptionId || data.checkout?.subscriptionId || data.checkout?.subscription?.id || subscriptionId,
+            subscriptionId: billingMode === 'one_time' ? '' : data.subscriptionId || data.checkout?.subscriptionId || data.checkout?.subscription?.id || subscriptionId,
             paidAt: new Date().toISOString(),
+            billingMode,
+            accessEndsAt: data.accessEndsAt || '',
           })
           setFlash({
             tone: 'success',
-            text: `Pagamento confirmado. O plano ${getPricingPlanByKey(planKey).label.toLowerCase()} está ativo agora.`,
+            text: `Pagamento confirmado. O plano ${paidPlan.label.toLowerCase()} está ativo agora.`,
           })
         } else {
           setFlash({
             tone: 'info',
-            text: 'O pagamento ainda está pendente. Seu acesso temporário continua valendo até a confirmação da assinatura.',
+            text: 'O pagamento ainda está pendente. Assim que ele for confirmado, o plano será ativado na sua conta.',
           })
         }
       } catch (error) {
@@ -154,27 +181,25 @@ export function PlanosPage() {
   }, [billingState.checkoutId, billingState.externalId, billingState.planKey, billingState.subscriptionId, location.search, navigate])
 
   const activePlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
-  const trialAlreadyUsed = hasUsedTrial()
-  const trialCurrentlyActive = isTrialActive()
+  const activeBillingOneTime = billingState.status === 'paid' && (
+    billingState.billingMode === 'one_time'
+    || isOneTimePlan(activePlan)
+  )
+  const welcomeOfferPlan = getPricingPlanByKey('welcome_one_time')
+  const welcomeOfferLocked = hasUsedOneTimePlan(welcomeOfferPlan, billingState)
+  const paidCancellationScheduled = billingState.status === 'paid' && Boolean(billingState.cancelAtPeriodEnd)
+  const accessEndLabel = formatBillingDate(billingState.accessEndsAt)
 
-  const activeAccessLabel = 'Teste grátis'
-  const activeAccessLabelLower = activeAccessLabel.toLowerCase()
-  const trialEnded = trialAlreadyUsed && !trialCurrentlyActive && billingState.status !== 'paid'
   const quotaRow = quotaInfo || getQuotaInfo()
   const activeLimit = quotaRow.limit || getFreePlanUsageRows()[0]?.limit || 5
-  const trialEndDate = billingState.trialEndsAt ? new Date(billingState.trialEndsAt) : null
-  const trialEndLabel = trialEndDate && Number.isFinite(trialEndDate.getTime())
-    ? trialEndDate.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    })
-    : ''
+
   const statusLabel = isGuest ? 'Convidado' : getBillingStatusLabel(billingState.status)
   const statusDescription = isGuest
     ? `Modo convidado ativo. A IA aqui fica limitada a ${quotaRow.limit} solicitações por dia e os dados ficam só neste navegador até criar uma conta nova.`
-    : trialEnded && trialEndLabel
-      ? `${billingState.trialKind === 'welcome' ? 'Premium temporário' : 'Teste grátis'} encerrado em ${trialEndLabel}`
+    : activeBillingOneTime && accessEndLabel
+      ? `Pagamento único confirmado. Benefícios ativos até ${accessEndLabel}.`
+    : paidCancellationScheduled && accessEndLabel
+      ? `Renovação cancelada. Benefícios ativos até ${accessEndLabel}.`
       : getBillingStatusDescription(billingState.status)
 
   const currentStateText = (() => {
@@ -182,29 +207,20 @@ export function PlanosPage() {
       return `Modo convidado ativo. A IA fica limitada a ${quotaRow.limit} solicitações por dia neste navegador e os dados não sincronizam na nuvem até você criar uma conta nova.`
     }
 
-    if (trialCurrentlyActive) {
-      return activePlan
-        ? `Teste grátis ativo no plano ${activePlan.label}.`
-        : `Teste grátis ativo por ${TRIAL_DAYS} dias.`
-    }
-
-    if (trialEnded) {
-      const endedLabel = billingState.trialKind === 'welcome' ? 'premium temporário' : 'teste grátis'
-      return trialEndLabel
-        ? `Seu ${endedLabel} terminou em ${trialEndLabel}. Agora você pode assinar qualquer plano para continuar.`
-        : `Seu ${endedLabel} terminou. Agora você pode assinar qualquer plano para continuar.`
-    }
-
     if (billingState.status === 'paid') {
-      return activePlan
-        ? `Plano pago ativo no período ${activePlan.label}.`
-        : 'Plano pago ativo.'
-    }
+      if (activeBillingOneTime) {
+        return accessEndLabel
+          ? `Acesso avulso ${activePlan?.label || 'pago'} ativo até ${accessEndLabel}.`
+          : `Acesso avulso ${activePlan?.label || 'pago'} ativo por 1 mês.`
+      }
 
-    if (trialAlreadyUsed) {
-      return billingState.trialKind === 'welcome'
-        ? 'O premium temporário já foi usado nesta conta. A próxima ativação paga começa após o checkout.'
-        : 'O teste grátis já foi usado nesta conta. A próxima ativação paga começa após o checkout.'
+      if (paidCancellationScheduled) {
+        return accessEndLabel
+          ? `Renovação cancelada. O plano ${activePlan?.label || 'pago'} continua ativo até ${accessEndLabel}.`
+          : `Renovação cancelada. O plano ${activePlan?.label || 'pago'} continua ativo até o fim do período pago.`
+      }
+
+      return activePlan ? `Plano pago ativo no período ${activePlan.label}.` : 'Plano pago ativo.'
     }
 
     return `Conta gratuita com ${activeLimit} usos de IA por dia.`
@@ -225,34 +241,32 @@ export function PlanosPage() {
       return
     }
 
+    if (hasUsedOneTimePlan(plan, billingState)) {
+      setFlash({
+        tone: 'warning',
+        text: 'Essa oferta de boas-vindas já foi usada nesta conta e não pode ser comprada novamente.',
+      })
+      return
+    }
+
+    if (billingState.status === 'paid') {
+      setFlash({
+        tone: 'warning',
+        text: activeBillingOneTime
+          ? 'Você já tem um acesso pago ativo. Aguarde o fim do período para comprar outro plano.'
+          : 'Você já tem uma cobrança recorrente ativa. Cancele a renovação ou aguarde o fim do período para trocar de plano.',
+      })
+      return
+    }
+
     setBusyPlanKey(plan.key)
     setFlash(null)
 
     try {
-      const trialAvailable = billingState.status === 'free' && !trialAlreadyUsed
-      const trialActive = trialCurrentlyActive
-
-      if (trialActive) {
-        const activeTrialPlan = billingState.planKey ? getPricingPlanByKey(billingState.planKey) : null
-        setFlash({
-          tone: 'warning',
-          text: activeTrialPlan && activeTrialPlan.key !== plan.key
-            ? `Você já está no ${activeAccessLabelLower} do plano ${activeTrialPlan.label}. Troque de plano só depois do fim do período ativo${trialEndLabel ? `, em ${trialEndLabel}` : ''}.`
-            : `Seu ${activeAccessLabelLower} do plano ${plan.label} já está ativo${trialEndLabel ? ` até ${trialEndLabel}` : ''}.`,
-        })
-        return
-      }
-
-      // We call the real checkout even for trials now
-      const trialRequested = trialAvailable
-
-      console.log('[planos] trialAvailable:', trialAvailable, '| trialAlreadyUsed:', trialAlreadyUsed, '| billingState.status:', billingState.status, '| isTrial:', trialRequested)
-
       const response = await authFetch('/.netlify/functions/abacatepay-checkout', {
         method: 'POST',
         body: JSON.stringify({
           planKey: plan.key,
-          isTrial: trialRequested,
           // userId is derived from JWT on the backend
           userEmail: user.email || '',
           customerName: user?.user_metadata?.full_name || '',
@@ -264,40 +278,14 @@ export function PlanosPage() {
       const data = await response.json().catch(() => ({}))
 
       if (!response.ok) {
+        console.error('[planos] Checkout falhou. Status:', response.status, '| Resposta completa:', JSON.stringify(data))
         throw new Error(getAbacatePayErrorMessage(data, 'Não foi possível criar o checkout.'))
-      }
-
-      if (data.activeTrial && data.trialState) {
-        const trialEndsAt = data.trialState.trialEndsAt || ''
-        saveBillingState({
-          status: 'trial',
-          planKey: data.trialState.planKey || plan.key,
-          trialKind: data.trialState.trialKind || 'standard',
-          trialStartedAt: data.trialState.trialStartedAt || new Date().toISOString(),
-          trialEndsAt,
-        })
-
-        const trialEndsDate = trialEndsAt ? new Date(trialEndsAt) : null
-        const trialEndsLabel = trialEndsDate && Number.isFinite(trialEndsDate.getTime())
-          ? trialEndsDate.toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: 'long',
-            year: 'numeric',
-          })
-          : ''
-
-        setFlash({
-          tone: 'info',
-          text: trialEndsLabel
-            ? `Você já tem um período temporário ativo até ${trialEndsLabel}. Não abrimos outro checkout de teste.`
-            : 'Você já tem um período temporário ativo. Não abrimos outro checkout de teste.',
-        })
-        return
       }
 
       const checkoutUrl = data.checkoutUrl || data.checkout?.url || data.url || ''
       const checkoutId = data.checkoutId || data.checkout?.id || data.id || ''
-      const subscriptionId = data.subscriptionId || data.checkout?.subscriptionId || data.checkout?.subscription?.id || ''
+      const billingMode = data.billingMode || (data.checkoutMode === 'checkout' ? 'one_time' : getPlanBillingMode(plan))
+      const subscriptionId = billingMode === 'one_time' ? '' : data.subscriptionId || data.checkout?.subscriptionId || data.checkout?.subscription?.id || ''
       if (!checkoutUrl) {
         throw new Error(getAbacatePayErrorMessage(data, 'A AbacatePay não retornou a URL de checkout.'))
       }
@@ -306,13 +294,30 @@ export function PlanosPage() {
         checkoutId,
         externalId: data.externalId,
         subscriptionId,
+        billingMode,
       })
 
-      let checkoutFlashText = `Checkout do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação do período de acesso.`
-      if (data.trialCouponUnavailable) {
-        checkoutFlashText = `Não conseguimos aplicar automaticamente o cupom FREE TEST na AbacatePay. Abrimos o checkout pago do plano ${plan.label}.`
-      } else if (data.trialAlreadyUsed) {
-        checkoutFlashText = `O teste grátis já foi usado nesta conta. Abrimos o checkout pago do plano ${plan.label}.`
+      const isDevCheckout = Boolean(data.devMode || data.checkout?.devMode || data.product?.devMode)
+      let checkoutFlashText = billingMode === 'one_time'
+        ? `Checkout de pagamento único do plano ${plan.label} aberto com PIX e cartão. A AbacatePay continua cuidando da confirmação do pagamento.`
+        : `Checkout pago do plano ${plan.label} aberto. A AbacatePay continua cuidando da confirmação da assinatura.`
+      if (isDevCheckout) {
+        checkoutFlashText = billingMode === 'one_time'
+          ? `Checkout de teste do plano ${plan.label} aberto com PIX e cartão. Se usar cartão, use 4242 4242 4242 4242, validade futura e CVV 123 para simular aprovação.`
+          : `Checkout de teste do plano ${plan.label} aberto. Na AbacatePay, use 4242 4242 4242 4242, validade futura e CVV 123 para aprovar; outros cartões podem gerar erro 400 no card.`
+      }
+      if (data.couponsEnabled) {
+        checkoutFlashText = billingMode === 'one_time'
+          ? `Checkout de pagamento único do plano ${plan.label} aberto com PIX/cartão. O campo de cupom fica disponível na AbacatePay para cupons autorizados.`
+          : `Checkout pago do plano ${plan.label} aberto. O campo de cupom fica disponível na AbacatePay para cupons autorizados.`
+        if (isDevCheckout) {
+          checkoutFlashText = billingMode === 'one_time'
+            ? `Checkout de teste do plano ${plan.label} aberto com PIX/cartão e cupom habilitado. Se usar cartão, use 4242 4242 4242 4242, validade futura e CVV 123.`
+            : `Checkout de teste do plano ${plan.label} aberto com cupom habilitado. Use o cartão 4242 4242 4242 4242, validade futura e CVV 123 para simular aprovação.`
+        }
+      }
+      if (data.productValidationWarning && !isDevCheckout) {
+        checkoutFlashText = `${checkoutFlashText} ${data.productValidationWarning}`
       }
 
       setFlash({
@@ -320,7 +325,7 @@ export function PlanosPage() {
         text: checkoutFlashText,
       })
 
-      await new Promise((resolve) => window.setTimeout(resolve, 120))
+      await new Promise((resolve) => window.setTimeout(resolve, isDevCheckout ? 1800 : 120))
       window.location.assign(checkoutUrl)
     } catch (error) {
       setFlash({
@@ -346,9 +351,15 @@ export function PlanosPage() {
       return
     }
 
-    const cancelPrompt = billingState.status === 'paid'
-      ? 'Tem certeza que deseja cancelar sua assinatura? Seu acesso ao plano pago continuará até o fim do período já pago. Após isso, sua conta voltará para o plano gratuito.'
-      : 'Tem certeza que deseja encerrar seu teste grátis? Sua conta voltará para o plano gratuito imediatamente.'
+    if (billingState.status !== 'paid') {
+      setFlash({
+        tone: 'warning',
+        text: 'Esta conta não tem uma assinatura paga ativa para cancelar.',
+      })
+      return
+    }
+
+    const cancelPrompt = 'Tem certeza que deseja cancelar sua assinatura? A cobrança recorrente será cancelada e seus benefícios continuam até o fim do período já pago.'
 
     if (!confirm(cancelPrompt)) {
       return
@@ -365,8 +376,8 @@ export function PlanosPage() {
           externalId: billingState.externalId || '',
           subscriptionId: billingState.subscriptionId || '',
           status: billingState.status || '',
-          trialKind: billingState.trialKind || '',
           planKey: billingState.planKey || '',
+          paidAt: billingState.paidAt || '',
         }),
       })
 
@@ -376,29 +387,33 @@ export function PlanosPage() {
         throw new Error(data?.error || 'Não foi possível cancelar a assinatura.')
       }
 
-      // Atualiza estado local
-      if (data.userDowngraded) {
+      const shouldUpdateLocally = Boolean(data.userUpdated || data.cancelAtPeriodEnd || data.localOnly || data.cancelled || data.success)
+      if (shouldUpdateLocally) {
         const cancelledAt = new Date().toISOString()
+        const nextAccessEndsAt = data.accessEndsAt || billingState.accessEndsAt || ''
         saveBillingState({
-          status: 'free',
-          planKey: '',
-          trialKind: billingState.trialKind || (billingState.trialStartedAt ? 'standard' : ''),
-          trialUsedAt: billingState.trialUsedAt || billingState.trialStartedAt || cancelledAt,
-          trialStartedAt: billingState.trialStartedAt || '',
-          trialEndsAt: billingState.trialEndsAt || '',
-          paidAt: '',
-          checkoutId: '',
-          externalId: '',
-          subscriptionId: '',
+          status: 'paid',
+          planKey: billingState.planKey || '',
+          paidAt: billingState.paidAt || cancelledAt,
+          checkoutId: billingState.checkoutId || data.billingId || '',
+          externalId: billingState.externalId || '',
+          subscriptionId: data.subscriptionId || billingState.subscriptionId || '',
+          subscriptionActive: false,
+          cancelAtPeriodEnd: true,
+          cancellationRequestedAt: cancelledAt,
+          cancelledAt,
+          accessEndsAt: nextAccessEndsAt,
+          remoteStatus: data.billingStatus || '',
         })
 
+        const accessLabel = formatBillingDate(nextAccessEndsAt)
         setFlash({
-          tone: data.requiresManualRefund ? 'warning' : 'success',
-          text: data.requiresManualRefund
-            ? 'Assinatura cancelada. Como o pagamento já foi processado, solicite reembolso pelo email suporte@apice.com. Seu acesso continua até o fim do período.'
-            : billingState.status === 'paid'
-              ? 'Assinatura cancelada com sucesso. Sua conta voltará ao plano gratuito.'
-              : 'Teste grátis encerrado com sucesso. Sua conta voltou ao plano gratuito.',
+          tone: data.requiresManualCancellation ? 'warning' : 'success',
+          text: data.requiresManualCancellation
+            ? 'Marcamos a renovação como cancelada localmente, mas não encontramos uma assinatura remota para cancelar automaticamente. Se existir cobrança no cartão, fale com o suporte.'
+            : accessLabel
+              ? `Assinatura cancelada com sucesso. Seus benefícios continuam até ${accessLabel}.`
+              : 'Assinatura cancelada com sucesso. Seus benefícios continuam até o fim do período já pago.',
         })
       } else {
         setFlash({
@@ -424,28 +439,21 @@ export function PlanosPage() {
     const isCurrentPlan = billingState.planKey === plan.key
 
     if (billingState.status === 'paid' && isCurrentPlan) {
-      return 'Plano ativo'
+      if (isOneTimePlan(plan)) {
+        return 'Acesso ativo'
+      }
+      return paidCancellationScheduled ? 'Ativo até o fim do período' : 'Plano ativo'
     }
 
-    if (trialCurrentlyActive && isCurrentPlan) {
-      return 'Teste grátis ativo'
-    }
-
-    if (trialCurrentlyActive) {
-      return isCurrentPlan
-        ? ('Teste grátis ativo')
-        : 'Aguardar fim do teste'
+    if (hasUsedOneTimePlan(plan, billingState)) {
+      return 'Oferta já usada'
     }
 
     if (billingState.status === 'paid') {
-      return 'Trocar de plano'
+      return 'Aguardando término'
     }
 
-    if (!trialAlreadyUsed) {
-      return 'Começar teste grátis'
-    }
-
-    return 'Assinar agora'
+    return isOneTimePlan(plan) ? 'Comprar acesso' : 'Assinar agora'
   }
 
   const getPlanHint = (plan) => {
@@ -454,35 +462,36 @@ export function PlanosPage() {
     }
 
     if (billingState.status === 'paid' && billingState.planKey === plan.key) {
-      return 'Sua assinatura já está ativa neste plano.'
+      if (isOneTimePlan(plan)) {
+        return accessEndLabel
+          ? `Seu acesso avulso fica ativo até ${accessEndLabel}.`
+          : 'Seu acesso avulso de 1 mês já está ativo.'
+      }
+
+      if (paidCancellationScheduled) {
+        return accessEndLabel
+          ? `Cobrança cancelada. Benefícios ativos até ${accessEndLabel}.`
+          : 'Cobrança cancelada. Benefícios ativos até o fim do período pago.'
+      }
+
+      return 'Sua assinatura já está ativa neste plano. Para parar a renovação, use o botão de cancelamento abaixo.'
     }
 
-    if (trialCurrentlyActive && billingState.planKey === plan.key) {
-      return trialEndLabel
-        ? `Seu ${activeAccessLabelLower} termina em ${trialEndLabel}.`
-        : `Seu ${activeAccessLabelLower} está ativo nesta conta.`
+    if (hasUsedOneTimePlan(plan, billingState)) {
+      return 'Essa oferta de boas-vindas é limitada a uma compra por conta.'
     }
 
-    if (trialCurrentlyActive) {
-      return trialEndLabel
-        ? `Você já está no ${activeAccessLabelLower} do plano ${billingState.planKey ? getPricingPlanByKey(billingState.planKey).label : 'atual'}. Troque só depois de ${trialEndLabel}.`
-        : `Você já está no ${activeAccessLabelLower} nesta conta. Troque de plano só depois do período ativo.`
+    if (billingState.status === 'paid') {
+      return activeBillingOneTime
+        ? 'Você já tem um acesso pago ativo. Aguarde o fim do período para contratar outro plano.'
+        : 'Você já tem uma cobrança recorrente ativa. Cancele a renovação ou aguarde o fim do período para trocar.'
     }
 
-    if (trialEnded) {
-      const endedLabel = billingState.trialKind === 'welcome' ? 'premium temporário' : 'teste grátis'
-      return trialEndLabel
-        ? `O ${endedLabel} terminou em ${trialEndLabel}. Agora a próxima ativação começa paga.`
-        : `O ${endedLabel} terminou. Agora a próxima ativação começa paga.`
-    }
-
-    if (trialAlreadyUsed) {
-      return billingState.trialKind === 'welcome'
-        ? 'O premium temporário já foi usado nesta conta. Os próximos checkouts começam pagos.'
-        : 'O teste grátis já foi usado nesta conta. Os próximos checkouts começam pagos.'
-    }
-
-    return `A primeira ativação manual desta conta libera ${TRIAL_DAYS} dias de teste grátis.`
+    return isOneTimePlan(plan)
+      ? (plan.allowCoupons === false
+        ? 'Pagamento único de 1 mês. PIX e cartão ficam na AbacatePay.'
+        : 'Pagamento único de 1 mês. PIX, cartão e cupons autorizados ficam na AbacatePay.')
+      : 'O checkout é pago. Cupons autorizados podem ser inseridos na própria AbacatePay.'
   }
 
   return (
@@ -498,12 +507,11 @@ export function PlanosPage() {
 
         <section className="planos-hero anim anim-d1">
           <div className="planos-kicker">Planos e cobrança</div>
-          <h1 className="planos-title">Mais folga para a IA, com premium temporário nas contas novas</h1>
+          <h1 className="planos-title">Mais folga para a IA com assinatura paga</h1>
           <p className="planos-subtitle">
-            A conta gratuita continua com 5 usos de IA por dia. Ao pagar, a cota sobe para 10 usos diários.
-            Contas criadas nesta atualização recebem premium temporário por 30 dias.
-            O teste grátis manual continua com 7 dias e só pode ser ativado uma vez por conta.
-            No checkout, o cupom <strong>FREE TEST</strong> é aplicado automaticamente quando a conta ainda pode usar o teste.
+            A conta gratuita continua com {AI_DAILY_LIMIT} usos de IA por dia. Ao pagar, a cota sobe para {PAID_AI_DAILY_LIMIT} usos diários.
+            O checkout usa a AbacatePay API v2 para assinatura ou pagamento único com PIX/cartão. Se houver cupom autorizado,
+            ele é informado diretamente na gateway, sem período gratuito automático no app.
           </p>
 
           {isGuest && (
@@ -526,6 +534,16 @@ export function PlanosPage() {
             </div>
           )}
 
+          {!welcomeOfferLocked && billingState.status === 'free' && (
+            <div className="planos-highlight-banner">
+              <div className="planos-highlight-badge">Oferta de boas-vindas</div>
+              <div className="planos-highlight-title">1 mês de acesso por R$ 1,10</div>
+              <div className="planos-highlight-copy">
+                Uma compra por conta, com PIX ou cartão. Depois da confirmação, a oferta some para este usuário.
+              </div>
+            </div>
+          )}
+
           <div className="planos-status-strip">
             <div className="planos-status-chip">
               <div className="planos-status-label">Status da conta</div>
@@ -540,13 +558,15 @@ export function PlanosPage() {
               </div>
             </div>
             <div className="planos-status-chip">
-              <div className="planos-status-label">Acesso temporário</div>
+              <div className="planos-status-label">Cobrança</div>
               <div className="planos-status-value">
-                {trialCurrentlyActive
-                  ? `Teste grátis ${TRIAL_DAYS} dias`
-                  : trialAlreadyUsed
-                    ? 'Já usado'
-                    : 'Disponível'}
+                {billingState.status === 'paid'
+                  ? activeBillingOneTime
+                    ? 'Acesso avulso'
+                    : paidCancellationScheduled
+                    ? 'Renovação cancelada'
+                    : 'Recorrente ativa'
+                  : 'Sem assinatura'}
               </div>
               <div className="planos-status-copy">
                 {currentStateText}
@@ -567,7 +587,7 @@ export function PlanosPage() {
           )}
 
           {/* Seção de gerenciamento de assinatura ativa */}
-          {!isGuest && (billingState.status === 'paid' || trialCurrentlyActive) && (
+          {!isGuest && billingState.status === 'paid' && (
             <div className="planos-management-strip">
               <div className="management-card">
                 <div className="management-label">
@@ -575,7 +595,7 @@ export function PlanosPage() {
                     <circle cx="12" cy="12" r="3" />
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                   </svg>
-                  Gerenciar assinatura
+                  {activeBillingOneTime ? 'Gerenciar acesso' : 'Gerenciar assinatura'}
                 </div>
                 <div className="management-details">
                   <div className="management-row">
@@ -586,14 +606,16 @@ export function PlanosPage() {
                     <span className="management-key">Status:</span>
                     <span className="management-value" data-status={billingState.status}>
                       {billingState.status === 'paid'
-                        ? 'Pago'
-                        : 'Teste grátis ativo'}
+                        ? activeBillingOneTime
+                          ? 'Pago avulso'
+                          : paidCancellationScheduled ? 'Pago até o fim do período' : 'Pago'
+                        : 'Gratuito'}
                     </span>
                   </div>
-                  {trialCurrentlyActive && trialEndLabel && (
+                  {(paidCancellationScheduled || activeBillingOneTime) && accessEndLabel && (
                     <div className="management-row">
-                      <span className="management-key">{'Teste até:'}</span>
-                      <span className="management-value">{trialEndLabel}</span>
+                      <span className="management-key">Benefícios até:</span>
+                      <span className="management-value">{accessEndLabel}</span>
                     </div>
                   )}
                   {billingState.checkoutId && (
@@ -602,25 +624,33 @@ export function PlanosPage() {
                       <span className="management-value mono">{billingState.checkoutId}</span>
                     </div>
                   )}
-                  {billingState.subscriptionId && (
+                  {!activeBillingOneTime && billingState.subscriptionId && (
                     <div className="management-row">
                       <span className="management-key">Assinatura ID:</span>
                       <span className="management-value mono">{billingState.subscriptionId}</span>
                     </div>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="btn-cancel"
-                  onClick={handleCancelSubscription}
-                  disabled={busyPlanKey === 'cancel'}
-                >
-                  {busyPlanKey === 'cancel' ? 'Cancelando...' : billingState.status === 'paid' ? 'Cancelar assinatura' : 'Encerrar período'}
-                </button>
+                {!activeBillingOneTime && (
+                  <button
+                    type="button"
+                    className="btn-cancel"
+                    onClick={handleCancelSubscription}
+                    disabled={busyPlanKey === 'cancel' || paidCancellationScheduled}
+                  >
+                    {busyPlanKey === 'cancel'
+                      ? 'Cancelando...'
+                      : paidCancellationScheduled
+                        ? 'Cobrança recorrente cancelada'
+                        : 'Cancelar cobrança recorrente'}
+                  </button>
+                )}
                 <div className="management-hint">
-                  {billingState.status === 'paid'
-                    ? 'O cancelamento impede renovações futuras. Seu acesso continua ativo até o fim do período já pago.'
-                    : `Este teste grátis dura ${TRIAL_DAYS} dias. Encerrar agora volta a conta para gratuito imediatamente.`}
+                  {activeBillingOneTime
+                    ? 'Este acesso veio de pagamento único. Não há renovação automática para cancelar.'
+                    : paidCancellationScheduled
+                      ? 'A cobrança recorrente já foi cancelada. Os benefícios continuam até o fim do período pago.'
+                      : 'O cancelamento impede novas cobranças. Seu acesso continua ativo até o fim do período já pago.'}
                 </div>
               </div>
             </div>
@@ -640,20 +670,20 @@ export function PlanosPage() {
 
           <div className="planos-change-grid">
             <div className="planos-change-card">
-              <div className="planos-change-number">5 → 10</div>
+              <div className="planos-change-number">{AI_DAILY_LIMIT} → {PAID_AI_DAILY_LIMIT}</div>
               <div className="planos-change-text">Usos de IA por dia. Cada ação nova continua contando como 1 uso.</div>
             </div>
             <div className="planos-change-card">
-              <div className="planos-change-number">{TRIAL_DAYS} dias</div>
-              <div className="planos-change-text">Premium automático para contas criadas nesta atualização.</div>
+              <div className="planos-change-number">Ferramentas</div>
+              <div className="planos-change-text">Acesso total às funcionalidades do app com uma cota diária maior.</div>
             </div>
             <div className="planos-change-card">
-              <div className="planos-change-number">{TRIAL_DAYS} dias</div>
-              <div className="planos-change-text">Teste grátis manual continua disponível na primeira ativação.</div>
+              <div className="planos-change-number">Suporte VIP</div>
+              <div className="planos-change-text">Atendimento prioritário e acesso a novas ferramentas antes de todos.</div>
             </div>
             <div className="planos-change-card">
               <div className="planos-change-number">1 uso</div>
-              <div className="planos-change-text">Tema, corretor, Radar, detalhes e resumo automático contam igual.</div>
+              <div className="planos-change-text">Tema, corretor, Radar, detalhes e análise por IA ativada contam igual.</div>
             </div>
             <div className="planos-change-card">
               <div className="planos-change-number">{activePlan?.label || 'Conta'}</div>
@@ -667,9 +697,7 @@ export function PlanosPage() {
             <div>
               <div className="section-label">Escolha o período</div>
               <p className="planos-section-copy">
-                Todos os períodos liberam o mesmo uso: 10 solicitações de IA por dia após o período temporário.
-                Contas novas recebem 30 dias de premium temporário e o teste grátis manual continua com 7 dias.
-                A diferença está só no período de cobrança e no valor total.
+                Todos os planos liberam o mesmo acesso premium. A diferença está no período de cobrança, nos descontos dos planos longos e na oferta de boas-vindas de R$ 1,10, que pode ser comprada só uma vez.
               </p>
             </div>
           </div>
@@ -677,25 +705,31 @@ export function PlanosPage() {
           <div className="planos-pricing-grid">
             {PRICING_PLANS.map((plan) => {
               const isCurrentPlan = billingState.planKey === plan.key && billingState.status !== 'free'
+              const planIsOneTime = isOneTimePlan(plan)
+              const planIsLocked = hasUsedOneTimePlan(plan, billingState)
+                && !(billingState.status === 'paid' && billingState.planKey === plan.key)
               const buttonLabel = getPlanActionLabel(plan)
               const buttonHint = getPlanHint(plan)
+              const planIsPaidActive = billingState.status === 'paid'
 
               return (
-                <article key={plan.key} className={`pricing-card${plan.recommended ? ' recommended' : ''}${isCurrentPlan ? ' active' : ''}`}>
+                <article key={plan.key} className={`pricing-card${plan.recommended ? ' recommended' : ''}${isCurrentPlan ? ' active' : ''}${planIsLocked ? ' locked' : ''}`}>
                   {plan.recommended && <div className="pricing-badge">Mais vantajoso</div>}
+                  {planIsOneTime && <div className="pricing-badge secondary">{plan.purchaseLimit === 1 ? '1 compra por conta' : 'PIX + cartão'}</div>}
 
                   <div className="plan-tier">{plan.label}</div>
                   <div className="plan-price">
                     <span className="plan-price-value">{plan.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                    <span className="plan-price-period">/{plan.billingPeriodLabel}</span>
+                    <span className="plan-price-period">{planIsOneTime ? plan.billingPeriodLabel : `/${plan.billingPeriodLabel}`}</span>
                   </div>
                   <div className="plan-price-note">
-                    {plan.pricePerMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} por mês em média
+                    {planIsOneTime
+                      ? 'Sem renovação automática'
+                      : `${plan.pricePerMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} por mês em média`}
                   </div>
 
                   <div className="plan-card-note">
-                    {plan.billingLabel}. O checkout v2 usa o produto recorrente da AbacatePay já cadastrado.
-                    Quando disponível, o teste grátis aplica o cupom <strong>FREE TEST</strong> automaticamente.
+                    {plan.billingLabel}. {planIsOneTime ? 'PIX ou cartão pela AbacatePay.' : 'Cobrança recorrente pela AbacatePay.'}
                   </div>
 
                   <div className="plan-card-list">
@@ -703,25 +737,27 @@ export function PlanosPage() {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      <span>10 usos de IA por dia após o período temporário</span>
+                      <span>{PAID_AI_DAILY_LIMIT} usos de IA por dia</span>
                     </div>
                     <div className="plan-card-item">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      <span>Contas novas ganham 30 dias de premium temporário</span>
+                      <span>Acesso a todas as ferramentas</span>
                     </div>
                     <div className="plan-card-item">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      <span>Teste grátis manual continua com 7 dias na primeira ativação</span>
+                      <span>Sincronização em nuvem ativa</span>
                     </div>
                     <div className="plan-card-item">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      <span>Mesmas ferramentas do app, com mais folga de uso</span>
+                      <span>{planIsOneTime
+                        ? (plan.allowCoupons === false ? 'PIX e cartão na gateway' : 'PIX, cartão e cupom na gateway')
+                        : 'Suporte prioritário e atualizações'}</span>
                     </div>
                   </div>
 
@@ -733,8 +769,8 @@ export function PlanosPage() {
                       disabled={
                         !isGuest && (
                           busyPlanKey === plan.key
-                          || (billingState.status === 'paid' && billingState.planKey === plan.key)
-                          || trialCurrentlyActive
+                          || planIsPaidActive
+                          || planIsLocked
                         )
                       }
                     >
@@ -768,29 +804,27 @@ export function PlanosPage() {
             <div className="faq-item">
               <div className="faq-q">O que conta como uso de IA?</div>
               <div className="faq-a">
-                Cada resultado novo conta como 1 uso: tema dinâmico, correção de redação, chamada direta de IA,
-                busca do Radar, ver detalhes do Radar e resumo automático.
+                Cada resultado novo conta como 1 uso: tema dinâmico, correção de redação, Professor IA,
+                simulado novo, busca do Radar, ver detalhes do Radar e análise de desempenho por IA quando ativada.
               </div>
             </div>
             <div className="faq-item">
-              <div className="faq-q">Posso repetir o teste grátis em outro plano?</div>
+              <div className="faq-q">Tem período gratuito automático?</div>
               <div className="faq-a">
-                Não. O teste grátis manual de 7 dias é único por conta. Contas novas criadas nesta atualização recebem premium temporário de 30 dias automaticamente.
-                Enquanto qualquer período temporário estiver ativo, a troca de plano fica bloqueada.
-                Quando o período termina, a conta volta para gratuito e o próximo checkout já começa pago.
+                Não. O fluxo atual é pago via AbacatePay API v2. Cupons de desconto autorizados podem ser inseridos no checkout da própria gateway, inclusive no pagamento único.
               </div>
             </div>
             <div className="faq-item">
               <div className="faq-q">O que acontece quando eu troco de conta?</div>
               <div className="faq-a">
-                O consumo, o acesso temporário e o status do plano acompanham a conta. Se mudar de login, o outro usuário volta
+                O consumo e o status do plano acompanham a conta. Se mudar de login, o outro usuário volta
                 para o histórico e para o consumo dele.
               </div>
             </div>
             <div className="faq-item">
-              <div className="faq-q">O que muda entre os períodos mensal, semestral e anual?</div>
+              <div className="faq-q">O que muda entre os períodos e o pagamento único?</div>
               <div className="faq-a">
-                Muda apenas a forma de cobrança e o valor total. A cota diária continua em 10 usos de IA por dia após o período temporário.
+                Muda apenas a forma de cobrança e o valor total. O pagamento único libera 1 mês sem renovação automática; a cota diária continua em {PAID_AI_DAILY_LIMIT} usos de IA por dia no plano pago.
               </div>
             </div>
           </div>
@@ -920,6 +954,58 @@ const planosCss = `
   .planos-guest-btn:hover {
     background: var(--accent2);
     transform: translateY(-1px);
+  }
+
+  .planos-highlight-banner {
+    position: relative;
+    display: grid;
+    gap: 0.45rem;
+    padding: 1rem 1.1rem;
+    margin-top: 1rem;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 195, 0, 0.22);
+    background:
+      linear-gradient(135deg, rgba(255, 195, 0, 0.18), rgba(255, 255, 255, 0.92)),
+      radial-gradient(circle at top right, rgba(255, 144, 0, 0.16), transparent 46%);
+    box-shadow: 0 18px 50px rgba(255, 157, 0, 0.14);
+    overflow: hidden;
+  }
+
+  .planos-highlight-banner::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.35) 50%, transparent 100%);
+    opacity: 0.35;
+  }
+
+  .planos-highlight-badge {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    padding: 0.32rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.88);
+    color: #fff7d8;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .planos-highlight-title {
+    font-size: clamp(1.08rem, 2vw, 1.45rem);
+    font-weight: 900;
+    color: #1d1600;
+    letter-spacing: -0.02em;
+  }
+
+  .planos-highlight-copy {
+    color: rgba(29, 22, 0, 0.82);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    max-width: 72ch;
   }
 
   .planos-status-strip {
@@ -1144,7 +1230,7 @@ const planosCss = `
 
   .planos-pricing-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 1rem;
   }
 
@@ -1183,6 +1269,12 @@ const planosCss = `
     letter-spacing: 0.06em;
     padding: 0.35rem 0.7rem;
     border-radius: 999px;
+  }
+
+  .pricing-badge.secondary {
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border);
   }
 
   .plan-tier {
@@ -1376,6 +1468,12 @@ const planosCss = `
   html.layout-compact .planos-status-chip,
   html.layout-compact .faq-item {
     padding: 0.9rem 1rem;
+  }
+
+  @media (max-width: 1120px) {
+    .planos-pricing-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   @media (max-width: 980px) {

@@ -1,5 +1,6 @@
 import process from 'node:process'
-import { getPricingPlanByKey } from '../../src/services/upgradeTrigger.js'
+import { PRICING_PLANS, getPricingPlanByKey } from '../../src/services/upgradeTrigger.js'
+import { normalizeBillingState } from '../../src/services/billingState.js'
 import { requireAuth } from './utils/auth.js'
 import { buildCheckoutCorsHeaders } from './utils/cors.js'
 
@@ -10,9 +11,13 @@ import { buildCheckoutCorsHeaders } from './utils/cors.js'
  * 1. Frontend chama POST /.netlify/functions/abacatepay-checkout
  * 2. Backend cria/recupera um customer v2 quando houver e-mail
  * 3. Backend cria um checkout de assinatura em /v2/subscriptions/create
+ *    ou pagamento unico em /v2/checkouts/create
  * 4. Cliente paga na URL retornada pela AbacatePay
  * 5. Frontend verifica o status via GET nesta funcao
  * 6. Webhook v2 reforca a sincronizacao em nuvem
+ *
+ * O fluxo e pago. Cupons podem ser liberados no checkout via
+ * ABACATE_CHECKOUT_COUPONS/ABACATE_ALLOWED_COUPONS, sem teste grátis automático.
  *
  * Requer no Netlify:
  * - ABACATE_V2: chave de API v2 da AbacatePay
@@ -22,10 +27,13 @@ const ABACATE_API_BASE = 'https://api.abacatepay.com'
 const ABACATE_CUSTOMER_CREATE_PATH = '/v2/customers/create'
 const ABACATE_SUBSCRIPTION_CREATE_PATH = '/v2/subscriptions/create'
 const ABACATE_SUBSCRIPTION_LIST_PATH = '/v2/subscriptions/list'
+const ABACATE_CHECKOUT_CREATE_PATH = '/v2/checkouts/create'
 const ABACATE_CHECKOUT_LIST_PATH = '/v2/checkouts/list'
+const ABACATE_COUPON_LIST_PATH = '/v2/coupons/list'
+const ABACATE_PRODUCT_GET_PATH = '/v2/products/get'
 
-const TRIAL_COUPON_CODE = 'FREE TEST'
 const PAID_STATUSES = new Set(['PAID', 'ACTIVE', 'COMPLETED'])
+const SUBSCRIPTION_PRODUCT_CYCLES = new Set(['WEEKLY', 'MONTHLY', 'SEMIANNUALLY', 'ANNUALLY', 'YEARLY'])
 
 function getApiKey() {
   const key = String(process.env.ABACATE_V2 ?? process.env.ABACATE_PAY ?? '').trim()
@@ -55,7 +63,8 @@ function buildExternalId({ userId, planKey, timestamp }) {
 }
 
 function parseExternalId(externalId) {
-  const parts = safeText(externalId).split(':')
+  const text = safeText(externalId)
+  const parts = text.split(':')
   if (parts.length >= 4 && parts[0] === 'apice') {
     return {
       userId: parts[1] || '',
@@ -63,7 +72,251 @@ function parseExternalId(externalId) {
       timestamp: parts[3] || '',
     }
   }
+
+  const safeParts = text.split('_')
+  if (safeParts.length >= 4 && safeParts[0] === 'apice') {
+    return {
+      userId: safeParts.slice(3).join('_') || '',
+      planKey: safeParts[1] || '',
+      timestamp: safeParts[2] || '',
+    }
+  }
+
   return { userId: '', planKey: '', timestamp: '' }
+}
+
+function getAllowedCheckoutCoupons() {
+  const raw = safeText(process.env.ABACATE_CHECKOUT_COUPONS || process.env.ABACATE_ALLOWED_COUPONS)
+  if (!raw) return []
+
+  return raw
+    .split(/[,\n;]/)
+    .map((coupon) => coupon.trim())
+    .filter(Boolean)
+    .slice(0, 50)
+}
+
+function shouldAutoListCoupons() {
+  const raw = safeText(process.env.ABACATE_AUTO_LIST_COUPONS).toLowerCase()
+  return raw !== '0' && raw !== 'false' && raw !== 'off'
+}
+
+function shouldValidateProducts() {
+  const raw = safeText(process.env.ABACATE_VALIDATE_PRODUCTS).toLowerCase()
+  return raw !== '0' && raw !== 'false' && raw !== 'off'
+}
+
+function normalizeCycle(value) {
+  const cycle = safeText(value).toUpperCase()
+  if (cycle === 'YEARLY') return 'ANNUALLY'
+  if (cycle === 'SEMIANNUAL' || cycle === 'SEMI_ANNUALLY') return 'SEMIANNUALLY'
+  return cycle
+}
+
+function isOneTimePlan(plan) {
+  const checkoutMode = safeText(plan?.checkoutMode).toLowerCase()
+  const frequency = safeText(plan?.paymentFrequency).toUpperCase()
+  return checkoutMode === 'payment' || checkoutMode === 'checkout' || frequency === 'ONE_TIME'
+}
+
+function getBillingMode(plan) {
+  return isOneTimePlan(plan) ? 'one_time' : 'subscription'
+}
+
+function getCheckoutMode(plan) {
+  return isOneTimePlan(plan) ? 'checkout' : 'subscription'
+}
+
+function getPaymentMethods(plan, isSubscription) {
+  if (Array.isArray(plan?.paymentMethods) && plan.paymentMethods.length > 0) {
+    return plan.paymentMethods.map((method) => safeText(method).toUpperCase()).filter(Boolean)
+  }
+
+  return isSubscription ? ['CARD'] : ['PIX', 'CARD']
+}
+
+function getPlanAccessEndsAt(plan, paidAt = new Date().toISOString()) {
+  const months = Math.max(1, Math.round(Number(plan?.accessMonths || 1)))
+  const startDate = new Date(paidAt)
+  if (!Number.isFinite(startDate.getTime())) return ''
+  const endDate = new Date(startDate.getTime())
+  endDate.setMonth(endDate.getMonth() + months)
+  return endDate.toISOString()
+}
+
+async function getStore() {
+  try {
+    const { getStore: getStoreFn } = await import('@netlify/blobs')
+    return getStoreFn({ name: 'user-state', consistency: 'strong' })
+  } catch {
+    return null
+  }
+}
+
+function getCurrentBillingState(state) {
+  return normalizeBillingState(state || {})
+}
+
+async function getStoredBillingState(userId) {
+  const store = await getStore()
+  if (!store || !userId) return null
+
+  try {
+    const raw = await store.get(`user-state:${userId}`, { type: 'json' })
+    if (!raw || typeof raw !== 'object') return null
+    return getCurrentBillingState(raw.billing || raw)
+  } catch (error) {
+    console.warn('[abacatepay] Falha ao ler billing atual da nuvem:', error.message)
+    return null
+  }
+}
+
+function hasActivePaidBilling(billing) {
+  if (!billing || typeof billing !== 'object') return false
+  return String(billing.status ?? '').toLowerCase() === 'paid'
+}
+
+function getBillingBlockMessage(billing) {
+  const plan = getPricingPlanByKey(billing?.planKey || '')
+  const label = plan?.label || billing?.planKey || 'plano ativo'
+  if (billing?.billingMode === 'one_time') {
+    return `Você já tem o acesso ${label} ativo. Aguarde o fim do período para comprar outro plano.`
+  }
+
+  if (billing?.cancelAtPeriodEnd) {
+    return `Você já tem a cobrança recorrente do plano ${label} ativa. Aguarde o fim do período ou cancele a renovação antes de trocar.`
+  }
+
+  return `Você já tem o plano ${label} ativo. Cancele a cobrança atual ou aguarde o fim do período antes de comprar outro plano.`
+}
+
+function isCouponRedeemable(coupon) {
+  const status = safeText(coupon?.status).toUpperCase()
+  const maxRedeems = Number(coupon?.maxRedeems)
+  const redeemsCount = Number(coupon?.redeemsCount)
+
+  if (status && status !== 'ACTIVE') return false
+  if (Number.isFinite(maxRedeems) && maxRedeems >= 0) {
+    return !Number.isFinite(redeemsCount) || redeemsCount < maxRedeems
+  }
+
+  return true
+}
+
+async function listActiveCouponIds() {
+  if (!shouldAutoListCoupons()) return []
+
+  try {
+    const result = await abacateFetch(`${ABACATE_COUPON_LIST_PATH}?limit=100&status=ACTIVE`, { method: 'GET' })
+    const coupons = Array.isArray(result?.data) ? result.data : []
+
+    return coupons
+      .filter(isCouponRedeemable)
+      .map((coupon) => safeText(coupon?.id || coupon?.code))
+      .filter(Boolean)
+      .slice(0, 50)
+  } catch (error) {
+    console.warn('[abacatepay] Não foi possível listar cupons ativos; checkout seguirá sem lista automática:', error.message)
+    return []
+  }
+}
+
+async function resolveCheckoutCoupons() {
+  const configuredCoupons = getAllowedCheckoutCoupons()
+  if (configuredCoupons.length > 0) {
+    return {
+      coupons: configuredCoupons,
+      source: 'env',
+    }
+  }
+
+  const listedCoupons = await listActiveCouponIds()
+  return {
+    coupons: listedCoupons,
+    source: listedCoupons.length > 0 ? 'abacatepay-list' : 'none',
+  }
+}
+
+async function resolvePlanCoupons(plan) {
+  if (plan?.allowCoupons === false) {
+    return { coupons: [], source: 'disabled-for-plan' }
+  }
+
+  return resolveCheckoutCoupons()
+}
+
+async function getProductSnapshot(productId) {
+  if (!shouldValidateProducts()) return null
+
+  try {
+    const query = new URLSearchParams()
+    query.set('id', productId)
+    const result = await abacateFetch(`${ABACATE_PRODUCT_GET_PATH}?${query.toString()}`, { method: 'GET' })
+    return result?.data && typeof result.data === 'object' ? result.data : null
+  } catch (error) {
+    if (error.status === 401 || error.status === 403) {
+      console.warn('[abacatepay] Chave sem PRODUCT:READ; pulando validação do produto:', error.message)
+      return null
+    }
+
+    throw error
+  }
+}
+
+async function validateSubscriptionProduct(plan) {
+  const product = await getProductSnapshot(plan.productId)
+  if (!product) {
+    return {
+      product: null,
+      validationWarning: 'Produto não validado. Adicione PRODUCT:READ à chave da AbacatePay para detectar ciclo/status antes do checkout.',
+    }
+  }
+
+  const status = safeText(product.status).toUpperCase()
+  const cycle = normalizeCycle(product.cycle)
+  const expectedCycle = normalizeCycle(plan.abacateCycle)
+
+  if (status && status !== 'ACTIVE') {
+    throw new Error(`Produto AbacatePay ${plan.productId} está com status ${status}. Ative o produto antes de vender este plano.`)
+  }
+
+  if (!SUBSCRIPTION_PRODUCT_CYCLES.has(cycle)) {
+    throw new Error(`Produto AbacatePay ${plan.productId} não tem ciclo de assinatura. Crie/aponte para um produto com cycle MONTHLY, SEMIANNUALLY ou ANNUALLY.`)
+  }
+
+  if (expectedCycle && cycle !== expectedCycle) {
+    throw new Error(`Produto AbacatePay ${plan.productId} está com cycle ${cycle}, mas o plano ${plan.key} espera ${expectedCycle}.`)
+  }
+
+  return {
+    product,
+    validationWarning: '',
+  }
+}
+
+async function validateCheckoutProduct(plan) {
+  const product = await getProductSnapshot(plan.productId)
+  if (!product) {
+    return {
+      product: null,
+      validationWarning: 'Produto não validado. Adicione PRODUCT:READ à chave da AbacatePay para detectar status antes do checkout.',
+    }
+  }
+
+  const status = safeText(product.status).toUpperCase()
+  const cycle = normalizeCycle(product.cycle)
+  if (status && status !== 'ACTIVE') {
+    throw new Error(`Produto AbacatePay ${plan.productId} está com status ${status}. Ative o produto antes de vender este plano.`)
+  }
+
+  if (cycle) {
+    throw new Error(`Produto AbacatePay ${plan.productId} está com cycle ${cycle}, mas o pagamento único precisa usar um produto avulso sem cycle.`)
+  }
+
+  return {
+    product,
+    validationWarning: '',
+  }
 }
 
 function getCheckoutUrl(checkout) {
@@ -78,6 +331,10 @@ function getCheckoutUrl(checkout) {
 
 function getCheckoutStatus(checkout) {
   return String(checkout?.status ?? '').toUpperCase()
+}
+
+function isDevModeCheckout(checkout, product = null) {
+  return Boolean(checkout?.devMode || checkout?.checkout?.devMode || checkout?.data?.devMode || product?.devMode)
 }
 
 function getCheckoutPlanKey(checkout, fallbackExternalId = '') {
@@ -128,7 +385,10 @@ async function abacateFetch(path, { method = 'GET', body } = {}) {
     throw new Error('ABACATE_V2 não foi configurada no ambiente. Verifique as variáveis de ambiente no Netlify.')
   }
 
-  const response = await fetch(`${ABACATE_API_BASE}${path}`, {
+  const fullUrl = `${ABACATE_API_BASE}${path}`
+  console.log(`[abacatepay] ${method} ${fullUrl}`, body ? JSON.stringify(body).slice(0, 800) : '(sem body)')
+
+  const response = await fetch(fullUrl, {
     method,
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -143,6 +403,7 @@ async function abacateFetch(path, { method = 'GET', body } = {}) {
     : await response.text().catch(() => '')
 
   if (!response.ok) {
+    console.error(`[abacatepay] HTTP ${response.status} em ${path}. Resposta completa:`, JSON.stringify(payload).slice(0, 1500))
     const message = formatAbacateError(payload) || 'Falha na integração com a AbacatePay.'
     const error = new Error(message)
     error.status = response.status
@@ -175,6 +436,18 @@ function buildCustomerPayload({ userId, userEmail, customerName, customerCellpho
   return payload
 }
 
+function buildLegacyCustomerPayload(payload) {
+  return {
+    data: {
+      email: payload.email,
+      ...(payload.name ? { name: payload.name } : {}),
+      ...(payload.cellphone ? { cellphone: payload.cellphone } : {}),
+      ...(payload.taxId ? { taxId: payload.taxId } : {}),
+    },
+    metadata: payload.metadata,
+  }
+}
+
 async function createCustomerId(customerInput) {
   const payload = buildCustomerPayload(customerInput)
 
@@ -186,38 +459,33 @@ async function createCustomerId(customerInput) {
     return safeText(result?.data?.id)
   } catch (error) {
     try {
-      const retryPayload = {
-        email: payload.email,
-        ...(payload.name ? { name: payload.name } : {}),
-        metadata: payload.metadata,
-      }
+      const retryPayload = buildLegacyCustomerPayload(payload)
       const retry = await abacateFetch(ABACATE_CUSTOMER_CREATE_PATH, {
         method: 'POST',
         body: retryPayload,
       })
       return safeText(retry?.data?.id)
     } catch (retryError) {
-      try {
-        const wrappedRetry = await abacateFetch(ABACATE_CUSTOMER_CREATE_PATH, {
-          method: 'POST',
-          body: {
-            data: {
-              email: payload.email,
-              ...(payload.name ? { name: payload.name } : {}),
-            },
-            metadata: payload.metadata,
-          },
-        })
-        return safeText(wrappedRetry?.data?.id)
-      } catch (wrappedError) {
-        console.warn('[abacatepay] Customer v2 não foi criado após retry. Checkout seguirá sem customerId:', error.message, retryError.message, wrappedError.message)
-      }
+      console.warn('[abacatepay] Customer v2 não foi criado após retry. Checkout seguirá sem customerId:', error.message, retryError.message)
       return ''
     }
   }
 }
 
-function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, userId, timestamp, isTrial, customerId }) {
+function buildCheckoutPayload({
+  plan,
+  externalId,
+  returnUrl,
+  completionUrl,
+  userId,
+  timestamp,
+  customerId,
+  mode = 'subscription',
+  allowedCoupons = [],
+  couponsSource = 'none',
+}) {
+  const isSubscription = mode === 'subscription'
+  const methods = getPaymentMethods(plan, isSubscription)
   const payload = {
     items: [
       {
@@ -225,19 +493,22 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
         quantity: 1,
       },
     ],
-    methods: ['CARD'],
+    methods,
     returnUrl: returnUrl.toString(),
     completionUrl: completionUrl.toString(),
     externalId,
     metadata: {
       app: 'apice',
       gateway: 'abacatepay-v2',
+      checkoutMode: mode,
+      billingMode: getBillingMode(plan),
       planKey: plan.key,
       planLabel: plan.label,
-      trialDays: plan.trialDays,
-      isTrial: Boolean(isTrial),
       userId,
       createdAt: timestamp,
+      accessMonths: Number(plan.accessMonths || 0) || undefined,
+      couponsEnabled: allowedCoupons.length > 0,
+      couponsSource,
     },
   }
 
@@ -245,77 +516,27 @@ function buildCheckoutPayload({ plan, externalId, returnUrl, completionUrl, user
     payload.customerId = customerId
   }
 
-  if (isTrial) {
-    payload.coupons = [TRIAL_COUPON_CODE]
-    console.log('[abacatepay] Cupom de trial aplicado:', TRIAL_COUPON_CODE)
+  if (allowedCoupons.length > 0) {
+    payload.coupons = allowedCoupons
   }
 
-  console.log('[abacatepay] Payload v2 final (resumido):', JSON.stringify({
+  console.log('[abacatepay] Payload v2 COMPLETO:', JSON.stringify({
+    items: payload.items,
+    methods: payload.methods,
+    returnUrl: payload.returnUrl,
+    completionUrl: payload.completionUrl,
+    externalId: payload.externalId,
+    customerId: payload.customerId || '(sem customer)',
+    couponsCount: allowedCoupons.length,
+    couponsSource,
     planKey: payload.metadata.planKey,
-    endpoint: ABACATE_SUBSCRIPTION_CREATE_PATH,
-    itemCount: payload.items.length,
-    hasCustomerId: Boolean(payload.customerId),
-    hasCoupons: Boolean(payload.coupons?.length),
-    isTrial: Boolean(payload.metadata.isTrial),
+    mode,
+    frequency: payload.frequency || '(subscription)',
+    productId: plan.productId,
+    expectedCycle: normalizeCycle(plan.abacateCycle),
   }))
 
   return payload
-}
-
-async function getUserTrialStatusFromCloud(userId) {
-  if (!userId) return { hasUsedTrial: false, activeTrial: false, trialState: null }
-
-  try {
-    const { getStore } = await import('@netlify/blobs')
-    const store = await getStore({ name: 'user-state', consistency: 'strong' })
-
-    if (!store) {
-      console.warn('[abacatepay] Blob store não disponível. Trial cloud validation desabilitada.')
-      return { hasUsedTrial: false, activeTrial: false, trialState: null }
-    }
-
-    const blobKey = `user-state:${userId}`
-    const userData = await store.get(blobKey, { type: 'json' })
-
-    if (!userData || typeof userData !== 'object') {
-      return { hasUsedTrial: false, activeTrial: false, trialState: null }
-    }
-
-    const billing = userData.billing || {}
-    const trialStartedAt = safeText(userData.trialStartedAt || billing.trialStartedAt)
-    const trialEndsAt = safeText(userData.trialEndsAt || billing.trialEndsAt)
-    const trialKind = safeText(userData.trialKind || billing.trialKind) || 'standard'
-    const trialEndsAtMs = Date.parse(trialEndsAt)
-    const activeTrial = billing.status === 'trial'
-      && Number.isFinite(trialEndsAtMs)
-      && trialEndsAtMs > Date.now()
-    const anyTrialRecord = Boolean(
-      userData.trialUsedAt ||
-      trialStartedAt ||
-      trialEndsAt ||
-      billing.trialUsedAt ||
-      userData.planStatus === 'trial' ||
-      billing.status === 'trial',
-    )
-    const hasUsedTrial = anyTrialRecord && !activeTrial
-
-    return {
-      hasUsedTrial,
-      activeTrial,
-      trialState: activeTrial
-        ? {
-          status: 'trial',
-          planKey: safeText(billing.planKey || userData.planKey),
-          trialKind,
-          trialStartedAt,
-          trialEndsAt,
-        }
-        : null,
-    }
-  } catch (error) {
-    console.warn('[abacatepay] Erro ao verificar trial no blob:', error.message)
-    return { hasUsedTrial: false, activeTrial: false, trialState: null }
-  }
 }
 
 async function createCheckout(req, authUser, headers) {
@@ -324,7 +545,6 @@ async function createCheckout(req, authUser, headers) {
     body = await req.json()
     console.log('[abacatepay] Body recebido (resumido):', JSON.stringify({
       planKey: body?.planKey || '',
-      isTrial: Boolean(body?.isTrial),
       hasCustomerName: Boolean(safeText(body?.customerName || body?.fullName)),
       hasCustomerCellphone: Boolean(safeText(body?.customerCellphone || body?.phone || body?.cellphone)),
       hasCustomerTaxId: Boolean(safeText(body?.customerTaxId || body?.taxId || body?.cpf || body?.cnpj)),
@@ -334,14 +554,12 @@ async function createCheckout(req, authUser, headers) {
   }
 
   const planKey = safeText(body?.planKey)
-  const requestedTrial = Boolean(body?.isTrial)
-  let shouldApplyTrial = requestedTrial
-  let trialAlreadyUsedInCloud = false
   const plan = getPricingPlanByKey(planKey)
+  const knownPlanKeys = PRICING_PLANS.map((item) => item.key)
 
-  if (!plan || !plan.productId) {
+  if (!plan || !plan.productId || !knownPlanKeys.includes(planKey)) {
     console.error('[abacatepay] Plan não encontrado para planKey:', planKey)
-    return new Response(JSON.stringify({ error: 'planKey inválido. Use: monthly, semiannual ou annual.' }), { status: 400, headers })
+    return new Response(JSON.stringify({ error: `planKey inválido. Use: ${knownPlanKeys.join(', ')}.` }), { status: 400, headers })
   }
 
   const userId = safeText(authUser?.id)
@@ -350,29 +568,26 @@ async function createCheckout(req, authUser, headers) {
   const customerCellphone = safeText(body?.customerCellphone ?? body?.phone ?? body?.cellphone)
   const customerTaxId = safeText(body?.customerTaxId ?? body?.taxId ?? body?.cpf ?? body?.cnpj)
 
-  if (requestedTrial) {
-    const cloudStatus = await getUserTrialStatusFromCloud(userId)
-    if (cloudStatus.activeTrial) {
-      console.warn('[abacatepay] Checkout ignorado: usuário já tem trial ativo na nuvem.')
-      return new Response(JSON.stringify({
-        success: true,
-        activeTrial: true,
-        message: 'Você já tem um período temporário ativo nesta conta.',
-        planKey: cloudStatus.trialState?.planKey || plan.key,
-        trialState: cloudStatus.trialState,
-      }), { status: 200, headers })
-    }
-
-    if (cloudStatus.hasUsedTrial) {
-      console.warn('[abacatepay] Trial já usado. Checkout seguirá como pago.')
-      trialAlreadyUsedInCloud = true
-      shouldApplyTrial = false
-    }
+  const currentBilling = getCurrentBillingState(await getStoredBillingState(userId))
+  if (hasActivePaidBilling(currentBilling)) {
+    const message = getBillingBlockMessage(currentBilling)
+    return new Response(JSON.stringify({
+      error: message,
+      details: {
+        billingStatus: currentBilling.status,
+        planKey: currentBilling.planKey,
+        billingMode: currentBilling.billingMode,
+        accessEndsAt: currentBilling.accessEndsAt,
+      },
+    }), { status: 409, headers })
   }
 
   const origin = getRequestOrigin(req)
   const timestamp = new Date().toISOString()
   const externalId = buildExternalId({ userId, planKey: plan.key, timestamp })
+  const oneTimeCheckout = isOneTimePlan(plan)
+  const checkoutMode = getCheckoutMode(plan)
+  const billingMode = getBillingMode(plan)
 
   const returnUrl = new URL('/planos', origin)
   returnUrl.searchParams.set('billing', 'return')
@@ -393,7 +608,23 @@ async function createCheckout(req, authUser, headers) {
       customerTaxId,
     })
 
-    const createSubscription = (isTrial) => abacateFetch(ABACATE_SUBSCRIPTION_CREATE_PATH, {
+    const { product, validationWarning } = oneTimeCheckout
+      ? await validateCheckoutProduct(plan)
+      : await validateSubscriptionProduct(plan)
+    console.log(`[abacatepay] Produto validado para ${oneTimeCheckout ? 'pagamento unico' : 'assinatura'}:`, JSON.stringify({
+      planKey: plan.key,
+      productId: plan.productId,
+      status: safeText(product?.status) || '(sem PRODUCT:READ)',
+      cycle: safeText(product?.cycle) || '(sem PRODUCT:READ)',
+      expectedCycle: normalizeCycle(plan.abacateCycle),
+      devMode: Boolean(product?.devMode),
+      customerId: customerId || '(checkout vai coletar dados)',
+    }))
+
+    const { coupons: allowedCoupons, source: couponsSource } = await resolvePlanCoupons(plan)
+
+    const createPath = oneTimeCheckout ? ABACATE_CHECKOUT_CREATE_PATH : ABACATE_SUBSCRIPTION_CREATE_PATH
+    const result = await abacateFetch(createPath, {
       method: 'POST',
       body: buildCheckoutPayload({
         plan,
@@ -402,35 +633,12 @@ async function createCheckout(req, authUser, headers) {
         completionUrl,
         userId,
         timestamp,
-        isTrial,
         customerId,
+        mode: checkoutMode,
+        allowedCoupons,
+        couponsSource,
       }),
     })
-
-    let trialCouponUnavailable = false
-    let result = null
-
-    try {
-      result = await createSubscription(shouldApplyTrial)
-    } catch (error) {
-      if (!shouldApplyTrial) {
-        throw error
-      }
-
-      trialCouponUnavailable = true
-      shouldApplyTrial = false
-      console.warn('[abacatepay] Falha ao criar checkout com cupom de trial. Tentando novamente sem cupom:', error.message)
-
-      try {
-        result = await createSubscription(false)
-      } catch (retryError) {
-        const retryMessage = retryError.message || 'Falha ao criar checkout sem cupom'
-        const originalMessage = error.message || 'desconhecido'
-        retryError.message = `${retryMessage} (também falhou após remover o cupom ${TRIAL_COUPON_CODE}; erro original: ${originalMessage})`
-        retryError.details = retryError.details || error.details
-        throw retryError
-      }
-    }
 
     const checkout = result?.data || {}
     const checkoutUrl = getCheckoutUrl(checkout)
@@ -443,28 +651,42 @@ async function createCheckout(req, authUser, headers) {
     return new Response(JSON.stringify({
       success: true,
       gateway: 'abacatepay-v2',
-      checkoutMode: 'subscription',
+      checkoutMode,
+      billingMode,
+      subscriptionFallback: false,
       checkoutId: checkout.id || checkout.checkout?.id || '',
-      subscriptionId: getSubscriptionId(checkout),
+      subscriptionId: oneTimeCheckout ? '' : getSubscriptionId(checkout),
       checkoutUrl,
       externalId,
       customerId,
+      devMode: isDevModeCheckout(checkout, product),
+      couponsEnabled: allowedCoupons.length > 0,
+      couponsSource,
       planKey: plan.key,
       productId: plan.productId,
+      product: product ? {
+        id: safeText(product.id),
+        status: safeText(product.status),
+        cycle: safeText(product.cycle),
+        devMode: Boolean(product.devMode),
+        price: Number.isFinite(Number(product.price)) ? Number(product.price) : null,
+      } : null,
+      productValidationWarning: validationWarning,
+      accessEndsAt: oneTimeCheckout ? getPlanAccessEndsAt(plan) : '',
+      checkoutHint: oneTimeCheckout
+        ? 'Checkout de pagamento único criado com PIX e cartão. O campo de cupom segue disponível quando houver cupons autorizados.'
+        : isDevModeCheckout(checkout, product)
+          ? 'Checkout em Dev mode: cartões reais podem falhar no charge/create/card. Use 4242 4242 4242 4242, validade futura e CVV 123 para simular aprovação.'
+          : 'Checkout de assinatura criado. O cycle fica no produto da AbacatePay e não é enviado no payload do checkout.',
       totalPrice: plan.totalPrice,
       billingLabel: plan.billingLabel,
-      trialDays: plan.trialDays,
-      isTrial: shouldApplyTrial,
-      requestedTrial,
-      trialAlreadyUsed: trialAlreadyUsedInCloud,
-      trialCouponUnavailable,
       checkout,
     }), {
       status: 200,
       headers,
     })
   } catch (error) {
-    console.error('[abacatepay] Erro ao criar checkout v2:', error)
+    console.error('[abacatepay] Erro ao criar checkout v2:', error.message, '| Status:', error.status, '| Details:', JSON.stringify(error.details || {}).slice(0, 1000))
     throw error
   }
 }
@@ -517,16 +739,21 @@ async function verifyCheckout(req, headers) {
   }
 
   const resolvedExternalId = safeText(checkout.externalId || externalId)
+  const planKey = getCheckoutPlanKey(checkout, resolvedExternalId)
+  const plan = getPricingPlanByKey(planKey)
+  const billingMode = checkoutMode === 'checkout' || isOneTimePlan(plan) ? 'one_time' : 'subscription'
 
   return new Response(JSON.stringify({
     success: true,
     gateway: 'abacatepay-v2',
     checkoutMode,
+    billingMode,
     checkout,
     paid: PAID_STATUSES.has(getCheckoutStatus(checkout)),
-    planKey: getCheckoutPlanKey(checkout, resolvedExternalId),
+    planKey,
     externalId: resolvedExternalId,
-    subscriptionId: getSubscriptionId(checkout),
+    subscriptionId: billingMode === 'one_time' ? '' : getSubscriptionId(checkout),
+    accessEndsAt: billingMode === 'one_time' ? getPlanAccessEndsAt(plan) : '',
   }), {
     status: 200,
     headers,

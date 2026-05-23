@@ -55,8 +55,33 @@ function getTrialDays(metadata) {
   return Number.isFinite(days) && days > 0 ? Math.min(days, 60) : 7
 }
 
+function normalizeBillingMode(value) {
+  const normalized = safeText(value).toLowerCase().replace(/[\s-]+/g, '_')
+  if (['one_time', 'payment', 'checkout', 'single', 'single_payment'].includes(normalized)) {
+    return 'one_time'
+  }
+  if (['subscription', 'recurring', 'recorrente'].includes(normalized)) {
+    return 'subscription'
+  }
+  return ''
+}
+
+function getAccessMonths(metadata) {
+  const months = Math.round(Number(metadata?.accessMonths || metadata?.access_months || 1))
+  return Number.isFinite(months) && months > 0 ? Math.min(months, 36) : 1
+}
+
+function buildAccessEndsAt(metadata, paidAt) {
+  const startDate = new Date(normalizeIsoDate(paidAt) || new Date().toISOString())
+  if (!Number.isFinite(startDate.getTime())) return ''
+  const endDate = new Date(startDate.getTime())
+  endDate.setMonth(endDate.getMonth() + getAccessMonths(metadata))
+  return endDate.toISOString()
+}
+
 function parseExternalId(externalId) {
-  const parts = safeText(externalId).split(':')
+  const text = safeText(externalId)
+  const parts = text.split(':')
   if (parts.length >= 4 && parts[0] === 'apice') {
     return {
       userId: parts[1] || '',
@@ -64,6 +89,16 @@ function parseExternalId(externalId) {
       timestamp: parts[3] || '',
     }
   }
+
+  const safeParts = text.split('_')
+  if (safeParts.length >= 4 && safeParts[0] === 'apice') {
+    return {
+      userId: safeParts.slice(3).join('_') || '',
+      planKey: safeParts[1] || '',
+      timestamp: safeParts[2] || '',
+    }
+  }
+
   return { userId: '', planKey: '', timestamp: '' }
 }
 
@@ -141,6 +176,7 @@ function pickCheckoutId(objects) {
     || objects.payment?.checkoutId
     || objects.payment?.billingId
     || objects.data?.checkoutId
+    || objects.data?.id
     || '',
   )
 }
@@ -152,6 +188,19 @@ function pickSubscriptionId(objects) {
     || objects.checkout?.subscription_id
     || objects.payment?.subscriptionId
     || objects.data?.subscriptionId
+    || '',
+  )
+}
+
+function pickAccessEndsAt(objects, metadata) {
+  return normalizeIsoDate(
+    metadata?.accessEndsAt
+    || metadata?.currentPeriodEnd
+    || metadata?.current_period_end
+    || objects.subscription?.currentPeriodEnd
+    || objects.subscription?.current_period_end
+    || objects.checkout?.currentPeriodEnd
+    || objects.data?.currentPeriodEnd
     || '',
   )
 }
@@ -193,6 +242,7 @@ async function updateBillingInBlob(userId, planKey, billingUpdate, eventId = '')
 
     const updatedState = {
       ...currentState,
+      accountOwnerId: userId,
       billing: {
         ...(currentState.billing || {}),
         ...billingUpdate,
@@ -252,6 +302,8 @@ export async function handler(req) {
     const planKey = safeText(metadata.planKey) || parsedExternalId.planKey || 'monthly'
     const checkoutId = pickCheckoutId(objects)
     const subscriptionId = pickSubscriptionId(objects)
+    const checkoutMode = safeText(metadata.checkoutMode || objects.checkout?.frequency)
+    const billingMode = normalizeBillingMode(metadata.billingMode || checkoutMode || (subscriptionId ? 'subscription' : '')) || 'subscription'
 
     console.log(`[payment-webhook] Evento recebido: ${event}`, { planKey, hasUserId: Boolean(userId) })
 
@@ -307,15 +359,19 @@ export async function handler(req) {
     }
 
     if (SUCCESS_EVENTS.has(event)) {
+      const paidAt = new Date().toISOString()
+      const accessEndsAt = billingMode === 'one_time' ? buildAccessEndsAt(metadata, paidAt) : ''
       const billingUpdate = {
         status: 'paid',
         planKey,
+        billingMode,
         gateway: 'abacatepay-v2',
-        paidAt: new Date().toISOString(),
-        subscriptionActive: true,
+        paidAt,
+        subscriptionActive: billingMode !== 'one_time',
+        ...(accessEndsAt ? { accessEndsAt } : {}),
         checkoutId,
         externalId,
-        subscriptionId,
+        subscriptionId: billingMode === 'one_time' ? '' : subscriptionId,
         lastWebhookEvent: event,
       }
 
@@ -332,23 +388,44 @@ export async function handler(req) {
     }
 
     if (CANCEL_EVENTS.has(event)) {
-      const billingUpdate = {
-        status: 'free',
-        planKey: '',
-        gateway: 'abacatepay-v2',
-        subscriptionActive: false,
-        checkoutId,
-        externalId,
-        subscriptionId,
-        cancelledAt: new Date().toISOString(),
-        lastWebhookEvent: event,
-      }
+      const isPeriodEndCancellation = event === 'subscription.cancelled'
+      const nowIso = new Date().toISOString()
+      const accessEndsAt = pickAccessEndsAt(objects, metadata)
+      const billingUpdate = isPeriodEndCancellation
+        ? {
+            status: 'paid',
+            planKey,
+            gateway: 'abacatepay-v2',
+            subscriptionActive: false,
+            cancelAtPeriodEnd: true,
+            cancellationRequestedAt: nowIso,
+            cancelledAt: nowIso,
+            ...(accessEndsAt ? { accessEndsAt } : {}),
+            checkoutId,
+            externalId,
+            subscriptionId,
+            lastWebhookEvent: event,
+          }
+        : {
+            status: 'free',
+            planKey: '',
+            gateway: 'abacatepay-v2',
+            subscriptionActive: false,
+            cancelAtPeriodEnd: false,
+            checkoutId,
+            externalId,
+            subscriptionId,
+            cancelledAt: nowIso,
+            lastWebhookEvent: event,
+          }
 
       const blobUpdated = await updateBillingInBlob(userId, planKey, billingUpdate, eventId)
 
       return new Response(JSON.stringify({
         success: true,
-        message: 'Usuário atualizado para FREE',
+        message: isPeriodEndCancellation
+          ? 'Assinatura marcada para encerrar no fim do período'
+          : 'Usuário atualizado para FREE',
         blobUpdated,
       }), {
         status: 200,

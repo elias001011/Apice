@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { authFetch } from '../services/authFetch.js'
-import { loadAiResponsePreferenceText } from '../services/aiResponsePreferences.js'
-import { saveSimuladoHistoryEntry } from '../services/simuladoHistory.js'
-import { fetchQuestoesAleatorias, getDisciplinasByArea, getAreasDisponiveis } from '../services/enemApiService.js'
+import { loadSimuladoHistoryCount, saveSimuladoHistoryEntry } from '../services/simuladoHistory.js'
+import { getDisciplinasByArea, getAreasDisponiveis } from '../services/enemApiService.js'
+import { gerarSimulado, MAX_SIMULADO_AI_QUESTIONS } from '../services/simuladoService.js'
 import { consumeFreePlan } from '../services/freePlanUsage.js'
+import { checkConquistasSimulado } from '../services/conquistas.js'
+import { refreshUserSummaryFromHistory } from '../services/userSummary.js'
 import { useAppBusy } from '../ui/AppBusyContext.jsx'
 import '../styles/simulado.css'
 
@@ -12,7 +13,7 @@ const AREAS = getAreasDisponiveis()
 const MIN_Q = 3
 const MAX_Q = 90
 const PRESETS = [3, 5, 10, 15, 30, 45, 60, 90]
-const MAX_AI_Q = 15
+const MAX_AI_Q = MAX_SIMULADO_AI_QUESTIONS
 
 // ── inline markdown para textos das questões ──────────────────────────────────
 function inlineMd(text) {
@@ -41,6 +42,47 @@ function SimuladoText({ text, className = '' }) {
   return (
     <div className={`simulado-rich-text ${className}`}>
       {lines.map((line, i) => <p key={i}>{inlineMd(line)}</p>)}
+    </div>
+  )
+}
+
+function getAlternativePayload(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return {
+      text: String(value.text ?? value.label ?? value.content ?? '').trim(),
+      image: String(value.image ?? value.imageUrl ?? value.file ?? value.url ?? '').trim(),
+      alt: String(value.alt ?? value.text ?? value.label ?? 'Alternativa').trim(),
+    }
+  }
+
+  return {
+    text: String(value ?? '').trim(),
+    image: '',
+    alt: 'Alternativa',
+  }
+}
+
+function getAlternativeEntries(alternativas = {}) {
+  return Object.entries(alternativas || {})
+    .map(([letter, value]) => [String(letter).trim().toUpperCase(), getAlternativePayload(value)])
+    .filter(([letter, payload]) => letter && (payload.text || payload.image))
+    .sort(([a], [b]) => a.localeCompare(b))
+}
+
+function AlternativeContent({ value, letter }) {
+  const payload = getAlternativePayload(value)
+
+  return (
+    <div className="option-content">
+      {payload.text && <SimuladoText text={payload.text} className="option-text" />}
+      {payload.image && (
+        <img
+          className="option-image"
+          src={payload.image}
+          alt={payload.alt || `Alternativa ${letter}`}
+          loading="lazy"
+        />
+      )}
     </div>
   )
 }
@@ -97,83 +139,26 @@ function buildPerformance(percentual) {
 }
 
 async function gerarSimuladoEnem({ area, disciplinas, quantidade }) {
-  const responsePreference = loadAiResponsePreferenceText()
-  const alertas = []
-  let questoesApi = []
+  const data = await gerarSimulado({
+    area,
+    disciplinas,
+    quantidade,
+    fonte: 'mista',
+  })
 
-  // 1. Tenta a API ENEM
-  try {
-    const disc = disciplinas.length > 0 ? disciplinas[0] : ''
-    const batch = await fetchQuestoesAleatorias({ area, quantidade, disciplina: disc })
-    questoesApi = Array.isArray(batch) ? batch : []
-  } catch (err) {
-    console.warn('[simulado] API ENEM falhou:', err.message)
-  }
-
-  // 2. Se API não fechou o total, completa com IA (máx 15)
-  const faltando = quantidade - questoesApi.length
-  let questoesIA = []
-
-  if (faltando > 0) {
-    const quantIA = Math.min(faltando, MAX_AI_Q)
-    if (faltando > MAX_AI_Q) {
-      alertas.push(`A IA foi limitada a ${MAX_AI_Q} questões. Total final: ${questoesApi.length + quantIA}.`)
-    }
-    try {
-      const res = await authFetch('/.netlify/functions/gerar-simulado', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          area, disciplinas, quantidade: quantIA,
-          ...(responsePreference ? { responsePreference } : {}),
-          useSearch: true,
-        }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (Array.isArray(data?.questoes)) {
-          questoesIA = data.questoes
-          if (data.alerta) alertas.push(data.alerta)
-        }
-      }
-    } catch (err) {
-      console.warn('[simulado] IA falhou:', err.message)
-    }
-  }
-
-  const todas = dedup([...questoesApi, ...questoesIA])
-  if (todas.length === 0) {
+  const selecionadas = Array.isArray(data?.questoes) ? data.questoes : []
+  if (selecionadas.length === 0) {
     throw new Error('Não foi possível gerar questões. Verifique sua conexão e tente novamente.')
   }
 
-  const selecionadas = shuffle(todas).slice(0, quantidade)
   return {
-    area, disciplinas,
+    area: data.area || area,
+    disciplinas: Array.isArray(data.disciplinas) ? data.disciplinas : disciplinas,
     questoes: selecionadas,
-    geradoEm: new Date().toISOString(),
-    alerta: alertas.join(' ').trim(),
-    estatisticas: { reais: questoesApi.length, ia: questoesIA.length, bancoLocal: 0 },
+    geradoEm: data.geradoEm || new Date().toISOString(),
+    alerta: String(data.alerta || '').trim(),
+    estatisticas: data.estatisticas || { api: 0, reais: 0, ia: 0, bancoLocal: 0 },
   }
-}
-
-function dedup(arr) {
-  const seen = new Set()
-  return arr.filter(q => {
-    if (!q) return false
-    const key = String(q.id || q.enunciado || '').trim()
-    if (!key || seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-}
-
-function shuffle(arr) {
-  const a = [...arr]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
 }
 
 const STORAGE_KEY = 'apice:simulado_progresso:v2'
@@ -209,7 +194,8 @@ export function SimuladoPage() {
   const [reviewQuestions, setReviewQuestions] = useState({})
   const [examNotice, setExamNotice] = useState(null)
   const [reviewWarningSeen, setReviewWarningSeen] = useState(false)
-  const [showFeedback, setShowFeedback] = useState(false)
+  const [confirmedAnswers, setConfirmedAnswers] = useState({})
+  const [pendingModal, setPendingModal] = useState(null)
   const [error, setError] = useState(null)
   const [selectedArea, setSelectedArea] = useState(null)
   const [selectedDiscs, setSelectedDiscs] = useState([])
@@ -222,6 +208,7 @@ export function SimuladoPage() {
         setExamData(saved.examData); setSelectedArea(saved.selectedArea)
         setSelectedDiscs(saved.selectedDiscs || []); setCurrentQ(saved.currentQ || 0)
         setAnswers(saved.answers || {}); setReviewQuestions(saved.reviewQuestions || {})
+        setConfirmedAnswers(saved.confirmedAnswers || {})
         setQuantidade(clamp(saved.quantidade || 10)); setStep('exam')
       }
     }
@@ -229,9 +216,9 @@ export function SimuladoPage() {
 
   useEffect(() => {
     if (step === 'exam' && examData) {
-      salvarProgresso({ step: 'exam', examData, selectedArea, selectedDiscs, currentQ, answers, reviewQuestions, quantidade })
+      salvarProgresso({ step: 'exam', examData, selectedArea, selectedDiscs, currentQ, answers, reviewQuestions, confirmedAnswers, quantidade })
     }
-  }, [step, examData, currentQ, answers, reviewQuestions, selectedArea, selectedDiscs, quantidade])
+  }, [step, examData, currentQ, answers, reviewQuestions, confirmedAnswers, selectedArea, selectedDiscs, quantidade])
 
   const handleAreaChange = (aId) => { setSelectedArea(aId); setSelectedDiscs([]) }
   const toggleDisc = (id) => setSelectedDiscs(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id])
@@ -246,8 +233,8 @@ export function SimuladoPage() {
       if (!data?.questoes?.length) throw new Error('Não foi possível gerar questões.')
       // Conta como 1 uso de IA independente da fonte
       consumeFreePlan('otherAiRequest')
-      setExamData(data); setStep('exam'); setCurrentQ(0); setAnswers({}); setReviewQuestions({})
-      setExamNotice(null); setReviewWarningSeen(false); setShowFeedback(false)
+      setExamData(data); setStep('exam'); setCurrentQ(0); setAnswers({}); setReviewQuestions({}); setConfirmedAnswers({})
+      setExamNotice(null); setReviewWarningSeen(false); setPendingModal(null)
       limparProgresso()
     } catch (err) {
       setError(err.message || 'Erro ao gerar simulado.'); setStep('setup')
@@ -255,17 +242,27 @@ export function SimuladoPage() {
   }
 
   const handleSelect = (letter) => {
-    if (showFeedback) return
+    if (confirmedAnswers[examData.questoes[currentQ].id]) return
     setExamNotice(null)
     setAnswers({ ...answers, [examData.questoes[currentQ].id]: letter })
   }
 
   const handleConfirm = () => {
+    const qId = examData.questoes[currentQ].id
+    setConfirmedAnswers(prev => ({ ...prev, [qId]: true }))
+    setReviewQuestions(prev => {
+      if (prev[qId]) {
+        const next = { ...prev }
+        delete next[qId]
+        return next
+      }
+      return prev
+    })
     setExamNotice(null)
-    setShowFeedback(true)
   }
 
   const toggleReviewQuestion = (questionId) => {
+    if (confirmedAnswers[questionId]) return // não deixa marcar pra revisão se já confirmou
     setReviewWarningSeen(false)
     setExamNotice(null)
     setReviewQuestions((current) => {
@@ -279,60 +276,159 @@ export function SimuladoPage() {
     })
   }
 
-  const handleNext = () => {
-    if (currentQ < examData.questoes.length - 1) { setCurrentQ(currentQ + 1); setShowFeedback(false) }
-    else {
-      const unansweredIndex = examData.questoes.findIndex(q => !answers[q.id])
-      if (unansweredIndex >= 0) {
-        const remaining = examData.questoes.filter(q => !answers[q.id]).length
-        setExamNotice({
-          type: 'warning',
-          text: `Ainda faltam ${remaining} questão(ões) sem resposta. Responda tudo antes de finalizar.`,
-        })
-        setCurrentQ(unansweredIndex)
-        setShowFeedback(false)
-        return
-      }
-
-      const reviewIndexes = examData.questoes
-        .map((question, index) => reviewQuestions[question.id] ? index : -1)
-        .filter(index => index >= 0)
-      if (reviewIndexes.length > 0 && !reviewWarningSeen) {
-        setReviewWarningSeen(true)
-        setExamNotice({
-          type: 'review',
-          text: `Você marcou ${reviewIndexes.length} questão(ões) para revisar mais tarde. Confira antes de avançar ou clique em “Ver resultado final” novamente para concluir mesmo assim.`,
-        })
-        setCurrentQ(reviewIndexes[0])
-        setShowFeedback(false)
-        return
-      }
-
-      const total = examData.questoes.length
-      const acertos = examData.questoes.filter(q => answers[q.id] === q.correta).length
-      const pct = total > 0 ? Math.round((acertos / total) * 100) : 0
-      const perf = pct >= 80 ? 'Excelente' : pct >= 60 ? 'Bom' : pct >= 40 ? 'Regular' : 'Precisa melhorar'
-      saveSimuladoHistoryEntry({
-        id: `${Date.now()}`, data: new Date().toISOString(),
-        titulo: `Simulado de ${selectedArea}`, area: selectedArea, disciplinas: selectedDiscs,
-        fonte: 'enem-api', quantidade: total, acertos, total, percentual: pct, performance: perf,
-        estatisticas: examData.estatisticas, limiteIAAplicado: examData.estatisticas.ia > 0,
-        alerta: examData.alerta, geradoEm: examData.geradoEm,
+  /** Finaliza o simulado e salva no histórico */
+  const finalizeExam = () => {
+    const total = examData.questoes.length
+    // Só conta como acerto se estiver respondida e for igual à correta (mesmo se não tiver confirmado, conta a marcação)
+    const acertos = examData.questoes.filter(q => answers[q.id] === q.correta).length
+    const pct = total > 0 ? Math.round((acertos / total) * 100) : 0
+    const perf = pct >= 80 ? 'Excelente' : pct >= 60 ? 'Bom' : pct >= 40 ? 'Regular' : 'Precisa melhorar'
+    const savedEntry = saveSimuladoHistoryEntry({
+      id: `${Date.now()}`, data: new Date().toISOString(),
+      titulo: `Simulado de ${selectedArea}`, area: selectedArea, disciplinas: selectedDiscs,
+      fonte: 'mista', quantidade: total, acertos, total, percentual: pct, performance: perf,
+      estatisticas: examData.estatisticas, limiteIAAplicado: examData.estatisticas.ia > 0,
+      alerta: examData.alerta, geradoEm: examData.geradoEm,
+    })
+    if (savedEntry) {
+      checkConquistasSimulado({
+        totalSimulados: loadSimuladoHistoryCount(),
+        totalQuestoes: total,
+        acertos,
+        percentual: pct,
+        estatisticas: examData.estatisticas,
       })
-      setStep('result'); limparProgresso()
+      void refreshUserSummaryFromHistory()
+    }
+    setPendingModal(null)
+    setStep('result'); limparProgresso()
+  }
+
+  const showFinishBlockers = () => {
+    // Última questão - o resultado só fica disponível após confirmar todas.
+    const unconfirmedIndexes = examData.questoes
+      .map((q, i) => !confirmedAnswers[q.id] ? i : -1)
+      .filter(i => i >= 0)
+
+    if (unconfirmedIndexes.length > 0) {
+      setPendingModal({
+        type: 'unconfirmed',
+        count: unconfirmedIndexes.length,
+        firstIndex: unconfirmedIndexes[0],
+      })
+      return true
+    }
+
+    const reviewIndexes = examData.questoes
+      .map((q, i) => reviewQuestions[q.id] ? i : -1)
+      .filter(i => i >= 0)
+
+    if (reviewIndexes.length > 0 && !reviewWarningSeen) {
+      setPendingModal({
+        type: 'review',
+        count: reviewIndexes.length,
+        firstIndex: reviewIndexes[0],
+      })
+      return true
+    }
+
+    return false
+  }
+
+  const handleNext = () => {
+    if (currentQ < examData.questoes.length - 1) {
+      setCurrentQ(currentQ + 1)
+      return
+    }
+
+    if (showFinishBlockers()) return
+    finalizeExam()
+  }
+
+  const handlePendingAction = (action) => {
+    if (!pendingModal) return
+    if (action === 'go') {
+      setCurrentQ(pendingModal.firstIndex)
+      setPendingModal(null)
+    } else if (action === 'proceed') {
+      if (pendingModal.type === 'unconfirmed') {
+        setCurrentQ(pendingModal.firstIndex)
+        setPendingModal(null)
+        return
+      }
+      if (pendingModal.type === 'review') {
+        setReviewWarningSeen(true)
+      }
+      setPendingModal(null)
+      finalizeExam()
     }
   }
 
   const handleNew = () => {
     setStep('setup'); setExamData(null); setSelectedArea(null); setSelectedDiscs([])
-    setCurrentQ(0); setAnswers({}); setReviewQuestions({}); setExamNotice(null); setReviewWarningSeen(false)
-    setShowFeedback(false); setQuantidade(10); limparProgresso()
+    setCurrentQ(0); setAnswers({}); setReviewQuestions({}); setConfirmedAnswers({}); setExamNotice(null); setReviewWarningSeen(false)
+    setQuantidade(10); setPendingModal(null); limparProgresso()
   }
 
   const discs = selectedArea ? getDisciplinasByArea(selectedArea) : []
   const selectedAreaConfig = getAreaConfig(selectedArea)
   const selectedDiscLabels = getDisciplineLabels(selectedArea, selectedDiscs)
   const estimatedMinutes = Math.max(5, Math.round(quantidade * 3))
+  const renderPendingModal = () => {
+    if (!pendingModal) return null
+
+    const modalCopy = {
+      unconfirmed: {
+        icon: '!',
+        title: `${pendingModal.count} questão(ões) sem confirmação`,
+        text: 'Não é possível ver o resultado final antes de confirmar todas as questões. Volte para a primeira pendência e confirme sua resposta.',
+        primary: 'Ir para confirmar',
+        secondary: 'Continuar no simulado',
+      },
+      unanswered: {
+        icon: '!',
+        title: `${pendingModal.count} questão(ões) sem resposta`,
+        text: 'Você ainda não respondeu todas as questões. Deseja ir para as pendentes ou finalizar com as respostas atuais?',
+        primary: 'Ir para pendentes',
+        secondary: 'Finalizar mesmo assim',
+      },
+      review: {
+        icon: '?',
+        title: `${pendingModal.count} questão(ões) marcada(s) para revisar`,
+        text: 'Você marcou questões para revisão. Deseja revisá-las antes de ver o resultado?',
+        primary: 'Revisar questões',
+        secondary: 'Prosseguir sem revisar',
+      },
+    }[pendingModal.type] || null
+
+    if (!modalCopy) return null
+
+    return (
+      <div className="simulado-pending-overlay" onClick={() => setPendingModal(null)}>
+        <div className="simulado-pending-modal anim anim-d1" onClick={e => e.stopPropagation()}>
+          <div className="simulado-pending-icon">{modalCopy.icon}</div>
+          <h3>{modalCopy.title}</h3>
+          <p>{modalCopy.text}</p>
+          <div className="simulado-pending-actions">
+            <button type="button" className="btn-primary" onClick={() => handlePendingAction('go')}>
+              {modalCopy.primary}
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => (
+                pendingModal.type === 'unconfirmed'
+                  ? setPendingModal(null)
+                  : handlePendingAction('proceed')
+              )}
+            >
+              {modalCopy.secondary}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // ── SETUP ─────────────────────────────────────────────────────────────────
   if (step === 'setup') {
@@ -479,6 +575,8 @@ export function SimuladoPage() {
             )}
           </div>
         </div>
+
+        {renderPendingModal()}
       </div>
     )
   }
@@ -501,11 +599,13 @@ export function SimuladoPage() {
   if (step === 'exam' && examData) {
     const q = examData.questoes[currentQ]
     const sel = answers[q.id]
+    const isConfirmed = Boolean(confirmedAnswers[q.id])
     const prog = ((currentQ + 1) / examData.questoes.length) * 100
     const answeredCount = examData.questoes.filter(question => answers[question.id]).length
     const reviewCount = examData.questoes.filter(question => reviewQuestions[question.id]).length
     const markedForReview = Boolean(reviewQuestions[q.id])
     const isLastQuestion = currentQ >= examData.questoes.length - 1
+    const optionEntries = getAlternativeEntries(q.alternativas)
 
     return (
       <div className="simulado-page simulado-page--exam">
@@ -535,17 +635,22 @@ export function SimuladoPage() {
 
             <div className="question-map" aria-label="Mapa de questões">
               {examData.questoes.map((question, index) => {
+                const confirmed = Boolean(confirmedAnswers[question.id])
                 const answered = Boolean(answers[question.id])
                 const review = Boolean(reviewQuestions[question.id])
                 const active = index === currentQ
+                let dotClass = 'question-map-dot'
+                if (active) dotClass += ' active'
+                if (confirmed) dotClass += ' answered'
+                else if (answered) dotClass += ' unanswered'
+                if (review) dotClass += ' review'
                 return (
                   <button
                     key={question.id}
                     type="button"
-                    className={`question-map-dot ${active ? 'active' : ''} ${answered ? 'answered' : ''} ${review ? 'review' : ''}`}
+                    className={dotClass}
                     onClick={() => {
                       setCurrentQ(index)
-                      setShowFeedback(false)
                     }}
                     aria-label={`Ir para questão ${index + 1}`}
                   >
@@ -596,26 +701,32 @@ export function SimuladoPage() {
               <SimuladoText text={q.enunciado} />
             </div>
 
-            <div className="options-list">
-              {Object.entries(q.alternativas || {}).map(([letter, text]) => {
-                let cls = 'option-item'
-                if (sel === letter) cls += ' selected'
-                if (showFeedback) {
-                  cls += ' disabled'
-                  if (letter === q.correta) cls += ' correct'
-                  else if (sel === letter) cls += ' wrong'
-                }
-                return (
-                  <button key={letter} type="button" className={cls}
-                    onClick={() => handleSelect(letter)} disabled={showFeedback}>
-                    <div className="option-letter">{letter}</div>
-                    <div className="option-text"><SimuladoText text={text} /></div>
-                  </button>
-                )
-              })}
-            </div>
+            {optionEntries.length > 0 ? (
+              <div className="options-list">
+                {optionEntries.map(([letter, payload]) => {
+                  let cls = 'option-item'
+                  if (sel === letter) cls += ' selected'
+                  if (isConfirmed) {
+                    cls += ' disabled'
+                    if (letter === q.correta) cls += ' correct'
+                    else if (sel === letter) cls += ' wrong'
+                  }
+                  return (
+                    <button key={letter} type="button" className={cls}
+                      onClick={() => handleSelect(letter)} disabled={isConfirmed}>
+                      <div className="option-letter">{letter}</div>
+                      <AlternativeContent value={payload} letter={letter} />
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="simulado-exam-notice warning">
+                Esta questão veio sem alternativas renderizáveis. Gere um novo simulado para substituir este lote.
+              </div>
+            )}
 
-            {showFeedback && (
+            {isConfirmed && (
               <div className={`feedback-box anim anim-d1 ${sel === q.correta ? 'is-correct' : 'is-wrong'}`}>
                 <div className="feedback-title">
                   {sel === q.correta ? 'Resposta correta' : 'Resposta incorreta'}
@@ -630,16 +741,24 @@ export function SimuladoPage() {
               </div>
             )}
 
-            {!showFeedback && (
+            {!isConfirmed && (
               <div className="question-footer">
-                <span>{sel ? 'Alternativa selecionada. Confirme para ver a explicação.' : 'Escolha uma alternativa para continuar.'}</span>
-                <button type="button" className="btn-primary question-action" onClick={handleConfirm} disabled={!sel}>
-                  Confirmar resposta
-                </button>
+                <span className="question-footer-hint">
+                  {sel ? 'Alternativa selecionada. Você pode avançar agora ou confirmar para ver a explicação.' : 'Escolha uma alternativa para continuar.'}
+                </span>
+                <div className="question-footer-actions">
+                  <button type="button" className="btn-ghost question-action" onClick={handleNext}>
+                    {isLastQuestion ? 'Ver resultado final' : 'Avançar sem confirmar'}
+                  </button>
+                  <button type="button" className="btn-primary question-action" onClick={handleConfirm} disabled={!sel}>
+                    Confirmar resposta
+                  </button>
+                </div>
               </div>
             )}
           </section>
         </div>
+        {renderPendingModal()}
       </div>
     )
   }
@@ -691,8 +810,12 @@ export function SimuladoPage() {
           {examData.estatisticas && (
             <div className="result-stats">
               <div className="stat-item">
-                <span className="stat-value">{examData.estatisticas.reais}</span>
-                <span className="stat-label">Questões reais (API ENEM)</span>
+                <span className="stat-value">{examData.estatisticas.api ?? Math.max(0, (examData.estatisticas.reais || 0) - (examData.estatisticas.bancoLocal || 0))}</span>
+                <span className="stat-label">API ENEM</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-value">{examData.estatisticas.bancoLocal || 0}</span>
+                <span className="stat-label">Banco local</span>
               </div>
               <div className="stat-item">
                 <span className="stat-value">{examData.estatisticas.ia}</span>
