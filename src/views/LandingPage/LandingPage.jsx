@@ -8,7 +8,7 @@ import imageConquistasDesktop from '../../assets/Captura de tela 2026-04-11 1652
 import imageConquistasMobile from '../../assets/iPhone-14-Plus-dev--apice-ai.netlify.app.webp';
 
 const DISCOUNTS = { monthly: 0, semiannual: 25, annual: 40 };
-const CONNECTA_URL = 'https://connectadigital.netlify.app/';
+const CONNECTA_URL = 'https://connectabr.digital/';
 
 const RADAR_TEMAS = [
   { titulo: 'Inteligência Artificial e ética no Brasil', area: 'Tecnologia' },

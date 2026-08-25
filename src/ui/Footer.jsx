@@ -10,7 +10,7 @@ const INSTAGRAM_PEDRO = 'https://instagram.com/pedro.mkds'
 const PROJECT_GITHUB = 'https://github.com/elias001011/Apice'
 const FEEDBACK_EMAIL = 'elias.juriatti@outlook.com'
 const BUG_REPORT_EMAIL = 'elias.juriatti@outlook.com'
-const CONNECTA_URL = 'https://connectadigital.netlify.app/'
+const CONNECTA_URL = 'https://connectabr.digital/'
 
 function EmailIcon() {
   return (
