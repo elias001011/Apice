@@ -59,9 +59,11 @@ export function buildCorsHeaders(req) {
 
   return {
     'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Guest-Session-Id, X-User-Id',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Vary': 'Origin',
+    'Cache-Control': 'no-store, max-age=0',
+    'Pragma': 'no-cache',
+    'Vary': 'Origin, Authorization',
     'Content-Type': 'application/json',
   }
 }

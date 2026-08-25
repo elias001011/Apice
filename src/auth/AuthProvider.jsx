@@ -11,7 +11,6 @@ import {
 } from './sessionMode.js'
 import {
   clearVerificationPassword,
-  resendVerificationEmail,
   requestAccountDeletion,
 } from '../services/identityAuth.js'
 import { registerAuthTokenGetter } from '../services/authFetch.js'
@@ -100,6 +99,26 @@ function clearLegacyIdentityStorage() {
     })
   } catch {
     // ignore
+  }
+}
+
+async function clearPrivateBrowserCaches() {
+  if (typeof window === 'undefined') return
+
+  try {
+    if ('caches' in window) {
+      const keys = await window.caches.keys()
+      await Promise.all(
+        keys
+          .filter((key) => key.startsWith('apice-pwa-'))
+          .map((key) => window.caches.delete(key)),
+      )
+    }
+
+    const controller = window.navigator?.serviceWorker?.controller
+    controller?.postMessage({ type: 'CLEAR_APICE_CACHES' })
+  } catch (error) {
+    console.warn('[AuthProvider] Não foi possível limpar o cache privado do navegador:', error?.message || error)
   }
 }
 
@@ -266,6 +285,7 @@ function prepareExplicitLoginState(account) {
   clearLocalCloudSync()
   markLastAuthAccount(account)
   markLocalAccountStateOwner(account)
+  void clearPrivateBrowserCaches()
 }
 
 async function clearExistingIdentitySession(authClient) {
@@ -285,6 +305,7 @@ async function clearExistingIdentitySession(authClient) {
   }
 
   clearLegacyIdentityStorage()
+  await clearPrivateBrowserCaches()
   return hadSession
 }
 
@@ -297,6 +318,7 @@ export function AuthProvider({ children }) {
   })
   const [loading, setLoading] = useState(true)
   const [pendingOnboardingLogin, setPendingOnboardingLogin] = useState(false)
+  const [cloudReadyAccount, setCloudReadyAccount] = useState('')
   const syncLockRef = useRef(false)
   const isGuest = Boolean(user?.guest)
 
@@ -345,6 +367,12 @@ export function AuthProvider({ children }) {
         const storedIdentitySession = hasStoredIdentitySession(auth)
 
         if (!storedIdentitySession) {
+          if (!guestSession) {
+            clearLocalAccountState()
+            clearCloudPullSessionFlags()
+            clearLocalCloudSync()
+            void clearPrivateBrowserCaches()
+          }
           if (!cancelled) {
             setUser(guestSession ? createGuestUser(loadGuestProfile()) : null)
           }
@@ -361,6 +389,7 @@ export function AuthProvider({ children }) {
           clearLocalAccountState()
           clearCloudPullSessionFlags()
           clearLocalCloudSync()
+          void clearPrivateBrowserCaches()
           if (!cancelled) {
             setUser(guestSession ? createGuestUser(loadGuestProfile()) : null)
           }
@@ -376,6 +405,7 @@ export function AuthProvider({ children }) {
           clearLocalAccountState()
           clearCloudPullSessionFlags()
           clearLocalCloudSync()
+          void clearPrivateBrowserCaches()
           setUser(isGuestSessionActive() ? createGuestUser(loadGuestProfile()) : null)
         }
       } finally {
@@ -393,6 +423,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!user) {
       setPendingOnboardingLogin(false)
+      setCloudReadyAccount('')
     }
   }, [user])
 
@@ -407,6 +438,7 @@ export function AuthProvider({ children }) {
     void refreshUserSummaryFromHistory()
 
     if (isGuest) {
+      setCloudReadyAccount('')
       return
     }
 
@@ -431,27 +463,34 @@ export function AuthProvider({ children }) {
 
     if (hasPulled) {
       markLocalAccountStateOwner(user)
+      setCloudReadyAccount(accountKey)
       console.log('[AuthProvider] Cloud pull já feito nesta sessão, pulando (dados locais preservados)')
       return
     }
 
+    setCloudReadyAccount('')
     let cancelled = false
 
     const restoreCloudState = async () => {
+      let pullCompleted = false
       try {
         // Puxa estado da nuvem e aplica no localStorage
         const pulled = await pullStateFromCloud()
 
         if (!cancelled && pulled === true) {
+          pullCompleted = true
           markLocalAccountStateOwner(user)
+          setCloudReadyAccount(accountKey)
           console.log('[AuthProvider] Estado restaurado da nuvem com sucesso')
         } else if (!cancelled && pulled === null) {
+          pullCompleted = true
           if (!trustedLocalState && localAccountStateHasData()) {
             console.log('[AuthProvider] Conta sem estado na nuvem e dados locais sem dono confiável. Iniciando estado limpo para evitar mistura entre contas.')
             clearLocalAccountState()
             clearLocalCloudSync()
           }
           markLocalAccountStateOwner(user)
+          setCloudReadyAccount(accountKey)
           console.log('[AuthProvider] Conta ainda sem estado na nuvem. Um estado inicial será salvo automaticamente.')
         } else if (!cancelled && pulled === false) {
           console.warn('[AuthProvider] Falha ao restaurar estado da nuvem. Dados locais preservados.')
@@ -461,8 +500,14 @@ export function AuthProvider({ children }) {
           console.error('[AuthProvider] Erro inesperado no cloud restore:', err.message)
         }
       } finally {
-        // Marca que já fizemos pull nesta sessão (mesmo se falhou)
-        if (typeof window !== 'undefined' && window.sessionStorage && !cancelled) {
+        // Uma falha não libera o push: isso evita sobrescrever a nuvem com um
+        // snapshot local antes de sabermos qual é o estado da conta.
+        if (
+          typeof window !== 'undefined'
+          && window.sessionStorage
+          && !cancelled
+          && pullCompleted
+        ) {
           try {
             window.sessionStorage.setItem(cloudPullKey, '1')
           } catch (storageError) {
@@ -480,6 +525,8 @@ export function AuthProvider({ children }) {
   // Sync de mudanças do localStorage → nuvem (debounced)
   useEffect(() => {
     if (!user || isGuest) return
+    const accountKey = getAuthAccountKey(user)
+    if (!accountKey || cloudReadyAccount !== accountKey) return
     let cancelled = false
     let syncTimeout = null
 
@@ -535,7 +582,7 @@ export function AuthProvider({ children }) {
         window.removeEventListener(event, scheduleSync)
       })
     }
-  }, [user, isGuest])
+  }, [user, isGuest, cloudReadyAccount])
 
 
   const signup = async (email, password, data) => {
@@ -553,10 +600,6 @@ export function AuthProvider({ children }) {
       armOnboardingAfterLogin()
     }
     return response
-  }
-
-  const resendConfirmation = async (email) => {
-    return await resendVerificationEmail(auth, email)
   }
 
   const login = async (email, password, remember = true) => {
@@ -603,7 +646,8 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     const currentUser = auth.currentUser()
     if (currentUser) {
-      if (!isGuest) {
+      const currentAccountKey = getAuthAccountKey(currentUser)
+      if (!isGuest && currentAccountKey && cloudReadyAccount === currentAccountKey) {
         syncLockRef.current = true
         try {
           await pushStateToCloud(currentUser)
@@ -629,6 +673,8 @@ export function AuthProvider({ children }) {
     // Limpa flags de cloud pull para permitir pull limpo no próximo login
     clearCloudPullSessionFlags()
     clearLocalCloudSync()
+    await clearPrivateBrowserCaches()
+    setCloudReadyAccount('')
     syncLockRef.current = false
     setUser(null)
     
@@ -714,7 +760,6 @@ export function AuthProvider({ children }) {
     isGuest,
     signup,
     confirmAccount,
-    resendConfirmation,
     login,
     loginAsGuest,
     confirmRecovery,

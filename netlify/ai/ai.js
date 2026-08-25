@@ -24,10 +24,6 @@ const PROVIDER_SETTINGS = {
     enabled: envBool('AI_OPENROUTER_ENABLED', true),
     order: envInt('AI_OPENROUTER_ORDER', 30),
   },
-  grok: {
-    enabled: envBool('AI_GROK_ENABLED', true),
-    order: envInt('AI_GROK_ORDER', 40),
-  },
   huggingface: {
     enabled: envBool('AI_HUGGINGFACE_ENABLED', true),
     order: envInt('AI_HUGGINGFACE_ORDER', 50),
@@ -39,21 +35,17 @@ const PROVIDER_SETTINGS = {
 // A ideia é ter um "primary", um "secondary" e, quando fizer sentido, um "tertiary" para tarefas pesadas.
 const PROVIDER_MODELS = {
   groq: {
-    primary: process.env.AI_GROQ_MODEL_PRIMARY || 'llama-3.3-70b-versatile',
-    secondary: process.env.AI_GROQ_MODEL_SECONDARY || 'llama-3.1-8b-instant',
+    primary: process.env.AI_GROQ_MODEL_PRIMARY || 'openai/gpt-oss-20b',
+    secondary: process.env.AI_GROQ_MODEL_SECONDARY || 'openai/gpt-oss-120b',
     tertiary: process.env.AI_GROQ_MODEL_TERTIARY || 'openai/gpt-oss-120b',
   },
   gemini: {
-    primary: process.env.AI_GEMINI_MODEL_PRIMARY || 'gemini-3.1-flash-lite-preview',
+    primary: process.env.AI_GEMINI_MODEL_PRIMARY || 'gemini-3.5-flash-lite',
     secondary: process.env.AI_GEMINI_MODEL_SECONDARY || '',
   },
   openrouter: {
     primary: process.env.AI_OPENROUTER_MODEL_PRIMARY || 'openrouter/free',
     secondary: process.env.AI_OPENROUTER_MODEL_SECONDARY || '',
-  },
-  grok: {
-    primary: process.env.AI_GROK_MODEL_PRIMARY || 'grok-4-1-fast-non-reasoning',
-    secondary: process.env.AI_GROK_MODEL_SECONDARY || 'grok-4-1-fast',
   },
   huggingface: {
     primary: process.env.AI_HF_MODEL_PRIMARY || 'meta-llama/Llama-3.3-70B-Instruct',
@@ -1086,13 +1078,6 @@ function getEnabledProviders(kind) {
           run: runOpenRouterText,
         },
         {
-          id: 'grok',
-          name: 'GROK',
-          order: PROVIDER_SETTINGS.grok.order,
-          enabled: PROVIDER_SETTINGS.grok.enabled,
-          run: runGrokText,
-        },
-        {
           id: 'huggingface',
           name: 'Hugging Face',
           order: PROVIDER_SETTINGS.huggingface.order,
@@ -1503,7 +1488,7 @@ function normalizeProfessorReplyPayload(result, extras = {}) {
 async function runGroqProfessorWithTools({
   systemPrompt,
   userMessages,
-  modelVariant = 'secondary',
+  modelVariant = 'primary',
   modelOverride = '',
 }) {
   const apiKey = process.env.GROQ
@@ -1959,36 +1944,6 @@ async function runOpenRouterText({ systemPrompt, userMessages, modelVariant = 'p
   return parsed
 }
 
-async function runGrokText({ systemPrompt, userMessages, modelVariant = 'primary', modelOverride = '' }) {
-  const apiKey = process.env.GROK
-  if (!apiKey || apiKey === 'undefined') {
-    throw new Error('xAI key missing')
-  }
-
-  const payload = {
-    model: resolveProviderModel('grok', modelVariant, modelOverride),
-    messages: buildOpenAICompatibleMessages(systemPrompt, userMessages),
-    temperature: 0.2,
-    response_format: { type: 'json_object' },
-  }
-
-  const data = await postJson(
-    'https://api.x.ai/v1/chat/completions',
-    payload,
-    {
-      Authorization: `Bearer ${apiKey}`,
-    },
-    TEXT_TIMEOUT_MS,
-  )
-
-  const content = data?.choices?.[0]?.message?.content || ''
-  const parsed = safeJsonParse(content)
-  if (!parsed) {
-    throw new Error('Grok returned non-JSON content')
-  }
-  return parsed
-}
-
 async function runHuggingFaceText({ systemPrompt, userMessages, modelVariant = 'primary', modelOverride = '' }) {
   const apiKey = process.env.HF
   if (!apiKey || apiKey === 'undefined') {
@@ -2052,8 +2007,6 @@ async function runDirectTextProvider({ provider, systemPrompt, userMessages, mod
       return await runGeminiText({ systemPrompt, userMessages, modelVariant, modelOverride })
     case 'openrouter':
       return await runOpenRouterText({ systemPrompt, userMessages, modelVariant, modelOverride })
-    case 'grok':
-      return await runGrokText({ systemPrompt, userMessages, modelVariant, modelOverride })
     case 'huggingface':
       return await runHuggingFaceText({ systemPrompt, userMessages, modelVariant, modelOverride })
     default:
@@ -2131,10 +2084,10 @@ export async function generateProfessorReply({
     return await runGroqProfessorWithTools({
       systemPrompt,
       userMessages,
-      modelVariant: 'secondary',
+      modelVariant: 'primary',
     })
-  } catch (secondaryError) {
-    console.error('[AI][professor] Groq secondary tools failed, falling back to normal pipeline:', secondaryError?.message || secondaryError)
+  } catch (primaryError) {
+    console.error('[AI][professor] Groq primary tools failed, falling back to normal pipeline:', primaryError?.message || primaryError)
   }
 
   const fallbackSystemPrompt = [
@@ -2189,24 +2142,24 @@ export async function generateDynamicTheme({ responsePreference } = {}) {
   let result = null
 
   try {
-    // Groq secondary (llama-3.1-8b-instant) — mais rápido e barato, tentativa principal
+    // gpt-oss-20b é a tentativa principal; o 120b entra apenas como fallback.
     result = await runDirectTextProvider({
       provider: 'groq',
       systemPrompt,
       userMessages,
-      modelVariant: 'secondary',
+      modelVariant: 'primary',
     })
-  } catch (secondaryError) {
-    console.error('[AI][theme] Groq secondary failed, trying primary:', secondaryError?.message || secondaryError)
+  } catch (primaryError) {
+    console.error('[AI][theme] Groq primary failed, trying secondary:', primaryError?.message || primaryError)
     try {
       result = await runDirectTextProvider({
         provider: 'groq',
         systemPrompt,
         userMessages,
-        modelVariant: 'primary',
+        modelVariant: 'secondary',
       })
-    } catch (primaryError) {
-      console.error('[AI][theme] Groq primary failed, falling back to pipeline:', primaryError?.message || primaryError)
+    } catch (secondaryError) {
+      console.error('[AI][theme] Groq secondary failed, falling back to pipeline:', secondaryError?.message || secondaryError)
       result = await runPipeline('text', { systemPrompt, userMessages }, { searchBundle })
     }
   }
@@ -2453,24 +2406,24 @@ export async function generateUserSummary({
       provider: 'groq',
       systemPrompt,
       userMessages,
-      modelVariant: 'secondary',
+      modelVariant: 'primary',
     })
 
     return normalizeUserSummaryPayload(result, safePerformanceIndex, totalRedacoes)
-  } catch (secondaryError) {
-    console.error('[AI][summary] Groq secondary failed:', secondaryError?.message || secondaryError)
+  } catch (primaryError) {
+    console.error('[AI][summary] Groq primary failed:', primaryError?.message || primaryError)
 
     try {
       const result = await runDirectTextProvider({
         provider: 'groq',
         systemPrompt,
         userMessages,
-        modelVariant: 'primary',
+        modelVariant: 'secondary',
       })
 
       return normalizeUserSummaryPayload(result, safePerformanceIndex, totalRedacoes)
-    } catch (primaryError) {
-      console.error('[AI][summary] Groq primary failed, falling back to pipeline:', primaryError?.message || primaryError)
+    } catch (secondaryError) {
+      console.error('[AI][summary] Groq secondary failed, falling back to pipeline:', secondaryError?.message || secondaryError)
 
       try {
         const result = await runPipeline('text', {
@@ -2763,7 +2716,7 @@ export async function generateRadarThemeDetails({ tema, responsePreference } = {
       provider: 'groq',
       systemPrompt,
       userMessages,
-      modelVariant: 'secondary',
+      modelVariant: 'primary',
     })
 
     return {
@@ -2782,15 +2735,15 @@ export async function generateRadarThemeDetails({ tema, responsePreference } = {
       },
       geradoEm: String(result?.geradoEm ?? new Date().toISOString()).trim() || new Date().toISOString(),
     }
-  } catch (secondaryError) {
-    console.error('[AI][radar-detail] Groq secondary failed:', secondaryError?.message || secondaryError)
+  } catch (primaryError) {
+    console.error('[AI][radar-detail] Groq primary failed:', primaryError?.message || primaryError)
 
     try {
       const result = await runDirectTextProvider({
         provider: 'groq',
         systemPrompt,
         userMessages,
-        modelVariant: 'primary',
+        modelVariant: 'secondary',
       })
 
       return {
@@ -2809,8 +2762,8 @@ export async function generateRadarThemeDetails({ tema, responsePreference } = {
         },
         geradoEm: String(result?.geradoEm ?? new Date().toISOString()).trim() || new Date().toISOString(),
       }
-    } catch (primaryError) {
-      console.error('[AI][radar-detail] Groq primary failed, falling back to pipeline:', primaryError?.message || primaryError)
+    } catch (secondaryError) {
+      console.error('[AI][radar-detail] Groq secondary failed, falling back to pipeline:', secondaryError?.message || secondaryError)
 
       try {
         const result = await runPipeline('text', {

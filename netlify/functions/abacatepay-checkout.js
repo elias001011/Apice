@@ -31,6 +31,7 @@ const ABACATE_CHECKOUT_CREATE_PATH = '/v2/checkouts/create'
 const ABACATE_CHECKOUT_LIST_PATH = '/v2/checkouts/list'
 const ABACATE_COUPON_LIST_PATH = '/v2/coupons/list'
 const ABACATE_PRODUCT_GET_PATH = '/v2/products/get'
+const MAX_BLOB_WRITE_ATTEMPTS = 5
 
 const PAID_STATUSES = new Set(['PAID', 'ACTIVE', 'COMPLETED'])
 const SUBSCRIPTION_PRODUCT_CYCLES = new Set(['WEEKLY', 'MONTHLY', 'SEMIANNUALLY', 'ANNUALLY', 'YEARLY'])
@@ -181,15 +182,16 @@ function getCurrentBillingState(state) {
 
 async function getStoredBillingState(userId) {
   const store = await getStore()
-  if (!store || !userId) return null
+  if (!userId) return null
+  if (!store) throw new Error('Armazenamento de billing indisponível.')
 
   try {
     const raw = await store.get(`user-state:${userId}`, { type: 'json' })
     if (!raw || typeof raw !== 'object') return null
     return getCurrentBillingState(raw.billing || raw)
   } catch (error) {
-    console.warn('[abacatepay] Falha ao ler billing atual da nuvem:', error.message)
-    return null
+    console.error('[abacatepay] Falha ao ler billing atual da nuvem:', error.message)
+    throw new Error('Não foi possível validar o plano atual da conta.')
   }
 }
 
@@ -199,27 +201,40 @@ async function updateVerifiedBillingInBlob(userId, planKey, billingUpdate = {}) 
 
   try {
     const blobKey = `user-state:${userId}`
-    const existingData = await store.get(blobKey, { type: 'json' })
-    const currentState = existingData && typeof existingData === 'object' ? existingData : {}
-    const normalizedBilling = normalizeBillingState({
-      ...(currentState.billing && typeof currentState.billing === 'object' ? currentState.billing : {}),
-      ...billingUpdate,
-      updatedAt: new Date().toISOString(),
-    })
 
-    await store.set(blobKey, JSON.stringify({
-      ...currentState,
-      accountOwnerId: userId,
-      billing: normalizedBilling,
-      planStatus: normalizedBilling.status,
-      planTier: normalizedBilling.status === 'free' ? 'free' : 'paid',
-      planKey: normalizedBilling.status === 'free' ? '' : (planKey || normalizedBilling.planKey || currentState.planKey || 'monthly'),
-      savedAt: new Date().toISOString(),
-    }), {
-      contentType: 'application/json',
-    })
+    for (let attempt = 0; attempt < MAX_BLOB_WRITE_ATTEMPTS; attempt += 1) {
+      const existing = await store.getWithMetadata(blobKey, { type: 'json' })
+      const currentState = existing?.data && typeof existing.data === 'object' ? existing.data : {}
+      const normalizedBilling = normalizeBillingState({
+        ...(currentState.billing && typeof currentState.billing === 'object' ? currentState.billing : {}),
+        ...billingUpdate,
+        ...(billingUpdate.billingMode === 'one_time' && planKey
+          ? {
+              oneTimePlanKeys: Array.from(new Set([
+                ...(Array.isArray(currentState.billing?.oneTimePlanKeys) ? currentState.billing.oneTimePlanKeys : []),
+                planKey,
+              ])),
+            }
+          : {}),
+        updatedAt: new Date().toISOString(),
+      })
+      const updatedState = {
+        ...currentState,
+        accountOwnerId: userId,
+        billing: normalizedBilling,
+        planStatus: normalizedBilling.status,
+        planTier: normalizedBilling.status === 'free' ? 'free' : 'paid',
+        planKey: normalizedBilling.status === 'free' ? '' : (planKey || normalizedBilling.planKey || currentState.planKey || 'monthly'),
+        savedAt: new Date().toISOString(),
+      }
+      const condition = existing?.etag
+        ? { onlyIfMatch: existing.etag }
+        : { onlyIfNew: true }
+      const result = await store.setJSON(blobKey, updatedState, condition)
+      if (result.modified) return true
+    }
 
-    return true
+    return false
   } catch (error) {
     console.error('[abacatepay] Falha ao gravar billing verificado:', error.message)
     return false
@@ -903,7 +918,7 @@ async function verifyCheckout(req, authUser, headers) {
   const accessEndsAt = billingMode === 'one_time' ? getPlanAccessEndsAt(plan) : ''
 
   if (paid) {
-    await updateVerifiedBillingInBlob(authUser.id, planKey, {
+    const billingUpdated = await updateVerifiedBillingInBlob(authUser.id, planKey, {
       status: 'paid',
       planKey,
       billingMode,
@@ -917,6 +932,13 @@ async function verifyCheckout(req, authUser, headers) {
       ...(accessEndsAt ? { accessEndsAt } : {}),
       remoteStatus: publicCheckout.status,
     })
+
+    if (!billingUpdated) {
+      return new Response(
+        JSON.stringify({ error: 'Pagamento confirmado, mas a atualização da conta falhou. Tente verificar novamente.' }),
+        { status: 503, headers },
+      )
+    }
   }
 
   return new Response(JSON.stringify({

@@ -1,4 +1,5 @@
 import process from 'node:process'
+import crypto from 'node:crypto'
 
 /**
  * Webhook para eventos de pagamento da AbacatePay API v2.
@@ -15,6 +16,9 @@ import process from 'node:process'
  */
 
 const BLOB_STORE_NAME = 'user-state'
+const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024
+const MAX_BLOB_WRITE_ATTEMPTS = 5
+const DEFAULT_ABACATEPAY_PUBLIC_KEY = 't9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9'
 
 const SUCCESS_EVENTS = new Set([
   'checkout.completed',
@@ -109,6 +113,23 @@ function getWebhookSecret() {
   return safeText(process.env.WEBHOOK_SECRET)
 }
 
+function constantTimeTextEqual(received, expected) {
+  const receivedBuffer = Buffer.from(safeText(received), 'utf8')
+  const expectedBuffer = Buffer.from(safeText(expected), 'utf8')
+  return receivedBuffer.length === expectedBuffer.length
+    && crypto.timingSafeEqual(receivedBuffer, expectedBuffer)
+}
+
+function verifyWebhookSignature(rawBody, receivedSignature) {
+  const publicKey = safeText(process.env.ABACATEPAY_WEBHOOK_PUBLIC_KEY) || DEFAULT_ABACATEPAY_PUBLIC_KEY
+  const expectedSignature = crypto
+    .createHmac('sha256', publicKey)
+    .update(Buffer.from(rawBody, 'utf8'))
+    .digest('base64')
+
+  return constantTimeTextEqual(receivedSignature, expectedSignature)
+}
+
 function pickMetadata(body) {
   const data = body?.data || {}
   const candidates = [
@@ -199,44 +220,59 @@ async function updateBillingInBlob(userId, planKey, billingUpdate, eventId = '')
 
   try {
     const blobKey = `user-state:${userId}`
-    const existingData = await store.get(blobKey, { type: 'json' })
-    const currentState = existingData && typeof existingData === 'object' ? existingData : {}
-    const billingStatus = safeText(billingUpdate.status) || 'paid'
-    const planStatus = billingStatus === 'free' ? 'free' : billingStatus
-    const previousEvents = Array.isArray(currentState.billing?.processedWebhookEventIds)
-      ? currentState.billing.processedWebhookEventIds.filter(Boolean)
-      : []
 
-    if (eventId && previousEvents.includes(eventId)) {
-      console.log('[payment-webhook] Evento duplicado ignorado.')
-      return true
+    for (let attempt = 0; attempt < MAX_BLOB_WRITE_ATTEMPTS; attempt += 1) {
+      const existing = await store.getWithMetadata(blobKey, { type: 'json' })
+      const currentState = existing?.data && typeof existing.data === 'object' ? existing.data : {}
+      const billingStatus = safeText(billingUpdate.status) || 'paid'
+      const planStatus = billingStatus === 'free' ? 'free' : billingStatus
+      const previousEvents = Array.isArray(currentState.billing?.processedWebhookEventIds)
+        ? currentState.billing.processedWebhookEventIds.filter(Boolean)
+        : []
+
+      if (eventId && previousEvents.includes(eventId)) {
+        console.log('[payment-webhook] Evento duplicado ignorado.')
+        return true
+      }
+
+      const processedWebhookEventIds = eventId
+        ? [eventId, ...previousEvents].slice(0, 50)
+        : previousEvents
+      const updatedState = {
+        ...currentState,
+        accountOwnerId: userId,
+        billing: {
+          ...(currentState.billing || {}),
+          ...billingUpdate,
+          ...(billingUpdate.billingMode === 'one_time' && planKey
+            ? {
+                oneTimePlanKeys: Array.from(new Set([
+                  ...(Array.isArray(currentState.billing?.oneTimePlanKeys) ? currentState.billing.oneTimePlanKeys : []),
+                  planKey,
+                ])),
+              }
+            : {}),
+          processedWebhookEventIds,
+          updatedAt: new Date().toISOString(),
+        },
+        planStatus,
+        planTier: billingStatus === 'free' ? 'free' : 'paid',
+        planKey: billingStatus === 'free' ? '' : (planKey || currentState.planKey || 'monthly'),
+        savedAt: new Date().toISOString(),
+      }
+      const condition = existing?.etag
+        ? { onlyIfMatch: existing.etag }
+        : { onlyIfNew: true }
+      const result = await store.setJSON(blobKey, updatedState, condition)
+
+      if (result.modified) {
+        console.log('[payment-webhook] Billing atualizado no blob.')
+        return true
+      }
     }
 
-    const processedWebhookEventIds = eventId
-      ? [eventId, ...previousEvents].slice(0, 50)
-      : previousEvents
-
-    const updatedState = {
-      ...currentState,
-      accountOwnerId: userId,
-      billing: {
-        ...(currentState.billing || {}),
-        ...billingUpdate,
-        processedWebhookEventIds,
-        updatedAt: new Date().toISOString(),
-      },
-      planStatus,
-      planTier: billingStatus === 'free' ? 'free' : 'paid',
-      planKey: billingStatus === 'free' ? '' : (planKey || currentState.planKey || 'monthly'),
-      savedAt: new Date().toISOString(),
-    }
-
-    await store.set(blobKey, JSON.stringify(updatedState), {
-      contentType: 'application/json',
-    })
-
-    console.log('[payment-webhook] Billing atualizado no blob.')
-    return true
+    console.error('[payment-webhook] Conflito persistente ao atualizar billing no blob.')
+    return false
   } catch (error) {
     console.error('[payment-webhook] Erro ao atualizar blob:', error.message)
     return false
@@ -249,23 +285,45 @@ export async function handler(req) {
   }
 
   try {
-    const rawBody = await req.text()
     const url = new URL(req.url)
     const configuredSecret = getWebhookSecret()
     const receivedSecret = safeText(url.searchParams.get('webhookSecret'))
+    const receivedSignature = safeText(req.headers.get('x-webhook-signature'))
 
     if (!configuredSecret) {
       console.error('[payment-webhook] WEBHOOK_SECRET não configurada.')
       return new Response(JSON.stringify({ error: 'Webhook secret não configurado' }), { status: 500 })
     }
 
-    if (receivedSecret !== configuredSecret) {
+    if (!constantTimeTextEqual(receivedSecret, configuredSecret)) {
       return new Response(JSON.stringify({ error: 'Webhook secret inválido' }), { status: 401 })
+    }
+
+    if (!receivedSignature) {
+      return new Response(JSON.stringify({ error: 'Assinatura do webhook ausente' }), { status: 401 })
+    }
+
+    const declaredLength = Number(req.headers.get('content-length') || 0)
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_WEBHOOK_BODY_BYTES) {
+      return new Response(JSON.stringify({ error: 'Payload do webhook muito grande' }), { status: 413 })
+    }
+
+    const rawBody = await req.text()
+    if (Buffer.byteLength(rawBody, 'utf8') > MAX_WEBHOOK_BODY_BYTES) {
+      return new Response(JSON.stringify({ error: 'Payload do webhook muito grande' }), { status: 413 })
+    }
+
+    if (!verifyWebhookSignature(rawBody, receivedSignature)) {
+      return new Response(JSON.stringify({ error: 'Assinatura do webhook inválida' }), { status: 401 })
     }
 
     const body = parsePayload(rawBody)
     const event = safeText(body?.event)
     const eventId = safeText(body?.id)
+
+    if (!event || !eventId) {
+      return new Response(JSON.stringify({ error: 'Payload do webhook inválido' }), { status: 400 })
+    }
     const metadata = pickMetadata(body)
     const objects = pickPaymentObjects(body)
     const externalId = pickExternalId(objects, metadata)
@@ -325,6 +383,10 @@ export async function handler(req) {
 
       const blobUpdated = await updateBillingInBlob(userId, planKey, billingUpdate, eventId)
 
+      if (!blobUpdated) {
+        return new Response(JSON.stringify({ error: 'Falha ao persistir trial' }), { status: 500 })
+      }
+
       return new Response(JSON.stringify({
         success: true,
         message: 'Trial da assinatura registrado',
@@ -353,6 +415,10 @@ export async function handler(req) {
       }
 
       const blobUpdated = await updateBillingInBlob(userId, planKey, billingUpdate, eventId)
+
+      if (!blobUpdated) {
+        return new Response(JSON.stringify({ error: 'Falha ao persistir pagamento' }), { status: 500 })
+      }
 
       return new Response(JSON.stringify({
         success: true,
@@ -397,6 +463,10 @@ export async function handler(req) {
           }
 
       const blobUpdated = await updateBillingInBlob(userId, planKey, billingUpdate, eventId)
+
+      if (!blobUpdated) {
+        return new Response(JSON.stringify({ error: 'Falha ao persistir cancelamento' }), { status: 500 })
+      }
 
       return new Response(JSON.stringify({
         success: true,

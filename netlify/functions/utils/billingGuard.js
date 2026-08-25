@@ -18,28 +18,29 @@ function normalizeBillingRecord(record) {
     };
 }
 
-function mergeOneTimePlanKeys(existingBilling, incomingBilling) {
-    return Array.from(new Set([
-        ...(Array.isArray(existingBilling?.oneTimePlanKeys) ? existingBilling.oneTimePlanKeys.map((item) => safeText(item)).filter(Boolean) : []),
-        ...(Array.isArray(incomingBilling?.oneTimePlanKeys) ? incomingBilling.oneTimePlanKeys.map((item) => safeText(item)).filter(Boolean) : []),
-    ]));
+function getTrustedOneTimePlanKeys(existingBilling) {
+    return Array.from(new Set(
+        Array.isArray(existingBilling?.oneTimePlanKeys)
+            ? existingBilling.oneTimePlanKeys.map((item) => safeText(item)).filter(Boolean)
+            : [],
+    ));
 }
 
-function mergeBillingRecords(existingBilling, incomingBilling) {
+function mergeBillingRecords(existingBilling) {
     const existing = normalizeBillingRecord(existingBilling)
 
     if (!existingBilling || typeof existingBilling !== 'object') {
         return normalizeBillingRecord({
             status: 'free',
             planKey: '',
-            oneTimePlanKeys: mergeOneTimePlanKeys(null, incomingBilling),
+            oneTimePlanKeys: [],
             updatedAt: new Date().toISOString(),
         })
     }
 
     return {
         ...existing,
-        oneTimePlanKeys: mergeOneTimePlanKeys(existingBilling, incomingBilling),
+        oneTimePlanKeys: getTrustedOneTimePlanKeys(existingBilling),
         updatedAt: existing.updatedAt || new Date().toISOString(),
     }
 }
@@ -77,9 +78,7 @@ export function sanitizeState(incomingState, existingState, user) {
         incomingState.billing = {
           status: 'free',
           planKey: '',
-          oneTimePlanKeys: Array.isArray(incomingState?.billing?.oneTimePlanKeys)
-            ? incomingState.billing.oneTimePlanKeys
-            : [],
+          oneTimePlanKeys: [],
           updatedAt: new Date().toISOString(),
         };
         incomingState.planStatus = 'free';
@@ -90,7 +89,7 @@ export function sanitizeState(incomingState, existingState, user) {
 
     // 2. Se já existe billing na nuvem, ele continua sendo a autoridade.
     // Snapshot do frontend não pode elevar/corrigir status pago ou IDs do gateway.
-    const mergedBilling = mergeBillingRecords(existingState.billing, incomingState.billing)
+    const mergedBilling = mergeBillingRecords(existingState.billing)
     incomingState.billing = mergedBilling;
     incomingState.planStatus = mergedBilling.status || existingState.planStatus || 'free';
     incomingState.planTier = String(incomingState.planStatus).toLowerCase() === 'free' ? 'free' : 'paid';

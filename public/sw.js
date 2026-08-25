@@ -8,7 +8,17 @@ const PRECACHE_URLS = [
   '/Icon-512.png',
   '/apple-touch-icon.png',
 ]
-const BYPASS_PATH_PREFIXES = ['/src/', '/@vite/', '/@react-refresh', '/@fs/', '/@id/', '/node_modules/']
+const BYPASS_PATH_PREFIXES = [
+  '/.netlify/functions/',
+  '/.netlify/identity/',
+  '/src/',
+  '/@vite/',
+  '/@react-refresh',
+  '/@fs/',
+  '/@id/',
+  '/node_modules/',
+]
+const CACHEABLE_DESTINATIONS = new Set(['font', 'image', 'script', 'style'])
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -26,6 +36,18 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+self.addEventListener('message', (event) => {
+  if (event.data?.type !== 'CLEAR_APICE_CACHES') return
+
+  event.waitUntil(
+    caches.keys().then((keys) => Promise.all(
+      keys
+        .filter((key) => key.startsWith('apice-pwa-'))
+        .map((key) => caches.delete(key)),
+    )),
+  )
+})
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return
 
@@ -34,6 +56,7 @@ self.addEventListener('fetch', (event) => {
 
   const pathname = requestUrl.pathname
   if (BYPASS_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return
+  if (event.request.headers.has('authorization')) return
   if (pathname.endsWith('.map')) return
 
   if (pathname === '/manifest.webmanifest') {
@@ -57,12 +80,20 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  if (!CACHEABLE_DESTINATIONS.has(event.request.destination)) return
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached
 
       return fetch(event.request).then((response) => {
-        if (!response || response.status !== 200 || response.type === 'opaque') {
+        const cacheControl = response?.headers?.get('cache-control') || ''
+        if (
+          !response
+          || response.status !== 200
+          || response.type === 'opaque'
+          || /(?:no-store|private)/i.test(cacheControl)
+        ) {
           return response
         }
 

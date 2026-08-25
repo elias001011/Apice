@@ -10,6 +10,11 @@ import { requireAuth } from './utils/auth.js'
 import { buildCorsHeaders } from './utils/cors.js'
 import { sanitizeState } from './utils/billingGuard.js'
 
+function isLocalDevelopment() {
+  return String(process.env.NETLIFY_DEV ?? '').toLowerCase() === 'true'
+    || String(process.env.NODE_ENV ?? '').toLowerCase() === 'development'
+}
+
 const getStore = async () => {
   try {
     const { getStore: getStoreFn } = await import('@netlify/blobs')
@@ -38,6 +43,12 @@ export default async function handler(req, context) {
     const store = await getStore()
     if (!store) {
       console.warn('[carregar-estado] Blob store não disponível')
+      if (!isLocalDevelopment()) {
+        return new Response(
+          JSON.stringify({ error: 'Armazenamento da conta indisponível' }),
+          { status: 503, headers },
+        )
+      }
       return new Response(
         JSON.stringify({
           ok: true,

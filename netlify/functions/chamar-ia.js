@@ -1,11 +1,7 @@
 import { generateTextDirect } from '../ai/ai.js'
 import { requireAuth } from './utils/auth.js'
 import { buildCorsHeaders } from './utils/cors.js'
-import {
-  buildGuestQuotaBlockedResponse,
-  checkGuestQuotaAllowance,
-  recordGuestQuotaSuccess,
-} from './utils/guestQuota.js'
+import { enforceAiQuota } from './utils/aiQuota.js'
 import { enforceRateLimit } from './utils/rateLimit.js'
 import {
   INPUT_LIMITS,
@@ -14,7 +10,7 @@ import {
   validationErrorResponse,
 } from './utils/validate.js'
 
-const ALLOWED_PROVIDERS = new Set(['groq', 'gemini', 'openrouter', 'grok', 'huggingface'])
+const ALLOWED_PROVIDERS = new Set(['groq', 'gemini', 'openrouter', 'huggingface'])
 const ALLOWED_MODEL_VARIANTS = new Set(['primary', 'secondary', 'tertiary'])
 
 function isMeaninglessResponseText(value) {
@@ -175,16 +171,11 @@ export default async function handler(req, context) {
       if (!check.valid) return validationErrorResponse(check.error, headers)
     }
 
-    if (auth.user?.guest) {
-      const quota = await checkGuestQuotaAllowance(req)
-      if (!quota.allowed) {
-        return buildGuestQuotaBlockedResponse(
-          headers,
-          quota.quota,
-          'Limite do modo convidado atingido para chamada direta de IA. Crie uma conta nova para continuar.',
-        )
-      }
-    }
+    const quotaBlocked = await enforceAiQuota(req, auth, headers, {
+      featureKey: 'directModelCall',
+      route: 'chamar-ia',
+    })
+    if (quotaBlocked) return quotaBlocked
 
     const result = await generateTextDirect({
       provider,
@@ -196,10 +187,6 @@ export default async function handler(req, context) {
     })
 
     const normalizedResult = normalizeProfessorResult(result)
-
-    if (auth.user?.guest) {
-      await recordGuestQuotaSuccess(req, { featureKey: 'directModelCall', route: 'chamar-ia' })
-    }
 
     console.log(`[chamar-ia] Sucesso. Provider: ${provider}, result keys: ${Object.keys(normalizedResult || {}).join(', ')}`)
     return new Response(JSON.stringify(normalizedResult), { status: 200, headers })

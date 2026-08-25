@@ -1,5 +1,6 @@
 import { searchContext } from '../ai/ai.js'
 import { requireAuth } from './utils/auth.js'
+import { enforceAiQuota } from './utils/aiQuota.js'
 import { buildCorsHeaders } from './utils/cors.js'
 import { enforceRateLimit } from './utils/rateLimit.js'
 import {
@@ -37,6 +38,12 @@ export default async function handler(req, context) {
     // ── Input Validation ────────────────────────────────────────────────
     const check = validateStringLength('query', query, INPUT_LIMITS.query)
     if (!check.valid) return validationErrorResponse(check.error, headers)
+
+    const quotaBlocked = await enforceAiQuota(req, auth, headers, {
+      featureKey: 'otherAiRequest',
+      route: 'buscar-contexto',
+    })
+    if (quotaBlocked) return quotaBlocked
 
     const result = await searchContext(query)
     return new Response(JSON.stringify(result), { status: 200, headers })

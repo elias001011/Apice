@@ -1,4 +1,3 @@
-const VERIFICATION_PASSWORD_KEY = '_apice_verif_pw'
 const DELETE_ACCOUNT_ENDPOINT = '/.netlify/functions/excluir-conta'
 
 const INVALID_LOGIN_PATTERNS = [
@@ -21,10 +20,6 @@ const ALREADY_CONFIRMED_PATTERNS = [
   /already\s+confirmed/i,
   /user\s+already\s+registered/i,
 ]
-
-function canUseSessionStorage() {
-  return typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined'
-}
 
 function normalizeText(value) {
   return String(value ?? '').replace(/\s+/g, ' ').trim()
@@ -67,19 +62,11 @@ function hasAdminRole(user) {
   return roles.some((role) => normalizeText(role).toLowerCase() === 'admin')
 }
 
-export function getVerificationPassword() {
-  if (!canUseSessionStorage()) return ''
-  return sessionStorage.getItem(VERIFICATION_PASSWORD_KEY) || ''
-}
-
-export function saveVerificationPassword(password) {
-  if (!canUseSessionStorage()) return
-  sessionStorage.setItem(VERIFICATION_PASSWORD_KEY, String(password ?? ''))
-}
-
 export function clearVerificationPassword() {
-  if (!canUseSessionStorage()) return
-  sessionStorage.removeItem(VERIFICATION_PASSWORD_KEY)
+  // Compatibilidade com versões antigas: apaga a credencial temporária que
+  // versões anteriores chegaram a persistir no sessionStorage.
+  if (typeof window === 'undefined' || typeof window.sessionStorage === 'undefined') return
+  window.sessionStorage.removeItem('_apice_verif_pw')
 }
 
 export function normalizeIdentityError(error) {
@@ -99,41 +86,6 @@ export function isUnconfirmedAccountError(error) {
 export function isAlreadyConfirmedError(error) {
   const message = normalizeIdentityError(error)
   return ALREADY_CONFIRMED_PATTERNS.some((pattern) => pattern.test(message))
-}
-
-export async function resendVerificationEmail(auth, email) {
-  const password = getVerificationPassword()
-
-  if (!password) {
-    throw new Error(
-      'Não encontramos a senha temporária desta sessão. Crie a conta novamente neste navegador para reenviar o e-mail de verificação.',
-    )
-  }
-
-  try {
-    const response = await auth.signup(email, password, {})
-
-    if (!response || typeof response !== 'object') {
-      throw new Error('Não foi possível confirmar o envio do e-mail de verificação.')
-    }
-
-    if (response.confirmation_sent_at) {
-      return response
-    }
-
-    if (response.confirmed_at) {
-      throw new Error('Este e-mail já foi confirmado. Tente fazer login.')
-    }
-
-    throw new Error('Não foi possível confirmar o envio do e-mail de verificação.')
-  } catch (error) {
-    if (isAlreadyConfirmedError(error)) {
-      throw new Error('Este e-mail já foi confirmado. Tente fazer login.')
-    }
-
-    const message = normalizeIdentityError(error)
-    throw new Error(message || 'Não foi possível reenviar o e-mail de verificação.')
-  }
 }
 
 export async function requestAccountDeletion(authClient) {

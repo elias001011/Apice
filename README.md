@@ -36,7 +36,7 @@ A arquitetura do Ápice é estruturada em três camadas principais:
                  ▼
  ┌───────────────┼───────────────┐
  ▼               ▼               ▼
-Groq          Gemini        OpenRouter / xAI / HF
+Groq          Gemini        OpenRouter / HF
 ```
 
 1. **Frontend (React 19 & Vite 8)**: Gerencia a interface do usuário, mantém o estado de estudo local do estudante (usando LocalStorage temporário), e interage com o backend através da função utilitária `authFetch()`, que anexa automaticamente o token JWT do Netlify Identity nas requisições.
@@ -50,7 +50,7 @@ Groq          Gemini        OpenRouter / xAI / HF
 O orquestrador central de IA está localizado no arquivo `netlify/ai/ai.js`. Ele expõe APIs simplificadas para as funções serverless e executa diversas etapas complexas por trás de cada requisição.
 
 ### A. Mecanismo de Fallback e Ordem de Provedores
-La camada de IA suporta 5 provedores externos: **Groq**, **Gemini**, **OpenRouter**, **xAI (Grok)** e **Hugging Face**.
+A camada de IA suporta 4 provedores externos: **Groq**, **Gemini**, **OpenRouter** e **Hugging Face**.
 * **Seleção Dinâmica**: O sistema lê as variáveis de ambiente `AI_<PROVIDER>_ENABLED` e `AI_<PROVIDER>_ORDER` para construir dinamicamente a cadeia de fallback.
 * **Execução**: Se o provedor primário falhar (por limite de cota, erro de rede ou timeout), a engine intercepta o erro, registra a falha no console e tenta automaticamente o próximo provedor disponível na fila de prioridades, garantindo alta disponibilidade ao usuário final.
 
@@ -175,11 +175,11 @@ O backend do projeto depende das seguintes variáveis de ambiente cadastradas no
 | **`ABACATE_V2`** | Chave API Principal da AbacatePay (V2) |
 | **`CLIMA`** | Chave de API do OpenWeatherMap para o widget meteorológico |
 | **`GEMINI`** | Chave de API do Google Gemini |
-| **`GROK`** | Chave de API do xAI Grok |
 | **`GROQ`** | Chave de API do Groq Cloud |
 | **`HF`** | Chave de API da Hugging Face |
 | **`OR`** | Chave de API do OpenRouter |
 | **`WEBHOOK_SECRET`** | Token secreto para autenticação das requisições do webhook da AbacatePay |
+| **`ABACATEPAY_WEBHOOK_PUBLIC_KEY`** | Chave HMAC pública da AbacatePay; opcional, pois o backend usa a chave oficial como padrão |
 | **`NETLIFY_AUTH_TOKEN`** | Token de acesso para deploys automáticos e CLI |
 
 Se você quiser validar produtos e cupons com mais rigor no checkout, também existem variáveis opcionais como `ABACATE_VALIDATE_PRODUCTS`, `ABACATE_AUTO_LIST_COUPONS` e `ABACATE_CHECKOUT_COUPONS` / `ABACATE_ALLOWED_COUPONS`.

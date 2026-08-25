@@ -1,11 +1,7 @@
 import { generateRadarSuggestions } from '../ai/ai.js'
 import { requireAuth } from './utils/auth.js'
 import { buildCorsHeaders } from './utils/cors.js'
-import {
-  buildGuestQuotaBlockedResponse,
-  checkGuestQuotaAllowance,
-  recordGuestQuotaSuccess,
-} from './utils/guestQuota.js'
+import { enforceAiQuota } from './utils/aiQuota.js'
 import { enforceRateLimit } from './utils/rateLimit.js'
 import {
   INPUT_LIMITS,
@@ -45,21 +41,13 @@ export default async function handler(req, context) {
       if (!check.valid) return validationErrorResponse(check.error, headers)
     }
 
-    if (auth.user?.guest) {
-      const quota = await checkGuestQuotaAllowance(req)
-      if (!quota.allowed) {
-        return buildGuestQuotaBlockedResponse(
-          headers,
-          quota.quota,
-          'Limite do modo convidado atingido para radar de temas. Crie uma conta nova para continuar.',
-        )
-      }
-    }
+    const quotaBlocked = await enforceAiQuota(req, auth, headers, {
+      featureKey: 'radarSearch',
+      route: 'gerar-radar',
+    })
+    if (quotaBlocked) return quotaBlocked
 
     const result = await generateRadarSuggestions({ responsePreference })
-    if (auth.user?.guest) {
-      await recordGuestQuotaSuccess(req, { featureKey: 'radarSearch', route: 'gerar-radar' })
-    }
     return new Response(JSON.stringify(result), { status: 200, headers })
   } catch (error) {
     console.error('[gerar-radar] erro:', error)

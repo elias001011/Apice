@@ -14,6 +14,7 @@ const ABACATE_API_BASE = 'https://api.abacatepay.com'
 const ABACATE_SUBSCRIPTION_LIST_PATH = '/v2/subscriptions/list'
 const ABACATE_SUBSCRIPTION_CANCEL_PATH = '/v2/subscriptions/cancel'
 const BLOB_STORE_NAME = 'user-state'
+const MAX_BLOB_WRITE_ATTEMPTS = 5
 const ACTIVE_STATUSES = new Set(['PAID', 'ACTIVE'])
 const INACTIVE_STATUSES = new Set(['CANCELLED', 'REFUNDED', 'EXPIRED'])
 const PLAN_PERIOD_MONTHS = {
@@ -342,87 +343,90 @@ async function updateCancelledBillingInBlob(userId, extraBilling = {}, { keepPai
 
   try {
     const blobKey = `user-state:${userId}`
-    const existingData = await store.get(blobKey, { type: 'json' })
-    const currentState = existingData && typeof existingData === 'object' ? existingData : {}
-    const currentBilling = currentState.billing && typeof currentState.billing === 'object'
-      ? currentState.billing
-      : {}
-    const nowIso = new Date().toISOString()
 
-    if (keepPaidUntilPeriodEnd) {
-      const planKey = safeText(extraBilling.planKey || currentBilling.planKey || currentState.planKey || 'monthly')
-      const paidAt = normalizeIsoDate(currentBilling.paidAt || extraBilling.paidAt) || nowIso
-      const accessEndsAt = normalizeIsoDate(extraBilling.accessEndsAt)
-        || extractAccessEndsAt(extraBilling, currentBilling)
-        || addMonthsIso(paidAt, getPlanPeriodMonths(planKey))
+    for (let attempt = 0; attempt < MAX_BLOB_WRITE_ATTEMPTS; attempt += 1) {
+      const existing = await store.getWithMetadata(blobKey, { type: 'json' })
+      const currentState = existing?.data && typeof existing.data === 'object' ? existing.data : {}
+      const currentBilling = currentState.billing && typeof currentState.billing === 'object'
+        ? currentState.billing
+        : {}
+      const nowIso = new Date().toISOString()
+      let updatedState
 
-      const updatedState = {
-        ...currentState,
-        accountOwnerId: userId,
-        billing: {
-          ...currentBilling,
-          ...extraBilling,
-          status: 'paid',
+      if (keepPaidUntilPeriodEnd) {
+        const planKey = safeText(extraBilling.planKey || currentBilling.planKey || currentState.planKey || 'monthly')
+        const paidAt = normalizeIsoDate(currentBilling.paidAt || extraBilling.paidAt) || nowIso
+        const accessEndsAt = normalizeIsoDate(extraBilling.accessEndsAt)
+          || extractAccessEndsAt(extraBilling, currentBilling)
+          || addMonthsIso(paidAt, getPlanPeriodMonths(planKey))
+
+        updatedState = {
+          ...currentState,
+          accountOwnerId: userId,
+          billing: {
+            ...currentBilling,
+            ...extraBilling,
+            status: 'paid',
+            planKey,
+            paidAt,
+            subscriptionActive: false,
+            cancelAtPeriodEnd: true,
+            cancellationRequestedAt: nowIso,
+            cancelledAt: nowIso,
+            accessEndsAt,
+            updatedAt: nowIso,
+          },
+          planStatus: 'paid',
+          planTier: 'paid',
           planKey,
-          paidAt,
-          subscriptionActive: false,
-          cancelAtPeriodEnd: true,
-          cancellationRequestedAt: nowIso,
-          cancelledAt: nowIso,
-          accessEndsAt,
-          updatedAt: nowIso,
-        },
-        planStatus: 'paid',
-        planTier: 'paid',
-        planKey,
-        savedAt: nowIso,
+          savedAt: nowIso,
+        }
+      } else {
+        const trialUsedAt = currentBilling.trialUsedAt
+          || currentBilling.trialStartedAt
+          || extraBilling.trialUsedAt
+          || extraBilling.trialStartedAt
+          || extraBilling.trialEndedAt
+          || ''
+
+        updatedState = {
+          ...currentState,
+          accountOwnerId: userId,
+          billing: {
+            ...currentBilling,
+            ...extraBilling,
+            status: 'free',
+            planKey: '',
+            paidAt: '',
+            checkoutId: '',
+            externalId: '',
+            subscriptionId: '',
+            subscriptionActive: false,
+            cancelAtPeriodEnd: false,
+            ...(trialUsedAt ? { trialUsedAt } : {}),
+            cancelledAt: nowIso,
+            updatedAt: nowIso,
+          },
+          planStatus: 'free',
+          planTier: 'free',
+          planKey: '',
+          savedAt: nowIso,
+        }
       }
 
-      await store.set(blobKey, JSON.stringify(updatedState), {
-        contentType: 'application/json',
-      })
-
-      console.log('[cancel-subscription] Assinatura marcada como cancelada no fim do período no blob.')
-      return true
+      const condition = existing?.etag
+        ? { onlyIfMatch: existing.etag }
+        : { onlyIfNew: true }
+      const result = await store.setJSON(blobKey, updatedState, condition)
+      if (result.modified) {
+        console.log(keepPaidUntilPeriodEnd
+          ? '[cancel-subscription] Assinatura marcada como cancelada no fim do período no blob.'
+          : '[cancel-subscription] Usuário atualizado para FREE no blob.')
+        return true
+      }
     }
 
-    const trialUsedAt = currentBilling.trialUsedAt
-      || currentBilling.trialStartedAt
-      || extraBilling.trialUsedAt
-      || extraBilling.trialStartedAt
-      || extraBilling.trialEndedAt
-      || ''
-
-    const updatedState = {
-      ...currentState,
-      accountOwnerId: userId,
-      billing: {
-        ...currentBilling,
-        ...extraBilling,
-        status: 'free',
-        planKey: '',
-        paidAt: '',
-        checkoutId: '',
-        externalId: '',
-        subscriptionId: '',
-        subscriptionActive: false,
-        cancelAtPeriodEnd: false,
-        ...(trialUsedAt ? { trialUsedAt } : {}),
-        cancelledAt: nowIso,
-        updatedAt: nowIso,
-      },
-      planStatus: 'free',
-      planTier: 'free',
-      planKey: '',
-      savedAt: nowIso,
-    }
-
-    await store.set(blobKey, JSON.stringify(updatedState), {
-      contentType: 'application/json',
-    })
-
-    console.log('[cancel-subscription] Usuário atualizado para FREE no blob.')
-    return true
+    return false
   } catch (error) {
     console.error('[cancel-subscription] Erro ao downgradar usuário no blob:', error.message)
     return false
@@ -491,6 +495,13 @@ async function handleCancel(req, authUser, headers) {
 
     const userUpdated = await updateCancelledBillingInBlob(userId, localOnlyBilling, { keepPaidUntilPeriodEnd })
 
+    if (!userUpdated) {
+      return new Response(
+        JSON.stringify({ error: 'Não foi possível atualizar o cancelamento na conta. Tente novamente.' }),
+        { status: 503, headers },
+      )
+    }
+
     return new Response(JSON.stringify({
       success: true,
       cancelled: false,
@@ -536,6 +547,13 @@ async function handleCancel(req, authUser, headers) {
       paidAt,
       ...(accessEndsAt ? { accessEndsAt } : {}),
     }, { keepPaidUntilPeriodEnd })
+
+    if (!userUpdated) {
+      return new Response(
+        JSON.stringify({ error: 'Assinatura cancelada, mas a atualização da conta falhou. Tente novamente.' }),
+        { status: 503, headers },
+      )
+    }
 
     return new Response(JSON.stringify({
       success: true,

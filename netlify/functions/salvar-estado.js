@@ -12,6 +12,18 @@ import { requireAuth } from './utils/auth.js'
 import { buildCorsHeaders } from './utils/cors.js'
 import { sanitizeState } from './utils/billingGuard.js'
 
+const MAX_ACCOUNT_STATE_BYTES = 1024 * 1024
+const MAX_BLOB_WRITE_ATTEMPTS = 5
+
+function byteLength(value) {
+  return new TextEncoder().encode(value).byteLength
+}
+
+function isLocalDevelopment() {
+  return String(process.env.NETLIFY_DEV ?? '').toLowerCase() === 'true'
+    || String(process.env.NODE_ENV ?? '').toLowerCase() === 'development'
+}
+
 // Netlify Blobs é automaticamente disponível em produção.
 // Em dev local com 'netlify dev', também funciona.
 const getStore = async () => {
@@ -39,6 +51,11 @@ export default async function handler(req, context) {
   if (auth instanceof Response) return auth
 
   try {
+    const declaredLength = Number(req.headers.get('content-length') || 0)
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_ACCOUNT_STATE_BYTES) {
+      return new Response(JSON.stringify({ error: 'Estado excede o limite de 1 MB' }), { status: 413, headers })
+    }
+
     const body = await req.json().catch(() => ({}))
     const state = body.state
 
@@ -48,8 +65,13 @@ export default async function handler(req, context) {
 
     const store = await getStore()
     if (!store) {
-      // Sem blob store disponível — dev local sem netlify dev
       console.warn('[salvar-estado] Blob store não disponível')
+      if (!isLocalDevelopment()) {
+        return new Response(
+          JSON.stringify({ error: 'Armazenamento da conta indisponível' }),
+          { status: 503, headers },
+        )
+      }
       return new Response(
         JSON.stringify({
           ok: true,
@@ -60,14 +82,36 @@ export default async function handler(req, context) {
     }
 
     const blobKey = `user-state:${auth.user.id}`
-    const existingRawData = await store.get(blobKey, { type: 'json' })
-    const secureState = sanitizeState(state, existingRawData, auth.user)
+    let sizeBytes = 0
+    let saved = false
 
-    await store.set(blobKey, JSON.stringify(secureState), {
-      contentType: 'application/json',
-    })
+    for (let attempt = 0; attempt < MAX_BLOB_WRITE_ATTEMPTS; attempt += 1) {
+      const existing = await store.getWithMetadata(blobKey, { type: 'json' })
+      const secureState = sanitizeState(state, existing?.data, auth.user)
+      const serializedState = JSON.stringify(secureState)
+      sizeBytes = byteLength(serializedState)
 
-    const sizeBytes = JSON.stringify(state).length
+      if (sizeBytes > MAX_ACCOUNT_STATE_BYTES) {
+        return new Response(JSON.stringify({ error: 'Estado excede o limite de 1 MB' }), { status: 413, headers })
+      }
+
+      const condition = existing?.etag
+        ? { onlyIfMatch: existing.etag }
+        : { onlyIfNew: true }
+      const result = await store.setJSON(blobKey, secureState, condition)
+      if (result.modified) {
+        saved = true
+        break
+      }
+    }
+
+    if (!saved) {
+      return new Response(
+        JSON.stringify({ error: 'Estado mudou durante a sincronização; tente novamente' }),
+        { status: 409, headers },
+      )
+    }
+
     console.log(`[salvar-estado] Estado salvo (${sizeBytes} bytes)`)
 
     return new Response(

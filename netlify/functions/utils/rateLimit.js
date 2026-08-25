@@ -43,19 +43,14 @@ function getHeaderValue(req, headerName) {
 function getClientIp(req) {
   const forwardedFor = safeText(getHeaderValue(req, 'x-forwarded-for')).split(',')[0].trim()
   return safeText(
-    forwardedFor
-    || getHeaderValue(req, 'x-nf-client-connection-ip')
+    getHeaderValue(req, 'x-nf-client-connection-ip')
     || getHeaderValue(req, 'cf-connecting-ip')
+    || forwardedFor
     || getHeaderValue(req, 'x-real-ip'),
   ) || 'unknown'
 }
 
 function getGuestActor(req) {
-  const sessionId = normalizeKeyPart(getHeaderValue(req, 'x-guest-session-id'))
-  if (sessionId && sessionId !== 'unknown') {
-    return `guest:${sessionId}`
-  }
-
   const fingerprintSeed = [getClientIp(req), getHeaderValue(req, 'user-agent')]
     .filter(Boolean)
     .join('|')
