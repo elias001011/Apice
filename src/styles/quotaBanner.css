@@ -71,7 +71,7 @@ html[data-fx="gradients"][data-card-gradients="on"] .quota-banner {
 }
 
 .quota-banner__title {
-  font-family: 'DM Serif Display', serif;
+  font-family: var(--font-sans);
   font-size: 1.1rem;
   line-height: 1.2;
   color: var(--text);

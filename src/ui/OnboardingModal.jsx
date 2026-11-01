@@ -217,7 +217,7 @@ const onboardingCss = `
   }
 
   h2 {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.75rem;
     color: var(--text);
     margin-bottom: 1rem;

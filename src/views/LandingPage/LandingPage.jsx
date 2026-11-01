@@ -1,4 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { useTheme } from '../../theme/ThemeProvider.jsx';
+import { ThemeToggleButton } from '../../ui/ThemeToggleButton.jsx';
+import { RevealWords } from '../../ui/RevealWords.jsx';
 import './landing.css';
 import { AI_DAILY_LIMIT, PAID_AI_DAILY_LIMIT } from '../../services/freePlanUsage.js';
 import { POLICY_URL } from '../../services/policyConsent.js';
@@ -47,20 +50,19 @@ const plans = {
 };
 
 export default function LandingPage() {
-  const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    return true;
-  });
+  const { theme } = useTheme();
+  const darkMode = theme === 'dark';
   const [billingPeriod, setBillingPeriod] = useState('annual');
 
+  // Links como /#pricing quebram quando o conteúdo é montado pelo React:
+  // rola até a âncora depois da montagem.
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (event) => setDarkMode(event.matches);
-    media.addEventListener('change', handler);
-    return () => media.removeEventListener('change', handler);
+    const id = window.location.hash.replace('#', '');
+    if (!id) return undefined;
+    const timer = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView();
+    }, 60);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const selectedPlan = plans[billingPeriod];
@@ -70,9 +72,7 @@ export default function LandingPage() {
     <div className={`lp-container${darkMode ? ' lp-dark' : ' lp-light'}`}>
       <div className="lp-grid-bg" aria-hidden="true"></div>
 
-      <button className="lp-theme-toggle" onClick={() => setDarkMode((value) => !value)} aria-label="Alternar tema">
-        {darkMode ? '☀️' : '🌙'}
-      </button>
+      <div className="lp-theme-toggle"><ThemeToggleButton /></div>
 
       <header className="lp-header">
         <nav className="lp-nav">
@@ -88,7 +88,7 @@ export default function LandingPage() {
       <main className="lp-hero">
         <div className="lp-hero-content anim-in">
           <div className="lp-trust-badge">Projeto beta alinhado aos critérios do ENEM</div>
-          <h1>Estude redação e ENEM com apoio de IA</h1>
+          <h1><RevealWords text="Estude redação e ENEM com apoio de IA" /></h1>
           <p className="lp-hero-subtitle">
             Corretor de redação, Professor IA, radar de temas e simulados em uma plataforma em evolução, feita para rotina real de estudo.
           </p>
@@ -115,7 +115,7 @@ export default function LandingPage() {
 
       <section id="demo" className="lp-demo-tools">
         <div className="lp-section-header anim-in">
-          <span className="lp-section-badge">RECURSOS</span>
+          <span className="lp-section-badge">01 — Recursos</span>
           <h2>Ferramentas para estudar com <span>mais direção</span></h2>
           <p>O objetivo é apoiar sua rotina, sem prometer nota, aprovação ou substituir professor/corretor humano.</p>
         </div>
@@ -154,7 +154,7 @@ export default function LandingPage() {
 
       <section id="features" className="lp-gamification">
         <div className="lp-section-header anim-in">
-          <span className="lp-section-badge">ACOMPANHAMENTO</span>
+          <span className="lp-section-badge">02 — Acompanhamento</span>
           <h2>Evolução visível, sem exagero</h2>
           <p>Histórico, conquistas e métricas ajudam você a perceber consistência ao longo do tempo.</p>
         </div>
@@ -174,7 +174,7 @@ export default function LandingPage() {
 
       <section className="lp-social-proof">
         <div className="lp-section-header anim-in">
-          <span className="lp-section-badge">AVALIAÇÕES</span>
+          <span className="lp-section-badge">03 — Avaliações</span>
           <h2>Primeiros testes do <span>Ápice</span></h2>
           <p>Depoimentos simples de uso beta, sem prometer aprovação ou resultado garantido.</p>
         </div>
@@ -194,7 +194,7 @@ export default function LandingPage() {
 
       <section id="pricing" className="lp-pricing">
         <div className="lp-section-header anim-in">
-          <span className="lp-section-badge">PLANOS</span>
+          <span className="lp-section-badge">04 — Planos</span>
           <h2>Comece grátis e faça upgrade <span>se fizer sentido</span></h2>
           <p>{AI_DAILY_LIMIT} usos/dia grátis. O plano pago aumenta o limite para {PAID_AI_DAILY_LIMIT} usos/dia.</p>
         </div>
@@ -210,7 +210,7 @@ export default function LandingPage() {
       </section>
 
       <section id="faq" className="lp-faq">
-        <div className="lp-section-header anim-in"><span className="lp-section-badge">FAQ</span><h2>Perguntas frequentes</h2></div>
+        <div className="lp-section-header anim-in"><span className="lp-section-badge">05 — FAQ</span><h2>Perguntas frequentes</h2></div>
         <div className="lp-faq-list">
           <div className="lp-faq-item anim-in"><div className="lp-faq-q">A IA substitui um corretor humano?</div><div className="lp-faq-a">Não. Ela usa critérios do ENEM como apoio para estimar nota e apontar melhorias.</div></div>
           <div className="lp-faq-item anim-in"><div className="lp-faq-q">O Radar prevê o tema da prova?</div><div className="lp-faq-a">Não com garantia. Ele sugere tendências para orientar repertório e treino.</div></div>

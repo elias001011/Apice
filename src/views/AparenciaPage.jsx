@@ -454,7 +454,7 @@ const aparenciaCss = `
     text-align: center;
   }
   .ap-font-label {
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-sans);
     font-size: 0.9rem;
     color: var(--text);
     flex: 1;
@@ -549,7 +549,7 @@ const aparenciaCss = `
     background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.02), transparent 40%), var(--bg3);
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-sans);
     color: var(--text2);
     font-size: 0.75rem;
     font-weight: 500;
@@ -658,7 +658,7 @@ const aparenciaCss = `
     letter-spacing: 0.3px;
   }
   .ap-preview-title {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.35rem;
     color: var(--text);
     line-height: 1.2;

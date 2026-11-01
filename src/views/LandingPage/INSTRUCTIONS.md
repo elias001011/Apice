@@ -7,8 +7,8 @@ Este guia foi criado para orientar o próximo modelo de IA na construção da La
 O projeto utiliza um sistema de design baseado em variáveis CSS (veja `src/styles/global.css`). Use-as sempre:
 
 - **Tipografia**:
-  - Títulos Impactantes: `'DM Serif Display', serif`
-  - Textos de Corpo e Botões: `'DM Sans', sans-serif`
+  - Títulos Impactantes: `var(--font-sans)`
+  - Textos de Corpo e Botões: `var(--font-sans)`
 - **Cores (Tema Escuro)**:
   - Fundo principal: `#0a0a0a` (`--bg`)
   - Accent (Destaque): `#c8f060` (Verde Limão / `--accent`)

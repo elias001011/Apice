@@ -24,6 +24,14 @@ export function AppShell() {
   const [avatarSettings, setAvatarSettings] = useState(() => loadAvatarSettings())
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
   const mobileMoreRef = useRef(null)
+  const [navScrolled, setNavScrolled] = useState(false)
+
+  useEffect(() => {
+    const onScroll = () => setNavScrolled(window.scrollY > 12)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   useEffect(() => {
     const refresh = () => setAvatarSettings(loadAvatarSettings())
@@ -71,7 +79,7 @@ export function AppShell() {
       <div className="app-shell">
         <div className="app-scene" aria-hidden="true" />
 
-        <nav className="nav">
+        <nav className={`nav${navScrolled ? ' scrolled' : ''}`}>
           <div className="nav-inner">
             <NavLink to="/home" className="nav-logo">
               Áp<em>i</em>ce

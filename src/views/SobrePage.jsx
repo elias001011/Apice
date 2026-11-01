@@ -99,7 +99,7 @@ const sobreCss = `
     -webkit-mask-position: center;
   }
   .sobre-nome {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 28px;
     color: var(--text);
   }

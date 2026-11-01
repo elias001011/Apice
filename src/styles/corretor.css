@@ -24,7 +24,7 @@
 }
 
 .intro-title-new {
-  font-family: 'DM Serif Display', serif;
+  font-family: var(--font-sans);
   font-size: 2.6rem;
   color: var(--text);
   margin-bottom: 0.5rem;
@@ -102,7 +102,7 @@
 }
 
 .option-info h3 {
-  font-family: 'DM Serif Display', serif;
+  font-family: var(--font-sans);
   font-size: 1.4rem;
   margin-bottom: 8px;
   color: var(--text);
@@ -151,7 +151,7 @@
 }
 
 .corretor-title {
-  font-family: 'DM Serif Display', serif;
+  font-family: var(--font-sans);
   font-size: 1.7rem;
   color: var(--text);
   margin-bottom: 4px;
@@ -198,7 +198,7 @@
   border-radius: 0;
   padding: 8px 0;
   font-size: 1.2rem;
-  font-family: 'DM Serif Display', serif;
+  font-family: var(--font-sans);
   margin-bottom: 12px;
   width: 100%;
 }
@@ -244,7 +244,7 @@
   border-radius: 0;
   padding: 8px 0;
   font-size: 1.2rem;
-  font-family: 'DM Serif Display', serif;
+  font-family: var(--font-sans);
   margin-bottom: 12px;
   width: 100%;
 }

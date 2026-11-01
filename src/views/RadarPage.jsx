@@ -407,7 +407,7 @@ const radarCss = `
   }
 
   .page-header .page-title {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.7rem;
     color: var(--text);
     letter-spacing: -0.4px;
@@ -576,7 +576,7 @@ const radarCss = `
   }
 
   .prob-num {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.45rem;
     color: var(--accent);
     line-height: 1;

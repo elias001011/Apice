@@ -165,7 +165,7 @@ const verifCss = `
   }
 
   .verif-title {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.7rem;
     color: var(--text);
     margin-bottom: 0.75rem;

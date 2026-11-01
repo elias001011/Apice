@@ -888,7 +888,7 @@ const planosCss = `
 
   .planos-title {
     margin: 0;
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: clamp(2rem, 4vw, 2.8rem);
     line-height: 1.05;
     color: var(--text);
@@ -1218,7 +1218,7 @@ const planosCss = `
   }
 
   .planos-change-number {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.65rem;
     line-height: 1;
     color: var(--accent);
@@ -1296,7 +1296,7 @@ const planosCss = `
   }
 
   .plan-price-value {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 2.4rem;
     line-height: 1;
     color: var(--text);

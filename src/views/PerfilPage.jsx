@@ -83,7 +83,7 @@ const perfilCss = `
   }
 
   .profile-name {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.6rem;
     color: var(--text);
   }
@@ -173,7 +173,7 @@ const perfilCss = `
     text-align: center;
   }
 
-  .stat-small-val { font-family: 'DM Serif Display', serif; font-size: 1.5rem; color: var(--text); }
+  .stat-small-val { font-family: var(--font-sans); font-size: 1.5rem; color: var(--text); }
   .stat-small-lbl { font-size: 0.7rem; color: var(--text3); font-weight: 600; text-transform: uppercase; margin-top: 4px; }
 
   .perfil-grid {
@@ -647,8 +647,8 @@ const perfilCss = `
   }
 
   .quota-main { margin-bottom: 0.5rem; }
-  .quota-main-count { font-family: 'DM Serif Display', serif; font-size: 2.5rem; color: var(--text); }
-  .quota-main-count span { font-family: 'DM Sans', sans-serif; font-size: 1rem; opacity: 0.5; }
+  .quota-main-count { font-family: var(--font-sans); font-size: 2.5rem; color: var(--text); }
+  .quota-main-count span { font-family: var(--font-sans); font-size: 1rem; opacity: 0.5; }
 
   .quota-bar { height: 8px; background: var(--bg2); border-radius: 10px; overflow: hidden; }
   .quota-bar-fill { height: 100%; background: var(--accent); }

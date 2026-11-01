@@ -25,7 +25,7 @@
 .simulado-title {
   margin: 0;
   color: var(--text);
-  font-family: 'DM Serif Display', serif;
+  font-family: var(--font-sans);
   font-size: clamp(2rem, 5vw, 4.6rem);
   line-height: 0.95;
   letter-spacing: -0.055em;
@@ -407,7 +407,7 @@
 
 .quantidade-numero {
   color: var(--text);
-  font-family: 'DM Serif Display', serif;
+  font-family: var(--font-sans);
   font-size: 2rem;
   line-height: 1;
 }
@@ -971,7 +971,7 @@
   border-radius: 40px;
   background: var(--text);
   color: var(--bg);
-  font-family: 'DM Serif Display', serif;
+  font-family: var(--font-sans);
   font-size: 4rem;
   line-height: 1;
 }

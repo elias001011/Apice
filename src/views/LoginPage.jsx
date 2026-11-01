@@ -331,7 +331,7 @@ const loginCss = `
   }
 
   .login-title {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 32px;
     color: var(--text);
     letter-spacing: -0.5px;

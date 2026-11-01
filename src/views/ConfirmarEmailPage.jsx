@@ -148,7 +148,7 @@ const confirmCss = `
   .conf-icon.success { background: var(--accent); color: #0f0f0f; }
   .conf-icon.error { background: rgba(234, 67, 53, 0.1); color: #ea4335; border: 1.5px solid rgba(234, 67, 53, 0.2); }
 
-  h2 { font-family: 'DM Serif Display', serif; margin-bottom: 12px; font-size: 1.8rem; }
+  h2 { font-family: var(--font-sans); margin-bottom: 12px; font-size: 1.8rem; }
   p { color: var(--text2); font-size: 0.95rem; line-height: 1.6; }
 
   .conf-redirect-bar {

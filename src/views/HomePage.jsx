@@ -919,7 +919,7 @@ const homeCss = `
   }
 
   .weather-location-text {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1rem;
     color: var(--text);
     font-weight: 400;
@@ -1034,7 +1034,7 @@ const homeCss = `
   }
 
   .weather-temp-value {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 2.6rem;
     line-height: 1;
     color: var(--text);
@@ -1172,7 +1172,7 @@ const homeCss = `
 
   .enem-card-title {
     margin: 0;
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.5rem;
     line-height: 1.05;
     color: var(--text);
@@ -1312,7 +1312,7 @@ const homeCss = `
   }
 
   .enem-countdown-chip strong {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.2rem;
     line-height: 1;
     color: var(--text);
@@ -1500,7 +1500,7 @@ const homeCss = `
   }
 
   .pv-quote-text {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.25rem;
     color: var(--text);
     line-height: 1.45;
@@ -1569,7 +1569,7 @@ const homeCss = `
   }
 
   .hero-name {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.8rem;
     line-height: 1.1;
     color: var(--text);
@@ -1774,10 +1774,10 @@ const homeCss = `
   .pv-stat--dark .pv-stat-delta { background: var(--accent-dim); color: var(--accent); }
   .pv-stat--lime .pv-stat-delta { background: rgba(0, 0, 0, 0.12); color: #0f0f0f; }
 
-  .pv-stat-value { font-family: 'DM Serif Display', serif; font-size: 2rem; line-height: 1; margin-bottom: 3px; }
+  .pv-stat-value { font-family: var(--font-sans); font-size: 2rem; line-height: 1; margin-bottom: 3px; }
   .pv-stat--dark .pv-stat-value { color: var(--text); }
   .pv-stat--lime .pv-stat-value { color: #0f0f0f; }
-  .pv-stat-value span { font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 400; opacity: 0.5; }
+  .pv-stat-value span { font-family: var(--font-sans); font-size: 0.9rem; font-weight: 400; opacity: 0.5; }
 
   html.layout-compact .pv-stat-value {
     font-size: 1.8rem;
@@ -1893,7 +1893,7 @@ const homeCss = `
 
   .pv-feature-content { display: flex; flex-direction: column; gap: 7px; position: relative; z-index: 2; }
 
-  .pv-feature-title { font-family: 'DM Serif Display', serif; font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.3px; }
+  .pv-feature-title { font-family: var(--font-sans); font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.3px; }
   .pv-feature--dark .pv-feature-title { color: var(--text); }
   html.layout-compact .pv-feature-title {
     font-size: 1.32rem;
@@ -2051,7 +2051,7 @@ const homeCss = `
     font-weight: 500;
     color: var(--accent);
     cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-sans);
     transition: background 0.2s, transform 0.15s;
     letter-spacing: 0.01em;
   }

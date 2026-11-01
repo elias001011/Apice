@@ -174,7 +174,7 @@ const historicoCss = `
     overflow: hidden;
   }
   .redacao-nota {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.45rem;
     color: var(--accent);
     white-space: nowrap;

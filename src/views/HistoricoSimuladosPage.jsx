@@ -231,7 +231,7 @@ const historicoCss = `
   .summary-card strong {
     font-size: 1.5rem;
     color: var(--text);
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
   }
 
   .filter-row {
@@ -321,7 +321,7 @@ const historicoCss = `
   }
 
   .simulado-item-score {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.8rem;
     color: var(--accent);
     white-space: nowrap;

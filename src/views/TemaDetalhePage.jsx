@@ -477,7 +477,7 @@ const temaDetalheCss = `
     margin-bottom: 6px;
   }
   .prob-hero-tema {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.35rem;
     color: var(--text);
     letter-spacing: -0.3px;
@@ -503,7 +503,7 @@ const temaDetalheCss = `
     justify-content: center;
   }
   .prob-circle-num {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.6rem;
     color: var(--accent);
     line-height: 1;

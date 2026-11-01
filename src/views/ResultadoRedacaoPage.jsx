@@ -201,7 +201,7 @@ const resultadoCss = `
     margin-bottom: 0.5rem;
   }
   .score-number {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: clamp(4rem, 6vw, 5.5rem);
     color: var(--accent);
     line-height: 1;
@@ -220,7 +220,7 @@ const resultadoCss = `
   }
   .comp-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
   .comp-name { font-size: 0.95rem; font-weight: 600; color: var(--text); }
-  .comp-score-val { font-family: 'DM Serif Display', serif; font-size: 1.4rem; color: var(--accent); }
+  .comp-score-val { font-family: var(--font-sans); font-size: 1.4rem; color: var(--accent); }
   .comp-desc { font-size: 0.82rem; color: var(--text2); line-height: 1.5; margin-top: 10px; padding-left: 6px; border-left: 2px solid var(--border); }
 
   .feedback-block {

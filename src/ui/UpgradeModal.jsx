@@ -235,7 +235,7 @@ const upgradeModalCss = `
   }
 
   .upgrade-title {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.6rem;
     color: var(--text);
     margin-bottom: 0.6rem;

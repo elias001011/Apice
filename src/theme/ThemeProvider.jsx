@@ -108,26 +108,21 @@ const ACCENT_COLORS = {
 }
 
 export const FONT_FAMILIES = {
-  'dm-sans': { label: 'DM Sans', value: "'DM Sans', sans-serif", google: null },
-  'inter': { label: 'Inter', value: "'Inter', sans-serif", google: 'Inter:wght@300;400;500;600' },
-  'roboto': { label: 'Roboto', value: "'Roboto', sans-serif", google: 'Roboto:wght@300;400;500;700' },
+  geist: { label: 'Geist', value: 'var(--font-sans)' },
+  system: { label: 'Sistema', value: "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" },
+}
+
+const DEFAULT_FONT_FAMILY = 'geist'
+
+function readFontFamily() {
+  const saved = readSaved(STORAGE_KEY_FONT_FAMILY, DEFAULT_FONT_FAMILY)
+  return FONT_FAMILIES[saved] ? saved : DEFAULT_FONT_FAMILY
 }
 
 function applyFontFamily(fontFamily) {
-  const ff = FONT_FAMILIES[fontFamily] || FONT_FAMILIES['dm-sans']
+  // Fontes self-hosted (Geist). Sem carregamento de fontes de terceiros.
+  const ff = FONT_FAMILIES[fontFamily] || FONT_FAMILIES[DEFAULT_FONT_FAMILY]
   document.body.style.fontFamily = ff.value
-
-  // Load Google Font if needed
-  if (ff.google) {
-    const id = `gfont-${fontFamily}`
-    if (!document.getElementById(id)) {
-      const link = document.createElement('link')
-      link.id = id
-      link.rel = 'stylesheet'
-      link.href = `https://fonts.googleapis.com/css2?family=${ff.google}&display=swap`
-      document.head.appendChild(link)
-    }
-  }
 }
 
 function buildBrandFaviconHref(accentColor) {
@@ -199,7 +194,7 @@ function applyThemeToDom(theme, accent, fontSize, fontFamily, containerSize) {
   html.style.setProperty('--accent-dim', colors.dim)
   html.style.setProperty('--accent-dim2', colors.dim2)
 
-  applyFontFamily(fontFamily || 'dm-sans')
+  applyFontFamily(fontFamily || DEFAULT_FONT_FAMILY)
   updateBrandAssets(colors.base)
 }
 
@@ -218,7 +213,7 @@ function syncThemeFromStorage(
   setTheme(readSaved(STORAGE_KEY_THEME, getSystemTheme()))
   setAccent(readSaved(STORAGE_KEY_ACCENT, 'lime'))
   setFontSize(readSaved(STORAGE_KEY_FONT, 'md'))
-  setFontFamily(readSaved(STORAGE_KEY_FONT_FAMILY, 'dm-sans'))
+  setFontFamily(readFontFamily())
   setLayoutMode(readSaved(STORAGE_KEY_LAYOUT, 'comfortable'))
   setContainerSize(readSaved(STORAGE_KEY_CONTAINER_SIZE, 'sm'))
   setAnimationsEnabled(readSavedBoolean(STORAGE_KEY_ANIMATIONS, getSystemAnimationsEnabled()))
@@ -233,7 +228,7 @@ export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => readSaved(STORAGE_KEY_THEME, getSystemTheme()))
   const [accent, setAccent] = useState(() => readSaved(STORAGE_KEY_ACCENT, 'lime'))
   const [fontSize, setFontSize] = useState(() => readSaved(STORAGE_KEY_FONT, 'md'))
-  const [fontFamily, setFontFamily] = useState(() => readSaved(STORAGE_KEY_FONT_FAMILY, 'dm-sans'))
+  const [fontFamily, setFontFamily] = useState(() => readFontFamily())
   const [layoutMode, setLayoutMode] = useState(() => readSaved(STORAGE_KEY_LAYOUT, 'comfortable'))
   const [containerSize, setContainerSize] = useState(() => readSaved(STORAGE_KEY_CONTAINER_SIZE, 'sm'))
   const [animationsEnabled, setAnimationsEnabled] = useState(() => readSavedBoolean(STORAGE_KEY_ANIMATIONS, getSystemAnimationsEnabled()))

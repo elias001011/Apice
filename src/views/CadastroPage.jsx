@@ -302,7 +302,7 @@ const cadastroCss = `
   }
 
   .cad-title {
-    font-family: 'DM Serif Display', serif;
+    font-family: var(--font-sans);
     font-size: 1.7rem;
     color: var(--text);
     text-align: center;
