@@ -111,7 +111,7 @@ export default async function handler(req, context) {
   }
 
   // ── Authentication ──────────────────────────────────────────────────────
-  const auth = await requireAuth(req, context, headers, { allowGuest: true })
+  const auth = await requireAuth(req, context, headers)
   if (auth instanceof Response) {
     console.warn('[chamar-ia] Requisição não autenticada (401). Verifique se o usuário está logado e o JWT está válido.')
     return auth
@@ -119,7 +119,7 @@ export default async function handler(req, context) {
 
   const rateLimited = await enforceRateLimit(req, auth, headers, {
     namespace: 'ai:direct',
-    limit: auth.user?.guest ? 3 : 10,
+    limit: 10,
     windowSeconds: 600,
   })
   if (rateLimited) return rateLimited
