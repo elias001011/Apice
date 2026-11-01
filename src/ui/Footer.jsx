@@ -1,5 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { BrandBadge } from './BrandBadge.jsx'
 import { POLICY_URL } from '../services/policyConsent.js'
 
 const SUPPORT_EMAIL = 'elias.juriatti@outlook.com'
@@ -180,6 +181,7 @@ export function Footer() {
         </div>
         <p>© {currentYear} Ápice. Todos os direitos reservados.</p>
       </div>
+      <BrandBadge />
     </footer>
   )
 }

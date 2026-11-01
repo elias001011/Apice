@@ -98,18 +98,6 @@ body {
   letter-spacing: -0.005em;
 }
 
-/* Grão sutil por cima de tudo (estático: barato e sem reflow). */
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 2147483000;
-  pointer-events: none;
-  opacity: 0.045;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-html:root:not([data-theme="dark"]) body::after { opacity: 0.03; }
-
 ::selection { background: rgba(var(--accent-rgb), 0.35); color: var(--text); }
 
 *:focus-visible {
@@ -426,4 +414,28 @@ html[data-animations="off"] .reveal-words .rw i { transform: none !important; op
 @media (max-width: 480px) {
   .page-title { font-size: 1.55rem; }
   .lp-hero-content h1 { font-size: 2.1rem; }
+}
+
+/* ---------- Selo Connecta + Hostinger ---------- */
+.brand-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  padding: 34px 24px 30px;
+}
+
+.brand-badge a { display: inline-flex; line-height: 0; }
+.brand-badge-logo { width: 210px; height: auto; }
+.brand-badge-sep { width: 1px; height: 34px; background: var(--edge-strong); }
+.brand-badge-hostinger { width: 120px; height: 45px; }
+
+.brand-badge .for-dark { display: none; }
+html:root[data-theme="dark"] .brand-badge .for-dark { display: inline-block; }
+html:root[data-theme="dark"] .brand-badge .for-light { display: none; }
+
+@media (max-width: 720px) {
+  .brand-badge { gap: 14px; }
+  .brand-badge-logo { width: 150px; }
+  .brand-badge-hostinger { width: 96px; height: 36px; }
 }

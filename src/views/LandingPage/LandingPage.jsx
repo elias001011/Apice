@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTheme } from '../../theme/ThemeProvider.jsx';
 import { ThemeToggleButton } from '../../ui/ThemeToggleButton.jsx';
+import { BrandBadge } from '../../ui/BrandBadge.jsx';
 import { RevealWords } from '../../ui/RevealWords.jsx';
 import './landing.css';
 import { AI_DAILY_LIMIT, PAID_AI_DAILY_LIMIT } from '../../services/freePlanUsage.js';
@@ -238,6 +239,7 @@ export default function LandingPage() {
           <p>&copy; {new Date().getFullYear()} Ápice. Todos os direitos reservados.</p>
         </div>
       </footer>
+      <BrandBadge />
     </div>
   );
 }
