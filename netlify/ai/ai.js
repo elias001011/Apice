@@ -48,8 +48,8 @@ const PROVIDER_MODELS = {
     secondary: process.env.AI_OPENROUTER_MODEL_SECONDARY || '',
   },
   huggingface: {
-    primary: process.env.AI_HF_MODEL_PRIMARY || 'meta-llama/Llama-3.3-70B-Instruct',
-    secondary: process.env.AI_HF_MODEL_SECONDARY || 'meta-llama/Meta-Llama-3.1-70B-Instruct',
+    primary: process.env.AI_HF_MODEL_PRIMARY || 'openai/gpt-oss-120b',
+    secondary: process.env.AI_HF_MODEL_SECONDARY || 'openai/gpt-oss-120b',
   },
 }
 
@@ -105,10 +105,6 @@ const DEFAULT_THEME_SEARCH_QUERY = [
   'Busque fatos que ajudem a criar um material de apoio rico, com fontes confiáveis e linguagem adequada para prova.',
 ].join(' ')
 
-const GROQ_SEARCH_SETTINGS = {
-  country: 'brazil',
-  exclude_domains: ['wikipedia.org', 'youtube.com', 'tiktok.com', 'facebook.com', 'instagram.com'],
-}
 
 const PROFESSOR_TOOL_DEFINITIONS = [
   {
@@ -1034,13 +1030,6 @@ function getEnabledProviders(kind) {
   const providers = kind === 'search'
     ? [
         {
-          id: 'groq',
-          name: 'GROQ',
-          order: PROVIDER_SETTINGS.groq.order,
-          enabled: PROVIDER_SETTINGS.groq.enabled,
-          run: runGroqSearch,
-        },
-        {
           id: 'gemini',
           name: 'GEMINI',
           order: PROVIDER_SETTINGS.gemini.order,
@@ -1628,70 +1617,6 @@ async function runGroqProfessorWithTools({
   })
 }
 
-async function runGroqSearch({ query }) {
-  const apiKey = process.env.GROQ
-  if (!apiKey || apiKey === 'undefined') {
-    throw new Error('GROQ key missing')
-  }
-
-  const payload = {
-    model: 'groq/compound',
-    messages: [
-      {
-        role: 'user',
-        content: [
-          SEARCH_QUERY,
-          '',
-          `Consulta principal: ${query || DEFAULT_THEME_SEARCH_QUERY}`,
-        ].join('\n'),
-      },
-    ],
-    search_settings: GROQ_SEARCH_SETTINGS,
-    response_format: { type: 'json_object' },
-    temperature: 0.2,
-  }
-
-  const data = await postJson(
-    'https://api.groq.com/openai/v1/chat/completions',
-    payload,
-    {
-      Authorization: `Bearer ${apiKey}`,
-    },
-    SEARCH_TIMEOUT_MS,
-  )
-
-  const message = data?.choices?.[0]?.message ?? {}
-  const parsed = parseStructuredCompletion(message.content, {})
-  const rawSearchResults = message.executed_tools?.[0]?.search_results?.results || []
-
-  const cards = ensureArray(parsed.cards).length > 0
-    ? parsed.cards
-    : rawSearchResults.slice(0, 5).map(result => ({
-        titulo: result.title,
-        texto: result.content,
-        fonte: extractDomain(result.url),
-        url: result.url,
-        trecho: result.content,
-        score: result.score,
-      }))
-
-  const fontes = ensureArray(parsed.fontes).length > 0
-    ? parsed.fontes
-    : rawSearchResults.map(result => ({
-        nome: result.title,
-        url: result.url,
-        trecho: result.content,
-      }))
-
-  return normalizeSearchBundle({
-    query,
-    provider: 'GROQ',
-    resumo: parsed.resumo || message.content || '',
-    cards,
-    fontes,
-  })
-}
-
 async function runGeminiSearch({ query }) {
   const apiKey = process.env.GEMINI
   if (!apiKey || apiKey === 'undefined') {
@@ -1950,45 +1875,24 @@ async function runHuggingFaceText({ systemPrompt, userMessages, modelVariant = '
     throw new Error('Hugging Face key missing')
   }
 
-  const prompt = [
-    systemPrompt,
-    '',
-    ...ensureArray(userMessages).map(message => `${message.role === 'assistant' ? 'Assistant' : 'User'}: ${normalizePromptContent(message.content)}`),
-    '',
-    'Return only JSON.',
-  ].join('\n')
-
-  const payload = {
-    inputs: prompt,
-    parameters: {
-      max_new_tokens: 4096,
-      temperature: 0.2,
-      return_full_text: false,
-    },
-    options: {
-      wait_for_model: true,
-    },
-  }
-
+  // O endpoint antigo api-inference.huggingface.co foi substituído pelo router de Inference Providers
+  // (API compatível com OpenAI): https://huggingface.co/docs/inference-providers
   const data = await postJson(
-    `https://api-inference.huggingface.co/models/${resolveProviderModel('huggingface', modelVariant, modelOverride)}`,
-    payload,
+    'https://router.huggingface.co/v1/chat/completions',
+    {
+      model: resolveProviderModel('huggingface', modelVariant, modelOverride),
+      messages: buildOpenAICompatibleMessages(systemPrompt, userMessages),
+      max_tokens: 4096,
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+    },
     {
       Authorization: `Bearer ${apiKey}`,
     },
     TEXT_TIMEOUT_MS + 10000,
   )
 
-  let text = ''
-  if (Array.isArray(data)) {
-    text = data[0]?.generated_text || data[0]?.summary_text || ''
-  } else if (isPlainObject(data)) {
-    text = data.generated_text || data.summary_text || data.text || ''
-  } else if (typeof data === 'string') {
-    text = data
-  }
-
-  const parsed = safeJsonParse(text)
+  const parsed = safeJsonParse(data?.choices?.[0]?.message?.content || '')
   if (!parsed) {
     throw new Error('Hugging Face returned non-JSON content')
   }
