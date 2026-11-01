@@ -12,7 +12,6 @@ import imageConquistasDesktop from '../../assets/Captura de tela 2026-04-11 1652
 import imageConquistasMobile from '../../assets/iPhone-14-Plus-dev--apice-ai.netlify.app.webp';
 
 const DISCOUNTS = { monthly: 0, semiannual: 25, annual: 40 };
-const CONNECTA_URL = 'https://connectabr.digital/';
 
 const RADAR_TEMAS = [
   { titulo: 'Inteligência Artificial e ética no Brasil', area: 'Tecnologia' },
@@ -235,7 +234,6 @@ export default function LandingPage() {
           <div className="lp-footer-col"><h4>Legal</h4><a href={POLICY_URL} target="_blank" rel="noreferrer">Privacidade</a><a href={POLICY_URL} target="_blank" rel="noreferrer">Termos</a></div>
         </div>
         <div className="lp-footer-bottom">
-          <div className="lp-developed-logos"><a href={CONNECTA_URL} target="_blank" rel="noreferrer"><img src="/developed_by_connecta.svg" alt="Desenvolvido por Connecta" className="lp-logo-connecta" /></a></div>
           <p>&copy; {new Date().getFullYear()} Ápice. Todos os direitos reservados.</p>
         </div>
       </footer>
